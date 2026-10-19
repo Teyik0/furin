@@ -164,7 +164,7 @@ export function filePathToPattern(path: string): string {
 
 const REGEX_META_CHARS_RE = /[.*+?^${}()|[\]\\]/;
 
-export function escapeRegExpChar(ch: string): string {
+function escapeRegExpChar(ch: string): string {
   return REGEX_META_CHARS_RE.test(ch) ? `\\${ch}` : ch;
 }
 

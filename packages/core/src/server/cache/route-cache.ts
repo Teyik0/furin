@@ -3,7 +3,7 @@ import type { ResolvedRoute } from "../router/types.ts";
 
 export type RevalidateType = "page" | "layout";
 
-export interface CacheInvalidationResult {
+interface CacheInvalidationResult {
   deleted: boolean;
   purgedPaths: string[];
 }
@@ -58,7 +58,7 @@ export function pathWithRequestSearch(path: string, requestUrl: string): string 
  * `keys`, sorted by name. Undeclared or reordered params therefore share one
  * entry instead of minting a new key per unique URL.
  */
-export function pathWithCanonicalSearch(
+function pathWithCanonicalSearch(
   path: string,
   requestUrl: string,
   keys: ReadonlySet<string>

@@ -3,7 +3,7 @@ import type { SyncInvalidation } from "../../server/sync/adapter.ts";
 import { encodeInvalidationEntry } from "../../shared/invalidation-header.ts";
 import { type QueryIdentity, queryFromTag } from "../../shared/sync-query.ts";
 
-export interface SyncChangePayload {
+interface SyncChangePayload {
   cursor: string;
   invalidations: readonly (string | SyncInvalidation)[];
   queries?: readonly import("../../shared/sync-query.ts").QueryIdentity[];

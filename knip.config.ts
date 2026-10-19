@@ -55,10 +55,8 @@ const config: KnipConfig = {
       ignoreIssues: {
         // discovery.ts loads this export through a runtime-computed module URL.
         "src/build/request-keys.ts": ["exports"],
-        "src/server/auto-invalidate/index.ts": ["exports"],
-        "src/server/cache/index.ts": ["exports", "types"],
-        "src/server/render/index.ts": ["exports", "types"],
-        "src/server/render/ssr.ts": ["types"],
+        // Subprocess test scripts import dev-loader helpers from this barrel as strings.
+        "src/server/cache/index.ts": ["exports"],
       },
       project: ["src/**/*.{ts,tsx}", "tests/fixtures/**/*.prisma"],
     },

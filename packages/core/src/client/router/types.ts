@@ -245,13 +245,13 @@ export type LinkProps<To extends RouteTo = RouteTo> = LinkBaseProps<To> &
   RouteToCheck<To>;
 
 /** Destinations accepted by structured navigation; validated by `CheckedRouteTo`. */
-export type NavigationTo = RouteTo;
+type NavigationTo = RouteTo;
 
 /**
  * Adds a required, self-describing property when `To` is an unknown internal
  * literal, so the compile error names the problem instead of `never`.
  */
-export type RouteToCheck<To extends string> =
+type RouteToCheck<To extends string> =
   CheckedRouteTo<To> extends To ? unknown : { readonly "~furinError": CheckedRouteTo<To> };
 
 /**
@@ -261,7 +261,7 @@ export type RouteToCheck<To extends string> =
  */
 type DestinationLiteral = `/${string}` | `${string}:${string}`;
 
-export type RouteTarget<To extends NavigationTo> = To extends DestinationLiteral
+type RouteTarget<To extends NavigationTo> = To extends DestinationLiteral
   ? { to: To; hash?: string } & SearchProp<RouteSearch<NoInfer<To>>> &
       LinkParams<NoInfer<To>> &
       RouteToCheck<NoInfer<To>>
@@ -283,7 +283,7 @@ export type NavigateInput<To extends NavigationTo> = RouteTarget<To> & Navigatio
 export type Navigate = <To extends NavigationTo>(next: NavigateInput<To>) => Promise<void>;
 
 /** An href string validated like a structured destination (see `CheckedRouteTo`). */
-export type CheckedHref<Href extends string> = Href & RouteToCheck<NoInfer<Href>>;
+type CheckedHref<Href extends string> = Href & RouteToCheck<NoInfer<Href>>;
 
 export interface RouterNavigate {
   <Href extends string>(href: CheckedHref<Href>, opts?: NavigationOptions): Promise<void>;

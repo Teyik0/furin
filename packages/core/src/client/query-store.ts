@@ -79,7 +79,7 @@ export function readReference(method: QueryMethod): ReadReference {
   return (method as unknown as { [QUERY_REFERENCE]: ReadReference })[QUERY_REFERENCE];
 }
 
-export function readUrl(reference: ReadReference, options: unknown): string {
+function readUrl(reference: ReadReference, options: unknown): string {
   const url = new URL(reference.url);
   const query = (options as { query?: { [key: string]: unknown } } | undefined)?.query;
   const append = (key: string, value: unknown) => {

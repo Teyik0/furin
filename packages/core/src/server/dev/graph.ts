@@ -7,7 +7,7 @@ import type { RouteRenderer } from "../router/dispatch.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { WeakRegistry } from "../weak-registry.ts";
 
-export const DEV_ERROR_PROTOCOL_VERSION = 1;
+const DEV_ERROR_PROTOCOL_VERSION = 1;
 
 export type DevErrorPhase = "hydrate" | "import" | "loader" | "render" | "transform";
 

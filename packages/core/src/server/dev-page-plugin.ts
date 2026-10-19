@@ -182,7 +182,7 @@ export function rewriteSingletonImports(source: string): string {
  *
  * @internal exported for testing
  */
-export function injectJsxHelperImports(transpiled: string): string {
+function injectJsxHelperImports(transpiled: string): string {
   // Match mangled JSX helper names. Alternation order matters: try longer
   // prefixes first so "jsxDEV_xxx" isn't partially matched as "jsx_xxx".
   const JSX_HELPER_RE = /\b(jsxDEV|jsxs|jsx|Fragment)_([0-9a-z]{8})\b/g;
@@ -258,7 +258,7 @@ function rewriteRelativeImportsWithVersion(
  *
  * @internal exported for testing
  */
-export function rewriteBareImports(transpiled: string, dir: string): string {
+function rewriteBareImports(transpiled: string, dir: string): string {
   const output = new MagicString(transpiled);
   walkAST(parseSource(transpiled, "js").program, (node) => {
     if (

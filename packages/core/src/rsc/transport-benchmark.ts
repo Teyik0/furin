@@ -1,6 +1,6 @@
 import { buildRouteFrameTemplate } from "../server/render/assemble.ts";
 
-export interface TransportMetrics {
+interface TransportMetrics {
   browserScriptUnits: number;
   compressedBytes: number;
   encodeMs: number;

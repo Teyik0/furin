@@ -170,7 +170,7 @@ function isResolvedRouteModuleCandidate(
   return Object.keys(imported).length > 0;
 }
 
-export async function importFreshRouteModuleCandidate(
+async function importFreshRouteModuleCandidate(
   layoutPath: string,
   resolveImport: RouteModuleImport,
   ctx: CompileContext | null

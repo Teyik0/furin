@@ -15,7 +15,7 @@ export interface ClientReference {
   name: string;
 }
 
-export interface RscCssAsset {
+interface RscCssAsset {
   href: string;
 }
 

@@ -330,7 +330,7 @@ function requestKeysBySegment(route: ResolvedRoute): string[][] | undefined {
   );
 }
 
-export function runRequestLoaderFields(
+function runRequestLoaderFields(
   route: ResolvedRoute,
   ctx: Context
 ):

@@ -18,7 +18,7 @@ export interface SsgSnapshot {
 }
 
 /** A URL whose public document is known at build time. */
-export interface PrerenderPath {
+interface PrerenderPath {
   path: string;
   pattern: string;
 }
@@ -51,7 +51,7 @@ function hasRequestDependentInput(route: ResolvedRoute, root: RootLayout): boole
  * Every SSG/ISR URL known at build time: fixed routes plus the values returned
  * by staticParams(). Routes with a query schema stay on-demand.
  */
-export async function listPrerenderPaths(
+async function listPrerenderPaths(
   routes: ResolvedRoute[],
   root: RootLayout,
   origin: string

@@ -62,7 +62,6 @@ import {
 } from "./template.ts";
 
 // Re-export types consumed by sibling render modules (not a public barrel).
-export type { LoaderContext } from "./assemble.ts";
 export type { LoaderResult } from "./loaders.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -232,7 +231,7 @@ async function requireDocumentStream(
  * to a string) — both start from this same React stream and only diverge in how
  * they consume it and which fields they log.
  */
-export async function renderElementWithShellFallback(
+async function renderElementWithShellFallback(
   element: ReactNode,
   errorComponent: Parameters<typeof buildErrorElement>[0],
   ssrContext: RouterContextValue,

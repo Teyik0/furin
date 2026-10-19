@@ -8,7 +8,7 @@ import type { FurinServerErrorPayload } from "../client/server-error.ts";
  */
 export const ROUTE_MATCHES_KEY = "__furinMatches";
 
-export interface RouteNotFoundPayload {
+interface RouteNotFoundPayload {
   data?: unknown;
   message?: string;
 }

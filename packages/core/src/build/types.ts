@@ -72,7 +72,7 @@ export interface PackageTargetBuildManifest {
   targetDir: string;
 }
 
-export type AnyTargetManifest =
+type AnyTargetManifest =
   | AdapterTargetManifest
   | TargetBuildManifest
   | StaticTargetBuildManifest
@@ -80,7 +80,7 @@ export type AnyTargetManifest =
   | VercelTargetBuildManifest;
 
 /** One mounted app in a multi-instance build. */
-export interface BuildAppSpec {
+interface BuildAppSpec {
   pagesDir: string;
   /** Mount prefix (`""` or absent = root). */
   prefix?: string;

@@ -1,6 +1,6 @@
 import { compareRouteSpecificity } from "./route-specificity.ts";
 
-export type SearchParamValue =
+type SearchParamValue =
   | string
   | number
   | boolean
@@ -61,7 +61,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return false;
 }
 
-export function stripSearchDefaults(
+function stripSearchDefaults(
   search: SearchParamsInput,
   defaults: SearchParamsInput | undefined
 ): SearchParamsInput {
@@ -78,7 +78,7 @@ export function stripSearchDefaults(
   return stripped;
 }
 
-export function appendSearchParamValue(params: URLSearchParams, key: string, value: unknown): void {
+function appendSearchParamValue(params: URLSearchParams, key: string, value: unknown): void {
   if (value === null || value === undefined) {
     return;
   }

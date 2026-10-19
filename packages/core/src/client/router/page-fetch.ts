@@ -16,7 +16,7 @@ import type {
 } from "./types.ts";
 
 /** Why a navigation must leave the SPA and let the browser load the URL. */
-export type HardNavigateReason =
+type HardNavigateReason =
   | "malformed-stream"
   | "missing-route-module"
   | "network-error"

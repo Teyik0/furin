@@ -10,7 +10,7 @@ import { safeJson } from "./shell";
  * it centralised here avoids `<script>`/JS source drift if the name is ever
  * renamed.
  */
-export const FURIN_DEFERRED_GLOBAL = "__FURIN_DEFERRED__";
+const FURIN_DEFERRED_GLOBAL = "__FURIN_DEFERRED__";
 
 // ── Deferred streaming helpers ─────────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ export const FURIN_DEFERRED_GLOBAL = "__FURIN_DEFERRED__";
  * `__FURIN_DATA__` JSON script that the hydrate entry reads.
  *
  */
-export function nonceAttribute(nonce?: string): string {
+function nonceAttribute(nonce?: string): string {
   return nonce === undefined ? "" : ` nonce="${nonce}"`;
 }
 
@@ -158,7 +158,7 @@ export function buildRouteFrameCloseScript(nonce?: string): string {
   return `<script${nonceAttribute(nonce)}>window.__FURIN_ROUTE_FRAME_STREAM__.close()</script>`;
 }
 
-export function buildSyncRuntimeScript(): string {
+function buildSyncRuntimeScript(): string {
   const syncPath = getSyncPath();
   if (!syncPath) {
     return "";
