@@ -139,7 +139,7 @@ export default new Elysia()
   const result = await runCli(["build", "--target", "bun"], { cwd: app.path });
 
   expect(result.exitCode).toBe(1);
-  expect(result.stderr).toContain(
+  expect(result.stderr.replaceAll("\\", "/")).toContain(
     'src/pages" is mounted under both prefix "/" and prefix "/admin"'
   );
   expect(result.stderr).toContain("give each mount its own pages directory");

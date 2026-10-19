@@ -248,7 +248,7 @@ test.serial("furin() rejects one pages directory mounted under two prefixes", as
   const admin = await furin({ pagesDir, prefix: "/admin" });
 
   expect(() => parent.use(admin)).toThrow(
-    `[furin] pagesDir "${pagesDir}" is mounted under both prefix "/" and prefix "/admin". Route ids carry their mount's prefix, so one pages directory serves one mount: give each mount its own pages directory.`
+    `[furin] pagesDir "${pagesDir.replaceAll("\\", "/")}" is mounted under both prefix "/" and prefix "/admin". Route ids carry their mount's prefix, so one pages directory serves one mount: give each mount its own pages directory.`
   );
 });
 

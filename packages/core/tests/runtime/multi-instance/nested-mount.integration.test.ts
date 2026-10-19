@@ -193,7 +193,7 @@ try {
     .use(new Elysia().use(await furin({ pagesDir, prefix: "/one" })))
     .use(new Elysia().use(await furin({ pagesDir, prefix: "/two" })));
   app.listen({ hostname: "127.0.0.1", port: 0 });
-  const expected = 'pagesDir "' + pagesDir + '" is mounted under both prefix "/one" and prefix "/two"';
+  const expected = 'pagesDir "' + pagesDir.replaceAll("\\\\", "/") + '" is mounted under both prefix "/one" and prefix "/two"';
   const deadline = Date.now() + 3000;
   while (!failures.join("\\n").includes(expected) && Date.now() < deadline) await Bun.sleep(10);
   console.error = consoleError;
