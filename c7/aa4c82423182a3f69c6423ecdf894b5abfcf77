@@ -1,0 +1,29 @@
+packages/core/src/adapter/vercel.ts
+  s_3827fec5c7f2ed::t_52c623ba53708d 443
+  s_3827fec5c7f2ed::t_bd24d0d601f447 15-19
+  s_3827fec5c7f2ed::t_11333a81c3e2f0 136-139,144
+packages/core/src/build/virtual-entry.ts
+  s_3827fec5c7f2ed::t_7aaabba54b199d 15
+  s_3827fec5c7f2ed::t_5fa1530dd64341 1
+packages/core/tests/routing/discovery/patterns.test.ts
+  s_3827fec5c7f2ed::t_e223bf86933a48 154-170
+  s_3827fec5c7f2ed::t_278f41cdf7ea1b 7,9
+packages/core/src/server/router/patterns.ts
+  s_3827fec5c7f2ed::t_aee75a4cb6e23a 165,167-168,172-175,177-180,192,195,200,205-216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c7aa4c82423182a3f69c6423ecdf894b5abfcf77",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
