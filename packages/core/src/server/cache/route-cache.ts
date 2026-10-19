@@ -1,4 +1,5 @@
 import type { Context } from "elysia";
+import { isInvalidatedPath } from "../../shared/invalidation-header.ts";
 import type { ResolvedRoute } from "../router/types.ts";
 
 export type RevalidateType = "page" | "layout";
@@ -103,14 +104,6 @@ export function canonicalCacheRequest(
   };
 }
 
-function matchesPath(urlPath: string, path: string, type: RevalidateType): boolean {
-  if (type === "page") {
-    return urlPath === path;
-  }
-  const prefix = path === "/" || path.endsWith("/") ? path : `${path}/`;
-  return urlPath === path || urlPath.startsWith(prefix);
-}
-
 export function createRouteCache<Entry>(options: RouteCacheOptions<Entry>): Cache<Entry> {
   const store = new Map<string, Entry>();
   const generations = new Map<string, Set<CacheGeneration>>();
@@ -187,7 +180,7 @@ export function createRouteCache<Entry>(options: RouteCacheOptions<Entry>): Cach
 
       for (const key of new Set([...store.keys(), ...generations.keys()])) {
         const urlPath = pathFromKey(key);
-        if (urlPath === null || !matchesPath(urlPath, path, type)) {
+        if (urlPath === null || !isInvalidatedPath(urlPath, path, type)) {
           continue;
         }
         if (deleteEntry(key)) {

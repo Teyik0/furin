@@ -20,6 +20,18 @@ export function decodeInvalidationEntry(entry: string): { path: string; type: "p
   }
 }
 
+/**
+ * Whether an invalidation of `path` covers `urlPath`: a page invalidation
+ * covers the path itself, a layout invalidation also every path below it.
+ */
+export function isInvalidatedPath(urlPath: string, path: string, type: "page" | "layout"): boolean {
+  if (type === "page") {
+    return urlPath === path;
+  }
+  const prefix = path === "/" || path.endsWith("/") ? path : `${path}/`;
+  return urlPath === path || urlPath.startsWith(prefix);
+}
+
 /** Entries have already escaped their paths separately from the type marker. */
 export function serializeInvalidationPaths(paths: readonly string[]): string {
   return paths.join(",");

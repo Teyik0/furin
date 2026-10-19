@@ -1,4 +1,4 @@
-import { decodeInvalidationEntry } from "../../shared/invalidation-header.ts";
+import { decodeInvalidationEntry, isInvalidatedPath } from "../../shared/invalidation-header.ts";
 import { isWithinPrefix } from "../../shared/prefix.ts";
 import {
   buildSearchParams,
@@ -193,17 +193,9 @@ export function shouldAutoRefreshPath(
       .map((segment) => encodeURIComponent(decodeHashFragment(segment).toWellFormed()))
       .join("/");
   const normalizedCurrent = normalize(currentPath.split("?")[0] ?? currentPath);
-  return invalidations.some(({ path, type }) => {
-    const normalizedPath = normalize(path);
-    if (type === "page") {
-      return normalizedPath === normalizedCurrent;
-    }
-    const prefix =
-      normalizedPath === "/" || normalizedPath.endsWith("/")
-        ? normalizedPath
-        : `${normalizedPath}/`;
-    return normalizedCurrent === normalizedPath || normalizedCurrent.startsWith(prefix);
-  });
+  return invalidations.some(({ path, type }) =>
+    isInvalidatedPath(normalizedCurrent, normalize(path), type)
+  );
 }
 
 export function stripHashFromHref(href: string): string {

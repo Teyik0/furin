@@ -1,5 +1,6 @@
 import { statSync } from "node:fs";
 import { relative } from "node:path";
+import { isInvalidatedPath } from "../../shared/invalidation-header.ts";
 import { autoInvalidateRegistry } from "../auto-invalidate/registry";
 import { devGraph } from "../dev/graph.ts";
 import {
@@ -186,18 +187,10 @@ export function invalidateDevLoaderCacheByPath(
   let isr = 0;
   let ssg = 0;
 
-  const matches = (urlPath: string): boolean => {
-    if (type === "page") {
-      return urlPath === path;
-    }
-    const prefix = path === "/" || path.endsWith("/") ? path : `${path}/`;
-    return urlPath === path || urlPath.startsWith(prefix);
-  };
-
   for (const handle of [state.isr, state.ssg]) {
     for (const key of [...handle.cache.keys()]) {
       const urlPath = urlPathFromCacheKey(key);
-      if (urlPath === null || !matches(urlPath)) {
+      if (urlPath === null || !isInvalidatedPath(urlPath, path, type)) {
         continue;
       }
       const entry = handle.cache.get(key);
