@@ -31,7 +31,7 @@
  *
  * ## Bare specifier rewriting
  *
- * When `onLoad` returns `loader: "js"`, Bun resolves bare specifiers
+ * In a virtual namespace, Bun resolves bare specifiers
  * (e.g. `@teyik0/furin/link`, `shiki`) from the process CWD — not from the
  * page file's directory.  On a cold start the CWD and the file's directory
  * often agree, but after `bun --hot` re-evaluates the server the module
@@ -40,7 +40,7 @@
  * one already cached by `react-dom/server`.  The result is the classic
  * "two React copies" crash: `dispatcher.useState === null`.
  *
- * Fix: after transpilation, resolve every bare specifier from the page
+ * Fix: before returning the source, resolve every bare specifier from the page
  * file's directory via `Bun.resolveSync` and replace it with the
  * canonical on-disk path.  This pins each import to exactly the same
  * file-system location that Bun's native module resolver would choose,
@@ -60,8 +60,7 @@ import { publishDevError } from "./dev/error.ts";
 import { developmentGraphs, resolveDevSourceImports } from "./dev/graph.ts";
 import { DevTransformFailure } from "./dev/transform-failure.ts";
 import {
-  injectJsxHelperImports,
-  restoreImportAttributes,
+  pinJsxRuntime,
   rewriteBareImports,
   rewriteRelativeImportsWithVersion,
   rewriteSingletonImports,
@@ -191,23 +190,15 @@ export function transformDevSource(
           `${filePath}?furin-render&t=${routeModuleSourceVersion(filePath)}`
         );
     const serverSource = split?.contract ?? isomorphicSource;
-    const sourceForTranspile = options.rewriteRelativeImports
+    let result = options.rewriteRelativeImports
       ? rewriteRelativeImportsWithVersion(serverSource, filePath, true)
       : serverSource;
-    const transpiler = new Bun.Transpiler({ loader });
-    const transpiled = restoreImportAttributes(
-      sourceForTranspile,
-      transpiler.transformSync(sourceForTranspile, loader),
-      loader
-    );
-
-    let result = transpiled;
     if (options.rewriteBareImports) {
-      result = rewriteBareImports(result, dirname(filePath));
+      result = rewriteBareImports(result, dirname(filePath), loader);
     }
 
-    result = rewriteSingletonImports(result);
-    return injectJsxHelperImports(result);
+    result = rewriteSingletonImports(result, loader);
+    return pinJsxRuntime(result, loader);
   } catch (error) {
     return rethrowWithSourcePath(error, filePath);
   }
@@ -281,7 +272,7 @@ export function registerDevPagePlugin(): void {
             rewriteBareImports: true,
             rewriteRelativeImports: true,
           }),
-          loader: "js",
+          loader: detectLoaderFromPath(filePath),
         };
       });
       // Keep an already-loaded module generation usable if its source is
@@ -312,9 +303,9 @@ export function registerDevPagePlugin(): void {
        * re-import React through a different logical path than react-dom/server,
        * which recreates the classic "dispatcher is null" invalid hook crash.
        *
-       * Pre-transpile those files and rewrite only the React singleton imports
-       * so every SSR module observes the exact same React instance, while still
-       * keeping the files in Bun's watched graph for root.tsx HMR.
+       * Rewrite only the React singleton imports and the JSX runtime so every
+       * SSR module observes the exact same React instance, while still keeping
+       * the files in Bun's watched graph for root.tsx HMR.
        */
       build.onLoad({ filter: WORKSPACE_SOURCE_FILTER }, async (args) => {
         const raw = await Bun.file(args.path).text();
@@ -348,7 +339,7 @@ export function registerDevPagePlugin(): void {
 
         return {
           contents,
-          loader: "js",
+          loader,
         };
       });
 
@@ -357,7 +348,7 @@ export function registerDevPagePlugin(): void {
        * this handler is called for each edited source version; strip it before
        * file I/O.
        *
-       * ## Why we pre-transpile with Bun.Transpiler
+       * ## Why specifiers are rewritten in the source
        *
        * Bun's runtime plugin system (used by `bun --hot`) does NOT route
        * sub-imports from virtual-namespace modules through `onResolve` hooks —
@@ -368,14 +359,14 @@ export function registerDevPagePlugin(): void {
        *
        *  1. **Relative imports** (`./root`, `../utils`) — no real directory
        *     context in the virtual namespace → Bun fails to resolve them.
-       *  2. **Auto-injected JSX runtime** — `import { jsx } from
+       *  2. **Auto-injected JSX runtime** — `import { jsxDEV } from
        *     "react/jsx-dev-runtime"` added by Bun's TSX transpiler AFTER
-       *     `onLoad` returns → cannot be rewritten in the source text.
+       *     `onLoad` returns, resolved from the process CWD.
        *
-       * Solution: pre-transpile the source with `Bun.Transpiler` ourselves,
-       * then rewrite all specifiers in the resulting JS text before returning
-       * it with `loader: "js"` (which Bun loads as-is, with no further
-       * transpilation or automatic import injection):
+       * Solution: rewrite the specifiers in the TS/TSX source and return it
+       * with its own loader. Bun transpiles it and maps stack frames to the
+       * returned text (it ignores an `onLoad` sourcemap), so every rewrite
+       * stays on its line:
        *
        *  • `rewriteRelativeImports` → converts `./root` to `/abs/path/root`
        *  • `rewriteBareImports` → resolves ALL bare specifiers (including
@@ -384,8 +375,8 @@ export function registerDevPagePlugin(): void {
        *    bun --hot re-evaluation.
        *  • `rewriteSingletonImports` → belt-and-suspenders for react singletons
        *    (covered by rewriteBareImports but kept for safety).
-       *  • `injectJsxHelperImports` → adds the JSX helper imports that
-       *    `Bun.Transpiler` emits as free variables without corresponding imports.
+       *  • `pinJsxRuntime` → points the auto-injected JSX runtime import at the
+       *    same React package with an `@jsxImportSource` pragma.
        */
       build.onLoad({ filter: ANY_FILTER, namespace: "furin-dev-page" }, async (args) => {
         const filePath = args.path.replace(STRIP_T_PARAM_RE, "");
@@ -393,7 +384,7 @@ export function registerDevPagePlugin(): void {
 
         return {
           contents,
-          loader: "js", // Already fully transpiled — skip Bun's own TSX step.
+          loader: detectLoaderFromPath(filePath),
         };
       });
     },

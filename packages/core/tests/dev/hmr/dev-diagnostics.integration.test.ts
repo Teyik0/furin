@@ -14,7 +14,7 @@ interface EmbeddedDiagnosticState {
     diagnostic: {
       cause: string | undefined;
       importChain: readonly string[];
-      location: { file: string } | undefined;
+      location: { file: string; line: number } | undefined;
       message: string;
       phase: string;
       route: string;
@@ -453,6 +453,100 @@ throw new Error("recovery exploded");`
     expect(state?.event.diagnostic.phase).toBe("render");
     expect(state?.event.diagnostic.message).toBe("render exploded");
     expect(state?.event.diagnostic.location?.file).toContain("src/pages/index.tsx");
+  }, 20_000);
+
+  test("a server render failure is located on its source line below TypeScript-only code", async () => {
+    writeAppFile(
+      app.path,
+      "src/pages/index.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import type { ReactNode } from "react";',
+        'import { route as rootRoute } from "./root";',
+        "",
+        "interface Props {",
+        "  label: string;",
+        "}",
+        "",
+        "type Rendered = ReactNode;",
+        "",
+        "function Typed({ label }: Props): Rendered {",
+        "  const prefix: string = label;",
+        '  throw new Error(prefix + " exploded", { cause: "typed" });',
+        "}",
+        "",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr" })',
+        '  .page(() => <Typed label="typed render" />);',
+      ].join("\n")
+    );
+
+    let state: EmbeddedDiagnosticState | undefined;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const html = await (await fetch(`http://localhost:${port}/`)).text();
+      const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: the diagnostic state may not yet be available.
+      if (stateMatch?.[1]) {
+        state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
+        if (state.event.diagnostic.message === "typed render exploded") {
+          break;
+        }
+      }
+      await Bun.sleep(250);
+    }
+
+    expect(state?.event.diagnostic.message).toBe("typed render exploded");
+    expect(state?.event.diagnostic.location?.file).toContain("src/pages/index.tsx");
+    expect(state?.event.diagnostic.location?.line).toBe(13);
+  }, 20_000);
+
+  test("an imported component render failure is located on its source line", async () => {
+    writeAppFile(
+      app.path,
+      "src/components/typed-card.tsx",
+      [
+        'import type { ReactNode } from "react";',
+        "",
+        "interface CardProps {",
+        "  title: string;",
+        "}",
+        "",
+        "export function TypedCard({ title }: CardProps): ReactNode {",
+        '  throw new Error((title satisfies string) + " exploded", { cause: "typed" });',
+        "}",
+      ].join("\n")
+    );
+    writeAppFile(
+      app.path,
+      "src/pages/index.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { TypedCard } from "../components/typed-card";',
+        'import { route as rootRoute } from "./root";',
+        "",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr" })',
+        '  .page(() => <TypedCard title="typed card" />);',
+      ].join("\n")
+    );
+
+    let state: EmbeddedDiagnosticState | undefined;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const html = await (await fetch(`http://localhost:${port}/`)).text();
+      const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: the diagnostic state may not yet be available.
+      if (stateMatch?.[1]) {
+        state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
+        if (state.event.diagnostic.message === "typed card exploded") {
+          break;
+        }
+      }
+      await Bun.sleep(250);
+    }
+
+    expect(state?.event.diagnostic.message).toBe("typed card exploded");
+    expect(state?.event.diagnostic.location?.file).toContain("src/components/typed-card.tsx");
+    expect(state?.event.diagnostic.location?.line).toBe(8);
   }, 20_000);
 
   test("an SSG render failure is classified as render rather than import", async () => {

@@ -365,13 +365,13 @@ describe("rewriteSingletonImports", () => {
       export const template = \`export { useState } from "react";\`;
       // import React from "react";
       /* import "react/jsx-runtime"; */`;
-    expect(rewriteSingletonImports(input)).toBe(input);
+    expect(rewriteSingletonImports(input, "tsx")).toBe(input);
   });
   // Helper: check that the output is different from the input (i.e. a rewrite
   // actually happened) and that the absolute path no longer contains the bare
   // specifier wrapped in quotes.
   function wasRewritten(input: string, pkg: string): boolean {
-    const output = rewriteSingletonImports(input);
+    const output = rewriteSingletonImports(input, "tsx");
     return output !== input && !output.includes(`"${pkg}"`);
   }
 
@@ -421,17 +421,17 @@ describe("rewriteSingletonImports", () => {
 
   test("does NOT rewrite non-singleton packages", () => {
     const input = 'import { clsx } from "clsx";';
-    expect(rewriteSingletonImports(input)).toBe(input);
+    expect(rewriteSingletonImports(input, "tsx")).toBe(input);
   });
 
   test("does NOT rewrite react-adjacent packages like 'react-query'", () => {
     const input = 'import { useQuery } from "react-query";';
-    expect(rewriteSingletonImports(input)).toBe(input);
+    expect(rewriteSingletonImports(input, "tsx")).toBe(input);
   });
 
   test("does NOT rewrite relative imports", () => {
     const input = 'import { foo } from "./react";';
-    expect(rewriteSingletonImports(input)).toBe(input);
+    expect(rewriteSingletonImports(input, "tsx")).toBe(input);
   });
 
   test("rewrites multiple react imports in one source", () => {
@@ -440,7 +440,7 @@ describe("rewriteSingletonImports", () => {
       'import { jsx } from "react/jsx-runtime";',
       'import { clsx } from "clsx";',
     ].join("\n");
-    const output = rewriteSingletonImports(input);
+    const output = rewriteSingletonImports(input, "tsx");
     expect(output).not.toContain('"react"');
     expect(output).not.toContain('"react/jsx-runtime"');
     // Non-singleton unchanged
@@ -449,7 +449,7 @@ describe("rewriteSingletonImports", () => {
 
   test("output contains a normalized absolute path", () => {
     const input = 'import { useState } from "react";';
-    const output = rewriteSingletonImports(input);
+    const output = rewriteSingletonImports(input, "tsx");
     expect(output).not.toContain("\\");
     expect(output).not.toContain('from "react"');
   });

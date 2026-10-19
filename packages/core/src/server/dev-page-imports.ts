@@ -1,14 +1,13 @@
 /**
  * Import rewriting for development modules served from a virtual namespace:
- * pins React packages to one on-disk instance, injects the JSX helper imports
- * Bun.Transpiler leaves implicit, resolves relative and bare specifiers from
- * the source file, and restores import attributes the transpiler drops.
+ * pins React packages and the JSX runtime to one on-disk instance and resolves
+ * relative and bare specifiers from the source file. Each edit stays on its
+ * line, so Bun's own transpiler reports source line numbers in stack traces.
  */
 
-import { isAbsolute, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, isAbsolute, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import MagicString from "magic-string";
-import type { Node, NodeOfType } from "yuku-parser";
 import { parseSource } from "../shared/parser.ts";
 import { walkAST } from "../shared/utils/ast-walk.ts";
 import { rewriteModuleSpecifiers } from "./dev/rewrite-module-specifiers.ts";
@@ -16,8 +15,6 @@ import { routeModuleSourceVersion } from "./router/source-version.ts";
 
 export const WORKSPACE_SOURCE_FILTER =
   /^(?!.*(?:[\\/]node_modules[\\/]|[\\/]\.bun[\\/]))(?!.*\.(?:test|spec)\.(?:[cm]?[jt]s|[jt]sx)$).*\.(?:m?[jt]s|[jt]sx)$/;
-
-const IMPORT_ATTRIBUTES_RE = /\b(?:with|assert)\s*\{/;
 
 export type SourceLoader = "js" | "jsx" | "ts" | "tsx";
 
@@ -28,9 +25,8 @@ export type SourceLoader = "js" | "jsx" | "ts" | "tsx";
 // (the hooks dispatcher) is shared between react-dom/server and the page.
 //
 // We resolve the absolute on-disk path once at module-evaluation time and
-// rewrite every explicit import in the transpiled source to use that path.
-// The auto-injected jsx-dev-runtime import (added by Bun.Transpiler AFTER the
-// source is transformed) is handled by injectJsxHelperImports below.
+// rewrite every explicit import in the source to use that path. The JSX
+// runtime import that Bun's transpiler adds is pinned by pinJsxRuntime below.
 
 /** React packages that must share a single instance across the module graph. */
 const SINGLETON_PKGS = [
@@ -70,9 +66,9 @@ export function toImportSpecifier(filePath: string): string {
  *
  * @internal exported for testing
  */
-export function rewriteSingletonImports(source: string): string {
+export function rewriteSingletonImports(source: string, loader: SourceLoader): string {
   const result = new MagicString(source);
-  for (const statement of parseSource(source, "tsx").program.body) {
+  for (const statement of parseSource(source, loader).program.body) {
     if (
       statement.type !== "ImportDeclaration" &&
       statement.type !== "ExportNamedDeclaration" &&
@@ -93,72 +89,18 @@ export function rewriteSingletonImports(source: string): string {
 }
 
 /**
- * `Bun.Transpiler.transformSync` converts JSX syntax to function calls using
- * mangled helper names (e.g. `jsxDEV_7x81h0kn`, `Fragment_8vg9x3sq`) but does
- * NOT emit the corresponding import statement — it expects Bun's full bundler
- * pipeline to inject it later.
- *
- * When we return pre-transpiled JS from `onLoad`, that pipeline step never
- * runs, leaving the helpers as undefined free variables.  This function scans
- * the transpiled source, detects which mangled helper names are used, and
- * prepends the correct import statements using absolute on-disk paths from
- * `SINGLETON_PATHS`.
- *
- * Helper → package mapping:
- *   jsxDEV_*   → `{ jsxDEV  as … }` from react/jsx-dev-runtime
- *   Fragment_*  → `{ Fragment as … }` from react/jsx-dev-runtime
- *   jsx_*       → `{ jsx    as … }` from react/jsx-runtime  (prod only)
- *   jsxs_*      → `{ jsxs   as … }` from react/jsx-runtime  (prod only)
- *
- * @internal exported for testing
+ * Bun's transpiler imports the JSX runtime by its bare specifier, which a
+ * virtual-namespace module resolves from the process CWD rather than from the
+ * page. A leading `@jsxImportSource` pragma pins it to the React instance of
+ * `react-dom/server`. The pragma is a file URL because it ends at whitespace,
+ * and it shares the first line so every source line keeps its number.
  */
-export function injectJsxHelperImports(transpiled: string): string {
-  // Match mangled JSX helper names. Alternation order matters: try longer
-  // prefixes first so "jsxDEV_xxx" isn't partially matched as "jsx_xxx".
-  const JSX_HELPER_RE = /\b(jsxDEV|jsxs|jsx|Fragment)_([0-9a-z]{8})\b/g;
-
-  // Package → Map<varName, exportName>
-  const devRuntime = new Map<string, string>(); // react/jsx-dev-runtime
-  const prodRuntime = new Map<string, string>(); // react/jsx-runtime
-
-  for (const [, base, hash] of transpiled.matchAll(JSX_HELPER_RE)) {
-    if (!(base && hash)) {
-      continue;
-    }
-    const varName = `${base}_${hash}`;
-    if (base === "jsxDEV" || base === "Fragment") {
-      devRuntime.set(varName, base);
-    } else {
-      prodRuntime.set(varName, base);
-    }
+export function pinJsxRuntime(source: string, loader: SourceLoader): string {
+  const runtime = SINGLETON_PATHS.get("react/jsx-dev-runtime");
+  if (!runtime || loader === "ts") {
+    return source;
   }
-
-  const lines: string[] = [];
-
-  if (devRuntime.size > 0) {
-    const absPath = SINGLETON_PATHS.get("react/jsx-dev-runtime");
-    if (absPath) {
-      const specifiers = [...devRuntime.entries()]
-        .map(([varName, exportName]) => `${exportName} as ${varName}`)
-        .join(", ");
-      lines.push(`import { ${specifiers} } from ${JSON.stringify(absPath)};`);
-    }
-  }
-
-  if (prodRuntime.size > 0) {
-    const absPath = SINGLETON_PATHS.get("react/jsx-runtime");
-    if (absPath) {
-      const specifiers = [...prodRuntime.entries()]
-        .map(([varName, exportName]) => `${exportName} as ${varName}`)
-        .join(", ");
-      lines.push(`import { ${specifiers} } from ${JSON.stringify(absPath)};`);
-    }
-  }
-
-  if (lines.length === 0) {
-    return transpiled;
-  }
-  return `${lines.join("\n")}\n${transpiled}`;
+  return `/** @jsxImportSource ${pathToFileURL(dirname(runtime)).href} */ ${source}`;
 }
 
 /** @internal exported for testing */
@@ -188,9 +130,9 @@ export function rewriteRelativeImportsWithVersion(
  *
  * @internal exported for testing
  */
-export function rewriteBareImports(transpiled: string, dir: string): string {
-  const output = new MagicString(transpiled);
-  walkAST(parseSource(transpiled, "js").program, (node) => {
+export function rewriteBareImports(source: string, dir: string, loader: SourceLoader): string {
+  const output = new MagicString(source);
+  walkAST(parseSource(source, loader).program, (node) => {
     if (
       node.type !== "ImportDeclaration" &&
       node.type !== "ExportNamedDeclaration" &&
@@ -232,79 +174,5 @@ export function rewriteBareImports(transpiled: string, dir: string): string {
     }
     output.update(literal.start, literal.end, JSON.stringify(resolved));
   });
-  return output.toString();
-}
-
-type SourceDeclaration = NodeOfType<
-  "ExportAllDeclaration" | "ExportNamedDeclaration" | "ImportDeclaration"
->;
-
-function isSourceDeclaration(node: Node): node is SourceDeclaration {
-  return (
-    node.type === "ImportDeclaration" ||
-    node.type === "ExportNamedDeclaration" ||
-    node.type === "ExportAllDeclaration"
-  );
-}
-
-function isTypeOnly(declaration: SourceDeclaration): boolean {
-  if (
-    (declaration.type === "ImportDeclaration" ? declaration.importKind : declaration.exportKind) ===
-    "type"
-  ) {
-    return true;
-  }
-  const specifiers = declaration.type === "ExportAllDeclaration" ? [] : declaration.specifiers;
-  return (
-    specifiers.length > 0 &&
-    specifiers.every(
-      (specifier) =>
-        (specifier.type === "ImportSpecifier" && specifier.importKind === "type") ||
-        (specifier.type === "ExportSpecifier" && specifier.exportKind === "type")
-    )
-  );
-}
-
-// Bun.Transpiler drops static import attributes, turning text imports into file paths.
-export function restoreImportAttributes(
-  source: string,
-  transpiled: string,
-  loader: SourceLoader
-): string {
-  if (!IMPORT_ATTRIBUTES_RE.test(source)) {
-    return transpiled;
-  }
-
-  const declarations = parseSource(source, loader).program.body.filter(isSourceDeclaration);
-  const output = new MagicString(transpiled);
-  const emitted = parseSource(transpiled, "js").program.body.filter(isSourceDeclaration);
-  const matched = new Set<SourceDeclaration>();
-  for (const declaration of declarations) {
-    if (isTypeOnly(declaration)) {
-      continue;
-    }
-    const sourcePath = declaration.source?.value;
-    if (sourcePath === undefined) {
-      continue;
-    }
-    const target = emitted.find(
-      (node) =>
-        !matched.has(node) && node.type === declaration.type && node.source?.value === sourcePath
-    );
-    if (!target) {
-      continue;
-    }
-    matched.add(target);
-    const { attributes } = declaration;
-    if (!attributes.length || target.attributes.length) {
-      continue;
-    }
-    const [first] = attributes;
-    const last = attributes.at(-1);
-    const imported = target.source;
-    if (first && last && imported) {
-      output.appendLeft(imported.end, ` with { ${source.slice(first.start, last.end)} }`);
-    }
-  }
   return output.toString();
 }

@@ -5,6 +5,7 @@
  * Regression test for: "dispatcher is null" hook crash on HMR.
  */
 import { describe, expect, test } from "bun:test";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createElement, createContext as mainCreateContext, useState as mainUseState } from "react";
 import { renderToString } from "react-dom/server";
@@ -215,6 +216,27 @@ describe("furin-dev-page React singleton", () => {
             )
           )
         ).not.toThrow();
+      }
+    ));
+
+  test("a page's JSX runtime is the project React when the server runs from another directory", () =>
+    withTmpPage(
+      TMP_DIR,
+      "export default function Page() { return <main>pinned</main>; }",
+      async (pagePath) => {
+        const script = `
+          const plugin = await import(${JSON.stringify(join(CORE_DIR, "src/server/dev-page-plugin.ts"))});
+          plugin.registerDevPagePlugin();
+          const page = await import(${JSON.stringify(`${pagePath}?furin-server&t=1`)});
+          page.default();
+          console.log(JSON.stringify(Object.keys(require.cache).filter((path) => path.endsWith("jsx-dev-runtime.js"))));
+        `;
+        const child = Bun.spawn(["bun", "-e", script], { cwd: tmpdir(), stderr: "pipe" });
+
+        expect(await new Response(child.stderr).text()).toBe("");
+        expect(JSON.parse(await new Response(child.stdout).text())).toEqual([
+          Bun.resolveSync("react/jsx-dev-runtime", CORE_DIR),
+        ]);
       }
     ));
 });
