@@ -77,7 +77,7 @@ const adapter: FurinAdapter = {
 
 Furin owns the rest of the build: client bundles, the one ordered server plugin chain, Elysia AOT and the prerender pass. Capabilities are baked into the build, so the runtime never checks for a platform name: it picks the browser-event transport, skips asset serving and rejects `furin({ pageCache })` from them.
 
-Prerendering always runs **inside the built server bundle**, in a child process. That pass lists the SSG and ISR URLs known at build time and, when Furin caches public pages, renders the SSG documents into `furin-prerender.json` next to the bundle. The build never renders pages from source in its own process.
+Prerendering always runs **inside the built server bundle**, in a child process. That pass lists the SSG and ISR URLs known at build time and, when Furin caches public pages, renders the SSG documents into `furin-prerender.json` next to the bundle. The [static export](#static-export) renders from a temporary bundle in the same way. The build never renders pages from source in its own process.
 
 ## Bun Server Bundle
 
@@ -290,6 +290,12 @@ dist/
 ```
 
 Each rendered path also receives a route-data file so SPA navigation works without the runtime `?_furin=data` requests. Redirect loaders become portable HTML redirect pages.
+
+Like the server targets, the export renders built code. Furin bundles the app into a temporary production bundle under `.furin/build/static/`, with the same plugin chain as a server bundle. It renders every page in a child process, then deletes the bundle. This has three consequences:
+
+- Pages, loaders and `staticParams()` run with `NODE_ENV=production` and React's production renderer.
+- `import.meta.dir` and `import.meta.url` point into the temporary bundle, which is deleted after the build. Read content files relative to `process.cwd()` instead: the export runs from the project root.
+- `dist/` is replaced only after every page has rendered and every output path has been validated. A failed export leaves the previous `dist/` in place.
 
 Static export supports only SSG routes and rejects `requestLoader()`. Dynamic SSG routes require `staticParams()`. Keep `onSSR: "error"` unless another deployment deliberately owns the skipped SSR/ISR URLs.
 
