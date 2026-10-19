@@ -1,0 +1,28 @@
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_553967112fee2c::t_5fa8ba4c91bbc0 423-443
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  s_553967112fee2c::t_bb2de8481edf89 187-189,458-474,476-528,532-534
+  s_553967112fee2c::t_26cca325668d40 475
+  s_553967112fee2c::t_2fd2b4e2ea14b1 529-531
+  s_553967112fee2c::t_4b8a975b8cb6d0 535-536
+packages/core/src/server/dev/runtime.ts
+  s_553967112fee2c::t_179747890a617d 41-68,147-151,323
+  s_553967112fee2c::t_26cca325668d40 152,156
+  s_553967112fee2c::t_fb92cbd64ba258 153-155,157-165,285
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c357ed5a315d5d98aefedcfb82468ffc05ba772a",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
