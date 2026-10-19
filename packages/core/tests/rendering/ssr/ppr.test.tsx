@@ -1301,6 +1301,83 @@ describe.serial("partial prerendering", () => {
     }
   });
 
+  /** A deployment runtime cache, as the Vercel handler installs, recording public shell writes. */
+  function installDeploymentCache(): string[] {
+    const values = new Map<string, unknown>();
+    const writes: string[] = [];
+    setRuntimeCacheProvider({
+      getCache: () => ({
+        delete: () => Promise.resolve(),
+        expireTag: () => Promise.resolve(),
+        get: (key) => Promise.resolve(values.get(key) ?? null),
+        set: (key, value) => {
+          values.set(key, value);
+          writes.push(key);
+          return Promise.resolve();
+        },
+      }),
+    });
+    return writes;
+  }
+
+  function mountQueryAccount(onPublic: () => void, onPrivate: () => void) {
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{use(data)}</strong>;
+    }
+    return mountAccount(
+      defineRoute()
+        .config({
+          layout: rootTerminal,
+          mode: "isr",
+          query: t.Object({ view: t.Optional(t.String()) }),
+          revalidate: 60,
+        })
+        .requestLoader(() => {
+          onPrivate();
+          return { user: "alice" };
+        })
+        .loader(({ query }) => {
+          onPublic();
+          return { view: query.view ?? "" };
+        })
+        .page(({ user, view }) => (
+          <main>
+            <h1>{view}</h1>
+            <Suspense fallback={<span>Loading</span>}>
+              <User data={user} />
+            </Suspense>
+          </main>
+        )),
+      undefined
+    );
+  }
+
+  test("PPR navigation data shares one public shell per canonical query and stays private", async () => {
+    const writes = installDeploymentCache();
+    let publicCalls = 0;
+    let privateCalls = 0;
+    const { app } = await mountQueryAccount(
+      () => {
+        publicCalls += 1;
+      },
+      () => {
+        privateCalls += 1;
+      }
+    );
+
+    for (const search of ["?view=alpha&junk=1&_furin=data", "?_furin=data&junk=2&view=alpha"]) {
+      // biome-ignore lint/performance/noAwaitInLoops: later requests must observe the first cache fill.
+      const response = await app.handle(new Request(`http://localhost/account${search}`));
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      await response.text();
+    }
+
+    expect(publicCalls).toBe(1);
+    expect(privateCalls).toBe(2);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toContain('"isr:/account?view=alpha"');
+  });
+
   test("external prerender bypasses shared and local PPR artifacts", async () => {
     let publicCalls = 0;
     const route = defineRoute()
