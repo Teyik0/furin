@@ -1,0 +1,138 @@
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_4958c7c47e1061::t_172f32d46bb406 1335
+packages/core/src/server/sync/queries.ts
+  s_4958c7c47e1061::t_fed275dae8aeaa 140
+  s_4958c7c47e1061::t_081670527491ab 59-61,63-66,68-73,95-97,111-123,138,141-146
+  s_4958c7c47e1061::t_f8ce58123800e7 11,74,90-94,98-110
+  s_4958c7c47e1061::t_35d87323f6e0c2 77-79
+  s_4958c7c47e1061::t_c5aa57d307b6ed 80
+packages/core/tests/helpers/sync-adapter-conformance.ts
+  s_4958c7c47e1061::t_a099099e7bfce0 111-122
+packages/core/src/server/sync/sqlite/index.ts
+  s_4958c7c47e1061::t_843f84d493492b 200-204,206,231-288
+packages/core/tests/runtime/sync/sync-response.test.ts
+  s_4958c7c47e1061::t_172f32d46bb406 24
+  s_4958c7c47e1061::t_258d55d1cbe4b6 44
+packages/core/tests/client/sync/sync-runtime.test.ts
+  s_4958c7c47e1061::t_172f32d46bb406 17
+packages/core/src/server/sync/runtime.ts
+  s_4958c7c47e1061::t_bde8b7c772cbf0 15-25
+packages/core/tests/runtime/production-server.test.ts
+  s_4958c7c47e1061::t_172f32d46bb406 455,546
+apps/docs/src/content/docs/sync.mdx
+  s_4958c7c47e1061::t_4a07d10a4b2423 88-92,96,127,130,133,151,165,176-187,572
+apps/docs/src/content/docs/caching.mdx
+  s_4958c7c47e1061::t_1b9d9cf8488a70 177,206,214-217
+packages/core/src/server/sync/adapter.ts
+  s_4958c7c47e1061::t_208efd12b8e3d6 58-62
+packages/core/src/server/sync/atomic.ts
+  s_4958c7c47e1061::t_b3bd507058dca3 131
+packages/core/tests/client/sync/atomic-sync.test.ts
+  s_4958c7c47e1061::t_185f0bf79a0217 16-28
+  s_bfe6aeb969636e::t_e86f9bec8cd3a3 508-513,563,565,600,602,634,636,678,680,776,778,806-811,836,838
+packages/core/tests/client/sync/security-regressions.test.ts
+  s_4958c7c47e1061::t_51150007b1e64b 424-427
+  s_4958c7c47e1061::t_f0b8529b899bcd 389-392
+  s_4958c7c47e1061::t_e8cc5ae378f524 317-321
+  s_4958c7c47e1061::t_aa05f32a63b26c 226-229,231-232
+packages/core/README.md
+  s_4958c7c47e1061::t_1b9d9cf8488a70 36
+packages/core/src/furin.ts
+  s_4958c7c47e1061::t_1cd4c5c5e59a39 62
+  s_4958c7c47e1061::t_80bd30cd4025c6 378
+packages/core/src/server/sync/response.ts
+  s_4958c7c47e1061::t_b3bd507058dca3 21
+apps/docs/src/content/docs/api-routes.mdx
+  s_4958c7c47e1061::t_1b9d9cf8488a70 180-183,186
+packages/core/tests/client/sync/principal-secret.test.ts
+  s_4958c7c47e1061::t_e8fc6ef2944153 46-49
+  s_4958c7c47e1061::t_172f32d46bb406 16
+packages/core/tests/client/sync/sync-notifier.test.ts
+  s_4958c7c47e1061::t_172f32d46bb406 8
+packages/core/src/server/sync/invalidate-sync.ts
+  s_4958c7c47e1061::t_f9631b60f86557 1-21
+packages/core/src/server/sync/index.ts
+  s_4958c7c47e1061::t_80bd30cd4025c6 3,10
+packages/core/tests/runtime/invalidation/auto-invalidate.test.ts
+  s_4958c7c47e1061::t_21b34893aa8e47 39,60-65,283-313
+  s_4958c7c47e1061::t_b6063ba6eac24f 318-325,346-349,370-373,438-439,443,447,450,509
+  s_4958c7c47e1061::t_5113865aad5fe2 314
+  s_4958c7c47e1061::t_f8b8788939007c 440-442
+  s_4958c7c47e1061::t_405aa9c70b109e 444-445
+  s_4958c7c47e1061::t_6b29a3c2ac353e 448-449
+  s_4958c7c47e1061::t_5efb7fddc9f520 506-508
+  s_4958c7c47e1061::t_44454a1ed865cd 510-512
+  s_bfe6aeb969636e::t_f46c4db986014b 470-473,505,534-537,556-559
+packages/core/tests/client/sync/invalidate-sync.test.ts
+  s_4958c7c47e1061::t_f6ad76880658b4 1-80
+packages/core/tests/client/sync/imperative-invalidation.test.ts
+  s_4958c7c47e1061::t_2d9e7785640b99 42-46,66,71-75
+  s_4958c7c47e1061::t_755d64f6a63fab 118-129,131-143,145-148,152-156,158-168
+  s_4958c7c47e1061::t_b272a1d4236013 6,227-236,270-321
+  s_4958c7c47e1061::t_c1b6783a0d5fd4 157
+  s_4958c7c47e1061::t_2c984edb05664e 169-193,196-202,204-206
+  s_4958c7c47e1061::t_2a4a68d1eedf25 203
+CHANGELOG.md
+  s_4958c7c47e1061::t_f84eea015b9258 12-14,18
+packages/core/src/server/sync/plugin.ts
+  s_4958c7c47e1061::t_f8ce58123800e7 38,179
+  s_4958c7c47e1061::t_6feea8e19121a7 311-314,320,380-387
+  s_4958c7c47e1061::t_b3bd507058dca3 2,36,204,258,367,433
+  s_4958c7c47e1061::t_964aefeffc1485 16,47,67,133-134,137,373
+  s_4958c7c47e1061::t_35d87323f6e0c2 35,265-266,437-439
+  s_4958c7c47e1061::t_1f52ec838cb825 255-256,260-263,268,280-293,302-303,310,315-319,321
+  s_4958c7c47e1061::t_56f2dc6de1b671 322,440-441
+packages/core/tests/client/sync/atomic-postgres-sync.test.ts
+  s_4958c7c47e1061::t_9593d395760495 205-230
+  s_4958c7c47e1061::t_96f1d3db21f9e2 188,252-256
+  s_4958c7c47e1061::t_2a8b03157c3b1f 104,106,186,204,283,285
+packages/core/src/server/auto-invalidate/plugin.ts
+  s_4958c7c47e1061::t_087e3811746879 3-9,16,19,21-24,26,32-45,47-52
+  s_4958c7c47e1061::t_fed275dae8aeaa 17
+  s_4958c7c47e1061::t_2401bcf618d9e9 18
+packages/core/src/server/sync/postgres/index.ts
+  s_4958c7c47e1061::t_81780b4bd9ba1a 210-217,238-286
+  s_4958c7c47e1061::t_255c46d656995b 287
+packages/core/src/server/sync/redis/index.ts
+  s_4958c7c47e1061::t_06fa8c77a6ac3e 20
+  s_4958c7c47e1061::t_de7eb9af8e821c 246-259
+packages/core/tests/client/sync/sync-broadcast.test.ts
+  s_4958c7c47e1061::t_172f32d46bb406 13
+packages/core/tests/contract/furin-plugin-types.type.test.ts
+  s_4958c7c47e1061::t_b7a6571f5a4de5 25
+packages/core/src/server/sync/redis/scripts.ts
+  s_4958c7c47e1061::t_89f4b8e0a1bf3d 75-83
+packages/core/tests/client/sync/sync.test.ts
+  s_4958c7c47e1061::t_08edc9696bd209 137-138,179-180,278-280,304-305,383,550-553
+  s_4958c7c47e1061::t_172f32d46bb406 76,120,213,530,651,702,740,788
+  s_4958c7c47e1061::t_37c2a8fe0fcf8e 277
+packages/core/tests/runtime/browser-events/browser-events-plugin.test.ts
+  s_4958c7c47e1061::t_172f32d46bb406 16
+packages/core/tests/contract/sync-invalidate-types.type.test.ts
+  s_4958c7c47e1061::t_a303781490f8a9 35-52
+  s_4958c7c47e1061::t_c01b6082b8f1eb 6,60-66,77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0d85a4a47d565300d34694302832a8c09df8a62f",
+  "prompts": {},
+  "sessions": {
+    "s_4958c7c47e1061": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "46a75c91-5cde-47b4-ae28-4d003fc2f1fd",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_bfe6aeb969636e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a4dcbd116ae49b57b",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
