@@ -7,6 +7,21 @@ export default {
     files: ["tests/fixtures/sync-prisma/generated/**"],
     overrides: [
       {
+        // These files contain documentation examples as text.
+        files: [
+          "src/generated/docs-content.ts",
+          "public/llms-full.txt",
+          ".furin/build/bun/public/llms-full.txt",
+        ],
+        rules: ["react-doctor/artifact-env-leak"],
+      },
+      {
+        // Root-level chunks belong to the server bundle.
+        // Browser bundles live in the client subdirectories.
+        files: [".furin/build/bun/chunk-*.js"],
+        rules: ["react-doctor/artifact-env-leak"],
+      },
+      {
         // Eden callbacks run in declaration order; Vercel fallbacks update shared
         // prerender specs in route order. Parallel execution would change semantics.
         files: ["src/client/sync.ts", "src/adapter/vercel.ts"],
