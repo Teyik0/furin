@@ -52,13 +52,15 @@ const initialState = stateElement
   : undefined;
 const endpointSuffix = "/_furin/dev/overlay.js";
 const blobFramePattern = /blob:https?:\/\/[^\s)]+?(?=:\d+:\d+\)?(?:\n|$))/g;
-const sourceMapPattern = /\/\/[#@]\s*sourceMappingURL=([^\s]+)/;
+const sourceMapPattern = /^\s*\/\/[#@]\s*sourceMappingURL=(\S+)\s*$/m;
 const clientUrl = new URL(import.meta.url);
 const inferredBasePath = clientUrl.pathname.endsWith(endpointSuffix)
   ? clientUrl.pathname.slice(0, -endpointSuffix.length)
   : "";
 const basePath = initialState?.basePath ?? inferredBasePath;
 let currentEvent = initialState?.event;
+let clientRenderFailed = false;
+let recoverAfterUpdate = false;
 let coldFailure = initialState !== undefined;
 let host: HTMLDivElement | undefined;
 
@@ -178,7 +180,22 @@ async function reportClientError(detail: ClientErrorDetail): Promise<void> {
 
 window.addEventListener("furin:client-error", (event) => {
   const { detail } = event as CustomEvent<ClientErrorDetail>;
+  if (detail.phase === "client-render") {
+    clientRenderFailed = true;
+  }
   reportClientError(detail).catch(() => undefined);
+});
+
+// Retry only failures from before this update, including when reporting is still
+// in flight or server readiness has already dismissed the overlay.
+window.addEventListener("furin:hmr-before-update", () => {
+  recoverAfterUpdate = clientRenderFailed;
+});
+window.addEventListener("furin:hmr-after-update", () => {
+  if (recoverAfterUpdate) {
+    recoverAfterUpdate = false;
+    window.location.reload();
+  }
 });
 
 if (currentEvent) {

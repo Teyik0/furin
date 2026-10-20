@@ -209,6 +209,12 @@ const __furinBasePath = ${basePathLiteral};
 ${loggerSetup}
 
 if (import.meta.hot) {
+  import.meta.hot.on("bun:beforeUpdate", () => {
+    window.dispatchEvent(new Event("furin:hmr-before-update"));
+  });
+  import.meta.hot.on("bun:afterUpdate", () => {
+    window.dispatchEvent(new Event("furin:hmr-after-update"));
+  });
   const connectionState = ((window as unknown as {
     __FURIN_HMR_CONNECTION__?: { disconnected: boolean; installed: boolean };
   }).__FURIN_HMR_CONNECTION__ ??= { disconnected: false, installed: false });
