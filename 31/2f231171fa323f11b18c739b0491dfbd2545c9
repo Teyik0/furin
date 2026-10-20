@@ -1,0 +1,24 @@
+packages/core/tests/browser/rsc-image-preload.webview.test.ts
+  s_f677e8834cc3c8::t_778682378e0ba1 1-4,6-7,9,22-26,33-39,46-53,81-87,89-90,93-99
+  s_f677e8834cc3c8::t_ed0fbcc7c4991c 8,10-21,27-32,40-45,54-80,88,92,100-120
+  s_f677e8834cc3c8::t_bf17ab4d0bcf40 5
+  s_f677e8834cc3c8::t_bbe33bdac7d717 91
+packages/core/src/rsc/build/flight-loader.ts
+  s_f677e8834cc3c8::t_353fe1d141b275 43-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "312f231171fa323f11b18c739b0491dfbd2545c9",
+  "prompts": {},
+  "sessions": {
+    "s_f677e8834cc3c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a155b8-9a89-79b3-b9ab-ba73561cdfcf",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
