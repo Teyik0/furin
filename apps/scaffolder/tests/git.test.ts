@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { initGitRepo } from "../src/utils/git";
 
 const originalSpawn = Bun.spawn;
@@ -46,5 +49,29 @@ describe("initGitRepo", () => {
 
     // The identity-unknown stderr must be translated into the friendly message
     expect(result.message).toContain("Initial commit skipped");
+  });
+
+  it("initializes the project's own repository when GIT_DIR points elsewhere", () => {
+    // Git exports GIT_DIR to hooks run from a linked worktree; Bun.spawn
+    // inherits the startup environment, so run the scaffolder in a child.
+    const root = mkdtempSync(join(tmpdir(), "furin-git-"));
+    const outer = join(root, "outer");
+    const project = join(root, "project");
+    mkdirSync(project);
+    Bun.spawnSync(["git", "init", "-q", outer]);
+    const gitModule = join(import.meta.dir, "../src/utils/git.ts");
+    Bun.spawnSync(
+      [
+        process.execPath,
+        "-e",
+        `const { initGitRepo } = await import(${JSON.stringify(gitModule)}); await initGitRepo(${JSON.stringify(project)});`,
+      ],
+      { env: { ...process.env, GIT_DIR: join(outer, ".git") } }
+    );
+
+    const outerBare = Bun.spawnSync(["git", "-C", outer, "config", "core.bare"]).stdout.toString();
+    expect(existsSync(join(project, ".git"))).toBe(true);
+    expect(outerBare.trim()).toBe("false");
+    rmSync(root, { force: true, recursive: true });
   });
 });
