@@ -153,8 +153,7 @@
   background: #357454;
   border-radius: 50%;
 }
-.todo-sync--connecting .todo-sync-dot,
-.todo-sync--reconnecting .todo-sync-dot {
+.todo-sync--saving .todo-sync-dot {
   background: var(--todo-accent);
 }
 .todo-create {
@@ -188,11 +187,6 @@
 }
 .todo-create button:not(:disabled):hover {
   background: #973a1b;
-}
-.todo-connection-note {
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--todo-muted);
 }
 .todo-error {
   padding: 12px 16px;
