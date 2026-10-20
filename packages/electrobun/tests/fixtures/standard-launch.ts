@@ -133,6 +133,8 @@ export async function standardLaunchFixture(options: {
       await cp(join(generated, "furin"), join(application, "furin"), { recursive: true });
     }
     await cp(join(generated, "host.json"), join(application, "bun/furin-host.json"));
+    // Mirrors the SDK copy entries prepareDesktop declares for real packages.
+    await cp(join(generated, "native-open.js"), join(application, "bun/native-open.js"));
     await cp(join(generated, "native-restart.js"), join(application, "bun/native-restart.js"));
     await writeFile(
       join(bundle, "Resources/version.json"),
@@ -192,6 +194,8 @@ export async function standardLaunchFixture(options: {
             ...process.env,
             HOME: launchHome,
             USERPROFILE: launchHome,
+            // Linux handler registration writes the launching user's .desktop entry.
+            XDG_DATA_HOME: join(launchHome, ".local/share"),
             APPDATA: join(launchHome, "AppData/Roaming"),
             FIXTURE_APP_DATA: join(launchHome, "sdk-data"),
             FURIN_DESKTOP_DEV: options.mode === "dev" ? join(generated, "dev.json") : "",
