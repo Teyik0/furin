@@ -17,14 +17,14 @@ export const api = new Elysia().get("/api/message", () => ({ message: "In-memory
     app.path,
     "src/pages/index.tsx",
     `import { defineRoute } from "@teyik0/furin";
-import { createClient } from "@teyik0/furin/client";
+import { treaty } from "@elysia/eden";
 import { api } from "../api";
 
 export const route = defineRoute("/")
   .config({ mode: ${JSON.stringify(mode)}, revalidate: 60 })
   .staticParams(() => [{}])
   .loader(async () => {
-    const { data, error } = await createClient(api).api.message.get();
+    const { data, error } = await treaty(api).api.message.get();
     if (error) throw error;
     return data;
   })

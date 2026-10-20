@@ -1,6 +1,6 @@
 import { log } from "evlog";
 import { useEffect } from "react";
-import { queryTag } from "../../shared/sync-query.ts";
+import { queryTag, queryTags } from "../../shared/sync-query.ts";
 import { subscribeBrowserEvent } from "../browser-events.ts";
 import type { QueryStore } from "../query-store.ts";
 import {
@@ -83,7 +83,9 @@ export function useSyncStream(options: {
         queries.invalidate(identities);
         const tags = new Set(identities.map(queryTag));
         const affected = (snapshot: RouterState) =>
-          snapshot.querySeeds?.some((seed) => tags.has(queryTag(seed.identity))) === true;
+          snapshot.querySeeds?.some((seed) =>
+            queryTags(seed.identity).some((tag) => tags.has(tag))
+          ) === true;
         controller.invalidateQueries(affected);
         if (autoRefresh && affected(controller.getSnapshot().state)) {
           invalidationRefresh.run();

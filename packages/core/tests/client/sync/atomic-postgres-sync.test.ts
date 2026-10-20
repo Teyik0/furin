@@ -101,7 +101,7 @@ test.skipIf(!url)(
     try {
       const app = new Elysia()
         .use(furinSync({ adapter, principal: () => "user" }))
-        .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, ({ mutation }) =>
+        .post("/counter", { sync: { tags: ["counter"] } }, ({ mutation }) =>
           mutation(async (tx) => {
             calls += 1;
             const [row] = await tx.insert(counter).values({ id: namespace, value: 1 }).returning();
@@ -182,7 +182,7 @@ test.skipIf(!url)(
     try {
       const app = new Elysia()
         .use(furinSync({ adapter, notifier, principal: () => "user" }))
-        .post("/counter", { sync: { invalidate: { tags: [namespace] } } }, ({ mutation }) =>
+        .post("/counter", { sync: { tags: [namespace] } }, ({ mutation }) =>
           mutation(async (tx) => {
             await tx.insert(counter).values({ id: namespace, value: 1 });
             return { value: 1 };
@@ -220,7 +220,7 @@ test.skipIf(!url).each(["drizzle", "prisma"] as const)(
       const app = new Elysia()
         .use(furinSync(sync))
         .use(createSyncChangesPlugin(sync))
-        .post("/counter", { sync: { invalidate: { tags: [namespace] } } }, ({ mutation }) =>
+        .post("/counter", { sync: { tags: [namespace] } }, ({ mutation }) =>
           mutation(() => ({ value: 1 }))
         );
       expect((await app.handle(request("counter", "one"))).status).toBe(200);
@@ -248,7 +248,7 @@ test.skipIf(!url)(
     try {
       const app = new Elysia()
         .use(furinSync({ adapter, principal: () => "user" }))
-        .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, async ({ mutation }) => {
+        .post("/counter", { sync: { tags: ["counter"] } }, async ({ mutation }) => {
           const row = await mutation(async (tx) => {
             calls += 1;
             const card = await tx.atomicCounter.create({ data: { id: namespace, value: 1 } });

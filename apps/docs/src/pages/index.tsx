@@ -70,34 +70,31 @@ type FileName = keyof typeof FILES;
 // Abridged from examples/task-manager: src/api/modules/{boards,cards}/index.ts,
 // src/lib/api.ts (client branch) and src/lib/card-mutations.ts (moveBoardCard).
 const SYNC_SERVER = `// boards/index.ts
-.get(
-  "/boards/:boardId",
-  { sync: { id: "board", scope: ({ params }) => ({ boardId: params.boardId }) } },
-  ({ params, problem }) => { /* … getBoardData(params.boardId) */ }
-)
+.get("/boards/:boardId", ({ params, problem }) => {
+  /* … getBoardData(params.boardId) */
+})
 
-// cards/index.ts
-.guard({
-  params: t.Object({ id: t.String() }),
-  sync: { invalidate: ({ params }) => ({ id: "card", scope: { id: params.id } }) },
-}, (app) => app
-  .patch("/cards/:id", {
-    body: t.Object({ column: t.Optional(columnType), /* … */ }),
-  }, ({ params, body, problem, mutation, invalidate }) => mutation((tx) => {
-    /* … const card = updateCard(tx, params.id, body) */
-    invalidate({ id: "board", scope: { boardId: card.boardId } });
-    return card;
-  })))`;
+// cards/index.ts: PATCH /api/cards/c1 refreshes GET /api/cards/c1
+.patch("/cards/:id", {
+  body: t.Object({ column: t.Optional(columnType), /* … */ }),
+}, ({ params, body, problem, mutation, invalidate }) => mutation((tx) => {
+  /* … const card = updateCard(tx, params.id, body) */
+  invalidate("/api/boards/:boardId", { boardId: card.boardId });
+  return card;
+}))
+
+// index.ts
+declare module "@teyik0/furin" { interface Register { app: typeof api } }`;
 
 const SYNC_CLIENT = `// api.ts
-createClient<Api>(window.location.origin, { retry: 2 }).api
+treaty<Api>(window.location.origin).use(furinSync).api
 
 // card-mutations.ts · moveBoardCard
 return api.cards({ id: cardId }).patch(
   { column, position },
   {
     optimistic: (cache) =>
-      cache.update(api.boards({ boardId }).get, (data) => ({
+      cache.update(api.boards({ boardId }).get.live(), (data) => ({
         ...data,
         cards: moveCard(data.cards, cardId, column, before)?.nextCards ?? data.cards,
       })),

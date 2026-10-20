@@ -1,5 +1,4 @@
 import type { CacheTag } from "../../furin.ts";
-import type { SyncQueryIdentity } from "../../shared/sync-query.ts";
 import type { RevalidateType } from "../cache/route-cache.ts";
 
 export type InvalidationRule =
@@ -15,8 +14,3 @@ export type InvalidationRule =
     };
 
 export type InvalidationInput = InvalidationRule | readonly InvalidationRule[];
-
-export type SyncInvalidationInput =
-  | InvalidationRule
-  | SyncQueryIdentity
-  | readonly (InvalidationRule | SyncQueryIdentity)[];

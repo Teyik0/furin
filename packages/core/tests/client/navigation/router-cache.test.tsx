@@ -1,12 +1,13 @@
 import "../../setup/global.ts";
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
+import { treaty } from "@elysia/eden";
 import { Elysia } from "elysia";
 import { act, Suspense } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { toCrossJSON } from "seroval";
 import { RouterProvider, useRouter } from "../../../src/client/link.tsx";
 import type { ClientRoute } from "../../../src/client/router/index.ts";
-import { Await, createClient, useQuery } from "../../../src/client.ts";
+import { Await, furinSync, useQuery } from "../../../src/client.ts";
 import { serializeRouteFrame, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
 import { ROUTE_MATCHES_KEY, type RouteMatchFailure } from "../../../src/shared/route-matches.ts";
 import type { QuerySeed } from "../../../src/shared/sync-query.ts";
@@ -208,12 +209,12 @@ test("a prefetched loader cannot overwrite a GET completed after that prefetch",
     set.headers["x-furin-query"] = JSON.stringify(identity);
     return 1;
   });
-  const api = createClient<typeof app>(window.location.origin, {
+  const api = treaty<typeof app>(window.location.origin, {
     fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-  });
+  }).use(furinSync);
   function Counter() {
     router = useRouter();
-    return <main>{useQuery(api.counter.get).data}</main>;
+    return <main>{useQuery(api.counter.get.live()).data}</main>;
   }
   const seed: QuerySeed = { url: `${window.location.origin}/counter`, identity, data: 0 };
   let prefetched = false;
@@ -231,7 +232,7 @@ test("a prefetched loader cannot overwrite a GET completed after that prefetch",
   });
   expect(prefetched).toBe(true);
   await act(async () => {
-    await api.counter.get();
+    await api.counter.get.live();
   });
   expect(container.textContent).toBe("1");
   await act(() => router.navigate("/target" as string));

@@ -3,7 +3,7 @@ import type { Context } from "elysia";
 import { QueryStore, setServerQueryEnvironment } from "../../client/query-store.ts";
 import { toLogical } from "../../client/router/link-utils.ts";
 import { bindQueryData } from "../../shared/query-bindings.ts";
-import { mergeQuerySeeds, type QuerySeed, queryTag } from "../../shared/sync-query.ts";
+import { mergeQuerySeeds, type QuerySeed, queryTags } from "../../shared/sync-query.ts";
 import { getAutoInvalidateRegistry } from "../auto-invalidate/registry.ts";
 import { currentInstance, instanceSlot } from "../instance.ts";
 import type { LoaderResult } from "../render/loaders.ts";
@@ -71,7 +71,7 @@ export function captureQueryReads<Result extends LoaderResult>(
     const seeds = store.dehydrate();
     registry.registerLoaderTags(
       path,
-      seeds.map((seed) => queryTag(seed.identity)),
+      seeds.flatMap((seed) => queryTags(seed.identity)),
       owner ?? "eden-queries"
     );
     trackedPaths.delete(path);

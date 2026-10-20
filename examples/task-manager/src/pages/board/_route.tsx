@@ -20,7 +20,7 @@ function boardHue(id: string): string {
 export const route = defineRoute("/board/_route")
   .config({ mode: "ssr" })
   .loader(async () => {
-    const { data: sidebarBoards, error } = await api.boards.get();
+    const { data: sidebarBoards, error } = await api.boards.get.live();
     if (error) {
       throw error;
     }

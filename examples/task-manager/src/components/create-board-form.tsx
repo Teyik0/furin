@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 export function CreateBoardForm() {
   const [name, setName] = useState("");
   const create = useMutation(api.boards.post, {
+    retry: 2,
     onSuccess: () => setName(""),
   });
 
@@ -17,7 +18,7 @@ export function CreateBoardForm() {
       { name: trimmed },
       {
         optimistic: (cache) => {
-          cache.update(api.boards.get, (data) => [
+          cache.update(api.boards.get.live(), (data) => [
             {
               id: crypto.randomUUID(),
               name: trimmed,

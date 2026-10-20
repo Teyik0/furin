@@ -268,6 +268,45 @@ test("scoped invalidation refreshes all variants of one board and leaves another
   expect(reads).toBe(2);
 });
 
+test("an invalidation omitting a param refreshes every value of it; numbers name URL params", async () => {
+  const store = new QueryStore(undefined);
+  const reads: string[] = [];
+  const read = (boardId: string, column: string) => {
+    const path = `http://localhost/boards/${boardId}/columns/${column}`;
+    const response = {
+      data: path,
+      error: null,
+      response: new Response(null, {
+        headers: {
+          "x-furin-query": JSON.stringify({
+            id: "/boards/:boardId/columns/:column",
+            scope: { boardId, column },
+            session: "alice",
+          }),
+        },
+      }),
+    };
+    store.observe(path, response, store.generation());
+    store.bind(path, () => {
+      reads.push(`${boardId}/${column}`);
+      return Promise.resolve(response);
+    });
+    store.subscribe(path, () => undefined);
+    return path;
+  };
+  const paths = [read("1", "todo"), read("1", "done"), read("2", "todo")];
+  const refetch = async (scope: { [param: string]: string | number }) => {
+    reads.length = 0;
+    store.invalidate([{ id: "/boards/:boardId/columns/:column", scope }]);
+    await Promise.all(paths.map((path) => store.fetch(path)));
+    return reads.toSorted();
+  };
+  expect(await refetch({ boardId: 1 })).toEqual(["1/done", "1/todo"]);
+  expect(await refetch({ column: "todo" })).toEqual(["1/todo", "2/todo"]);
+  expect(await refetch({})).toEqual(["1/done", "1/todo", "2/todo"]);
+  expect(await refetch({ boardId: "2", column: "done" })).toEqual([]);
+});
+
 test("a different principal clears the old session and discards its in-flight responses", () => {
   const store = new QueryStore(undefined);
   const oldGeneration = store.generation();

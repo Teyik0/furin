@@ -494,7 +494,7 @@ test("ALL mutations beside a mount roll back invalid responses and commit retrie
     .use(furinSync({ adapter, principal: () => "user" }))
     .all(
       "/mutation",
-      { response: t.Object({ count: t.Number() }), sync: { invalidate: { tags: ["counter"] } } },
+      { response: t.Object({ count: t.Number() }), sync: { tags: ["counter"] } },
       ({ mutation }) =>
         mutation((tx) => {
           tx.insert(counter).values({ value: 1 }).run();
@@ -549,7 +549,7 @@ test("notifications observe the committed business write from another connection
   try {
     const app = new Elysia()
       .use(furinSync({ adapter, notifier, principal: () => "user" }))
-      .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, ({ mutation }) =>
+      .post("/counter", { sync: { tags: ["counter"] } }, ({ mutation }) =>
         mutation((tx) => {
           tx.insert(counter).values({ value: 1 }).run();
           return { count: 1 };
@@ -585,7 +585,7 @@ test("losing a lease cannot commit a business write", async () => {
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
     .get("/counter", () => db.select().from(counter).all())
-    .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, ({ mutation }) =>
+    .post("/counter", { sync: { tags: ["counter"] } }, ({ mutation }) =>
       mutation((tx) => {
         tx.insert(counter).values({ value: 1 }).run();
         return { count: 1 };
@@ -618,7 +618,7 @@ test("serialization failure rolls back business writes and releases the idempote
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
     .get("/counter", () => db.select().from(counter).all())
-    .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, ({ mutation }) =>
+    .post("/counter", { sync: { tags: ["counter"] } }, ({ mutation }) =>
       mutation((tx) => {
         tx.insert(counter).values({ value: 1 }).run();
         const result: Result = { count: 1 };
@@ -661,14 +661,11 @@ test("a journal failure rolls back the business write and publishes no invalidat
   const app = new Elysia()
     .use(furinSync({ adapter, notifier, principal: () => "user" }))
     .get("/counter", () => db.select().from(counter).all())
-    .post(
-      "/counter",
-      { sync: { invalidate: { path: "/counter", type: "page" } } },
-      ({ mutation }) =>
-        mutation((tx) => {
-          tx.insert(counter).values({ value: 1 }).run();
-          return { count: 1 };
-        })
+    .post("/counter", { sync: { path: "/counter", type: "page" } }, ({ mutation }) =>
+      mutation((tx) => {
+        tx.insert(counter).values({ value: 1 }).run();
+        return { count: 1 };
+      })
     );
   const request = () =>
     new Request("http://localhost/counter", {
@@ -761,7 +758,7 @@ test("an atomic mutation replays its response without repeating the business wri
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
     .get("/counter", () => db.select().from(counter).all())
-    .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, ({ mutation }) =>
+    .post("/counter", { sync: { tags: ["counter"] } }, ({ mutation }) =>
       mutation((tx) => {
         tx.insert(counter).values({ value: 1 }).run();
         return { count: tx.select().from(counter).all().length };
@@ -792,7 +789,7 @@ test("response schema failure rolls back the business write before commit", asyn
     .get("/counter", () => db.select().from(counter).all())
     .post(
       "/counter",
-      { response: t.Object({ count: t.Number() }), sync: { invalidate: { tags: ["counter"] } } },
+      { response: t.Object({ count: t.Number() }), sync: { tags: ["counter"] } },
       ({ mutation }) =>
         mutation((tx) => {
           tx.insert(counter).values({ value: 1 }).run();
@@ -822,7 +819,7 @@ test("a business failure releases its key even with an application error fallbac
     .onError("global", () => Response.json({ error: "fallback" }, { status: 500 }))
     .use(furinSync({ adapter, principal: () => "user" }))
     .get("/counter", () => db.select().from(counter).all())
-    .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, ({ mutation }) =>
+    .post("/counter", { sync: { tags: ["counter"] } }, ({ mutation }) =>
       mutation((tx) => {
         tx.insert(counter).values({ value: 1 }).run();
         if (failures.has("business")) {

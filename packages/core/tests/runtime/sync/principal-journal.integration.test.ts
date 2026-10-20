@@ -7,6 +7,7 @@ import { furinSync } from "../../../src/server/sync/plugin.ts";
 import { postgresSyncAdapter } from "../../../src/server/sync/postgres/index.ts";
 import { redisSyncAdapter } from "../../../src/server/sync/redis/index.ts";
 import { createSyncChangesPlugin } from "../../../src/server/sync/stream.ts";
+import { queryTag } from "../../../src/shared/sync-query.ts";
 
 interface JournalFixture {
   adapter: SyncAdapter;
@@ -27,18 +28,9 @@ async function verifyPrincipalCatchUp(fixture: JournalFixture): Promise<void> {
   const app = new Elysia()
     .use(furinSync(options))
     .use(createSyncChangesPlugin(options))
-    .post(
-      "/update/:owner",
-      {
-        sync: {
-          invalidate: (context: Context) => ({
-            path: `/private/${context.params.owner}`,
-            type: "page",
-          }),
-        },
-      },
-      () => ({ success: true })
-    );
+    // The mutation invalidates the GET at its own URL, which names its owner.
+    .post("/update/:owner", () => ({ success: true }));
+  const ownTag = (owner: string) => queryTag({ id: "/update/:owner", scope: { owner } });
   const write = (principal: string, key: string) =>
     app.handle(
       new Request(`http://localhost/update/${principal}`, {
@@ -56,13 +48,13 @@ async function verifyPrincipalCatchUp(fixture: JournalFixture): Promise<void> {
   expect((await write("alice", "two")).status).toBe(200);
   const first = await (await read("alice", fixture.initialCursor)).json();
   expect(first).toMatchObject({
-    changes: [{ invalidations: [{ kind: "path", path: "/private/alice", type: "page" }] }],
+    changes: [{ invalidations: [{ kind: "tags", tags: [ownTag("alice")] }] }],
     hasMore: true,
     reset: false,
   });
   const second = await (await read("alice", first.cursor)).json();
   expect(second).toMatchObject({
-    changes: [{ invalidations: [{ path: "/private/alice" }] }],
+    changes: [{ invalidations: [{ tags: [ownTag("alice")] }] }],
     hasMore: false,
     reset: false,
   });
@@ -74,11 +66,11 @@ async function verifyPrincipalCatchUp(fixture: JournalFixture): Promise<void> {
     hasMore: false,
     reset: true,
   });
-  expect(bob).not.toContain("/private/alice");
+  expect(bob).not.toContain("alice");
   expect((await write("bob", "three")).status).toBe(200);
   const alice = await (await read("alice", second.cursor)).text();
   expect(JSON.parse(alice)).toMatchObject({ changes: [], hasMore: false, reset: true });
-  expect(alice).not.toContain("/private/bob");
+  expect(alice).not.toContain("bob");
   const anonymous = await app.handle(new Request("http://localhost/_furin/sync/changes"));
   expect(anonymous.status).toBe(401);
 }

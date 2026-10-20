@@ -17,11 +17,7 @@ import type {
   SyncInvalidation,
   TransactionalSyncAdapter,
 } from "./adapter.ts";
-import {
-  appendQueryInvalidations,
-  resolveSyncInvalidations,
-  type SyncInvalidationSelector,
-} from "./queries.ts";
+import { appendQueryInvalidations, resolveSyncInvalidations } from "./queries.ts";
 import {
   effectiveResponseHeaders,
   effectiveResponseStatus,
@@ -49,7 +45,7 @@ interface Execution<Tx> {
   adapter: TransactionalSyncAdapter<Tx, "async" | "sync">;
   app: Elysia;
   context: Context;
-  invalidate: SyncInvalidationSelector<Context> | undefined;
+  invalidate: InvalidationInput | undefined;
   lease: MutationLease;
   onCommit: (result: CommittedMutation) => void;
   resolvedInvalidate?: InvalidationInput;

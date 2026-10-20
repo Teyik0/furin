@@ -1,16 +1,20 @@
 import "../../setup/global.ts";
+import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, expect, test } from "bun:test";
+import { treaty } from "@elysia/eden";
 import { type Context, Elysia, t } from "elysia";
 import { act } from "react";
 import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { QueryStoreContext } from "../../../src/client/query.tsx";
 import { QueryStore } from "../../../src/client/query-store.ts";
-import { createClient, useQuery } from "../../../src/client.ts";
+import { furinSync, useQuery } from "../../../src/client.ts";
 import { autoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
 import { withDocumentState } from "../../../src/server/render/document.tsx";
 import { runLoaders } from "../../../src/server/render/loaders.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
+import { furinSync as furinSyncServer } from "../../../src/server/sync/plugin.ts";
+import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/sqlite/index.ts";
 import type { QuerySeed } from "../../../src/shared/sync-query.ts";
 import { installDom, uninstallDom } from "../../support/dom.ts";
 
@@ -22,6 +26,45 @@ beforeEach(() => {
 afterEach(async () => {
   await act(() => root?.unmount());
   await uninstallDom();
+});
+
+test("useQuery(live) refetches when a plain Eden mutation to the same URL succeeds", async () => {
+  const database = new Database(":memory:");
+  migrateSqliteSync(database);
+  let titles = ["First"];
+  const app = new Elysia()
+    .use(
+      furinSyncServer({
+        adapter: sqliteSyncAdapter({ database, namespace: "live-use-query" }),
+        principal: () => "alice",
+      })
+    )
+    .get("/boards/:boardId/cards", () => titles)
+    .post("/boards/:boardId/cards", { body: t.Object({ title: t.String() }) }, ({ body }) => {
+      titles = [...titles, body.title];
+      return body;
+    });
+  const api = treaty<typeof app>(window.location.origin, {
+    fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+  }).use(furinSync);
+  function View() {
+    const { data } = useQuery(api.boards({ boardId: "alpha" }).cards.get.live());
+    return <span>{data?.join(",")}</span>;
+  }
+  const container = document.createElement("div");
+  const viewRoot = createRoot(container);
+  root = viewRoot;
+  try {
+    await act(async () => viewRoot.render(<View />));
+    expect(container.textContent).toBe("First");
+    await act(async () => {
+      const created = await api.boards({ boardId: "alpha" }).cards.post({ title: "Second" });
+      expect(created.error).toBeNull();
+    });
+    expect(container.textContent).toBe("First,Second");
+  } finally {
+    database.close();
+  }
 });
 
 test.each([
@@ -36,15 +79,16 @@ test.each([
       set.headers["x-furin-query"] = JSON.stringify({ id: "me", scope: {}, session: name });
       return { name };
     });
-    const serverApi = createClient<typeof app>("http://ssr.internal", {
+    const serverApi = treaty<typeof app>("http://ssr.internal", {
       fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-    });
+    }).use(furinSync);
     const route = {
       mode: "ssr",
       pattern: "/credential-seed-test",
       page: {
         loader: async () => ({
-          profile: (await serverApi.me.get({ headers: { authorization: "Private Alice" } })).data,
+          profile: (await serverApi.me.get.live({ headers: { authorization: "Private Alice" } }))
+            .data,
         }),
       },
       routeChain: [],
@@ -66,7 +110,7 @@ test.each([
     ]);
     const options = token === undefined ? undefined : { headers: { authorization: token } };
     function ServerView() {
-      return <span>{useQuery(serverApi.me.get, options).data?.name ?? "Loading"}</span>;
+      return <span>{useQuery(serverApi.me.get.live(options)).data?.name ?? "Loading"}</span>;
     }
     const html = renderToString(
       withDocumentState(
@@ -87,14 +131,14 @@ test.each([
     const queries = new QueryStore(undefined);
     queries.hydrate(loaded.syncData.__furinQueries as QuerySeed[], window.location.origin);
     const ready = Promise.withResolvers<void>();
-    const browserApi = createClient<typeof app>(window.location.origin, {
+    const browserApi = treaty<typeof app>(window.location.origin, {
       fetcher: (async (input, init) => {
         await ready.promise;
         return app.handle(new Request(input, init));
       }) as typeof fetch,
-    });
+    }).use(furinSync);
     function View() {
-      return <span>{useQuery(browserApi.me.get, options).data?.name ?? "Loading"}</span>;
+      return <span>{useQuery(browserApi.me.get.live(options)).data?.name ?? "Loading"}</span>;
     }
     const container = document.createElement("div");
     container.innerHTML = html;
@@ -130,11 +174,13 @@ test("changing query credentials fetches the new principal's result", async () =
     });
     return { name: headers.authorization };
   });
-  const api = createClient<typeof app>(window.location.origin, {
+  const api = treaty<typeof app>(window.location.origin, {
     fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-  });
+  }).use(furinSync);
   function View({ token }: { token: string }) {
-    return <span>{useQuery(api.me.get, { headers: { authorization: token } }).data?.name}</span>;
+    return (
+      <span>{useQuery(api.me.get.live({ headers: { authorization: token } })).data?.name}</span>
+    );
   }
   const container = document.createElement("div");
   const viewRoot = createRoot(container);
@@ -152,18 +198,17 @@ test("equivalent Headers and object credentials share one Eden query request", a
     reads += 1;
     return { received: headers.authorization };
   });
-  const api = createClient<typeof app>(window.location.origin, {
+  const api = treaty<typeof app>(window.location.origin, {
     fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-  });
+  }).use(furinSync);
   const object = { Authorization: "Alice" };
   const literalHeaders = new Headers(object);
   // Eden accepts Headers at runtime; its per-route type infers only a header object.
-  const get = api.header.get as typeof api.header.get &
-    ((options: {
-      headers: Headers | { Authorization: string };
-    }) => ReturnType<typeof api.header.get>);
+  const live = api.header.get.live as (options: {
+    headers: Headers | { Authorization: string };
+  }) => ReturnType<typeof api.header.get.live>;
   function View({ value }: { value: Headers | { Authorization: string } }) {
-    return <span>{useQuery(get, { headers: value }).data?.received}</span>;
+    return <span>{useQuery(live({ headers: value })).data?.received}</span>;
   }
   const container = document.createElement("div");
   const viewRoot = createRoot(container);
@@ -213,14 +258,14 @@ test.each([
         return { received: headers["x-option"] };
       }
     );
-    const api = createClient<typeof app>(window.location.origin, {
+    const api = treaty<typeof app>(window.location.origin, {
       parseDate: false,
       fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-    });
+    }).use(furinSync);
     const first = value();
     const second = value();
     function View({ header }: { header: unknown }) {
-      const result = useQuery(api.header.get, { headers: { "x-option": header } });
+      const result = useQuery(api.header.get.live({ headers: { "x-option": header } }));
       return <span>{result.error ? "Request failed" : result.data?.received}</span>;
     }
     const container = document.createElement("div");
@@ -250,11 +295,13 @@ test("simultaneous query principals keep separate results and share equivalent r
     });
     return { name: headers.authorization };
   });
-  const api = createClient<typeof app>(window.location.origin, {
+  const api = treaty<typeof app>(window.location.origin, {
     fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-  });
+  }).use(furinSync);
   function View({ token }: { token: string }) {
-    return <span>{useQuery(api.me.get, { headers: { authorization: token } }).data?.name}</span>;
+    return (
+      <span>{useQuery(api.me.get.live({ headers: { authorization: token } })).data?.name}</span>
+    );
   }
   const container = document.createElement("div");
   const viewRoot = createRoot(container);
@@ -286,9 +333,9 @@ test("two Eden query consumers share a fetch and an optimistic projection", asyn
       title = "After";
       return { ok: true };
     });
-  const api = createClient(app);
+  const api = treaty(app).use(furinSync);
   function View() {
-    const { data } = useQuery(api.cards.get);
+    const { data } = useQuery(api.cards.get.live());
     return <span>{data?.[0]?.title}</span>;
   }
   const container = document.createElement("div");
@@ -309,7 +356,9 @@ test("two Eden query consumers share a fetch and an optimistic projection", asyn
   await act(async () => {
     mutation = api.cards.patch(undefined, {
       optimistic(cache) {
-        cache.update(api.cards.get, (cards) => cards.map((card) => ({ ...card, title: "After" })));
+        cache.update(api.cards.get.live(), (cards) =>
+          cards.map((card) => ({ ...card, title: "After" }))
+        );
       },
     });
     await Promise.resolve();

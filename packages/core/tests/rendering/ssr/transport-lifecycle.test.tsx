@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
+import { treaty } from "@elysia/eden";
 import { Elysia } from "elysia";
 import { Suspense } from "react";
 import { QueryStore } from "../../../src/client/query-store.ts";
-import { createClient } from "../../../src/client.ts";
+import { furinSync } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { type RenderResult, renderToHTML } from "../../../src/server/render/buffered-render.ts";
@@ -336,12 +337,12 @@ test("SSR document framing preserves raw script and comment closing-tag literals
 });
 
 test("SSR query seeds preserve opaque variants without exposing credentials or aliasing defaults", async () => {
-  const api = createClient(
+  const api = treaty(
     new Elysia().get("/person", ({ set }) => {
       set.headers["x-furin-query"] = JSON.stringify({ id: "person", scope: {}, session: "alice" });
       return { name: "Alice" };
     })
-  );
+  ).use(furinSync);
   const layout = defineRootRoute()
     .config({ mode: "ssr" })
     .layout(({ children }) => (
@@ -359,7 +360,7 @@ test("SSR query seeds preserve opaque variants without exposing credentials or a
     .config({ mode: "ssr" })
     .loader(async () => ({
       person: (
-        await api.person.get({
+        await api.person.get.live({
           headers: { authorization: "Bearer confidential-test-token" },
         })
       ).data,

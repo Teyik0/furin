@@ -366,6 +366,7 @@ export async function furin(options?: FurinOptions) {
 
 export { FurinErrorBoundary, FurinNotFoundBoundary } from "./client/boundaries.tsx";
 export { HeadContent, Scripts } from "./client/document.tsx";
+export type { Register } from "./routes.ts";
 export type { InvalidationInput, InvalidationRule } from "./server/auto-invalidate/index.ts";
 export { furinInvalidate, revalidateTag } from "./server/auto-invalidate/index.ts";
 export { revalidatePath, setCachePurger } from "./server/cache/invalidation.ts";

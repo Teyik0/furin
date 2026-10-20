@@ -8,8 +8,11 @@ test.each(["broken", "{}", "[1,[]]", '["cards",null]', '["cards",[["id",{}]]]'])
   }
 );
 
-test("scope keys are ordered consistently without locale collation", () => {
-  const identity = { id: "cards", scope: { z: 1, ä: 2, a: 3 } };
-  expect(queryTag(identity)).toBe('__furin.query:["cards",[["a",3],["z",1],["ä",2]]]');
-  expect(queryFromTag(queryTag(identity))).toEqual(identity);
+test("param keys are ordered without locale collation and number params name URL strings", () => {
+  const identity = { id: "cards", scope: { z: 1, ä: "2", a: 3 } };
+  expect(queryTag(identity)).toBe('__furin.query:["cards",[["a","3"],["z","1"],["ä","2"]]]');
+  expect(queryFromTag(queryTag(identity))).toEqual({
+    id: "cards",
+    scope: { a: "3", z: "1", ä: "2" },
+  });
 });

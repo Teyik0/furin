@@ -37,6 +37,36 @@ const IN_MEMORY_APPS_MODULE = fileURLToPath(
 );
 
 /**
+ * An Eden client given an Elysia instance (`treaty(app)`) handles it in memory. While the
+ * application evaluates, the application's own Eden entries record each instance `treaty` gets.
+ */
+Bun.plugin({
+  name: "furin-in-memory-eden",
+  setup(build) {
+    for (const specifier of ["@elysia/eden", "@elysia/eden/treaty2"]) {
+      let eden: string;
+      try {
+        eden = Bun.resolveSync(specifier, dirname(entry));
+      } catch {
+        continue; // The application has no Eden: no in-memory client either.
+      }
+      build.module(specifier, () => ({
+        contents: [
+          `import { treaty as edenTreaty } from ${JSON.stringify(eden)};`,
+          `import { recordInMemoryApp } from ${JSON.stringify(IN_MEMORY_APPS_MODULE)};`,
+          `export * from ${JSON.stringify(eden)};`,
+          "export function treaty(domain, config) {",
+          '  if (typeof domain !== "string") recordInMemoryApp(domain);',
+          "  return edenTreaty(domain, config);",
+          "}",
+        ].join("\n"),
+        loader: "js",
+      }));
+    }
+  },
+});
+
+/**
  * Elysia AOT compiles a manifest for each app its entry exports, and every
  * app an in-memory Eden client handles needs one. Those apps are known only
  * once the application evaluates, after which the entry's exports are fixed:

@@ -1,7 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { treaty } from "@elysia/eden";
 import { Elysia, t } from "elysia";
 import { Suspense, use } from "react";
-import { createClient, defer } from "../../../src/client.ts";
+import { defer, furinSync } from "../../../src/client.ts";
 import { Await, defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { revalidateTag } from "../../../src/server/auto-invalidate";
 import { getAutoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
@@ -416,7 +417,7 @@ describe.serial("partial prerendering", () => {
   test("private GET snapshots stay isolated across a cached PPR document and SPA navigation", async () => {
     let publicCalls = 0;
     let privateCalls = 0;
-    const api = createClient(
+    const api = treaty(
       new Elysia().get("/cards", ({ request, set }) => {
         privateCalls += 1;
         const person = request.headers.get("x-person");
@@ -427,15 +428,15 @@ describe.serial("partial prerendering", () => {
         });
         return { cards: [{ title: person }] };
       })
-    );
+    ).use(furinSync);
     function Private({ data }: { data: Promise<{ cards: { title: string | null }[] }> }) {
       return <strong>{use(data).cards[0]?.title}</strong>;
     }
     const page = defineRoute("/")
       .config({ mode: "isr", revalidate: 3600 })
       .requestLoader(({ cookies }) => ({
-        user: api.cards
-          .get({ headers: { "x-person": String(cookies.get("session")) } })
+        user: api.cards.get
+          .live({ headers: { "x-person": String(cookies.get("session")) } })
           .then(({ data, error }) => {
             if (error) {
               throw error;
@@ -1334,17 +1335,17 @@ describe.serial("partial prerendering", () => {
   test("shared PPR query discovery stores an artifact on the next render", async () => {
     let reads = 0;
     const identity = { id: "catalog", scope: {}, session: "public" };
-    const api = createClient(
+    const api = treaty(
       new Elysia().get("/catalog", ({ set }) => {
         reads += 1;
         set.headers["x-furin-query"] = JSON.stringify(identity);
         return { title: "Public" };
       })
-    );
+    ).use(furinSync);
     const page = defineRoute("/")
       .config({ mode: "isr", revalidate: 3600 })
       .requestLoader(() => ({ user: "alice" }))
-      .loader(async () => ({ catalog: (await api.catalog.get()).data }))
+      .loader(async () => ({ catalog: (await api.catalog.get.live()).data }))
       .page(({ catalog }) => <main>{catalog?.title}</main>);
     const cache = createMemoryPageCache();
     const { app, instance } = await mountAccount(page, cache);

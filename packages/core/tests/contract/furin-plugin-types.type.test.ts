@@ -1,9 +1,10 @@
 // biome-ignore-all lint/suspicious/noUnusedExpressions: compile-time public contract assertions.
 import { test } from "bun:test";
+import { treaty } from "@elysia/eden";
 import { Elysia, t } from "elysia";
 import type { RequestLogger } from "evlog";
 import { expectTypeOf } from "expect-type";
-import { createClient } from "../../src/client.ts";
+import { furinSync as furinSyncClient } from "../../src/client.ts";
 import { defineRoute, furin, furinSync } from "../../src/furin.ts";
 import type { SyncRuntimeOptions } from "../../src/server/sync/index.ts";
 
@@ -28,7 +29,10 @@ async function composePublicApplication(options: SyncRuntimeOptions) {
         return { title: body.title };
       }
     );
-  const api = createClient<typeof app>("http://localhost");
+  const api = treaty<typeof app>("http://localhost").use(furinSyncClient);
+  expectTypeOf<
+    NonNullable<Awaited<ReturnType<typeof api.api.before.get.live>>["data"]>
+  >().toEqualTypeOf<{ value: number }>();
   expectTypeOf<
     NonNullable<Awaited<ReturnType<typeof api.api.before.get>>["data"]>
   >().toEqualTypeOf<{ value: number }>();

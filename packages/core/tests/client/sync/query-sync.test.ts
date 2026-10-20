@@ -9,38 +9,28 @@ import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/s
 import { createSyncChangesPlugin } from "../../../src/server/sync/stream.ts";
 import { queryTag } from "../../../src/shared/sync-query.ts";
 
-test("identified GETs and committed mutations share a board-scoped identity", async () => {
+function sqliteSync(namespace: string) {
   const database = new Database(":memory:");
   migrateSqliteSync(database);
-  const sync = {
-    adapter: sqliteSyncAdapter({ database, namespace: "query-sync" }),
-    principal: () => "alice",
+  return {
+    database,
+    sync: { adapter: sqliteSyncAdapter({ database, namespace }), principal: () => "alice" },
   };
+}
+
+test("a GET is identified by its URL and a mutation invalidates the GET at its own URL", async () => {
+  const { database, sync } = sqliteSync("query-sync-self");
   const app = new Elysia()
     .use(furinSync(sync))
     .use(createSyncChangesPlugin(sync))
-    .get(
-      "/boards/:boardId/cards",
-      {
-        sync: { id: "board.cards", scope: ({ params }) => ({ boardId: params.boardId }) },
-      },
-      () => [{ id: "1", title: "Card" }]
-    )
-    .post(
-      "/boards/:boardId/cards",
-      {
-        body: t.Object({ title: t.String() }),
-        sync: {
-          invalidate: ({ params }) => [{ id: "board.cards", scope: { boardId: params.boardId } }],
-        },
-      },
-      ({ body }) => body
-    );
+    .get("/boards/:boardId/cards", () => [{ id: "1", title: "Card" }])
+    .post("/boards/:boardId/cards", { body: t.Object({ title: t.String() }) }, ({ body }) => body);
+  const self = { id: "/boards/:boardId/cards", scope: { boardId: "alpha" } };
   try {
-    const read = await app.handle(new Request("http://localhost/boards/alpha/cards"));
+    const read = await app.handle(new Request("http://localhost/boards/alpha/cards?page=2"));
     expect(read.status).toBe(200);
     const identity = JSON.parse(read.headers.get("x-furin-query") ?? "null");
-    expect(identity).toMatchObject({ id: "board.cards", scope: { boardId: "alpha" } });
+    expect(identity).toMatchObject(self);
     expect(identity.session).toBeString();
     const write = await app.handle(
       new Request("http://localhost/boards/alpha/cards", {
@@ -50,19 +40,10 @@ test("identified GETs and committed mutations share a board-scoped identity", as
       })
     );
     expect(write.status).toBe(200);
-    expect(JSON.parse(write.headers.get("x-furin-queries") ?? "null")).toEqual([
-      { id: "board.cards", scope: { boardId: "alpha" } },
-    ]);
+    expect(JSON.parse(write.headers.get("x-furin-queries") ?? "null")).toEqual([self]);
     const changes = await app.handle(new Request("http://localhost/_furin/sync/changes?after=0"));
     expect(await changes.json()).toMatchObject({
-      changes: [
-        {
-          cursor: "1",
-          invalidations: [
-            { kind: "tags", tags: [queryTag({ id: "board.cards", scope: { boardId: "alpha" } })] },
-          ],
-        },
-      ],
+      changes: [{ cursor: "1", invalidations: [{ kind: "tags", tags: [queryTag(self)] }] }],
       reset: false,
     });
   } finally {
@@ -70,7 +51,41 @@ test("identified GETs and committed mutations share a board-scoped identity", as
   }
 });
 
-test("atomic query invalidations roll back with the domain write and replay without reselecting dependencies", async () => {
+test("invalidate(pattern, params) targets other GETs, omitted params meaning every value", async () => {
+  const { database, sync } = sqliteSync("query-sync-invalidate");
+  const app = new Elysia()
+    .use(furinSync(sync))
+    .get("/boards", () => [])
+    .get("/boards/:boardId", ({ params }) => ({ id: params.boardId }))
+    .patch("/cards/:id", ({ invalidate }) => {
+      invalidate("/boards/:boardId", { boardId: "alpha" });
+      invalidate("/boards");
+      return { ok: true };
+    })
+    .delete("/cards/:id", ({ invalidate }) => {
+      invalidate("/boards/:boardId");
+      return { ok: true };
+    });
+  const mutate = (method: string) =>
+    app.handle(new Request("http://localhost/cards/c1", { method }));
+  try {
+    const patched = await mutate("PATCH");
+    expect(JSON.parse(patched.headers.get("x-furin-queries") ?? "null")).toEqual([
+      { id: "/boards/:boardId", scope: { boardId: "alpha" } },
+      { id: "/boards", scope: {} },
+      { id: "/cards/:id", scope: { id: "c1" } },
+    ]);
+    const deleted = await mutate("DELETE");
+    expect(JSON.parse(deleted.headers.get("x-furin-queries") ?? "null")).toEqual([
+      { id: "/boards/:boardId", scope: {} },
+      { id: "/cards/:id", scope: { id: "c1" } },
+    ]);
+  } finally {
+    database.close();
+  }
+});
+
+test("atomic invalidations roll back with the domain write and replay with the response", async () => {
   const database = new Database(":memory:");
   database.run("CREATE TABLE atomic_cards (board_id TEXT NOT NULL)");
   migrateSqliteSync(database);
@@ -81,65 +96,54 @@ test("atomic query invalidations roll back with the domain write and replay with
     principal: () => "alice",
   };
   let rejectBusiness = true;
-  let rejectSelector = false;
-  let selections = 0;
+  let throwAfterInvalidate = false;
   const app = new Elysia()
     .use(furinSync(sync))
     .use(createSyncChangesPlugin(sync))
-    .post(
-      "/cards/:boardId",
-      {
-        sync: {
-          invalidate: ({ params }) => {
-            selections += 1;
-            if (rejectSelector) {
-              throw new Error("Invalid dependency");
-            }
-            return { id: "board.cards", scope: { boardId: params.boardId } };
-          },
-        },
-      },
-      ({ mutation, params, problem }) =>
-        mutation((tx) => {
-          tx.insert(cards).values({ boardId: params.boardId }).run();
-          return rejectBusiness
-            ? problem("Conflict", { detail: "Rejected" })
-            : { boardId: params.boardId };
-        })
+    .post("/boards/:boardId/cards", ({ invalidate, mutation, params, problem }) =>
+      mutation((tx) => {
+        tx.insert(cards).values({ boardId: params.boardId }).run();
+        invalidate("/boards/:boardId", { boardId: params.boardId });
+        if (throwAfterInvalidate) {
+          throw new Error("Invalid write");
+        }
+        return rejectBusiness
+          ? problem("Conflict", { detail: "Rejected" })
+          : { boardId: params.boardId };
+      })
     );
   const request = () =>
-    new Request("http://localhost/cards/alpha", {
+    new Request("http://localhost/boards/alpha/cards", {
       method: "POST",
       headers: { "idempotency-key": "same-key" },
     });
+  const board = { id: "/boards/:boardId", scope: { boardId: "alpha" } };
+  const self = { id: "/boards/:boardId/cards", scope: { boardId: "alpha" } };
   try {
     const rejected = await app.handle(request());
     expect(rejected.status).toBe(409);
     expect(rejected.headers.has("x-furin-queries")).toBe(false);
-    expect(selections).toBe(0);
     rejectBusiness = false;
-    rejectSelector = true;
+    throwAfterInvalidate = true;
     expect((await app.handle(request())).status).toBe(500);
     expect(db.select().from(cards).all()).toEqual([]);
     const rolledBackChanges = await app.handle(
       new Request("http://localhost/_furin/sync/changes?after=0")
     );
     expect(await rolledBackChanges.json()).toMatchObject({ changes: [] });
-    rejectSelector = false;
+    throwAfterInvalidate = false;
     const committed = await app.handle(request());
     expect(committed.status).toBe(200);
+    expect(JSON.parse(committed.headers.get("x-furin-queries") ?? "null")).toEqual([board, self]);
     const replay = await app.handle(request());
     expect(replay.headers.get("x-furin-queries")).toBe(committed.headers.get("x-furin-queries"));
     expect(db.select().from(cards).all()).toEqual([{ boardId: "alpha" }]);
-    expect(selections).toBe(2);
     const changes = await app.handle(new Request("http://localhost/_furin/sync/changes?after=0"));
     expect(await changes.json()).toMatchObject({
       changes: [
         {
           cursor: "1",
-          invalidations: [
-            { kind: "tags", tags: [queryTag({ id: "board.cards", scope: { boardId: "alpha" } })] },
-          ],
+          invalidations: [{ kind: "tags", tags: [queryTag(board), queryTag(self)] }],
         },
       ],
       reset: false,

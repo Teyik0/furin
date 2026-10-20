@@ -115,7 +115,7 @@ test("POST /cards on a missing board returns a 404 problem before touching the D
   const res = await api.handle(
     new Request("http://localhost/api/boards/board-does-not-exist/cards", {
       body: JSON.stringify({ column: "todo", title: "Test card" }),
-      // furinSync requires an Idempotency-Key on every mutation method (428 otherwise).
+      // Without an Idempotency-Key furinSync generates one: the mutation runs, undeduplicated.
       headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
       method: "POST",
     })

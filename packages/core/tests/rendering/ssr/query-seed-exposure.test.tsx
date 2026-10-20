@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
+import { treaty } from "@elysia/eden";
 import { Elysia } from "elysia";
-import { createClient } from "../../../src/client.ts";
+import { furinSync } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
@@ -22,7 +23,7 @@ afterEach(() => {
 });
 
 function accountApi() {
-  return createClient(
+  return treaty(
     new Elysia()
       .get("/account", ({ set }) => {
         set.headers["x-furin-query"] = JSON.stringify(identity);
@@ -36,7 +37,7 @@ function accountApi() {
         set.headers["x-furin-query"] = JSON.stringify(identity);
         return { board: { title: "Alpha" }, cards: [{ title: "Card" }], total: SECRET };
       })
-  );
+  ).use(furinSync);
 }
 
 type Account = Awaited<ReturnType<ReturnType<typeof accountApi>["account"]["get"]>>["data"];
@@ -98,20 +99,20 @@ test.each([
   [
     "an unbound read",
     async (api: ReturnType<typeof accountApi>) => ({
-      displayName: (await api.account.get()).data?.profile.displayName,
+      displayName: (await api.account.get.live()).data?.profile.displayName,
     }),
   ],
   [
     "a read bound only through a nested object",
     async (api: ReturnType<typeof accountApi>) => ({
-      profile: (await api.account.get()).data?.profile,
+      profile: (await api.account.get.live()).data?.profile,
     }),
   ],
   [
     "a deferred unbound read",
     (api: ReturnType<typeof accountApi>) =>
       defer({
-        displayName: api.account.get().then(({ data }) => data?.profile.displayName),
+        displayName: api.account.get.live().then(({ data }) => data?.profile.displayName),
       }),
   ],
 ])("%s never transports the full GET response", async (_, loader) => {
@@ -126,7 +127,7 @@ test.each([
 
 test("a GET response returned whole still hydrates", async () => {
   const { html, seeds } = await transports(async (api) => ({
-    account: (await api.account.get()).data as Account,
+    account: (await api.account.get.live()).data as Account,
   }));
   expect(html).toContain(SECRET);
   expect(seeds).toMatchObject([
@@ -140,7 +141,7 @@ test("a GET response returned whole still hydrates", async () => {
 
 test("a GET whose every top-level value is returned by identity still hydrates", async () => {
   const { seeds } = await transports(async (api) => {
-    const { data } = await api.board.get();
+    const { data } = await api.board.get.live();
     return { board: data?.board, cards: data?.cards };
   });
   expect(seeds).toMatchObject([
@@ -150,7 +151,7 @@ test("a GET whose every top-level value is returned by identity still hydrates",
 
 test("a GET with a top-level scalar the loader cannot bind ships no body", async () => {
   const { html, payload, seeds } = await transports(async (api) => {
-    const { data } = await api.totals.get();
+    const { data } = await api.totals.get.live();
     return { board: data?.board, cards: data?.cards };
   });
   expect(html).not.toContain(SECRET);
@@ -161,7 +162,7 @@ test("a GET with a top-level scalar the loader cannot bind ships no body", async
 
 test("a later deferred field does not erase a body returned whole by the loader", async () => {
   const { seeds } = await transports(async (api) => {
-    const account = (await api.account.get()).data as Account;
+    const account = (await api.account.get.live()).data as Account;
     return defer({ account, later: Promise.resolve("done") });
   });
   expect(seeds).toMatchObject([{ identity, data: { passwordResetToken: SECRET } }]);

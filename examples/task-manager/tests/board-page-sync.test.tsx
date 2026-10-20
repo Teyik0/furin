@@ -1,7 +1,7 @@
 import "../../../packages/core/tests/setup/global.ts";
 import { expect, mock, test } from "bun:test";
 import { treaty } from "@elysia/eden";
-import { withSync } from "@teyik0/furin/client";
+import { furinSync } from "@teyik0/furin/client";
 import { Elysia } from "elysia";
 import {
   installDom,
@@ -23,11 +23,9 @@ mock.module("../src/components/ui/kanban", () => ({
 
 const app = new Elysia().get("/boards/:boardId", () => new Response(null, { status: 503 }));
 mock.module("../src/lib/api", () => ({
-  api: withSync(
-    treaty<typeof app>(window.location.origin, {
-      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-    })
-  ),
+  api: treaty<typeof app>(window.location.origin, {
+    fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+  }).use(furinSync),
 }));
 
 const { route } = await import("../src/pages/board/[boardId]/index");

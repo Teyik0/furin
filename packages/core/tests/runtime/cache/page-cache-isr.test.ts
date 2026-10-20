@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { treaty } from "@elysia/eden";
 import { type Context, Elysia } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
-import { withSync } from "../../../src/client.ts";
+import { furinSync } from "../../../src/client.ts";
 import { revalidateTag } from "../../../src/server/auto-invalidate/index.ts";
 import { autoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
 import {
@@ -226,21 +226,19 @@ test("background discovery cannot drop query tags from a shared ISR entry", asyn
   }
   const query = { id: "cards", scope: {}, session: "public" };
   let reads = 0;
-  const api = withSync(
-    treaty(
-      new Elysia().get("/cards", ({ set }) => {
-        reads += 1;
-        set.headers["x-furin-query"] = JSON.stringify(query);
-        return { timestamp: 2 };
-      })
-    )
-  );
+  const api = treaty(
+    new Elysia().get("/cards", ({ set }) => {
+      reads += 1;
+      set.headers["x-furin-query"] = JSON.stringify(query);
+      return { timestamp: 2 };
+    })
+  ).use(furinSync);
   const route = {
     ...matched,
     tags: undefined,
     page: {
       ...matched.page,
-      loader: async () => (await api.cards.get()).data ?? {},
+      loader: async () => (await api.cards.get.live()).data ?? {},
     },
   };
   const instance = registerInstance(createInstance("", "/background-query/pages"));
@@ -442,19 +440,17 @@ test("ISR discovers Eden dependencies without loader tags and invalidates the sh
   const identity = { id: "board.cards", scope: { boardId: "alpha" }, session: "alice" };
   let value = 1;
   let reads = 0;
-  const api = withSync(
-    treaty(
-      new Elysia().get("/cards", ({ set }) => {
-        reads += 1;
-        set.headers["x-furin-query"] = JSON.stringify(identity);
-        return { timestamp: value };
-      })
-    )
-  );
+  const api = treaty(
+    new Elysia().get("/cards", ({ set }) => {
+      reads += 1;
+      set.headers["x-furin-query"] = JSON.stringify(identity);
+      return { timestamp: value };
+    })
+  ).use(furinSync);
   const route: ResolvedRoute = {
     ...matched,
     mode: "isr",
-    page: { ...matched.page, loader: async () => (await api.cards.get()).data ?? {} },
+    page: { ...matched.page, loader: async () => (await api.cards.get.live()).data ?? {} },
     tags: undefined,
   };
   const instance = registerInstance(createInstance("", "/eden-dependency/pages"));

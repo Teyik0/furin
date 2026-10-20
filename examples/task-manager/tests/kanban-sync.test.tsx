@@ -1,7 +1,7 @@
 import "../../../packages/core/tests/setup/global.ts";
 import { afterEach, expect, mock, test } from "bun:test";
 import { treaty } from "@elysia/eden";
-import { withSync } from "@teyik0/furin/client";
+import { furinSync } from "@teyik0/furin/client";
 import { RouterProvider, useRouter } from "@teyik0/furin/link";
 import { Elysia } from "elysia";
 import { serializeCompactJsonLine } from "../../../packages/core/src/shared/compact-json.ts";
@@ -35,7 +35,11 @@ let confirmedCards: Card[] = [];
 let refresh: (() => Promise<void>) | undefined;
 const boardPattern = /^\/board\/[^/]+$/;
 const originalFetch = globalThis.fetch;
-const boardIdentity = { id: "board", scope: { boardId: "board-1" }, session: "test" };
+const boardIdentity = {
+  id: "/api/boards/:boardId",
+  scope: { boardId: "board-1" },
+  session: "test",
+};
 
 function boardData() {
   return {
@@ -78,18 +82,16 @@ const app = new Elysia()
   );
 
 mock.module("../src/lib/api", () => ({
-  api: withSync(
-    treaty<typeof app>(window.location.origin, {
-      fetcher: ((input, init) => {
-        if (init?.method === "POST" && createFailure) {
-          return createFailure instanceof Error
-            ? Promise.reject(createFailure)
-            : Promise.resolve(createFailure.clone());
-        }
-        return app.handle(new Request(input, init));
-      }) as typeof fetch,
-    })
-  ).api,
+  api: treaty<typeof app>(window.location.origin, {
+    fetcher: ((input, init) => {
+      if (init?.method === "POST" && createFailure) {
+        return createFailure instanceof Error
+          ? Promise.reject(createFailure)
+          : Promise.resolve(createFailure.clone());
+      }
+      return app.handle(new Request(input, init));
+    }) as typeof fetch,
+  }).use(furinSync).api,
 }));
 const { Kanban } = await import("../src/components/ui/kanban");
 const { moveCard } = await import("../src/lib/card-mutations");

@@ -1,59 +1,111 @@
+import type { Register } from "@teyik0/furin/routes";
 import type { Context } from "elysia";
 import {
   type QueryIdentity,
   type QueryScope,
   queryFromTag,
   queryTag,
-  type SyncQueryIdentity,
   serializeQueryHeader,
 } from "../../shared/sync-query.ts";
-import type {
-  InvalidationInput,
-  InvalidationRule,
-  SyncInvalidationInput,
-} from "../auto-invalidate/types.ts";
+import type { InvalidationInput, InvalidationRule } from "../auto-invalidate/types.ts";
 
-export type SyncInvalidationSelector<RouteContext> =
-  | SyncInvalidationInput
-  | ((context: RouteContext) => SyncInvalidationInput);
+/** A method's schema in an Eden route tree; path segments never carry these fields. */
+interface RouteSchema {
+  body: unknown;
+  headers: unknown;
+  params: unknown;
+  query: unknown;
+  response: unknown;
+}
 
-const collected = new WeakMap<Request, SyncInvalidationInput[]>();
+/** The GET route patterns of an Eden route tree, eg. `"/boards" | "/boards/:boardId"`. */
+export type GetPatterns<Routes, Path extends string> = {
+  [Segment in keyof Routes & string]: Segment extends "get"
+    ? Path extends ""
+      ? "/"
+      : Path
+    : Routes[Segment] extends RouteSchema
+      ? never
+      : GetPatterns<Routes[Segment], `${Path}/${Segment}`>;
+}[keyof Routes & string];
+
+type ParamName<Param extends string> = Param extends `${infer Name}?` ? Name : Param;
+type ParamNames<Pattern extends string> = Pattern extends `${string}:${infer Param}/${infer Rest}`
+  ? ParamName<Param> | ParamNames<Rest>
+  : Pattern extends `${string}:${infer Param}`
+    ? ParamName<Param>
+    : never;
+
+/** The registered application's GET patterns; any path until one is registered. */
+export type SyncPattern = Register extends { app: { "~Routes": infer Routes } }
+  ? GetPatterns<Routes, "">
+  : string;
+
+/** A pattern's params; an omitted param matches every value. */
+export type SyncParams<Pattern extends string> = string extends Pattern
+  ? { readonly [param: string]: string | number }
+  : [ParamNames<Pattern>] extends [never]
+    ? { readonly [param: string]: never }
+    : { readonly [Name in ParamNames<Pattern>]?: string | number };
+
+// The pattern alone selects the route: params must not widen it to another pattern's.
+export type Invalidate<Pattern extends string> = <Target extends Pattern>(
+  pattern: Target,
+  params?: NoInfer<SyncParams<Target>>
+) => void;
+
+/**
+ * The handler's `invalidate()`. An interface, unlike `Invalidate<SyncPattern>`, resolves
+ * `Register["app"]` lazily: the registered app's own handlers can call it without circularity.
+ */
+export type SyncInvalidate = <Target extends SyncPattern>(
+  pattern: Target,
+  params?: NoInfer<SyncParams<Target>>
+) => void;
+
+const collected = new WeakMap<Request, QueryIdentity[]>();
+const internalReads = new WeakSet<Request>();
+
+/** Furin's own sync endpoints are no live queries: their GETs carry no URL identity. */
+export function markInternalRead(request: Request): void {
+  internalReads.add(request);
+}
+
+export function isInternalRead(request: Request): boolean {
+  return internalReads.has(request);
+}
 
 /** Records a handler invalidation; it only applies if the mutation commits. */
-export function collectInvalidation(request: Request, input: SyncInvalidationInput): void {
-  const inputs = collected.get(request);
-  if (inputs) {
-    inputs.push(input);
+export function collectInvalidation(request: Request, identity: QueryIdentity): void {
+  const identities = collected.get(request);
+  if (identities) {
+    identities.push(identity);
   } else {
-    collected.set(request, [input]);
+    collected.set(request, [identity]);
   }
 }
 
-interface UnregisteredRead<RouteContext> {
-  id: string;
-  scope?: QueryScope | ((context: RouteContext) => QueryScope);
+/** The URL identity of the request's own route: its registered pattern and params. */
+export function urlIdentity(context: {
+  params?: { readonly [name: string]: string | number | undefined };
+  path: string;
+  route?: string;
+}): QueryIdentity {
+  const scope: QueryScope = Object.fromEntries(
+    Object.entries(context.params ?? {}).filter(([, value]) => value !== undefined)
+  );
+  return { id: context.route ?? context.path, scope };
 }
 
-type RegisteredRead<Identity, RouteContext> = Identity extends SyncQueryIdentity
-  ? { id: Identity["id"] } & (string extends keyof Identity["scope"]
-      ? { scope?: Identity["scope"] | ((context: RouteContext) => Identity["scope"]) }
-      : { scope: Identity["scope"] | ((context: RouteContext) => Identity["scope"]) })
-  : never;
-
-export type SyncReadOption<RouteContext> = string extends SyncQueryIdentity["id"]
-  ? UnregisteredRead<RouteContext>
-  : RegisteredRead<SyncQueryIdentity, RouteContext>;
-
+/** The route's rules, the handler's `invalidate()` calls and the GET at the mutation's own URL. */
 export function resolveSyncInvalidations(
-  input: SyncInvalidationSelector<Context> | undefined,
+  rules: InvalidationInput | undefined,
   context: Context
-): InvalidationInput | undefined {
-  const selected = typeof input === "function" ? input(context) : input;
-  const rules = [selected ?? [], ...(collected.get(context.request) ?? [])].flat();
-  if (rules.length === 0) {
-    return;
-  }
-  return rules.map((rule): InvalidationRule => ("id" in rule ? { tags: [queryTag(rule)] } : rule));
+): InvalidationInput {
+  const queries: InvalidationRule = {
+    tags: [...(collected.get(context.request) ?? []), urlIdentity(context)].map(queryTag),
+  };
+  return [rules ?? [], queries].flat();
 }
 
 export function appendQueryInvalidations(

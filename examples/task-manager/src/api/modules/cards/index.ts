@@ -7,17 +7,13 @@ import { createCard, deleteCard, getCard, updateCard } from "./service";
 
 export const cardPlugin = new Elysia()
   .use(furinSync(taskManagerSync))
-  .get(
-    "/cards/:id",
-    { sync: { id: "card", scope: ({ params }) => ({ id: params.id }) } },
-    ({ params, problem }) => {
-      const card = getCard(params.id);
-      if (!card) {
-        return problem("Not Found", { detail: "Card not found" });
-      }
-      return card;
+  .get("/cards/:id", ({ params, problem }) => {
+    const card = getCard(params.id);
+    if (!card) {
+      return problem("Not Found", { detail: "Card not found" });
     }
-  )
+    return card;
+  })
   .post(
     "/boards/:boardId/cards",
     {
@@ -25,21 +21,20 @@ export const cardPlugin = new Elysia()
         column: columnType,
         title: t.String({ minLength: 1 }),
       }),
-      sync: { invalidate: ({ params }) => ({ id: "board", scope: { boardId: params.boardId } }) },
     },
-    ({ params, body, problem, mutation }) =>
+    ({ params, body, problem, mutation, invalidate }) =>
       mutation((tx) => {
         if (!getBoard(params.boardId, tx)) {
           return problem("Not Found", { detail: "Board not found" });
         }
+        invalidate("/api/boards/:boardId", { boardId: params.boardId });
+        invalidate("/api/boards/:boardId/stats", { boardId: params.boardId });
         return createCard(tx, params.boardId, body.title, body.column);
       })
   )
   .guard(
-    {
-      params: t.Object({ id: t.String() }),
-      sync: { invalidate: ({ params }) => ({ id: "card", scope: { id: params.id } }) },
-    },
+    // Each mutation refreshes GET /api/cards/:id by self-invalidation, and its board views.
+    { params: t.Object({ id: t.String() }) },
     (app) =>
       app
         .post(
@@ -60,7 +55,8 @@ export const cardPlugin = new Elysia()
               if (!card) {
                 return problem("Not Found", { detail: "Card not found" });
               }
-              invalidate({ id: "board", scope: { boardId: card.boardId } });
+              invalidate("/api/boards/:boardId", { boardId: card.boardId });
+              invalidate("/api/boards/:boardId/stats", { boardId: card.boardId });
               return redirect(`/board/${card.boardId}`);
             })
         )
@@ -84,7 +80,8 @@ export const cardPlugin = new Elysia()
               if (!card) {
                 return problem("Not Found", { detail: "Card not found" });
               }
-              invalidate({ id: "board", scope: { boardId: card.boardId } });
+              invalidate("/api/boards/:boardId", { boardId: card.boardId });
+              invalidate("/api/boards/:boardId/stats", { boardId: card.boardId });
               return card;
             })
         )
@@ -98,7 +95,8 @@ export const cardPlugin = new Elysia()
             if (!ok) {
               return problem("Not Found", { detail: "Card not found" });
             }
-            invalidate({ id: "board", scope: { boardId: card.boardId } });
+            invalidate("/api/boards/:boardId", { boardId: card.boardId });
+            invalidate("/api/boards/:boardId/stats", { boardId: card.boardId });
             return { ok: true };
           })
         )

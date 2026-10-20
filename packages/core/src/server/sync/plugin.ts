@@ -1,11 +1,16 @@
-import { type Context, Elysia, ElysiaStatus, type MacroTypeLambda, macroType } from "elysia";
-import { queryTag, serializeQueryHeader } from "../../shared/sync-query.ts";
+import { type Context, Elysia, ElysiaStatus } from "elysia";
+import {
+  type QueryReadIdentity,
+  type QueryScope,
+  queryTag,
+  serializeQueryHeader,
+} from "../../shared/sync-query.ts";
 import {
   appendPendingInvalidationHeader,
   isSuccessfulMutationResponse,
   runInvalidationRules,
 } from "../auto-invalidate/runtime.ts";
-import type { InvalidationInput, SyncInvalidationInput } from "../auto-invalidate/types.ts";
+import type { InvalidationInput } from "../auto-invalidate/types.ts";
 import { peekPendingInvalidations } from "../cache/invalidation.ts";
 import { getLogger } from "../context-logger.ts";
 import { ensureRequestScope } from "../instance.ts";
@@ -32,9 +37,10 @@ import { principalHash } from "./principal-journal.ts";
 import {
   appendQueryInvalidations,
   collectInvalidation,
+  isInternalRead,
   resolveSyncInvalidations,
-  type SyncInvalidationSelector,
-  type SyncReadOption,
+  type SyncInvalidate,
+  urlIdentity,
 } from "./queries.ts";
 import {
   effectiveResponseHeaders,
@@ -45,26 +51,15 @@ import {
 import { resolveSyncRuntime } from "./runtime.ts";
 import { bindSyncValidation, syncValidationApp } from "./validation.ts";
 
-/** A route's `sync` option; Elysia types `RouteContext` with the route's params, query and body. */
-export type SyncRouteOption<RouteContext = Context> =
-  | false
-  | InvalidationInput
-  | SyncReadOption<RouteContext>
-  | {
-      invalidate: SyncInvalidationSelector<RouteContext>;
-    };
-
-interface SyncRouteOptionType extends MacroTypeLambda {
-  option: SyncRouteOption<this["context"]>;
-}
+/** A route's `sync` option: `false` opts out, rules add page or tag invalidations. */
+export type SyncRouteOption = false | InvalidationInput;
 
 /** @deprecated Use SyncRouteOption. */
 export type SyncInput = Exclude<SyncRouteOption, false>;
 
 interface RouteSyncMetadata {
   disabled: boolean;
-  invalidate?: SyncInvalidationSelector<Context>;
-  read?: SyncReadOption<Context>;
+  invalidate?: InvalidationInput;
 }
 
 interface ActiveMutation {
@@ -101,18 +96,6 @@ function hideTransportResponse<TContext>(
 ): TransportHook<TContext> {
   // Sync responses short-circuit Elysia at runtime; they are not route success payloads for Eden.
   return hook as TransportHook<TContext>;
-}
-
-function invalidationInputFromSync(
-  input: Exclude<SyncRouteOption, false>
-): SyncInvalidationSelector<Context> | undefined {
-  if (input && typeof input === "object" && "invalidate" in input) {
-    return input.invalidate;
-  }
-  if ("id" in input) {
-    return;
-  }
-  return input;
 }
 
 const MAX_IDEMPOTENCY_KEY_LENGTH = 255;
@@ -168,17 +151,10 @@ function leaseLostResponse(): Response {
 
 function syncRouteMacro(input: SyncRouteOption) {
   return {
-    $type: macroType<SyncRouteOptionType>(),
     transform({ request }: Pick<Context, "request">) {
       routeMetadata.set(
         request,
-        input === false
-          ? { disabled: true }
-          : {
-              disabled: false,
-              invalidate: invalidationInputFromSync(input),
-              read: "id" in input ? input : undefined,
-            }
+        input === false ? { disabled: true } : { disabled: false, invalidate: input }
       );
     },
   };
@@ -237,13 +213,8 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
     if (!isMutationMethod(ctx.request.method) || routeMetadata.get(ctx.request)?.disabled) {
       return;
     }
-    const idempotencyKey = getIdempotencyKey(ctx);
-    if (!idempotencyKey) {
-      return new Response("Missing Idempotency-Key header", {
-        headers: { "content-type": "text/plain; charset=utf-8" },
-        status: 428,
-      });
-    }
+    // Without a client key the mutation still runs and syncs; it is just not deduplicated.
+    const idempotencyKey = getIdempotencyKey(ctx) ?? crypto.randomUUID();
     if (
       idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH ||
       !PRINTABLE_ASCII.test(idempotencyKey)
@@ -413,7 +384,11 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
     )
     .derive("global", (ctx) => ({
       mutation: (requestOwners.get(ctx.request) ?? owner).mutationFor(ctx) as SyncMutation<Adapter>,
-      invalidate: (input: SyncInvalidationInput) => collectInvalidation(ctx.request, input),
+      invalidate: ((pattern: string, params?: QueryScope) => {
+        const scope = params ?? {};
+        queryTag({ id: pattern, scope });
+        collectInvalidation(ctx.request, { id: pattern, scope });
+      }) as SyncInvalidate,
     }))
     .onBeforeHandle("global", (context) => {
       if (
@@ -436,16 +411,15 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
       if (requestOwners.get(ctx.request) !== owner) {
         return;
       }
-      const read = routeMetadata.get(ctx.request)?.read;
+      // Data GETs only: a raw Response (a Furin page, a file, a stream) is no live query.
       if (
         ctx.request.method !== "GET" ||
-        !read ||
+        isInternalRead(ctx.request) ||
+        ctx.responseValue instanceof Response ||
+        routeMetadata.get(ctx.request)?.disabled ||
         !isSuccessfulMutationResponse({
           set: ctx.set,
-          responseValue:
-            ctx.responseValue instanceof Response || ctx.responseValue instanceof ElysiaStatus
-              ? ctx.responseValue
-              : undefined,
+          responseValue: ctx.responseValue instanceof ElysiaStatus ? ctx.responseValue : undefined,
         })
       ) {
         return;
@@ -454,12 +428,10 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
       if (principal.length === 0) {
         throw new Error("[furin] Sync principal must not be empty.");
       }
-      const identity = {
-        id: read.id,
-        scope: typeof read.scope === "function" ? read.scope(ctx as Context) : (read.scope ?? {}),
+      const identity: QueryReadIdentity = {
+        ...urlIdentity(ctx),
         session: principalHash(options.adapter, principal),
       };
-      queryTag(identity);
       ctx.set.headers["x-furin-query"] = serializeQueryHeader(identity);
     })
     .onError(

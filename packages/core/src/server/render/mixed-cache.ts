@@ -9,7 +9,7 @@ import { currentQueryEnvironment } from "../../client/query-store.ts";
 import { toLogical } from "../../client/router/link-utils.ts";
 import { isDeferred } from "../../shared/defer.ts";
 import { bindQueryData, projectQueryData } from "../../shared/query-bindings.ts";
-import { type QuerySeed, queryTag } from "../../shared/sync-query.ts";
+import { type QuerySeed, queryTags } from "../../shared/sync-query.ts";
 import { autoInvalidateRegistry, getAutoInvalidateRegistry } from "../auto-invalidate/registry.ts";
 import type { PageCacheAdapter, PageCacheIdentity, PageCacheLease } from "../cache/page-cache.ts";
 import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
@@ -40,7 +40,7 @@ function capturedQueryTags(): string[] {
   return (
     currentQueryEnvironment()
       ?.store.dehydrate()
-      .map((seed) => queryTag(seed.identity)) ?? []
+      .flatMap((seed) => queryTags(seed.identity)) ?? []
   );
 }
 

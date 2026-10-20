@@ -4,6 +4,7 @@ import type { SyncAdapter, SyncSubscription } from "./adapter.ts";
 import type { FurinSyncOptions } from "./config.ts";
 import { syncRuntimeOptions } from "./config.ts";
 import { readPrincipalChanges } from "./principal-journal.ts";
+import { markInternalRead } from "./queries.ts";
 import { type ResolvedSyncRuntime, resolveSyncRuntime } from "./runtime.ts";
 
 export type { ChangePage as SyncChangePage, SyncChange } from "./adapter.ts";
@@ -184,6 +185,7 @@ export function createRuntimeSyncChangesPlugin(options: FurinSyncOptions, develo
     `${syncPath}/changes`,
     async (context) => {
       const { request, set } = context;
+      markInternalRead(request);
       set.headers["cache-control"] = "no-store";
       const query = parseChangeQuery(request);
       if ("error" in query) {

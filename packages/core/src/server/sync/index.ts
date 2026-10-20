@@ -10,7 +10,6 @@ export const PollingSyncNotifier = PollingSyncNotifierImplementation;
 
 export type PollingSyncNotifier = PollingSyncNotifierImplementation;
 
-export type { SyncInvalidationInput } from "../auto-invalidate/types.ts";
 export type {
   AtomicMutationResult,
   AtomicMutationValue,

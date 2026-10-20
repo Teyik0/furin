@@ -29,6 +29,7 @@ import {
   createSyncChangesPlugin,
   subscribeSyncCursor,
 } from "../../../src/server/sync/stream.ts";
+import { queryTag } from "../../../src/shared/sync-query.ts";
 
 const originalDevMode = IS_DEV;
 const syncDatabase = new Database(":memory:");
@@ -131,7 +132,7 @@ test("furinSync durably preserves manual and declarative invalidations", async (
   };
   const app = new Elysia()
     .use(furinSync({ adapter, notifier, principal: () => "principal" }))
-    .post("/cards", { sync: { invalidate: { path: "/declared", type: "layout" } } }, () => {
+    .post("/cards", { sync: { path: "/declared", type: "layout" } }, () => {
       revalidatePath("/manual", "page");
       revalidatePath("/declared", "layout");
       return { ok: true };
@@ -150,6 +151,7 @@ test("furinSync durably preserves manual and declarative invalidations", async (
     expect(response.headers.get("x-furin-revalidate")).toBe("/manual,/declared:layout");
     expect(completed[0]?.invalidations).toEqual([
       { kind: "path", path: "/declared", type: "layout" },
+      { kind: "tags", tags: [queryTag({ id: "/cards", scope: {} })] },
       { kind: "path", path: "/manual", type: "page" },
     ]);
   } finally {
@@ -171,14 +173,10 @@ test("furinSync completes idempotency when cache invalidation is unavailable", a
   let mutationCalls = 0;
   const app = new Elysia()
     .use(furinSync(testSync))
-    .post(
-      "/invalidation-outage",
-      { sync: { invalidate: { path: "/cards", type: "page" } } },
-      () => {
-        mutationCalls += 1;
-        return { mutationCalls };
-      }
-    );
+    .post("/invalidation-outage", { sync: { path: "/cards", type: "page" } }, () => {
+      mutationCalls += 1;
+      return { mutationCalls };
+    });
   const request = () =>
     app.handle(
       new Request("http://localhost/invalidation-outage", {
@@ -273,7 +271,7 @@ test("furinSync direct handle completes inside bun:test", async () => {
   try {
     const app = new Elysia()
       .use(furinSync(testSync))
-      .post("/cards", { sync: { invalidate: { path: "/board", type: "layout" } } }, () => ({
+      .post("/cards", { sync: { path: "/board", type: "layout" } }, () => ({
         ok: true,
       }));
 
@@ -299,7 +297,7 @@ test("furinSync bypasses reads and synchronizes mutations implicitly", async () 
     const app = new Elysia()
       .use(furinSync(testSync))
       .get("/boards", () => [{ id: "board-1" }])
-      .post("/boards", () => {
+      .post("/boards", { sync: { path: "/board", type: "layout" } }, () => {
         mutationCalls += 1;
         return { id: "board-1" };
       });
@@ -308,13 +306,14 @@ test("furinSync bypasses reads and synchronizes mutations implicitly", async () 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([{ id: "board-1" }]);
 
-    response = await app.handle(
-      new Request("http://localhost/boards", {
-        method: "POST",
-      })
-    );
-    expect(response.status).toBe(428);
-    expect(mutationCalls).toBe(0);
+    // A key-less mutation still runs and invalidates; it is just not deduplicated.
+    for (const _ of [1, 2]) {
+      // biome-ignore lint/performance/noAwaitInLoops: each key-less request must complete in turn.
+      response = await app.handle(new Request("http://localhost/boards", { method: "POST" }));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("x-furin-revalidate")).toBe("/board:layout");
+    }
+    expect(mutationCalls).toBe(2);
   } finally {
     resetSyncTestState();
   }
@@ -382,12 +381,12 @@ test("furinSync enforces idempotent mutation semantics directly", async () => {
       });
 
     let response = await syncApp.handle(new Request("http://localhost/synced", { method: "POST" }));
-    expect(response.status).toBe(428);
-    expect(calls).toBe(0);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ calls: 1 });
 
     response = await syncApp.handle(new Request("http://localhost/opted-out", { method: "POST" }));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ calls: 1 });
+    expect(await response.json()).toEqual({ calls: 2 });
 
     calls = 0;
     const replayApp = new Elysia().use(furinSync(testSync)).post("/cards", () => {
@@ -542,11 +541,7 @@ test("furinSync publishes invalidations for successful mutations with unreplayab
   };
   const app = new Elysia()
     .use(furinSync({ adapter, notifier, principal: () => "principal" }))
-    .post(
-      "/download",
-      { sync: { invalidate: { path: "/board", type: "layout" } } },
-      () => new Response("ok")
-    );
+    .post("/download", { sync: { path: "/board", type: "layout" } }, () => new Response("ok"));
 
   try {
     const response = await _runWithRequestInvalidationScope(() =>
@@ -560,7 +555,10 @@ test("furinSync publishes invalidations for successful mutations with unreplayab
 
     expect(response.status).toBe(500);
     expect(response.headers.get("x-furin-revalidate")).toBe("/board:layout");
-    expect(completed[0]?.invalidations).toEqual([{ kind: "path", path: "/board", type: "layout" }]);
+    expect(completed[0]?.invalidations).toEqual([
+      { kind: "path", path: "/board", type: "layout" },
+      { kind: "tags", tags: [queryTag({ id: "/download", scope: {} })] },
+    ]);
     expect(published).toEqual(["7"]);
   } finally {
     resetSyncTestState();

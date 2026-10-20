@@ -36,3 +36,9 @@ export const api = new Elysia({ name: "task-manager-api" })
   .use(furinSync(taskManagerSync))
   .use(new Elysia({ prefix: "/api" }).use(dbErrors).use(boardPlugin).use(cardPlugin));
 export type Api = typeof api;
+
+declare module "@teyik0/furin" {
+  interface Register {
+    app: typeof api;
+  }
+}

@@ -4,26 +4,26 @@ const CALLOUTS = [
   {
     body: (
       <>
-        A GET gets <code className="lp-code">{"sync: { id, scope }"}</code>. IDs and scopes are
-        typed by your <code className="lp-code">SyncQueryMap</code>.
+        A GET is identified by its URL: <code className="lp-code">/cards/:id</code> and its params.
+        Nothing to declare.
       </>
     ),
-    title: "Name the read.",
+    title: "The URL is the read.",
   },
   {
     body: (
       <>
-        Mutations return the reads they changed (<code className="lp-code">board</code>,{" "}
-        <code className="lp-code">card</code>), atomic with{" "}
-        <code className="lp-code">mutation(tx)</code>.
+        A mutation refreshes the GET at its own URL;{" "}
+        <code className="lp-code">invalidate("/boards/:boardId")</code> names the others, atomic
+        with <code className="lp-code">mutation(tx)</code>.
       </>
     ),
-    title: "Invalidate by identity.",
+    title: "Invalidate by URL.",
   },
   {
     body: (
       <>
-        <code className="lp-code">{"createClient<Api>"}</code>: Eden types, an{" "}
+        <code className="lp-code">{"treaty<Api>().use(furinSync)"}</code>: Eden types, an{" "}
         <code className="lp-code">Idempotency-Key</code> on every write, safe retries.
       </>
     ),

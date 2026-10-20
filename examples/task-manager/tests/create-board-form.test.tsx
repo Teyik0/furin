@@ -1,7 +1,7 @@
 import "../../../packages/core/tests/setup/global.ts";
 import { afterEach, expect, mock, test } from "bun:test";
 import { treaty } from "@elysia/eden";
-import { withSync } from "@teyik0/furin/client";
+import { furinSync } from "@teyik0/furin/client";
 import { Elysia } from "elysia";
 import {
   installDom,
@@ -26,16 +26,14 @@ const app = new Elysia().post("/boards", ({ body, headers }) => {
   return createResponse ?? { id: "board-created" };
 });
 mock.module("../src/lib/api", () => ({
-  api: withSync(
-    treaty<typeof app>(window.location.origin, {
-      fetcher: ((input, init) => {
-        if (transportFailure) {
-          return Promise.reject(transportFailure);
-        }
-        return app.handle(new Request(input, init));
-      }) as typeof fetch,
-    })
-  ),
+  api: treaty<typeof app>(window.location.origin, {
+    fetcher: ((input, init) => {
+      if (transportFailure) {
+        return Promise.reject(transportFailure);
+      }
+      return app.handle(new Request(input, init));
+    }) as typeof fetch,
+  }).use(furinSync),
 }));
 
 const { CreateBoardForm } = await import("../src/components/create-board-form");

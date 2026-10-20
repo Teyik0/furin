@@ -81,7 +81,7 @@ describe("createSyncCatchUp", () => {
     }
   });
   test("recovers query identities from journal tags and refreshes unrecognized cache tags", async () => {
-    const identity = { id: "cards", scope: { board: 42 } };
+    const identity = { id: "/boards/:board/cards", scope: { board: "42" } };
     const queries: object[] = [];
     const paths: string[] = [];
     const sync = createSyncCatchUp({

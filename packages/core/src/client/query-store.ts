@@ -3,11 +3,12 @@ import {
   type QueryReadIdentity,
   type QuerySeed,
   queryTag,
+  queryTags,
   queryUrl,
 } from "../shared/sync-query.ts";
 import { createRequestId } from "./request-id.ts";
 
-export const QUERY_REFERENCE = Symbol.for("furin.query.reference.v1");
+export const LIVE_QUERY = Symbol.for("furin.query.live.v1");
 
 export interface ReadResult {
   data: unknown;
@@ -23,12 +24,10 @@ export interface ReadReference {
   url: string;
 }
 
-export type QueryMethod = ((...args: never[]) => Promise<ReadResult>) & {
-  readonly [QUERY_REFERENCE]: true;
-};
-export type QueryData<Method extends QueryMethod> = NonNullable<
-  Awaited<ReturnType<Method>>["data"]
->;
+/** A synced GET: awaitable like the GET, subscribable by `useQuery`, a key for `cache.update`. */
+export interface LiveQuery<Result extends ReadResult> extends Promise<Result> {
+  readonly [LIVE_QUERY]: { options: unknown; reference: ReadReference };
+}
 
 export interface QuerySnapshot {
   data: unknown;
@@ -73,10 +72,6 @@ export function setServerQueryEnvironment(read: () => QueryEnvironment | undefin
 
 export function currentQueryEnvironment(): QueryEnvironment | undefined {
   return environmentGlobal[SERVER_ENVIRONMENT]?.();
-}
-
-export function readReference(method: QueryMethod): ReadReference {
-  return (method as unknown as { [QUERY_REFERENCE]: ReadReference })[QUERY_REFERENCE];
 }
 
 function readUrl(reference: ReadReference, options: unknown): string {
@@ -443,7 +438,7 @@ export class QueryStore {
     const tags = new Set(identities.map(queryTag));
     let affected = false;
     for (const [url, entry] of this.entries) {
-      if (entry.identity && tags.has(queryTag(entry.identity))) {
+      if (entry.identity && queryTags(entry.identity).some((tag) => tags.has(tag))) {
         affected = true;
         this.invalidateEntry(url, entry);
       }

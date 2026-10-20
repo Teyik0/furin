@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { api } from "../src/api";
 
-test("editing a card through a redirect invalidates its board and card queries", async () => {
+test("card mutations invalidate their own GET and their board views by URL", async () => {
   const request = (path: string, method: string, body?: object) =>
     api.handle(
       new Request(`http://furin/api${path}`, {
@@ -19,13 +19,21 @@ test("editing a card through a redirect invalidates its board and card queries",
       column: "todo",
     });
     expect(created.status).toBe(200);
+    const boardViews = [
+      { id: "/api/boards/:boardId", scope: { boardId: board.id } },
+      { id: "/api/boards/:boardId/stats", scope: { boardId: board.id } },
+    ];
+    expect(JSON.parse(created.headers.get("x-furin-queries") ?? "[]")).toEqual([
+      ...boardViews,
+      { id: "/api/boards/:boardId/cards", scope: { boardId: board.id } },
+    ]);
     const card = (await created.json()) as { id: string };
     const updated = await request(`/cards/${card.id}`, "POST", { title: "After edit" });
     expect(updated.status).toBe(302);
     expect(updated.headers.get("location")).toBe(`/board/${board.id}`);
     expect(JSON.parse(updated.headers.get("x-furin-queries") ?? "[]")).toEqual([
-      { id: "card", scope: { id: card.id } },
-      { id: "board", scope: { boardId: board.id } },
+      ...boardViews,
+      { id: "/api/cards/:id", scope: { id: card.id } },
     ]);
     const read = await api.handle(new Request(`http://furin/api/cards/${card.id}`));
     expect(read.status).toBe(200);
@@ -34,8 +42,8 @@ test("editing a card through a redirect invalidates its board and card queries",
     expect(deleted.status).toBe(200);
     expect(await deleted.json()).toEqual({ ok: true });
     expect(JSON.parse(deleted.headers.get("x-furin-queries") ?? "[]")).toEqual([
-      { id: "card", scope: { id: card.id } },
-      { id: "board", scope: { boardId: board.id } },
+      ...boardViews,
+      { id: "/api/cards/:id", scope: { id: card.id } },
     ]);
   } finally {
     expect((await request(`/boards/${board.id}`, "DELETE")).status).toBe(200);

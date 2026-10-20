@@ -136,7 +136,7 @@ describe("sync adapter bundle isolation", () => {
         [
           "bun",
           "-e",
-          'import { createClient, defineRoute, defer } from "@teyik0/furin/client"; if (![createClient, defineRoute, defer].every(value => typeof value === "function")) throw new Error("Missing client export");',
+          'import { defineRoute, defer, furinSync } from "@teyik0/furin/client"; if (typeof furinSync !== "object" || ![defineRoute, defer].every(value => typeof value === "function")) throw new Error("Missing client export");',
         ],
         { cwd: directory, timeoutMs: 25_000 }
       );

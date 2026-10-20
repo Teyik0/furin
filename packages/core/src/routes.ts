@@ -16,6 +16,9 @@ export interface RouteMap {}
 // biome-ignore lint/suspicious/noEmptyInterface: intentionally augmented by generated route types
 export interface FileRoutes {}
 
-/** Application contract for sync IDs and their resource scopes. */
+/**
+ * Registers the application whose GET routes `invalidate()` may target, re-exported by
+ * `@teyik0/furin`: `declare module "@teyik0/furin" { interface Register { app: typeof app } }`.
+ */
 // biome-ignore lint/suspicious/noEmptyInterface: intentionally augmented by applications
-export interface SyncQueryMap {}
+export interface Register {}

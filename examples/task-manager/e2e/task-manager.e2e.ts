@@ -205,7 +205,8 @@ describe.serial("task-manager production E2E", () => {
         HTTP_TIMEOUT_MS
       );
       expect(createResponse.status).toBe(200);
-      expect(createResponse.headers.get("x-furin-revalidate")).toBe("/,/rsc,/board:layout");
+      // The rendered pages that read GET /api/boards live, found by self-invalidation.
+      expect(createResponse.headers.get("x-furin-revalidate")).toBe("/");
       expect(createResponse.headers.get("x-furin-sync")).toBe("1");
       const createdBoard = (await createResponse.json()) as CreatedBoard;
       expect(createdBoard).toMatchObject({ name: boardName });
@@ -229,12 +230,7 @@ describe.serial("task-manager production E2E", () => {
         changes: [
           {
             cursor: "1",
-            invalidations: [
-              { kind: "tags", tags: ['__furin.query:["boards",[]]'] },
-              { kind: "path", path: "/", type: "page" },
-              { kind: "path", path: "/rsc", type: "page" },
-              { kind: "path", path: "/board", type: "layout" },
-            ],
+            invalidations: [{ kind: "tags", tags: ['__furin.query:["/api/boards",[]]'] }],
           },
         ],
       });

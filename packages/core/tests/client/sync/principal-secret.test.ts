@@ -41,7 +41,7 @@ function syncApp(database: Database, secret: string | undefined) {
   return new Elysia()
     .use(furinSync(sync))
     .use(createSyncChangesPlugin(sync))
-    .get("/cards", { sync: { id: "board.cards", scope: { boardId: "alpha" } } }, () => [])
+    .get("/cards", () => [])
     .post("/cards", { sync: { path: "/cards", type: "page" } }, () => ({ success: true }));
 }
 

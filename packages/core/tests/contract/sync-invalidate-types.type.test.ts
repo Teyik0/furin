@@ -5,79 +5,56 @@ import { Elysia, t } from "elysia";
 import { expectTypeOf } from "expect-type";
 import type { SyncRuntimeOptions } from "../../src/server/sync/index.ts";
 import { furinSync } from "../../src/server/sync/plugin.ts";
+import type { GetPatterns, Invalidate, SyncParams } from "../../src/server/sync/queries.ts";
 
-function typedSyncApp(options: SyncRuntimeOptions) {
-  return new Elysia()
-    .use(furinSync(options))
-    .get(
-      "/boards/:boardId",
-      {
-        query: t.Object({ page: t.Number() }),
-        sync: {
-          id: "typed.board",
-          scope: ({ params, query }) => {
-            expectTypeOf(params).toEqualTypeOf<{ boardId: string }>();
-            expectTypeOf(query).toEqualTypeOf<{ page: number }>();
-            return { boardId: params.boardId };
-          },
-        },
-      },
-      () => ({ ok: true })
-    )
-    .post(
-      "/boards/:boardId/cards",
-      {
-        body: t.Object({ title: t.String() }),
-        sync: {
-          invalidate: ({ params, body }) => {
-            expectTypeOf(params).toEqualTypeOf<{ boardId: string }>();
-            expectTypeOf(body).toEqualTypeOf<{ title: string }>();
-            return { id: "typed.board", scope: { boardId: params.boardId } };
-          },
-        },
-      },
-      ({ invalidate }) => {
-        invalidate({ id: "typed.board", scope: { boardId: "alpha" } });
-        invalidate([
-          { id: "typed.boards", scope: {} },
-          { path: "/boards", type: "page" },
-        ]);
-        // @ts-expect-error unknown query ID
-        invalidate({ id: "typed.borad", scope: { boardId: "alpha" } });
-        // @ts-expect-error scopes keep their declared fields
-        invalidate({ id: "typed.board", scope: { tenant: "alpha" } });
-        // @ts-expect-error scope values keep their declared types
-        invalidate({ id: "typed.board", scope: { boardId: 1 } });
-        return { ok: true };
-      }
-    )
-    .patch(
-      "/boards/:boardId",
-      {
-        sync: {
-          // @ts-expect-error selectors no longer receive the handler result
-          invalidate: ({ responseValue }) => ({ tags: [String(responseValue)] }),
-        },
-      },
-      () => ({ ok: true })
-    )
-    .put("/static", { sync: { invalidate: { tags: ["static"] } } }, () => ({ ok: true }))
-    .put("/rule", { sync: { path: "/rule", type: "page" } }, () => ({ ok: true }))
-    .delete("/off", { sync: false }, () => ({ ok: true }))
-    .guard(
-      {
-        params: t.Object({ id: t.String() }),
-        sync: {
-          invalidate: ({ params }) => {
-            expectTypeOf(params).toEqualTypeOf<{ id: string }>();
-            return { id: "typed.board", scope: { boardId: params.id } };
-          },
-        },
-      },
-      (app) => app.delete("/cards/:id", () => ({ ok: true }))
-    );
+const api = new Elysia({ prefix: "/api" })
+  .get("/boards", () => [{ id: "b1" }])
+  .get("/boards/:boardId", ({ params }) => ({ id: params.boardId }))
+  .post("/boards/:boardId/cards", { body: t.Object({ title: t.String() }) }, ({ body }) => body)
+  .get("/cards/:id", ({ params }) => ({ id: params.id }))
+  .patch("/cards/:id", { body: t.Object({ title: t.String() }) }, ({ body }) => body);
+type Patterns = GetPatterns<(typeof api)["~Routes"], "">;
+declare const invalidate: Invalidate<Patterns>;
+
+function assertInvalidate() {
+  invalidate("/api/boards");
+  invalidate("/api/boards/:boardId");
+  invalidate("/api/boards/:boardId", { boardId: "b1" });
+  invalidate("/api/cards/:id", { id: 1 });
+  // @ts-expect-error unknown routes are rejected
+  invalidate("/api/board/:boardId");
+  // @ts-expect-error a route without a GET is no live query
+  invalidate("/api/boards/:boardId/cards");
+  // @ts-expect-error params keep the pattern's names
+  invalidate("/api/boards/:boardId", { id: "b1" });
+  // @ts-expect-error a static route has no params
+  invalidate("/api/boards", { boardId: "b1" });
 }
 
-test("sync route options see the route's params, query and body", () => {
-  expectTypeOf(typedSyncApp).toBeFunction();
+function syncRouteOptions(options: SyncRuntimeOptions) {
+  return new Elysia()
+    .use(furinSync(options))
+    .put("/rule", { sync: { path: "/rule", type: "page" } }, ({ invalidate: invalidateAny }) => {
+      // Until an app is registered, any path and params are accepted.
+      invalidateAny("/anything/:id", { id: 1 });
+      return { ok: true };
+    })
+    .delete("/off", { sync: false }, () => ({ ok: true }));
+}
+
+function rejectReadDeclarations(options: SyncRuntimeOptions) {
+  // @ts-expect-error a GET's identity is its URL: reads declare nothing
+  return new Elysia().use(furinSync(options)).get("/old", { sync: { id: "board" } }, () => 1);
+}
+
+test("invalidate() targets the app's GET patterns with params typed from the pattern", () => {
+  expectTypeOf<Patterns>().toEqualTypeOf<
+    "/api/boards" | "/api/boards/:boardId" | "/api/cards/:id"
+  >();
+  expectTypeOf<SyncParams<"/api/boards/:boardId">>().toEqualTypeOf<{
+    readonly boardId?: string | number;
+  }>();
+  expectTypeOf(assertInvalidate).toBeFunction();
+  expectTypeOf(syncRouteOptions).toBeFunction();
+  expectTypeOf(rejectReadDeclarations).toBeFunction();
 });

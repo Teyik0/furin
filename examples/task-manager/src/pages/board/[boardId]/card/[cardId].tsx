@@ -16,8 +16,8 @@ export const route = defineRoute("/board/[boardId]/card/[cardId]")
   .loader(async ({ params }) => {
     const [{ data: boardData, error: boardError }, { data: card, error: cardError }] =
       await Promise.all([
-        api.boards({ boardId: params.boardId }).get(),
-        api.cards({ id: params.cardId }).get(),
+        api.boards({ boardId: params.boardId }).get.live(),
+        api.cards({ id: params.cardId }).get.live(),
       ]);
 
     if (boardError) {
@@ -63,9 +63,11 @@ export const route = defineRoute("/board/[boardId]/card/[cardId]")
     const { title, description } = draft ?? card;
     const router = useRouter();
     const save = useMutation(api.cards({ id: card.id }).patch, {
+      retry: 2,
       onSuccess: () => router.navigate(`/board/${boardId}`),
     });
     const remove = useMutation(api.cards({ id: card.id }).delete, {
+      retry: 2,
       onSuccess: () => router.navigate(`/board/${boardId}`),
     });
     const isMutating = save.isPending || remove.isPending;
@@ -77,8 +79,8 @@ export const route = defineRoute("/board/[boardId]/card/[cardId]")
       };
       save.mutate(changes, {
         optimistic(cache) {
-          cache.update(api.cards({ id: card.id }).get, (data) => ({ ...data, ...changes }));
-          cache.update(api.boards({ boardId }).get, (data) => ({
+          cache.update(api.cards({ id: card.id }).get.live(), (data) => ({ ...data, ...changes }));
+          cache.update(api.boards({ boardId }).get.live(), (data) => ({
             ...data,
             cards: data.cards.map((item) => (item.id === card.id ? { ...item, ...changes } : item)),
           }));
@@ -88,7 +90,7 @@ export const route = defineRoute("/board/[boardId]/card/[cardId]")
     const handleDelete = () => {
       remove.mutate(undefined, {
         optimistic: (cache) =>
-          cache.update(api.boards({ boardId }).get, (data) => ({
+          cache.update(api.boards({ boardId }).get.live(), (data) => ({
             ...data,
             cards: data.cards.filter((item) => item.id !== card.id),
           })),

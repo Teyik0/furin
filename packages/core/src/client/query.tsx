@@ -6,7 +6,7 @@ import {
   useEffect,
   useSyncExternalStore,
 } from "react";
-import { type QueryData, type QueryMethod, type QueryStore, readReference } from "./query-store.ts";
+import { LIVE_QUERY, type LiveQuery, type QueryStore, type ReadResult } from "./query-store.ts";
 
 // Entrypoints are bundled separately; they must share the context, never the cached data.
 const QUERY_CONTEXT = Symbol.for("furin.query.context.v1");
@@ -17,29 +17,18 @@ export const QueryStoreContext = (contextGlobal[QUERY_CONTEXT] ??= createContext
   null
 ));
 
-type MethodOptions<Method extends QueryMethod> = NonNullable<Parameters<Method>[0]>;
-type MethodError<Method extends QueryMethod> = Awaited<ReturnType<Method>>["error"];
-type Options<Method extends QueryMethod, Selected> = MethodOptions<Method> & {
-  select?: (data: QueryData<Method>) => Selected;
-};
+type LiveData<Result extends ReadResult> = NonNullable<Result["data"]>;
 
-export function useQuery<Method extends QueryMethod, Selected = QueryData<Method>>(
-  method: Method,
-  ...args: object extends MethodOptions<Method>
-    ? [options?: Options<Method, Selected>]
-    : [options: Options<Method, Selected>]
-): { data: Selected | undefined; error: MethodError<Method> | null; isFetching: boolean } {
-  const reference = readReference(method);
-  if (!reference) {
-    throw new Error("[furin] useQuery requires a GET from withSync().");
-  }
+export function useQuery<Result extends ReadResult, Selected = LiveData<Result>>(
+  query: LiveQuery<Result>,
+  options?: { select?: (data: LiveData<Result>) => Selected }
+): { data: Selected | undefined; error: Result["error"] | null; isFetching: boolean } {
+  const { options: readOptions, reference } = query[LIVE_QUERY];
   const context = useContext(QueryStoreContext);
   const store = context ?? reference.client;
-  const [options] = args;
-  const select = (options as { select?: (data: QueryData<Method>) => Selected } | undefined)
-    ?.select;
-  const url = store.readKey(reference, options);
-  store.bind(url, () => reference.load(options), reference.client);
+  const select = options?.select;
+  const url = store.readKey(reference, readOptions);
+  store.bind(url, () => reference.load(readOptions), reference.client);
   const subscribe = useCallback(
     (listener: () => void) => store.subscribe(url, listener),
     [store, url]
@@ -51,11 +40,11 @@ export function useQuery<Method extends QueryMethod, Selected = QueryData<Method
   }, [store, url]);
   let data: Selected | undefined;
   if (state.data !== undefined) {
-    data = select ? select(state.data as QueryData<Method>) : (state.data as Selected);
+    data = select ? select(state.data as LiveData<Result>) : (state.data as Selected);
   }
   return {
     data,
-    error: state.error as MethodError<Method> | null,
+    error: state.error as Result["error"] | null,
     isFetching: state.isFetching,
   };
 }

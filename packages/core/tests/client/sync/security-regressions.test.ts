@@ -226,7 +226,7 @@ test("Unicode and comma invalidation paths survive mutation completion and repla
   const app = new Elysia().use(furinSync(options)).post(
     "/paths",
     {
-      sync: { invalidate: paths.map((path) => ({ path, type: "page" as const })) },
+      sync: paths.map((path) => ({ path, type: "page" as const })),
     },
     () => {
       executions += 1;
@@ -275,19 +275,20 @@ test("reordered values of repeated query parameters cannot replay another reques
   }
 });
 
-test("Unicode query scopes survive read and invalidation response headers", async () => {
+test("Unicode URL params survive read and invalidation response headers", async () => {
   const { database, options } = testSync();
-  const identity = { id: "board.cards", scope: { boardId: "東京🌸" } } as const;
+  const identity = { id: "/places/:city", scope: { city: "東京🌸" } };
+  const url = `http://localhost/places/${encodeURIComponent("東京🌸")}`;
   const app = new Elysia()
     .use(furinSync(options))
-    .get("/places", { sync: identity }, () => [])
-    .post("/places", { sync: { invalidate: [identity] } }, () => ({ success: true }));
+    .get("/places/:city", () => [])
+    .post("/places/:city", () => ({ success: true }));
   try {
-    const read = await app.handle(new Request("http://localhost/places"));
+    const read = await app.handle(new Request(url));
     expect(read.status).toBe(200);
     expect(JSON.parse(read.headers.get("x-furin-query") ?? "null")).toMatchObject(identity);
     const write = await app.handle(
-      new Request("http://localhost/places", {
+      new Request(url, {
         headers: { "idempotency-key": "unicode" },
         method: "POST",
       })
@@ -318,15 +319,11 @@ test("change catch-up authorizes requests and keeps other users' resources priva
     .use(createSyncChangesPlugin(sync))
     .post(
       "/private",
-      {
-        sync: {
-          invalidate: [
-            { id: "board.cards", scope: { boardId: "victim@example.test" } },
-            { path: "/documents/private-id", type: "page" },
-          ],
-        },
-      },
-      () => ({ success: true })
+      { sync: { path: "/documents/private-id", type: "page" } },
+      ({ invalidate }) => {
+        invalidate("/boards/:boardId", { boardId: "victim@example.test" });
+        return { success: true };
+      }
     );
   try {
     const write = await app.handle(
@@ -353,13 +350,17 @@ test("change catch-up authorizes requests and keeps other users' resources priva
               {
                 cursor: "1",
                 invalidations: [
+                  { kind: "path", path: "/documents/private-id", type: "page" },
                   {
                     kind: "tags",
                     tags: [
-                      queryTag({ id: "board.cards", scope: { boardId: "victim@example.test" } }),
+                      queryTag({
+                        id: "/boards/:boardId",
+                        scope: { boardId: "victim@example.test" },
+                      }),
+                      queryTag({ id: "/private", scope: {} }),
                     ],
                   },
-                  { kind: "path", path: "/documents/private-id", type: "page" },
                 ],
               },
             ],
@@ -379,6 +380,7 @@ test("change catch-up authorizes requests and keeps other users' resources priva
         }
       })
     );
+    // The write, then one per catch-up request: Furin's own endpoints carry no URL identity.
     expect(principalCalls).toBe(4);
   } finally {
     database.close();

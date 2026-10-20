@@ -63,11 +63,12 @@ export const api = new Elysia(${apiConfig}).get("/api/message", () => ({ message
     app.path,
     "src/server.ts",
     `import { furin } from "@teyik0/furin";
-import { createClient } from "@teyik0/furin/client";
+import { treaty } from "@elysia/eden";
+import { furinSync } from "@teyik0/furin/client";
 import Elysia from "elysia";
 import { api } from "./api";
 
-const client = createClient(api);
+const client = treaty(api).use(furinSync);
 
 export default new Elysia({ name: "fixture-app" })
   .use(api)

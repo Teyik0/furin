@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 export const route = defineRoute("/")
   .config({ mode: "isr", revalidate: 10 })
   .loader(async () => {
-    const { data, error } = await api.boards.get();
+    const { data, error } = await api.boards.get.live();
     if (error) {
       throw error;
     }
@@ -89,11 +89,11 @@ export const route = defineRoute("/")
             revalidate: 10
           </code>
           . The board list is served from cache and revalidates in the background every 10 seconds.
-          After creating or deleting a board, the API route declares{" "}
+          After creating or deleting a board, the mutation invalidates{" "}
           <code className="rounded bg-white/6 px-1 py-0.5 font-mono text-violet-300">
-            sync: {'{ invalidate: { id: "boards", scope: {} } }'}
+            GET /api/boards
           </code>{" "}
-          to immediately bust the cache and broadcast the update over browser events.
+          by URL to immediately bust the cache and broadcast the update over browser events.
         </p>
       </div>
     </div>
