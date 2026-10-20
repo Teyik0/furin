@@ -1,0 +1,19 @@
+.github/workflows/ci.yaml
+  s_4958c7c47e1061::t_8845a7a695d513 96,103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8cb60c952f2b2b5582d39b41a0818d46cc453653",
+  "prompts": {},
+  "sessions": {
+    "s_4958c7c47e1061": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "46a75c91-5cde-47b4-ae28-4d003fc2f1fd",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
