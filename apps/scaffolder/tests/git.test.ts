@@ -58,7 +58,11 @@ describe("initGitRepo", () => {
     const outer = join(root, "outer");
     const project = join(root, "project");
     mkdirSync(project);
-    Bun.spawnSync(["git", "init", "-q", outer]);
+    // The test's own git calls must not follow a GIT_DIR inherited from a hook either.
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_"))
+    );
+    Bun.spawnSync(["git", "init", "-q", outer], { env });
     const gitModule = join(import.meta.dir, "../src/utils/git.ts");
     Bun.spawnSync(
       [
@@ -66,10 +70,12 @@ describe("initGitRepo", () => {
         "-e",
         `const { initGitRepo } = await import(${JSON.stringify(gitModule)}); await initGitRepo(${JSON.stringify(project)});`,
       ],
-      { env: { ...process.env, GIT_DIR: join(outer, ".git") } }
+      { env: { ...env, GIT_DIR: join(outer, ".git") } }
     );
 
-    const outerBare = Bun.spawnSync(["git", "-C", outer, "config", "core.bare"]).stdout.toString();
+    const outerBare = Bun.spawnSync(["git", "-C", outer, "config", "core.bare"], {
+      env,
+    }).stdout.toString();
     expect(existsSync(join(project, ".git"))).toBe(true);
     expect(outerBare.trim()).toBe("false");
     rmSync(root, { force: true, recursive: true });
