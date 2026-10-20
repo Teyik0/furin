@@ -1,0 +1,56 @@
+packages/electrobun/tests/fixtures/tls-cert.pem
+  s_18ef16e874533c::t_e344d330aef287 1-11
+packages/electrobun/tests/admission.test.ts
+  s_18ef16e874533c::t_e344d330aef287 1-32,38-47,53-182,226-229
+  s_18ef16e874533c::t_97b21ddf40a348 33-37,48-52,183-225
+packages/electrobun/tests/fixtures/tls-key.pem
+  s_18ef16e874533c::t_e344d330aef287 1-5
+packages/electrobun/src/capabilities.ts
+  s_18ef16e874533c::t_97b21ddf40a348 133-134
+  s_18ef16e874533c::t_e344d330aef287 131-132,135-148,150-154,156-157
+packages/electrobun/src/server.ts
+  s_18ef16e874533c::t_e344d330aef287 16-25,49-50,53-65,67-73
+  s_18ef16e874533c::t_97b21ddf40a348 7-12,66,183
+packages/electrobun/README.md
+  s_18ef16e874533c::t_e344d330aef287 330-355
+packages/electrobun/src/standard-host.ts
+  s_18ef16e874533c::t_8a7a881ab48637 372
+  s_18ef16e874533c::t_97b21ddf40a348 34-37,39-40,43-44,150,221-223,230-251,270-274,359-361,424,527-532,560-563,577,658-678,693-697,702-703,709-724,735-736,742-746
+  s_18ef16e874533c::t_e344d330aef287 220,224-229,252,317-321
+packages/electrobun/tests/client-only.test.ts
+  s_18ef16e874533c::t_97b21ddf40a348 1-83
+packages/electrobun/src/native-sdk.ts
+  s_18ef16e874533c::t_e344d330aef287 41-49,71-72
+  s_18ef16e874533c::t_97b21ddf40a348 73-77
+  s_18ef16e874533c::t_ae290d8f715d93 78-79
+packages/electrobun/tests/standard-host.test.ts
+  s_18ef16e874533c::t_97b21ddf40a348 96-98
+packages/electrobun/src/development.ts
+  s_18ef16e874533c::t_97b21ddf40a348 32,54-56
+packages/electrobun/src/runtime.ts
+  s_18ef16e874533c::t_ef3a26d17ee088 289,291-297,299-303,320-321,327-328
+  s_18ef16e874533c::t_7bf081c60f9e7d 2,298,304-319,322-326,423-424
+  s_18ef16e874533c::t_e344d330aef287 34-35,173-178,194,199-200,248-288,422,425-428
+  s_18ef16e874533c::t_452b50b000346b 290
+packages/electrobun/tests/fixtures/sdk.ts
+  s_18ef16e874533c::t_97b21ddf40a348 67,72,74
+  s_18ef16e874533c::t_e344d330aef287 68-71,73,75-76
+packages/electrobun/tests/fixtures/standard-launch.ts
+  s_18ef16e874533c::t_e344d330aef287 16-17,73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "495de76f797fa0bb64f8fea5290d33d043d7f835",
+  "prompts": {},
+  "sessions": {
+    "s_18ef16e874533c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6a6b58ad-a2bb-486b-a6b6-62aaa9d3e19c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
