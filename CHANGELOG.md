@@ -15,7 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **A mutation without `Idempotency-Key` runs** — `furinSync()` no longer answers `428`: the server generates a key, so the mutation runs in its transaction, invalidates and is broadcast, but is not deduplicated. A supplied key is still validated (`400`).
 
 ### Added
-- **`invalidateSync(sync, pattern, params?)`** — invalidates a GET URL outside a request (cron jobs, webhook consumers). Pass the same `sync` options as `furinSync()` and `furin({ sync })`: they select the adapter that journals the change and the notifier that wakes browsers. Pages and ISR entries built from the URL are purged first, as for an in-request `invalidate()`. Patterns and params are typed from the registered app.
+- **`invalidateSync(sync, target)`** — invalidates outside a request (cron jobs, webhook consumers) any target the handler's `invalidate()` takes: a GET pattern and its params, `{ tags }` or `{ path, type }`. Pass the same `sync` options as `furinSync()` and `furin({ sync })`: they select the adapter that journals the change and the notifier that wakes browsers. Pages and ISR entries built from the URL are purged first, as for an in-request `invalidate()`. Patterns and params are typed from the registered app.
 - **Typed `invalidate()` patterns** — register the application once, `declare module "@teyik0/furin" { interface Register { app: typeof app } }`, and `invalidate()` accepts only its GET patterns (prefix included, e.g. `/api/boards/:boardId`) with params typed from the pattern.
 
 ### Fixed

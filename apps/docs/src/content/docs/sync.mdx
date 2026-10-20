@@ -175,13 +175,15 @@ declare module "@teyik0/furin" {
 
 Without a registered app, `invalidate()` accepts any path and params. Calls from hooks, such as a `guard()`'s `beforeHandle`, add up with the handler's.
 
-Outside a request (a cron job, a webhook consumer), call `invalidateSync()` with the same `sync` options. It purges the pages built from the GET, then journals and broadcasts the invalidation, as a mutation would:
+Outside a request (a cron job, a webhook consumer), call `invalidateSync()` with the same `sync` options and any target `invalidate()` takes. It purges the pages built from it, then journals and broadcasts the invalidation, as a mutation would:
 
 ```ts
 import { invalidateSync } from "@teyik0/furin";
 import { sync } from "./sync";
 
 await invalidateSync(sync, "/api/boards/:boardId", { boardId });
+await invalidateSync(sync, { tags: ["board-count"] });
+await invalidateSync(sync, { path: "/board", type: "layout" });
 ```
 
 The options select the runtime: the adapter journals the change and the notifier wakes connected browsers, including those served by other processes sharing the adapter. Its journal entry carries no principal, so browsers refresh all their live reads.

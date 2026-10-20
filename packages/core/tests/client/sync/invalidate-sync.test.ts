@@ -78,3 +78,41 @@ test("invalidateSync() purges the pages built from the GET, for every value of a
     database.close();
   }
 });
+
+test("invalidateSync() accepts cache tags, like the handler's invalidate()", async () => {
+  const { database, published, sync } = sqliteSync("invalidate-sync-tags");
+  const entry = { generatedAt: Date.now(), html: "stats", ndjson: "{}\n", revalidate: 60 };
+  setISRCache("/stats", entry);
+  autoInvalidateRegistry.registerLoaderTags("/stats", ["board-count"]);
+  try {
+    await invalidateSync(sync, { tags: ["board-count"] });
+
+    expect(isrCache.has("/stats")).toBe(false);
+    expect(await sync.adapter.readChanges({ after: "0", limit: 10 })).toMatchObject({
+      changes: [{ cursor: "1", invalidations: [{ kind: "tags", tags: ["board-count"] }] }],
+    });
+    expect(published).toEqual(["1"]);
+  } finally {
+    database.close();
+  }
+});
+
+test("invalidateSync() accepts a page path and journals it for clients", async () => {
+  const { database, sync } = sqliteSync("invalidate-sync-path");
+  setISRCache("/board/alpha", {
+    generatedAt: Date.now(),
+    html: "board",
+    ndjson: "{}\n",
+    revalidate: 60,
+  });
+  try {
+    await invalidateSync(sync, { path: "/board/alpha", type: "page" });
+
+    expect(isrCache.has("/board/alpha")).toBe(false);
+    expect(await sync.adapter.readChanges({ after: "0", limit: 10 })).toMatchObject({
+      changes: [{ invalidations: [{ kind: "path", path: "/board/alpha", type: "page" }] }],
+    });
+  } finally {
+    database.close();
+  }
+});
