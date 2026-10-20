@@ -1,26 +1,9 @@
 import { furinSync } from "@teyik0/furin";
-import type { SyncInvalidationInput } from "@teyik0/furin/sync";
 import { Elysia, t } from "elysia";
 import { taskManagerSync } from "../../../sync";
 import { getBoard } from "../boards/service";
 import { columnType } from "../shared";
 import { createCard, deleteCard, getCard, updateCard } from "./service";
-
-function cardInvalidations(id: string | undefined, responseValue: unknown): SyncInvalidationInput {
-  let boardId = id ? getCard(id)?.boardId : undefined;
-  if (
-    responseValue &&
-    typeof responseValue === "object" &&
-    "boardId" in responseValue &&
-    typeof responseValue.boardId === "string"
-  ) {
-    ({ boardId } = responseValue);
-  }
-  return [
-    ...(boardId ? [{ id: "board" as const, scope: { boardId } }] : []),
-    ...(id ? [{ id: "card" as const, scope: { id } }] : []),
-  ];
-}
 
 export const cardPlugin = new Elysia()
   .use(furinSync(taskManagerSync))
@@ -42,7 +25,7 @@ export const cardPlugin = new Elysia()
         column: columnType,
         title: t.String({ minLength: 1 }),
       }),
-      sync: { invalidate: ({ responseValue }) => cardInvalidations(undefined, responseValue) },
+      sync: { invalidate: ({ params }) => ({ id: "board", scope: { boardId: params.boardId } }) },
     },
     ({ params, body, problem, mutation }) =>
       mutation((tx) => {
@@ -52,73 +35,71 @@ export const cardPlugin = new Elysia()
         return createCard(tx, params.boardId, body.title, body.column);
       })
   )
-  .post(
-    "/cards/:id",
+  .guard(
     {
-      body: t.Object({
-        description: t.Optional(t.String()),
-        title: t.Optional(t.String()),
-      }),
-      sync: {
-        invalidate: ({ params, responseValue }) => cardInvalidations(params.id, responseValue),
-      },
+      params: t.Object({ id: t.String() }),
+      sync: { invalidate: ({ params }) => ({ id: "card", scope: { id: params.id } }) },
     },
-    ({ params, body, problem, redirect, mutation }) =>
-      mutation((tx) => {
-        const existing = getCard(params.id, tx);
-        if (!existing) {
-          return problem("Not Found", { detail: "Card not found" });
-        }
-        const card = updateCard(tx, params.id, body);
-        if (!card) {
-          return problem("Not Found", { detail: "Card not found" });
-        }
-        return redirect(`/board/${card.boardId}`);
-      })
-  )
-  .patch(
-    "/cards/:id",
-    {
-      body: t.Object({
-        column: t.Optional(columnType),
-        description: t.Optional(t.String()),
-        position: t.Optional(t.Number()),
-        title: t.Optional(t.String()),
-      }),
-      sync: {
-        invalidate: ({ params, responseValue }) => cardInvalidations(params.id, responseValue),
-      },
-    },
-    ({ params, body, problem, mutation }) =>
-      mutation((tx) => {
-        const existing = getCard(params.id, tx);
-        if (!existing) {
-          return problem("Not Found", { detail: "Card not found" });
-        }
-        const card = updateCard(tx, params.id, body);
-        if (!card) {
-          return problem("Not Found", { detail: "Card not found" });
-        }
-        return card;
-      })
-  )
-  .delete(
-    "/cards/:id",
-    {
-      sync: {
-        invalidate: ({ params, responseValue }) => cardInvalidations(params.id, responseValue),
-      },
-    },
-    ({ params, problem, mutation }) =>
-      mutation((tx) => {
-        const card = getCard(params.id, tx);
-        if (!card) {
-          return problem("Not Found", { detail: "Card not found" });
-        }
-        const ok = deleteCard(tx, params.id);
-        if (!ok) {
-          return problem("Not Found", { detail: "Card not found" });
-        }
-        return { ok: true, boardId: card.boardId };
-      })
+    (app) =>
+      app
+        .post(
+          "/cards/:id",
+          {
+            body: t.Object({
+              description: t.Optional(t.String()),
+              title: t.Optional(t.String()),
+            }),
+          },
+          ({ params, body, problem, redirect, mutation, invalidate }) =>
+            mutation((tx) => {
+              const existing = getCard(params.id, tx);
+              if (!existing) {
+                return problem("Not Found", { detail: "Card not found" });
+              }
+              const card = updateCard(tx, params.id, body);
+              if (!card) {
+                return problem("Not Found", { detail: "Card not found" });
+              }
+              invalidate({ id: "board", scope: { boardId: card.boardId } });
+              return redirect(`/board/${card.boardId}`);
+            })
+        )
+        .patch(
+          "/cards/:id",
+          {
+            body: t.Object({
+              column: t.Optional(columnType),
+              description: t.Optional(t.String()),
+              position: t.Optional(t.Number()),
+              title: t.Optional(t.String()),
+            }),
+          },
+          ({ params, body, problem, mutation, invalidate }) =>
+            mutation((tx) => {
+              const existing = getCard(params.id, tx);
+              if (!existing) {
+                return problem("Not Found", { detail: "Card not found" });
+              }
+              const card = updateCard(tx, params.id, body);
+              if (!card) {
+                return problem("Not Found", { detail: "Card not found" });
+              }
+              invalidate({ id: "board", scope: { boardId: card.boardId } });
+              return card;
+            })
+        )
+        .delete("/cards/:id", ({ params, problem, mutation, invalidate }) =>
+          mutation((tx) => {
+            const card = getCard(params.id, tx);
+            if (!card) {
+              return problem("Not Found", { detail: "Card not found" });
+            }
+            const ok = deleteCard(tx, params.id);
+            if (!ok) {
+              return problem("Not Found", { detail: "Card not found" });
+            }
+            invalidate({ id: "board", scope: { boardId: card.boardId } });
+            return { ok: true };
+          })
+        )
   );

@@ -77,12 +77,17 @@ const SYNC_SERVER = `// boards/index.ts
 )
 
 // cards/index.ts
-.patch("/cards/:id", {
-  body: t.Object({ column: t.Optional(columnType), /* … */ }),
-  sync: {
-    invalidate: ({ params, responseValue }) => cardInvalidations(params.id, responseValue),
-  },
-}, ({ params, body, problem, mutation }) => mutation((tx) => { /* … */ }))`;
+.guard({
+  params: t.Object({ id: t.String() }),
+  sync: { invalidate: ({ params }) => ({ id: "card", scope: { id: params.id } }) },
+}, (app) => app
+  .patch("/cards/:id", {
+    body: t.Object({ column: t.Optional(columnType), /* … */ }),
+  }, ({ params, body, problem, mutation, invalidate }) => mutation((tx) => {
+    /* … const card = updateCard(tx, params.id, body) */
+    invalidate({ id: "board", scope: { boardId: card.boardId } });
+    return card;
+  })))`;
 
 const SYNC_CLIENT = `// api.ts
 createClient<Api>(window.location.origin, { retry: 2 }).api

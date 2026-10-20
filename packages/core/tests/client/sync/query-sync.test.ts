@@ -90,20 +90,12 @@ test("atomic query invalidations roll back with the domain write and replay with
       "/cards/:boardId",
       {
         sync: {
-          invalidate: ({ responseValue }) => {
+          invalidate: ({ params }) => {
             selections += 1;
             if (rejectSelector) {
               throw new Error("Invalid dependency");
             }
-            if (
-              !responseValue ||
-              typeof responseValue !== "object" ||
-              !("boardId" in responseValue) ||
-              typeof responseValue.boardId !== "string"
-            ) {
-              throw new Error("Missing business result");
-            }
-            return { id: "board.cards", scope: { boardId: responseValue.boardId } };
+            return { id: "board.cards", scope: { boardId: params.boardId } };
           },
         },
       },

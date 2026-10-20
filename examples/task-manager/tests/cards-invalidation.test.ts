@@ -24,12 +24,19 @@ test("editing a card through a redirect invalidates its board and card queries",
     expect(updated.status).toBe(302);
     expect(updated.headers.get("location")).toBe(`/board/${board.id}`);
     expect(JSON.parse(updated.headers.get("x-furin-queries") ?? "[]")).toEqual([
-      { id: "board", scope: { boardId: board.id } },
       { id: "card", scope: { id: card.id } },
+      { id: "board", scope: { boardId: board.id } },
     ]);
     const read = await api.handle(new Request(`http://furin/api/cards/${card.id}`));
     expect(read.status).toBe(200);
     expect(await read.json()).toMatchObject({ title: "After edit" });
+    const deleted = await request(`/cards/${card.id}`, "DELETE");
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toEqual({ ok: true });
+    expect(JSON.parse(deleted.headers.get("x-furin-queries") ?? "[]")).toEqual([
+      { id: "card", scope: { id: card.id } },
+      { id: "board", scope: { boardId: board.id } },
+    ]);
   } finally {
     expect((await request(`/boards/${board.id}`, "DELETE")).status).toBe(200);
   }

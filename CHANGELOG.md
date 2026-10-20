@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Breaking
+- **`sync.invalidate` selectors no longer receive `responseValue`** — Elysia types route options before the handler, so the result was always `unknown`. Selectors now receive the route's context with `params`, `query` and `body` typed from its schema, on routes and guards alike. Invalidations that depend on the handler's result move into the handler: call `invalidate()` from its context.
+
+### Added
+- **`invalidate()` in sync handlers** — `furinSync()` adds `invalidate(input)` to the handler context. It accepts what `sync.invalidate` accepts, checked against `SyncQueryMap`, and appends to the route's invalidations: same `x-furin-queries`, `x-furin-sync` and `x-furin-revalidate` headers, same journal entry, same cache invalidation. Calls apply only when the mutation succeeds or commits; a non-2xx/3xx result, `problem()`, a thrown error or a rollback discards them.
+
 ### Fixed
 - **In-memory Eden clients under Elysia AOT** — an Elysia instance called in memory through `createClient(app)` or `withSync(treaty(app))` compiles its own router, so AOT builds now export it from the application entry and Elysia compiles its manifest too. Such an instance must be named (`new Elysia({ name: "api" })`); the build fails otherwise.
 - **Windows development route refresh** — on Windows the development server reported edited route sources with backslashes, so their dev ISR/SSG loader output was not cleared: after a params or query schema edit, a navigation could keep loader data parsed with the previous schema. Edited sources are now reported with forward slashes, the form route snapshots and caches use. The loader cache also accepts native paths, so edits to shared workspace sources clear their entries too.

@@ -49,7 +49,7 @@ interface Execution<Tx> {
   adapter: TransactionalSyncAdapter<Tx, "async" | "sync">;
   app: Elysia;
   context: Context;
-  invalidate: SyncInvalidationSelector | undefined;
+  invalidate: SyncInvalidationSelector<Context> | undefined;
   lease: MutationLease;
   onCommit: (result: CommittedMutation) => void;
   resolvedInvalidate?: InvalidationInput;
@@ -133,7 +133,7 @@ function prepare<Tx>(execution: Execution<Tx>, value: unknown, original: unknown
   if (status < 200 || status >= 400) {
     throw new RejectedMutation(original);
   }
-  const invalidate = resolveSyncInvalidations(execution.invalidate, context, original);
+  const invalidate = resolveSyncInvalidations(execution.invalidate, context);
   execution.resolvedInvalidate = invalidate;
   appendQueryInvalidations(invalidate, context);
   const invalidations = [

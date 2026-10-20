@@ -164,7 +164,27 @@ new Elysia().use(furinSync(sync))
   );
 ```
 
-Scopes contain scalar values. Every declared value must be defined. Invalidation selectors run synchronously on successful results, after response validation and before the atomic journal write. They receive the Elysia context plus `responseValue` (the original business result). A rollback publishes no invalidation. Static tags and path rules remain supported and can be mixed with query identities.
+Scopes contain scalar values. Every declared value must be defined. Invalidation selectors run synchronously on successful results, after response validation and before the atomic journal write. They receive the route's Elysia context, with `params`, `query` and `body` typed from the route schema. A rollback publishes no invalidation. Static tags and path rules remain supported and can be mixed with query identities.
+
+A `sync` option on a `guard()` applies to every route inside it; a route that declares its own `sync` replaces the guard's.
+
+When an invalidation depends on data only the handler knows, call `invalidate()` from the handler context. Calls are collected and appended to the route's invalidations, with the same headers and journal entry, and are discarded unless the mutation succeeds or commits:
+
+```ts
+.delete("/cards/:id", {
+  sync: { invalidate: ({ params }) => ({ id: "card", scope: { id: params.id } }) },
+}, ({ params, mutation, invalidate, problem }) =>
+  mutation((tx) => {
+    const card = getCard(params.id, tx);
+    if (!card) return problem("Not Found", { detail: "Card not found" });
+    deleteCard(tx, params.id);
+    invalidate({ id: "board", scope: { boardId: card.boardId } });
+    return { ok: true };
+  })
+)
+```
+
+In a `mutation()` route, call `invalidate()` before the callback returns; later calls are ignored.
 
 Declare the application contract once to check IDs and scope fields in both GETs and mutations:
 

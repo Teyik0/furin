@@ -13,42 +13,46 @@ import type {
   SyncInvalidationInput,
 } from "../auto-invalidate/types.ts";
 
-export type SyncInvalidationSelector =
+export type SyncInvalidationSelector<RouteContext> =
   | SyncInvalidationInput
-  | ((context: Context & { responseValue: unknown }) => SyncInvalidationInput);
+  | ((context: RouteContext) => SyncInvalidationInput);
 
-interface UnregisteredRead {
-  id: string;
-  scope?: QueryScope | ((context: Context) => QueryScope);
+const collected = new WeakMap<Request, SyncInvalidationInput[]>();
+
+/** Records a handler invalidation; it only applies if the mutation commits. */
+export function collectInvalidation(request: Request, input: SyncInvalidationInput): void {
+  const inputs = collected.get(request);
+  if (inputs) {
+    inputs.push(input);
+  } else {
+    collected.set(request, [input]);
+  }
 }
 
-type RegisteredRead<Identity> = Identity extends SyncQueryIdentity
+interface UnregisteredRead<RouteContext> {
+  id: string;
+  scope?: QueryScope | ((context: RouteContext) => QueryScope);
+}
+
+type RegisteredRead<Identity, RouteContext> = Identity extends SyncQueryIdentity
   ? { id: Identity["id"] } & (string extends keyof Identity["scope"]
-      ? { scope?: Identity["scope"] | ((context: Context) => Identity["scope"]) }
-      : { scope: Identity["scope"] | ((context: Context) => Identity["scope"]) })
+      ? { scope?: Identity["scope"] | ((context: RouteContext) => Identity["scope"]) }
+      : { scope: Identity["scope"] | ((context: RouteContext) => Identity["scope"]) })
   : never;
 
-export type SyncReadOption = string extends SyncQueryIdentity["id"]
-  ? UnregisteredRead
-  : RegisteredRead<SyncQueryIdentity>;
+export type SyncReadOption<RouteContext> = string extends SyncQueryIdentity["id"]
+  ? UnregisteredRead<RouteContext>
+  : RegisteredRead<SyncQueryIdentity, RouteContext>;
 
 export function resolveSyncInvalidations(
-  input: SyncInvalidationSelector | undefined,
-  context: Context,
-  value: unknown
+  input: SyncInvalidationSelector<Context> | undefined,
+  context: Context
 ): InvalidationInput | undefined {
-  if (input === undefined) {
+  const selected = typeof input === "function" ? input(context) : input;
+  const rules = [selected ?? [], ...(collected.get(context.request) ?? [])].flat();
+  if (rules.length === 0) {
     return;
   }
-  const selected =
-    typeof input === "function"
-      ? input(
-          Object.assign(Object.create(Object.getPrototypeOf(context)), context, {
-            responseValue: value,
-          })
-        )
-      : input;
-  const rules = Array.isArray(selected) ? selected : [selected];
   return rules.map((rule): InvalidationRule => ("id" in rule ? { tags: [queryTag(rule)] } : rule));
 }
 

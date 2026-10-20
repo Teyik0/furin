@@ -1,11 +1,11 @@
-import { type Context, Elysia, ElysiaStatus } from "elysia";
+import { type Context, Elysia, ElysiaStatus, type MacroTypeLambda, macroType } from "elysia";
 import { queryTag, serializeQueryHeader } from "../../shared/sync-query.ts";
 import {
   appendPendingInvalidationHeader,
   isSuccessfulMutationResponse,
   runInvalidationRules,
 } from "../auto-invalidate/runtime.ts";
-import type { InvalidationInput } from "../auto-invalidate/types.ts";
+import type { InvalidationInput, SyncInvalidationInput } from "../auto-invalidate/types.ts";
 import { peekPendingInvalidations } from "../cache/invalidation.ts";
 import { getLogger } from "../context-logger.ts";
 import { ensureRequestScope } from "../instance.ts";
@@ -31,6 +31,7 @@ import { installMutationHandlers, prepareMutationHandler } from "./mutation-hand
 import { principalHash } from "./principal-journal.ts";
 import {
   appendQueryInvalidations,
+  collectInvalidation,
   resolveSyncInvalidations,
   type SyncInvalidationSelector,
   type SyncReadOption,
@@ -44,21 +45,26 @@ import {
 import { resolveSyncRuntime } from "./runtime.ts";
 import { bindSyncValidation, syncValidationApp } from "./validation.ts";
 
-export type SyncRouteOption =
+/** A route's `sync` option; Elysia types `RouteContext` with the route's params, query and body. */
+export type SyncRouteOption<RouteContext = Context> =
   | false
   | InvalidationInput
-  | SyncReadOption
+  | SyncReadOption<RouteContext>
   | {
-      invalidate: SyncInvalidationSelector;
+      invalidate: SyncInvalidationSelector<RouteContext>;
     };
+
+interface SyncRouteOptionType extends MacroTypeLambda {
+  option: SyncRouteOption<this["context"]>;
+}
 
 /** @deprecated Use SyncRouteOption. */
 export type SyncInput = Exclude<SyncRouteOption, false>;
 
 interface RouteSyncMetadata {
   disabled: boolean;
-  invalidate?: SyncInvalidationSelector;
-  read?: SyncReadOption;
+  invalidate?: SyncInvalidationSelector<Context>;
+  read?: SyncReadOption<Context>;
 }
 
 interface ActiveMutation {
@@ -99,7 +105,7 @@ function hideTransportResponse<TContext>(
 
 function invalidationInputFromSync(
   input: Exclude<SyncRouteOption, false>
-): SyncInvalidationSelector | undefined {
+): SyncInvalidationSelector<Context> | undefined {
   if (input && typeof input === "object" && "invalidate" in input) {
     return input.invalidate;
   }
@@ -162,6 +168,7 @@ function leaseLostResponse(): Response {
 
 function syncRouteMacro(input: SyncRouteOption) {
   return {
+    $type: macroType<SyncRouteOptionType>(),
     transform({ request }: Pick<Context, "request">) {
       routeMetadata.set(
         request,
@@ -306,8 +313,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
     const manualPending = peekPendingInvalidations();
     const invalidate = resolveSyncInvalidations(
       routeMetadata.get(ctx.request)?.invalidate,
-      ctx as Context,
-      ctx.responseValue
+      ctx as Context
     );
     appendQueryInvalidations(invalidate, ctx);
     const logger = getLogger();
@@ -407,6 +413,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
     )
     .derive("global", (ctx) => ({
       mutation: (requestOwners.get(ctx.request) ?? owner).mutationFor(ctx) as SyncMutation<Adapter>,
+      invalidate: (input: SyncInvalidationInput) => collectInvalidation(ctx.request, input),
     }))
     .onBeforeHandle("global", (context) => {
       if (
