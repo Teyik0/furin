@@ -55,6 +55,11 @@ export interface ChangePage {
 
 export interface SyncAdapter {
   abortMutation: (lease: MutationLease) => Promise<void>;
+  /**
+   * Journals invalidations no mutation lease owns (`invalidateSync()`, `idempotent: false`
+   * routes) and returns their cursor. The change carries no principal: readers reset.
+   */
+  appendInvalidations: (invalidations: readonly SyncInvalidation[]) => Promise<string>;
   beginMutation: (input: BeginMutationInput) => Promise<BeginMutationResult>;
   completeMutation: (input: CompleteMutationInput) => Promise<CompleteMutationResult>;
   currentCursor: () => Promise<string>;

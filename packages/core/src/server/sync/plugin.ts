@@ -1,16 +1,10 @@
 import { type Context, Elysia, ElysiaStatus } from "elysia";
-import {
-  type QueryReadIdentity,
-  type QueryScope,
-  queryTag,
-  serializeQueryHeader,
-} from "../../shared/sync-query.ts";
+import { type QueryReadIdentity, serializeQueryHeader } from "../../shared/sync-query.ts";
 import {
   appendPendingInvalidationHeader,
   isSuccessfulMutationResponse,
   runInvalidationRules,
 } from "../auto-invalidate/runtime.ts";
-import type { InvalidationInput } from "../auto-invalidate/types.ts";
 import { peekPendingInvalidations } from "../cache/invalidation.ts";
 import { getLogger } from "../context-logger.ts";
 import { ensureRequestScope } from "../instance.ts";
@@ -19,6 +13,7 @@ import type {
   MutationLease,
   StoredResponse,
   SyncAdapter,
+  SyncInvalidation,
   SyncMutation,
   SyncRuntimeOptions,
   SyncTransaction,
@@ -36,10 +31,11 @@ import { installMutationHandlers, prepareMutationHandler } from "./mutation-hand
 import { principalHash } from "./principal-journal.ts";
 import {
   appendQueryInvalidations,
-  collectInvalidation,
   isInternalRead,
+  isMutationMethod,
+  requestInvalidate,
   resolveSyncInvalidations,
-  type SyncInvalidate,
+  sealInvalidations,
   urlIdentity,
 } from "./queries.ts";
 import {
@@ -48,19 +44,8 @@ import {
   replayResponse,
   storeResponse,
 } from "./response.ts";
-import { resolveSyncRuntime } from "./runtime.ts";
+import { publishCursor, resolveSyncRuntime } from "./runtime.ts";
 import { bindSyncValidation, syncValidationApp } from "./validation.ts";
-
-/** A route's `sync` option: `false` opts out, rules add page or tag invalidations. */
-export type SyncRouteOption = false | InvalidationInput;
-
-/** @deprecated Use SyncRouteOption. */
-export type SyncInput = Exclude<SyncRouteOption, false>;
-
-interface RouteSyncMetadata {
-  disabled: boolean;
-  invalidate?: InvalidationInput;
-}
 
 interface ActiveMutation {
   lease: MutationLease;
@@ -79,7 +64,7 @@ type TransportHook<TContext> = (context: TContext) => Promise<void>;
 
 type CompletionContext = MutationContext & Parameters<typeof isSuccessfulMutationResponse>[0];
 
-const routeMetadata = new WeakMap<Request, RouteSyncMetadata>();
+const nonIdempotent = new WeakSet<Request>();
 const activeMutations = new WeakMap<Request, ActiveMutation>();
 const atomicCalls = new WeakSet<Request>();
 const atomicResponses = new WeakMap<Request, { response: StoredResponse; value: unknown }>();
@@ -114,10 +99,6 @@ function invalidIdempotencyKeyResponse(): Response {
   );
 }
 
-function isMutationMethod(method: string): boolean {
-  return method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
-}
-
 function getIdempotencyKey(ctx: MutationContext): string | undefined {
   const fromCtxHeaders = ctx.headers["idempotency-key"];
   if (typeof fromCtxHeaders === "string" && fromCtxHeaders.length > 0) {
@@ -149,13 +130,11 @@ function leaseLostResponse(): Response {
   );
 }
 
-function syncRouteMacro(input: SyncRouteOption) {
+/** `idempotent: false`: no Idempotency-Key, replay or `mutation()`; invalidations still apply. */
+function idempotentRouteMacro(_idempotent: false) {
   return {
     transform({ request }: Pick<Context, "request">) {
-      routeMetadata.set(
-        request,
-        input === false ? { disabled: true } : { disabled: false, invalidate: input }
-      );
+      nonIdempotent.add(request);
     },
   };
 }
@@ -191,13 +170,13 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
             app: syncValidationApp(ctx as Context),
             context: ctx as Context,
             lease: active.lease,
-            invalidate: routeMetadata.get(ctx.request)?.invalidate,
             runtime,
             onCommit: (result) => atomicResponses.set(ctx.request, result),
           },
           callback
         );
       } finally {
+        sealInvalidations(ctx.request);
         if (atomicResponses.has(ctx.request)) {
           releaseMutation(ctx.request);
         } else {
@@ -210,9 +189,6 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
   }
 
   async function beginMutation(ctx: MutationContext): Promise<Response | undefined> {
-    if (!isMutationMethod(ctx.request.method) || routeMetadata.get(ctx.request)?.disabled) {
-      return;
-    }
     // Without a client key the mutation still runs and syncs; it is just not deduplicated.
     const idempotencyKey = getIdempotencyKey(ctx) ?? crypto.randomUUID();
     if (
@@ -225,7 +201,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
       return Response.json(
         {
           code: "FURIN_UNSUPPORTED_SYNC_BODY",
-          message: "This request body cannot be replayed. Set sync: false on the route.",
+          message: "This request body cannot be replayed. Set idempotent: false on the route.",
         },
         { status: 415 }
       );
@@ -276,39 +252,20 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
     }
   }
 
-  async function persistMutation(
-    ctx: CompletionContext,
-    active: ActiveMutation
-  ): Promise<Response | undefined> {
-    const result = await storeResponse(ctx.responseValue, ctx.set);
+  /** Purges caches, reports the invalidations to the caller and returns them for the journal. */
+  async function applyInvalidations(ctx: CompletionContext): Promise<SyncInvalidation[]> {
     const manualPending = peekPendingInvalidations();
-    const invalidate = resolveSyncInvalidations(
-      routeMetadata.get(ctx.request)?.invalidate,
-      ctx as Context
-    );
+    const invalidate = resolveSyncInvalidations(ctx as Context);
     appendQueryInvalidations(invalidate, ctx);
-    const logger = getLogger();
-    if (invalidate) {
-      try {
-        await runInvalidationRules(invalidate);
-      } catch {
-        logger.warn(
-          "Sync cache invalidation failed after mutation; preserving the idempotent result"
-        );
-      }
+    try {
+      await runInvalidationRules(invalidate);
+    } catch {
+      getLogger().warn("Sync cache invalidation failed after mutation; preserving its result");
     }
-    const pending = appendPendingInvalidationHeader(ctx.set);
-    if (pending.length > 0) {
-      ctx.set.headers["x-furin-sync"] = "1";
-    }
-    const response = mergeStoredResponseHeaders(
-      result.response,
-      result.kind === "unreplayable"
-        ? ctx.set.headers
-        : effectiveResponseHeaders(ctx.responseValue, ctx.set)
-    );
+    appendPendingInvalidationHeader(ctx.set);
+    ctx.set.headers["x-furin-sync"] = "1";
     const semanticInvalidations = normalizedInvalidations(invalidate);
-    const invalidations = [
+    return [
       ...semanticInvalidations,
       ...pendingPathInvalidations(manualPending).filter(
         (manual) =>
@@ -320,6 +277,20 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
           )
       ),
     ];
+  }
+
+  async function persistMutation(
+    ctx: CompletionContext,
+    active: ActiveMutation
+  ): Promise<Response | undefined> {
+    const result = await storeResponse(ctx.responseValue, ctx.set);
+    const invalidations = await applyInvalidations(ctx);
+    const response = mergeStoredResponseHeaders(
+      result.response,
+      result.kind === "unreplayable"
+        ? ctx.set.headers
+        : effectiveResponseHeaders(ctx.responseValue, ctx.set)
+    );
     const completion = await runtime.adapter.completeMutation({
       invalidations,
       lease: active.lease,
@@ -328,15 +299,24 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
     if (completion.kind === "lost") {
       return leaseLostResponse();
     }
-    const notificationAlreadyPublished =
-      runtime.adapter.publishesNotifications !== false &&
-      runtime.adapter.notificationChannel !== undefined &&
-      runtime.adapter.notificationChannel === runtime.notifier.notificationChannel;
-    if (completion.cursor !== undefined && !notificationAlreadyPublished) {
-      runtime.notifier.publish(completion.cursor).catch(() => undefined);
+    if (completion.cursor !== undefined) {
+      publishCursor(runtime, completion.cursor);
     }
     if (result.kind === "unreplayable") {
       return replayResponse(response);
+    }
+  }
+
+  /** A non-idempotent mutation already ran: a journal failure must not turn it into an error. */
+  async function journalMutation(ctx: CompletionContext): Promise<undefined> {
+    if (!(isMutationMethod(ctx.request.method) && isSuccessfulMutationResponse(ctx))) {
+      return;
+    }
+    const invalidations = await applyInvalidations(ctx);
+    try {
+      publishCursor(runtime, await runtime.adapter.appendInvalidations(invalidations));
+    } catch {
+      getLogger().warn("Sync journal append failed after a non-idempotent mutation");
     }
   }
 
@@ -384,28 +364,27 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
     )
     .derive("global", (ctx) => ({
       mutation: (requestOwners.get(ctx.request) ?? owner).mutationFor(ctx) as SyncMutation<Adapter>,
-      invalidate: ((pattern: string, params?: QueryScope) => {
-        const scope = params ?? {};
-        queryTag({ id: pattern, scope });
-        collectInvalidation(ctx.request, { id: pattern, scope });
-      }) as SyncInvalidate,
+      invalidate: requestInvalidate(ctx.request),
     }))
     .onBeforeHandle("global", (context) => {
       if (
         requestOwners.get(context.request) === owner &&
         isMutationMethod(context.request.method) &&
-        !routeMetadata.get(context.request)?.disabled
+        !nonIdempotent.has(context.request)
       ) {
         prepareMutationHandler(context, () => beginMutation(context));
       }
     })
     .onAfterHandle(
       "global",
-      hideTransportResponse((context: CompletionContext) =>
-        requestOwners.get(context.request) === owner
-          ? finishMutation(context)
-          : Promise.resolve(undefined)
-      )
+      hideTransportResponse((context: CompletionContext) => {
+        if (requestOwners.get(context.request) !== owner) {
+          return Promise.resolve(undefined);
+        }
+        return nonIdempotent.has(context.request)
+          ? journalMutation(context)
+          : finishMutation(context);
+      })
     )
     .onAfterHandle("global", async (ctx) => {
       if (requestOwners.get(ctx.request) !== owner) {
@@ -416,7 +395,6 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
         ctx.request.method !== "GET" ||
         isInternalRead(ctx.request) ||
         ctx.responseValue instanceof Response ||
-        routeMetadata.get(ctx.request)?.disabled ||
         !isSuccessfulMutationResponse({
           set: ctx.set,
           responseValue: ctx.responseValue instanceof ElysiaStatus ? ctx.responseValue : undefined,
@@ -452,8 +430,13 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
         await abortMutation(request);
       })
     )
-    .macro({ sync: syncRouteMacro });
+    .macro({ idempotent: idempotentRouteMacro });
   return plugin;
+}
+
+/** Whether a `furinSync()` runtime owns the request's route. */
+export function isSyncRequest(request: Request): boolean {
+  return requestOwners.has(request);
 }
 
 export function furinSync<Adapter extends SyncAdapter>(options: SyncRuntimeOptions<Adapter>) {

@@ -14,6 +14,7 @@ function durableAdapter(
 ): SyncAdapter {
   return {
     abortMutation: async () => undefined,
+    appendInvalidations: () => Promise.resolve("0"),
     beginMutation: async () => ({ kind: "conflict", reason: "in-progress" }),
     completeMutation: async () => ({ kind: "lost" }),
     currentCursor,

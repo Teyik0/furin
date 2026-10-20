@@ -197,62 +197,13 @@ export class SqliteSyncAdapter implements SyncAdapter {
           return { kind: "lost" };
         }
 
-        let cursor: string | undefined;
-        if (completion.invalidations.length > 0) {
-          this.database
-            .query<never, [string]>(
-              `INSERT INTO furin_sync_streams (namespace, current_cursor, oldest_cursor)
-               VALUES (?, 0, 0) ON CONFLICT (namespace) DO NOTHING`
-            )
-            .run(this.namespace);
-          this.database
-            .query<never, [string]>(
-              `UPDATE furin_sync_streams SET current_cursor = current_cursor + 1
-               WHERE namespace = ?`
-            )
-            .run(this.namespace);
-          const cursorRow = this.database
-            .query<Pick<CursorRow, "current_cursor">, [string]>(
-              `SELECT CAST(current_cursor AS TEXT) AS current_cursor
-                 FROM furin_sync_streams WHERE namespace = ?`
-            )
-            .get(this.namespace);
-          if (!cursorRow) {
-            throw new Error("[furin-sync-sqlite] Could not allocate a change cursor.");
-          }
-          cursor = cursorRow.current_cursor;
-          this.database
-            .query<never, [string, string, string, number, string]>(
-              `INSERT INTO furin_sync_changes (namespace, cursor, invalidations, created_at, principal_hash)
-               VALUES (?, ?, ?, ?, ?)`
-            )
-            .run(
-              this.namespace,
-              cursorRow.current_cursor,
-              JSON.stringify(completion.invalidations),
-              now,
-              principalHash(this, completion.lease.principal)
-            );
-          const removed = this.database
-            .query<never, [string, string, number]>(
-              `DELETE FROM furin_sync_changes
-                 WHERE namespace = ? AND cursor <= MAX(0, CAST(? AS INTEGER) - ?)`
-            )
-            .run(this.namespace, cursorRow.current_cursor, CHANGE_RETENTION);
-          if (removed.changes > 0) {
-            const oldest = this.database
-              .query<MinimumCursorRow, [string]>(
-                `SELECT CAST(MIN(cursor) AS TEXT) AS cursor
-                   FROM furin_sync_changes WHERE namespace = ?`
+        const cursor =
+          completion.invalidations.length > 0
+            ? this.appendChangeSync(
+                completion.invalidations,
+                principalHash(this, completion.lease.principal)
               )
-              .get(this.namespace);
-            this.database
-              .query<never, [string, string]>(
-                "UPDATE furin_sync_streams SET oldest_cursor = ? WHERE namespace = ?"
-              )
-              .run(oldest?.cursor ?? cursorRow.current_cursor, this.namespace);
-          }
-        }
+            : undefined;
 
         this.database
           .query<never, [number, string, Uint8Array, number, number, string, string, string]>(
@@ -275,6 +226,64 @@ export class SqliteSyncAdapter implements SyncAdapter {
       }
     );
     return transaction.immediate(input);
+  }
+
+  async appendInvalidations(invalidations: readonly SyncInvalidation[]): Promise<string> {
+    return this.database.transaction(() => this.appendChangeSync(invalidations, null)).immediate();
+  }
+
+  private appendChangeSync(
+    invalidations: readonly SyncInvalidation[],
+    principal: string | null
+  ): string {
+    const now = Date.now();
+    this.database
+      .query<never, [string]>(
+        `INSERT INTO furin_sync_streams (namespace, current_cursor, oldest_cursor)
+         VALUES (?, 0, 0) ON CONFLICT (namespace) DO NOTHING`
+      )
+      .run(this.namespace);
+    this.database
+      .query<never, [string]>(
+        `UPDATE furin_sync_streams SET current_cursor = current_cursor + 1
+         WHERE namespace = ?`
+      )
+      .run(this.namespace);
+    const cursorRow = this.database
+      .query<Pick<CursorRow, "current_cursor">, [string]>(
+        `SELECT CAST(current_cursor AS TEXT) AS current_cursor
+           FROM furin_sync_streams WHERE namespace = ?`
+      )
+      .get(this.namespace);
+    if (!cursorRow) {
+      throw new Error("[furin-sync-sqlite] Could not allocate a change cursor.");
+    }
+    this.database
+      .query<never, [string, string, string, number, string | null]>(
+        `INSERT INTO furin_sync_changes (namespace, cursor, invalidations, created_at, principal_hash)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      .run(this.namespace, cursorRow.current_cursor, JSON.stringify(invalidations), now, principal);
+    const removed = this.database
+      .query<never, [string, string, number]>(
+        `DELETE FROM furin_sync_changes
+           WHERE namespace = ? AND cursor <= MAX(0, CAST(? AS INTEGER) - ?)`
+      )
+      .run(this.namespace, cursorRow.current_cursor, CHANGE_RETENTION);
+    if (removed.changes > 0) {
+      const oldest = this.database
+        .query<MinimumCursorRow, [string]>(
+          `SELECT CAST(MIN(cursor) AS TEXT) AS cursor
+             FROM furin_sync_changes WHERE namespace = ?`
+        )
+        .get(this.namespace);
+      this.database
+        .query<never, [string, string]>(
+          "UPDATE furin_sync_streams SET oldest_cursor = ? WHERE namespace = ?"
+        )
+        .run(oldest?.cursor ?? cursorRow.current_cursor, this.namespace);
+    }
+    return cursorRow.current_cursor;
   }
 
   protected hasMutationLeaseSync(lease: MutationLease): boolean {

@@ -22,7 +22,7 @@ async function composePublicApplication(options: SyncRuntimeOptions) {
     })
     .post(
       "/after",
-      { body: t.Object({ title: t.String() }), sync: false },
+      { body: t.Object({ title: t.String() }), idempotent: false },
       ({ body, mutation, featureFlag }) => {
         expectTypeOf(mutation).toBeFunction();
         expectTypeOf(featureFlag).toEqualTypeOf<boolean>();

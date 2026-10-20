@@ -18,7 +18,7 @@ const UNREPLAYABLE_SYNC_RESPONSE_BODY = new TextEncoder().encode(
   JSON.stringify({
     code: "FURIN_UNREPLAYABLE_SYNC_RESPONSE",
     message:
-      "This mutation response cannot be replayed safely. Return a small bounded response or set sync: false on the route.",
+      "This mutation response cannot be replayed safely. Return a small bounded response or set idempotent: false on the route.",
   })
 );
 

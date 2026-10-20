@@ -17,6 +17,7 @@ import type {
 import { journalChange, principalHash, registerPrincipalJournal } from "../principal-journal.ts";
 import {
   ABORT_MUTATION_SCRIPT,
+  APPEND_INVALIDATIONS_SCRIPT,
   BEGIN_MUTATION_SCRIPT,
   COMPLETE_MUTATION_SCRIPT,
   RENEW_MUTATION_SCRIPT,
@@ -240,6 +241,20 @@ export class RedisSyncAdapter implements SyncAdapter {
     }
     const cursor = stringResult(result[1], "complete mutation cursor");
     return cursor.length === 0 ? { cursor: undefined, kind } : { cursor, kind };
+  }
+
+  async appendInvalidations(invalidations: readonly SyncInvalidation[]): Promise<string> {
+    return stringResult(
+      await this.client.send("EVAL", [
+        APPEND_INVALIDATIONS_SCRIPT,
+        "2",
+        this.streamKey,
+        this.trimmedKey,
+        JSON.stringify(invalidations),
+        String(CHANGE_RETENTION),
+      ]),
+      "append invalidations cursor"
+    );
   }
 
   async abortMutation(lease: MutationLease): Promise<void> {

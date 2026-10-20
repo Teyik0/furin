@@ -13,6 +13,7 @@ const databases: Database[] = [];
 function hostLocalAdapter(): SyncAdapter {
   return {
     abortMutation: async () => undefined,
+    appendInvalidations: () => Promise.resolve("0"),
     beginMutation: async () => ({ kind: "conflict", reason: "in-progress" }),
     completeMutation: async () => ({ kind: "lost" }),
     currentCursor: async () => "0",
@@ -42,7 +43,10 @@ function syncApp(database: Database, secret: string | undefined) {
     .use(furinSync(sync))
     .use(createSyncChangesPlugin(sync))
     .get("/cards", () => [])
-    .post("/cards", { sync: { path: "/cards", type: "page" } }, () => ({ success: true }));
+    .post("/cards", ({ invalidate }) => {
+      invalidate({ path: "/cards", type: "page" });
+      return { success: true };
+    });
 }
 
 function memoryDatabase(): Database {

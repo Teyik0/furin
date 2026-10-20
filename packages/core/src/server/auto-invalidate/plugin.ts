@@ -1,32 +1,53 @@
 import { Elysia } from "elysia";
 import { ensureRequestScope } from "../instance.ts";
+import { isSyncRequest } from "../sync/plugin.ts";
+import {
+  appendQueryInvalidations,
+  isMutationMethod,
+  requestInvalidate,
+  resolveSyncInvalidations,
+} from "../sync/queries.ts";
 import {
   appendPendingInvalidationHeader,
   isSuccessfulMutationResponse,
   runInvalidationRules,
 } from "./runtime.ts";
-import type { InvalidationInput } from "./types.ts";
 
-type AnyAfterHandleContext = Parameters<typeof isSuccessfulMutationResponse>[0];
+type AfterHandleContext = Parameters<typeof isSuccessfulMutationResponse>[0] &
+  Parameters<typeof resolveSyncInvalidations>[0];
 
+const ownedRequests = new WeakSet<Request>();
+
+/**
+ * The handler's `invalidate()` without Furin Sync: a successful mutation purges the server
+ * caches built from its targets and reports them to its caller only; nothing is journaled.
+ */
 export function furinInvalidate() {
-  return new Elysia({ name: "furin-invalidate" })
+  const plugin = new Elysia({ name: "furin-invalidate" })
     .wrap(
       (fetch) =>
         (request, ...rest) =>
           ensureRequestScope(() => fetch(request, ...rest))
     )
-    .macro({
-      invalidate(rules: InvalidationInput) {
-        return {
-          async afterHandle(ctx: AnyAfterHandleContext) {
-            if (!isSuccessfulMutationResponse(ctx)) {
-              return;
-            }
-            await runInvalidationRules(rules);
-            appendPendingInvalidationHeader(ctx.set);
-          },
-        };
-      },
+    .derive("global", ({ request }) => ({ invalidate: requestInvalidate(request) }))
+    .onAfterHandle("global", async (ctx: AfterHandleContext) => {
+      if (
+        !ownedRequests.has(ctx.request) ||
+        isSyncRequest(ctx.request) ||
+        !isMutationMethod(ctx.request.method) ||
+        !isSuccessfulMutationResponse(ctx)
+      ) {
+        return;
+      }
+      const rules = resolveSyncInvalidations(ctx);
+      appendQueryInvalidations(rules, ctx);
+      await runInvalidationRules(rules);
+      appendPendingInvalidationHeader(ctx.set);
     });
+  return (app: Elysia) =>
+    app
+      .onTransform(({ request }) => {
+        ownedRequests.add(request);
+      })
+      .use(plugin);
 }

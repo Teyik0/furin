@@ -72,3 +72,12 @@ if value.state == 'in-progress' and value.id == ARGV[1] then
 end
 return 0
 `;
+
+export const APPEND_INVALIDATIONS_SCRIPT = `
+local length = redis.call('XLEN', KEYS[1])
+if length >= tonumber(ARGV[2]) then
+  local oldest = redis.call('XRANGE', KEYS[1], '-', '+', 'COUNT', 1)
+  if oldest[1] then redis.call('SET', KEYS[2], oldest[1][1]) end
+end
+return redis.call('XADD', KEYS[1], 'MAXLEN', '=', ARGV[2], '*', 'data', ARGV[1])
+`;

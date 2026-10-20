@@ -101,8 +101,9 @@ test.skipIf(!url)(
     try {
       const app = new Elysia()
         .use(furinSync({ adapter, principal: () => "user" }))
-        .post("/counter", { sync: { tags: ["counter"] } }, ({ mutation }) =>
+        .post("/counter", ({ invalidate, mutation }) =>
           mutation(async (tx) => {
+            invalidate({ tags: ["counter"] });
             calls += 1;
             const [row] = await tx.insert(counter).values({ id: namespace, value: 1 }).returning();
             entered.resolve();
@@ -182,8 +183,9 @@ test.skipIf(!url)(
     try {
       const app = new Elysia()
         .use(furinSync({ adapter, notifier, principal: () => "user" }))
-        .post("/counter", { sync: { tags: [namespace] } }, ({ mutation }) =>
+        .post("/counter", ({ invalidate, mutation }) =>
           mutation(async (tx) => {
+            invalidate({ tags: [namespace] });
             await tx.insert(counter).values({ id: namespace, value: 1 });
             return { value: 1 };
           })
@@ -194,6 +196,33 @@ test.skipIf(!url)(
     } finally {
       resetPageCacheAdapter(defaultInstanceBucket());
       await sql`DELETE FROM furin_atomic_counter WHERE id = ${namespace}`;
+      await sql.close();
+    }
+  }
+);
+
+test.skipIf(!url).each(["drizzle", "prisma"] as const)(
+  "%s journals invalidations without a mutation lease",
+  async (orm) => {
+    const sql = new SQL(url ?? "");
+    await sql.unsafe(migration);
+    const namespace = crypto.randomUUID();
+    const client =
+      orm === "prisma"
+        ? new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) })
+        : undefined;
+    const adapter = client
+      ? prismaSyncAdapter({ client, namespace })
+      : drizzleSyncAdapter({ db: drizzle(sql), namespace });
+    const invalidations = [{ kind: "tags", tags: [namespace] }] as const;
+    try {
+      const cursor = await adapter.appendInvalidations(invalidations);
+      expect(cursor).toBe("1");
+      expect((await adapter.readChanges({ after: "0", limit: 10 })).changes).toEqual([
+        { cursor, invalidations },
+      ]);
+    } finally {
+      await client?.$disconnect();
       await sql.close();
     }
   }
@@ -220,8 +249,11 @@ test.skipIf(!url).each(["drizzle", "prisma"] as const)(
       const app = new Elysia()
         .use(furinSync(sync))
         .use(createSyncChangesPlugin(sync))
-        .post("/counter", { sync: { tags: [namespace] } }, ({ mutation }) =>
-          mutation(() => ({ value: 1 }))
+        .post("/counter", ({ invalidate, mutation }) =>
+          mutation(() => {
+            invalidate({ tags: [namespace] });
+            return { value: 1 };
+          })
         );
       expect((await app.handle(request("counter", "one"))).status).toBe(200);
       const changes = await app.handle(new Request("http://localhost/_furin/sync/changes?after=0"));
@@ -248,8 +280,9 @@ test.skipIf(!url)(
     try {
       const app = new Elysia()
         .use(furinSync({ adapter, principal: () => "user" }))
-        .post("/counter", { sync: { tags: ["counter"] } }, async ({ mutation }) => {
+        .post("/counter", async ({ invalidate, mutation }) => {
           const row = await mutation(async (tx) => {
+            invalidate({ tags: ["counter"] });
             calls += 1;
             const card = await tx.atomicCounter.create({ data: { id: namespace, value: 1 } });
             if (failures.has("business")) {

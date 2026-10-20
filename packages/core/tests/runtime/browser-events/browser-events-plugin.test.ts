@@ -13,6 +13,7 @@ afterEach(() => {
 
 const adapter: SyncAdapter = {
   abortMutation: () => Promise.resolve(),
+  appendInvalidations: () => Promise.resolve("0"),
   beginMutation: () => Promise.reject(new Error("not used")),
   completeMutation: () => Promise.reject(new Error("not used")),
   currentCursor: () => Promise.resolve("7"),

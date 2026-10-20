@@ -12,6 +12,17 @@ export interface ResolvedSyncRuntime {
   notifier: SyncNotifier;
 }
 
+/** Wakes subscribers, unless the adapter's commit already notified the notifier's channel. */
+export function publishCursor(runtime: ResolvedSyncRuntime, cursor: string): void {
+  const alreadyPublished =
+    runtime.adapter.publishesNotifications !== false &&
+    runtime.adapter.notificationChannel !== undefined &&
+    runtime.adapter.notificationChannel === runtime.notifier.notificationChannel;
+  if (!alreadyPublished) {
+    runtime.notifier.publish(cursor).catch(() => undefined);
+  }
+}
+
 export function resolveSyncRuntime(
   options: SyncRuntimeOptions,
   development: boolean

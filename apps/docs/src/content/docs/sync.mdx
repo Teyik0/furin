@@ -85,17 +85,15 @@ export const api = new Elysia({ prefix: "/api" })
   .use(furinSync(sync))
   .post(
     "/posts",
-    {
-      body: t.Object({ title: t.String() }),
-      sync: { tags: ["posts"] },
-    },
-    ({ body, mutation }) => mutation(tx =>
-      tx.insert(posts).values(body).returning().get()
-    )
+    { body: t.Object({ title: t.String() }) },
+    ({ body, mutation, invalidate }) => mutation(tx => {
+      invalidate({ tags: ["posts"] });
+      return tx.insert(posts).values(body).returning().get();
+    })
   );
 ```
 
-All non-`GET`/`HEAD`/`OPTIONS` routes covered by the plugin participate in sync. A successful mutation invalidates the GET at its own URL; the optional route option adds static page or tag rules. With an ORM adapter, return `mutation(callback)` and perform all dependent reads and writes through its native, fully inferred `tx`. Furin reserves the idempotency key before running the handler. The native transaction locks and rechecks that reservation, then commits business writes, the replayable response and journal together. Cache invalidation and notifications run after commit; the cache itself is outside the database transaction.
+All non-`GET`/`HEAD`/`OPTIONS` routes covered by the plugin participate in sync. A successful mutation invalidates the GET at its own URL; [`invalidate()`](#identify-reads-by-url) adds GET URLs, cache tags or pages. With an ORM adapter, return `mutation(callback)` and perform all dependent reads and writes through its native, fully inferred `tx`. Furin reserves the idempotency key before running the handler. The native transaction locks and rechecks that reservation, then commits business writes, the replayable response and journal together. Cache invalidation and notifications run after commit; the cache itself is outside the database transaction.
 
 Drizzle currently supports `bun:sqlite` and `bun-sql` PostgreSQL. SQLite callbacks and response validators must be synchronous; PostgreSQL callbacks may be async. A failed business result (`4xx`/`5xx`), exception, response-schema validation, serialization, lease check or journal write rolls back the entire transaction. Atomic responses must be bounded JSON, text, or bodyless `Response` values such as redirects. Async PostgreSQL transactions also accept body-bearing `Response` values with an explicit `Content-Length` up to 1 MiB; Bun SQLite transactions require bodyless `Response` values.
 
@@ -126,19 +124,13 @@ return mutation(tx =>
 
 Run the existing `@teyik0/furin/sync/postgres/migration.sql` migration on that same PostgreSQL database. Prisma 7 keeps its generated transaction client and model inference; the adapter does not require custom Prisma models for the journal. Prisma 8 and other Prisma database providers are not supported by this adapter. Drizzle PostgreSQL uses the same migration and also requires an explicit notifier in production.
 
-```ts
-sync: { path: "/blog", type: "layout" }
-```
-
-Multiple rules are allowed. Tags target cached paths that declared those tags; a page rule targets one exact path, while a layout rule targets the path and descendants.
-
-Set `sync: false` for routes whose request or response cannot be replayed safely:
+Set `idempotent: false` for routes whose request or response cannot be replayed safely:
 
 ```ts
-.post("/uploads", { sync: false }, uploadFile)
+.post("/uploads", { idempotent: false }, uploadFile)
 ```
 
-Typical exclusions include uploads, downloads, streams, payment initiation, and handlers with deliberately non-repeatable external effects.
+Such a route ignores `Idempotency-Key`, stores no response to replay and cannot use `mutation()`: every request runs. Its invalidations still apply once it succeeds: caches are purged, the caller receives them, and they are journaled and broadcast. Their journal entries carry no principal, so other browsers refresh all their live reads rather than only the affected ones. Typical exclusions include uploads, downloads, streams, payment initiation, and handlers with deliberately non-repeatable external effects.
 
 ## Identify Reads By URL
 
@@ -156,7 +148,7 @@ new Elysia().use(furinSync(sync))
 
 The server stamps every successful data GET with its URL identity and the principal's session in the `x-furin-query` response header. A successful mutation invalidates the GET at its own URL: `POST /boards/alpha/cards` refreshes `GET /boards/alpha/cards`, `PATCH /cards/c1` refreshes `GET /cards/c1`. A rollback publishes no invalidation.
 
-To invalidate another resource, call `invalidate(pattern, params?)` from the handler context. Params are typed from the pattern; an omitted param matches every value of it (`invalidate("/boards/:boardId")` refreshes every board). Calls are additive, share the mutation's headers and journal entry, and are discarded unless the mutation succeeds or commits:
+To invalidate another resource, call `invalidate(pattern, params?)` from the handler context. Params are typed from the pattern; an omitted param matches every value of it (`invalidate("/boards/:boardId")` refreshes every board). `invalidate({ tags: ["posts"] })` targets cached paths that declared those tags, and `invalidate({ path: "/blog", type: "layout" })` a page (`type: "page"`, one exact path) or a layout (the path and its descendants). Calls are additive, share the mutation's headers and journal entry, and are discarded unless the mutation succeeds or commits:
 
 ```ts
 .delete("/cards/:id", ({ params, mutation, invalidate, problem }) =>
@@ -170,7 +162,7 @@ To invalidate another resource, call `invalidate(pattern, params?)` from the han
 )
 ```
 
-In a `mutation()` route, call `invalidate()` before the callback returns; later calls are ignored.
+In a `mutation()` route, call `invalidate()` before the callback returns: a later call throws in development and is ignored in production. Calling `invalidate()` while handling a `GET` throws.
 
 Register the application once to type the patterns. They are the app's GET routes, prefix included; unknown routes, routes without a GET and wrong param names are type errors:
 
@@ -181,7 +173,18 @@ declare module "@teyik0/furin" {
 }
 ```
 
-Without a registered app, `invalidate()` accepts any path and params. A `sync` option on a `guard()` applies to every route inside it; a route that declares its own `sync` replaces the guard's.
+Without a registered app, `invalidate()` accepts any path and params. Calls from hooks, such as a `guard()`'s `beforeHandle`, add up with the handler's.
+
+Outside a request (a cron job, a webhook consumer), call `invalidateSync()` with the same `sync` options. It purges the pages built from the GET, then journals and broadcasts the invalidation, as a mutation would:
+
+```ts
+import { invalidateSync } from "@teyik0/furin";
+import { sync } from "./sync";
+
+await invalidateSync(sync, "/api/boards/:boardId", { boardId });
+```
+
+The options select the runtime: the adapter journals the change and the notifier wakes connected browsers, including those served by other processes sharing the adapter. Its journal entry carries no principal, so browsers refresh all their live reads.
 
 Every GET has a live query, `.get.live(options?)`, on a client using the `furinSync` Eden plugin. Await it in a loader to track the read:
 
@@ -566,4 +569,4 @@ The notifier carries cursors only. The adapter remains the source of truth.
 
 ## Lower-Level Alternative
 
-Use `furinInvalidate()` when only the initiating response needs `X-Furin-Revalidate` and you do not want idempotency or a change journal. Use Furin Sync when retries and cross-client catch-up are part of the mutation contract. See [Caching](/docs/caching) for the cache layers themselves.
+Use `furinInvalidate()` for the same handler `invalidate()` without idempotency or a change journal: a successful mutation purges the server caches built from its targets and its own URL, and only the initiating response reports them (`X-Furin-Revalidate`, `x-furin-queries`). Use Furin Sync when retries and cross-client catch-up are part of the mutation contract. See [Caching](/docs/caching) for the cache layers themselves.

@@ -375,10 +375,9 @@ export {
   type FurinSyncOption,
   type FurinSyncOptions,
   furinSync,
+  invalidateSync,
   type SyncAdapter,
-  type SyncInput,
   type SyncNotifier,
-  type SyncRouteOption,
   type SyncRuntimeOptions,
 } from "./server/sync/index.ts";
 export { Await, useAsyncError, useAsyncValue } from "./shared/await.tsx";

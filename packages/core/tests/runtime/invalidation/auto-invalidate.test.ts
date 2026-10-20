@@ -36,6 +36,7 @@ import {
 } from "../../../src/server/instance.ts";
 import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { queryTags } from "../../../src/shared/sync-query.ts";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures";
 import { flushMicrotasks } from "../../support/microtasks";
 
@@ -56,9 +57,12 @@ test("mutation invalidation headers preserve literal suffixes, percent paths and
     { path: "/users/a%name", type: "page" as const },
     { path: "/bad\ud800", type: "page" as const },
   ];
-  const app = new Elysia()
-    .use(furinInvalidate())
-    .post("/mutate", { invalidate: rules }, () => ({ ok: true }));
+  const app = new Elysia().use(furinInvalidate()).post("/mutate", ({ invalidate }) => {
+    for (const rule of rules) {
+      invalidate(rule);
+    }
+    return { ok: true };
+  });
   const response = await _runWithRequestInvalidationScope(() =>
     app.handle(new Request("http://localhost/mutate", { method: "POST" }))
   );
@@ -276,12 +280,49 @@ describe("revalidatePath", () => {
   });
 });
 
-describe("furinInvalidate macro", () => {
+describe("furinInvalidate()", () => {
+  test("a GET URL target purges the pages built from it and reports it to the caller only", async () => {
+    const board = { id: "/boards/:boardId", scope: { boardId: "alpha" } };
+    setISRCache("/board/alpha", {
+      generatedAt: Date.now(),
+      html: "board",
+      ndjson: "{}\n",
+      revalidate: 60,
+    });
+    autoInvalidateRegistry.registerLoaderTags("/board/alpha", queryTags(board));
+
+    const app = new Elysia()
+      .use(furinInvalidate())
+      .post("/boards/:boardId/cards", ({ invalidate, params }) => {
+        invalidate("/boards/:boardId", { boardId: params.boardId });
+        return { ok: true };
+      });
+
+    const response = await _runWithRequestInvalidationScope(() =>
+      app.handle(new Request("http://localhost/boards/alpha/cards", { method: "POST" }))
+    );
+
+    expect(response.status).toBe(200);
+    expect(isrCache.has("/board/alpha")).toBe(false);
+    expect(response.headers.get("x-furin-revalidate")).toBe("/board/alpha");
+    expect(JSON.parse(response.headers.get("x-furin-queries") ?? "null")).toEqual([
+      board,
+      { id: "/boards/:boardId/cards", scope: { boardId: "alpha" } },
+    ]);
+    expect(response.headers.has("x-furin-sync")).toBe(false);
+  });
+
   test("a standalone app reports each request's own invalidations", async () => {
     const app = new Elysia()
       .use(furinInvalidate())
-      .post("/a", { invalidate: { path: "/a", type: "page" } }, () => ({ ok: true }))
-      .post("/b", { invalidate: { path: "/b", type: "page" } }, () => ({ ok: true }));
+      .post("/a", ({ invalidate }) => {
+        invalidate({ path: "/a", type: "page" });
+        return { ok: true };
+      })
+      .post("/b", ({ invalidate }) => {
+        invalidate({ path: "/b", type: "page" });
+        return { ok: true };
+      });
 
     const [a, b] = await Promise.all(
       ["/a", "/b"].map((path) =>
@@ -302,9 +343,10 @@ describe("furinInvalidate macro", () => {
     });
     autoInvalidateRegistry.registerLoaderTags("/board/123", ["board"]);
 
-    const app = new Elysia()
-      .use(furinInvalidate())
-      .post("/cards", { invalidate: { tags: ["board"] } }, () => ({ ok: true }));
+    const app = new Elysia().use(furinInvalidate()).post("/cards", ({ invalidate }) => {
+      invalidate({ tags: ["board"] });
+      return { ok: true };
+    });
 
     const response = await _runWithRequestInvalidationScope(() =>
       app.handle(new Request("http://localhost/cards", { method: "POST" }))
@@ -325,11 +367,10 @@ describe("furinInvalidate macro", () => {
     });
     autoInvalidateRegistry.registerLoaderTags("/board/123", ["board"]);
 
-    const app = new Elysia()
-      .use(furinInvalidate())
-      .post("/cards", { invalidate: { tags: ["board"] } }, ({ status }) =>
-        status("Bad Request", "bad")
-      );
+    const app = new Elysia().use(furinInvalidate()).post("/cards", ({ invalidate, status }) => {
+      invalidate({ tags: ["board"] });
+      return status("Bad Request", "bad");
+    });
 
     const response = await _runWithRequestInvalidationScope(() =>
       app.handle(new Request("http://localhost/cards", { method: "POST" }))
@@ -394,12 +435,19 @@ describe("furinInvalidate macro", () => {
 
     const boardPlugin = new Elysia()
       .use(furinInvalidate())
-      .post("/boards", { invalidate: { tags: ["boards"] } }, () => ({ id: "x" }))
-      .delete("/boards/:id", { invalidate: { tags: ["boards"] } }, () => ({ ok: true }));
+      .post("/boards", ({ invalidate }) => {
+        invalidate({ tags: ["boards"] });
+        return { id: "x" };
+      })
+      .delete("/boards/:id", ({ invalidate }) => {
+        invalidate({ tags: ["boards"] });
+        return { ok: true };
+      });
 
-    const cardPlugin = new Elysia()
-      .use(furinInvalidate())
-      .post("/cards", { invalidate: { tags: ["cards"] } }, () => ({ ok: true }));
+    const cardPlugin = new Elysia().use(furinInvalidate()).post("/cards", ({ invalidate }) => {
+      invalidate({ tags: ["cards"] });
+      return { ok: true };
+    });
 
     const api = new Elysia({ prefix: "/api" }).use(boardPlugin).use(cardPlugin);
 
@@ -419,9 +467,10 @@ describe("furinInvalidate macro", () => {
     setISRCache("/", { generatedAt: Date.now(), html: "home", ndjson: "{}\n", revalidate: 10 });
     autoInvalidateRegistry.registerLoaderTags("/", ["boards"]);
 
-    const inner = new Elysia()
-      .use(furinInvalidate())
-      .delete("/boards/:id", { invalidate: { tags: ["boards"] } }, () => ({ ok: true }));
+    const inner = new Elysia().use(furinInvalidate()).delete("/boards/:id", ({ invalidate }) => {
+      invalidate({ tags: ["boards"] });
+      return { ok: true };
+    });
 
     const api = new Elysia({ prefix: "/api" }).use(inner);
 
@@ -453,8 +502,14 @@ describe("furinInvalidate macro", () => {
     const boardPlugin = new Elysia()
       .use(furinInvalidate())
       .get("/boards", () => ({ list: [] }))
-      .post("/boards", { invalidate: { tags: ["boards"] } }, () => ({ id: "new" }))
-      .delete("/boards/:boardId", { invalidate: { tags: ["boards"] } }, () => ({ ok: true }))
+      .post("/boards", ({ invalidate }) => {
+        invalidate({ tags: ["boards"] });
+        return { id: "new" };
+      })
+      .delete("/boards/:boardId", ({ invalidate }) => {
+        invalidate({ tags: ["boards"] });
+        return { ok: true };
+      })
       .get("/boards/:boardId", () => ({ id: "x" }));
 
     const api = new Elysia({ prefix: "/api" }).use(boardPlugin);
@@ -476,9 +531,10 @@ describe("furinInvalidate macro", () => {
     setISRCache("/", { generatedAt: Date.now(), html: "home", ndjson: "{}\n", revalidate: 10 });
     autoInvalidateRegistry.registerLoaderTags("/", ["boards"]);
 
-    const app = new Elysia()
-      .use(furinInvalidate())
-      .delete("/boards/:id", { invalidate: { tags: ["boards"] } }, () => ({ ok: true }));
+    const app = new Elysia().use(furinInvalidate()).delete("/boards/:id", ({ invalidate }) => {
+      invalidate({ tags: ["boards"] });
+      return { ok: true };
+    });
 
     const response = await _runWithRequestInvalidationScope(() =>
       app.handle(new Request("http://localhost/boards/abc", { method: "DELETE" }))
@@ -497,11 +553,10 @@ describe("furinInvalidate macro", () => {
       revalidate: 60,
     });
 
-    const app = new Elysia()
-      .use(furinInvalidate())
-      .delete("/posts/1", { invalidate: { path: "/blog/post", type: "page" } }, () => ({
-        ok: true,
-      }));
+    const app = new Elysia().use(furinInvalidate()).delete("/posts/1", ({ invalidate }) => {
+      invalidate({ path: "/blog/post", type: "page" });
+      return { ok: true };
+    });
 
     const response = await _runWithRequestInvalidationScope(() =>
       app.handle(new Request("http://localhost/posts/1", { method: "DELETE" }))

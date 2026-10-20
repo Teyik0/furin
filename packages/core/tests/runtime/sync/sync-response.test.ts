@@ -21,6 +21,7 @@ function replayApp(storedHeaders: HeadersInit, replayHeaders: Record<string, str
   let stored: StoredResponse | undefined;
   const adapter: SyncAdapter = {
     abortMutation: async () => undefined,
+    appendInvalidations: () => Promise.resolve("0"),
     beginMutation: async (): Promise<BeginMutationResult> =>
       stored === undefined
         ? {
@@ -40,7 +41,7 @@ function replayApp(storedHeaders: HeadersInit, replayHeaders: Record<string, str
 
   return new Elysia()
     .use(furinSync({ adapter, notifier, principal: () => "test" }))
-    .post("/mutation", { sync: { tags: [] } }, ({ set }) => {
+    .post("/mutation", ({ set }) => {
       Object.assign(set.headers, replayHeaders);
       return new Response("stored", {
         headers: new Headers([["content-length", "6"], ...new Headers(storedHeaders).entries()]),

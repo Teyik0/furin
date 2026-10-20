@@ -3,7 +3,7 @@
 import { test } from "bun:test";
 import { Elysia, t } from "elysia";
 import { expectTypeOf } from "expect-type";
-import type { SyncRuntimeOptions } from "../../src/server/sync/index.ts";
+import { invalidateSync, type SyncRuntimeOptions } from "../../src/server/sync/index.ts";
 import { furinSync } from "../../src/server/sync/plugin.ts";
 import type { GetPatterns, Invalidate, SyncParams } from "../../src/server/sync/queries.ts";
 
@@ -32,19 +32,36 @@ function assertInvalidate() {
 }
 
 function syncRouteOptions(options: SyncRuntimeOptions) {
-  return new Elysia()
-    .use(furinSync(options))
-    .put("/rule", { sync: { path: "/rule", type: "page" } }, ({ invalidate: invalidateAny }) => {
-      // Until an app is registered, any path and params are accepted.
-      invalidateAny("/anything/:id", { id: 1 });
-      return { ok: true };
-    })
-    .delete("/off", { sync: false }, () => ({ ok: true }));
+  return (
+    new Elysia()
+      .use(furinSync(options))
+      .put("/rule", ({ invalidate: invalidateAny }) => {
+        // Until an app is registered, any path and params are accepted.
+        invalidateAny("/anything/:id", { id: 1 });
+        invalidateAny({ path: "/rule", type: "page" });
+        invalidateAny({ tags: ["rule"] });
+        // @ts-expect-error a page target names its type
+        invalidateAny({ path: "/rule" });
+        return { ok: true };
+      })
+      .delete("/off", { idempotent: false }, () => ({ ok: true }))
+      // @ts-expect-error only false opts a route out of idempotency
+      .patch("/on", { idempotent: true }, () => ({ ok: true }))
+      // @ts-expect-error invalidations are no route option: call invalidate()
+      .post("/static", { sync: { tags: ["rule"] } }, () => ({ ok: true }))
+  );
 }
 
 function rejectReadDeclarations(options: SyncRuntimeOptions) {
   // @ts-expect-error a GET's identity is its URL: reads declare nothing
   return new Elysia().use(furinSync(options)).get("/old", { sync: { id: "board" } }, () => 1);
+}
+
+function invalidateOutsideRequests(options: SyncRuntimeOptions) {
+  // Until an app is registered, any path and params are accepted, as in a handler.
+  expectTypeOf(invalidateSync(options, "/anything/:id", { id: 1 })).toEqualTypeOf<Promise<void>>();
+  // @ts-expect-error invalidateSync() targets GET URLs only
+  invalidateSync(options, { tags: ["rule"] });
 }
 
 test("invalidate() targets the app's GET patterns with params typed from the pattern", () => {
@@ -57,4 +74,5 @@ test("invalidate() targets the app's GET patterns with params typed from the pat
   expectTypeOf(assertInvalidate).toBeFunction();
   expectTypeOf(syncRouteOptions).toBeFunction();
   expectTypeOf(rejectReadDeclarations).toBeFunction();
+  expectTypeOf(invalidateOutsideRequests).toBeFunction();
 });

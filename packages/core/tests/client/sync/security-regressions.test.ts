@@ -223,16 +223,13 @@ test("Unicode and comma invalidation paths survive mutation completion and repla
   const { database, options } = testSync();
   const paths = ["/東京", "/items/first,second", "/literal%20"];
   let executions = 0;
-  const app = new Elysia().use(furinSync(options)).post(
-    "/paths",
-    {
-      sync: paths.map((path) => ({ path, type: "page" as const })),
-    },
-    () => {
-      executions += 1;
-      return { success: true };
+  const app = new Elysia().use(furinSync(options)).post("/paths", ({ invalidate }) => {
+    executions += 1;
+    for (const path of paths) {
+      invalidate({ path, type: "page" });
     }
-  );
+    return { success: true };
+  });
   const send = () =>
     app.handle(
       new Request("http://localhost/paths", {
@@ -317,14 +314,11 @@ test("change catch-up authorizes requests and keeps other users' resources priva
   const app = new Elysia()
     .use(furinSync(sync))
     .use(createSyncChangesPlugin(sync))
-    .post(
-      "/private",
-      { sync: { path: "/documents/private-id", type: "page" } },
-      ({ invalidate }) => {
-        invalidate("/boards/:boardId", { boardId: "victim@example.test" });
-        return { success: true };
-      }
-    );
+    .post("/private", ({ invalidate }) => {
+      invalidate({ path: "/documents/private-id", type: "page" });
+      invalidate("/boards/:boardId", { boardId: "victim@example.test" });
+      return { success: true };
+    });
   try {
     const write = await app.handle(
       new Request("http://localhost/private", {
@@ -392,7 +386,10 @@ test("principal catch-up paginates ordered changes without losing the next curso
   const app = new Elysia()
     .use(furinSync(options))
     .use(createSyncChangesPlugin(options))
-    .post("/update", { sync: { path: "/board", type: "page" } }, () => ({ success: true }));
+    .post("/update", ({ invalidate }) => {
+      invalidate({ path: "/board", type: "page" });
+      return { success: true };
+    });
   try {
     for (const key of ["one", "two", "three"]) {
       // biome-ignore lint/performance/noAwaitInLoops: journal cursors must be allocated in order.
@@ -424,9 +421,10 @@ test("historical journal rows without principal provenance trigger a private res
   const app = new Elysia()
     .use(furinSync(options))
     .use(createSyncChangesPlugin(options))
-    .post("/update", { sync: { path: "/private/history", type: "page" } }, () => ({
-      success: true,
-    }));
+    .post("/update", ({ invalidate }) => {
+      invalidate({ path: "/private/history", type: "page" });
+      return { success: true };
+    });
   try {
     await app.handle(
       new Request("http://localhost/update", {

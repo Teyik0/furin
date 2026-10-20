@@ -174,7 +174,7 @@ await revalidatePath("/blog", "layout");
 
 `page` evicts the exact pathname and all of its query variants. `layout` evicts the path and its descendants. The promise resolves after origin invalidation is committed, returns whether an origin entry was affected, queues an `X-Furin-Revalidate` signal for the current response, and invokes the configured CDN purger asynchronously.
 
-Manual invalidation is asynchronous because a shared adapter must durably advance its invalidation version before the mutation is considered complete. Always await it in application code. Declarative invalidation through `furinInvalidate()` or Furin Sync already performs this wait for you.
+Manual invalidation is asynchronous because a shared adapter must durably advance its invalidation version before the mutation is considered complete. Always await it in application code. The handler `invalidate()` of `furinInvalidate()` or Furin Sync already performs this wait for you.
 
 Logical paths are unprefixed. `revalidatePath()` intentionally checks every mounted Furin instance; physical CDN purge paths include each instance prefix.
 
@@ -203,7 +203,7 @@ Tag invalidation spans mounted instances but evicts only paths registered by eac
 
 Prefer tags when a mutation changes shared data used by several pages. Prefer paths when the changed URL is already known. This keeps invalidation precise instead of clearing the entire route cache.
 
-For an Elysia mutation, declarative invalidation is the shortest path:
+For an Elysia mutation, the handler's `invalidate()` is the shortest path:
 
 ```ts
 import { furinInvalidate } from "@teyik0/furin";
@@ -211,11 +211,10 @@ import { Elysia } from "elysia";
 
 export const postsApi = new Elysia({ prefix: "/api/posts" })
   .use(furinInvalidate())
-  .post(
-    "/",
-    { invalidate: { tags: ["posts"] } },
-    ({ body }) => db.posts.create(body)
-  );
+  .post("/", ({ body, invalidate }) => {
+    invalidate({ tags: ["posts"] });
+    return db.posts.create(body);
+  });
 ```
 
 The mutation response is not completed until origin invalidation succeeds. It also carries `X-Furin-Revalidate` for the initiating browser.
