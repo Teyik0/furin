@@ -1,0 +1,301 @@
+examples/task-manager/src/pages/board/[boardId]/index.tsx
+  s_4958c7c47e1061::t_eb0fce9af0fa8c 15,24
+packages/core/tests/client/sync/sync-client.test.tsx
+  s_4958c7c47e1061::t_2fc834d1fc2159 16-21
+  s_4958c7c47e1061::t_9d5ee5518a97a2 5-6,8-14
+  s_4958c7c47e1061::t_a24c52486a4745 4,22-25,27,45,85,91-92,105,115-120,124-125,132,135,146,160-174
+  s_4958c7c47e1061::t_ec17d534705b8b 49,51,55,60-65,68-70,72-79
+  s_4958c7c47e1061::t_ffb594ad96d98c 26
+  s_4958c7c47e1061::t_7afdb347cfc05f 7
+  s_4958c7c47e1061::t_1cfbf6e848eb29 54
+  s_4958c7c47e1061::t_144820a61c478b 15
+packages/core/tests/client/sync/query-sync.test.ts
+  s_4958c7c47e1061::t_6d89de1ef9f748 12,15-17,19-22,26-28,30,33,43,46,54-88,99,103-113,116,120-121,127,134,137,146
+packages/core/tests/contract/mutation-types.type.test.ts
+  s_4958c7c47e1061::t_7afdb347cfc05f 4
+  s_4958c7c47e1061::t_a0b918fcdd069a 7,15,42,50-61
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  s_4958c7c47e1061::t_112fd0040fa129 139
+packages/core/src/server/sync/queries.ts
+  s_4958c7c47e1061::t_44df5d85ca5c01 75-76,81-88
+  s_4958c7c47e1061::t_53f9f155b28c84 127-131
+  s_4958c7c47e1061::t_6f5127e7a580f7 48-52,55
+  s_4958c7c47e1061::t_f3ca2da02054cb 58,62,67
+  s_4958c7c47e1061::t_bcb07d655c8520 1,10,13-43,45-47,53-54,56-57,126,132-135
+packages/core/tests/contract/query-types.type.test.ts
+  s_4958c7c47e1061::t_46705fc4ad355f 6,11,14,17,19,23-26,28-30,33,35,37,40,45-46
+  s_4958c7c47e1061::t_0a77ad2b6ac73e 31
+  s_4958c7c47e1061::t_cbb1836d00559c 47
+examples/task-manager/tests/boards-invalidation.test.ts
+  s_4958c7c47e1061::t_6ba94f53344ba4 44,77
+  s_4958c7c47e1061::t_bc51f9be46e0b1 29,45-47,54,78-81
+packages/core/tests/client/sync/query-store.test.ts
+  s_4958c7c47e1061::t_bd237a2a334e69 271-309
+packages/core/tests/client/sync/imperative-invalidation.test.ts
+  s_4958c7c47e1061::t_1a18b41e53828b 34-37,51,57,78,82-83,98,102,195,253,262
+packages/core/tests/rendering/ssr/query-loaders.test.tsx
+  s_4958c7c47e1061::t_5567a4173c0ec4 6,42,48,71,148,158,168,211,227,237,249,293,299,307,369,374,382
+  s_4958c7c47e1061::t_147bc115a95901 26,38-41,84-88,106-107,134,136-138
+  s_4958c7c47e1061::t_50660ff9e0b00d 95-105,108-133,135,139-144
+examples/task-manager/tests/create-board-form.test.tsx
+  s_4958c7c47e1061::t_cecf8d6f3305a4 4,29-36
+packages/core/src/client.ts
+  s_4958c7c47e1061::t_8b7a07157ea8d0 28
+  s_abd17bfa3cc916::t_3b4450a30869fb 26
+packages/core/tests/client/sync/security-regressions.test.ts
+  s_4958c7c47e1061::t_a6cabab9027ea3 347,351-355
+  s_4958c7c47e1061::t_c85d100363569e 377
+  s_4958c7c47e1061::t_ffb5c22fd07ee6 275,277-278,281-282,284
+  s_4958c7c47e1061::t_530bad29678432 288
+examples/task-manager/tests/board-page-sync.test.tsx
+  s_4958c7c47e1061::t_cecf8d6f3305a4 4,26-28
+examples/task-manager/src/api/index.ts
+  s_4958c7c47e1061::t_565f5ca809f204 39-44
+packages/core/tests/contract/sync-invalidate-types.type.test.ts
+  s_4958c7c47e1061::t_5cad02f7c43b5a 8,10-34,53-57,67-74
+  s_4958c7c47e1061::t_df923fb4434e26 75-76
+examples/task-manager/src/components/create-board-form.tsx
+  s_4958c7c47e1061::t_151e718122ed84 8,21
+apps/docs/src/components/landing/sync-section.tsx
+  s_4958c7c47e1061::t_976830d4c46d85 26
+  s_4958c7c47e1061::t_6e1fc65b239207 7-8,11,16-18,21
+packages/core/tests/rendering/ssr/query-seed-exposure.test.tsx
+  s_4958c7c47e1061::t_eb632262033656 2,4
+  s_4958c7c47e1061::t_5abb1da712f149 26,40,102,108,115,130,144,154,165
+examples/task-manager/tests/card-detail-page.test.tsx
+  s_4958c7c47e1061::t_cecf8d6f3305a4 4,33-46
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_4958c7c47e1061::t_5abb1da712f149 420,431,1338,1344,1348
+  s_4958c7c47e1061::t_eb632262033656 5,438-439
+  s_4958c7c47e1061::t_66e780d30b28f0 2
+packages/core/tests/client/navigation/router-cache.test.tsx
+  s_4958c7c47e1061::t_61334ee5b7843f 10,212,214,217
+  s_4958c7c47e1061::t_ee67cf5ab0b7f8 3
+  s_4958c7c47e1061::t_24110425d448d5 235
+packages/core/src/server/render/mixed-cache.ts
+  s_4958c7c47e1061::t_84c9d5dcaa1234 12,43
+packages/core/tests/contract/furin-plugin-types.type.test.ts
+  s_4958c7c47e1061::t_0a77ad2b6ac73e 3,34-35
+  s_4958c7c47e1061::t_e78475d4bbca54 7,32-33
+packages/core/tests/build/elysia-aot.test.ts
+  s_4958c7c47e1061::t_015e408a2f417c 66-67,71
+packages/core/src/server/sync/query-context.ts
+  s_4958c7c47e1061::t_84c9d5dcaa1234 6,74
+packages/core/tests/client/sync/sync.test.ts
+  s_4958c7c47e1061::t_5c3c7dcd528b81 181-183
+  s_4958c7c47e1061::t_6833537dd03102 389-390,394
+  s_4958c7c47e1061::t_73cfcdf5aeca9a 157,567-570
+  s_4958c7c47e1061::t_bdbfbdf7acbf1a 314-321
+  s_4958c7c47e1061::t_1e2cbb76140002 32
+packages/core/src/client/query.tsx
+  s_4958c7c47e1061::t_79d6d1653bd7bf 9
+  s_4958c7c47e1061::t_a492771bcc0ae8 20,22-26,29-31
+  s_4958c7c47e1061::t_85eae2b5d90e6e 43,47
+examples/task-manager/src/pages/board/_route.tsx
+  s_4958c7c47e1061::t_ef8aadce95f07e 23
+packages/core/src/build/elysia-aot-worker.ts
+  s_4958c7c47e1061::t_bd64f81df29aa2 40-68
+  s_4958c7c47e1061::t_f479b80b4c340e 39
+CHANGELOG.md
+  s_4958c7c47e1061::t_a01d741c983fb1 10-11,15,19,22
+packages/core/tests/client/sync/mutation-client.test.tsx
+  s_4958c7c47e1061::t_45aa882bdf8f4b 539-594
+  s_4958c7c47e1061::t_020210d38a1770 317
+  s_4958c7c47e1061::t_d6107715aecf7d 2
+  s_4958c7c47e1061::t_191f749c1b2d7a 3
+  s_4958c7c47e1061::t_7d4b24d9685743 490,492,494-495,502
+  s_4958c7c47e1061::t_f9ebafb29ec022 7,94,96,132,135,315
+packages/core/src/server/sync/atomic.ts
+  s_abd17bfa3cc916::t_e7f56526501c8f 20
+packages/core/src/client/sync.ts
+  s_4958c7c47e1061::t_3a661848b6ecc0 309-310
+  s_4958c7c47e1061::t_c0eed13d724c9c 56-57
+  s_4958c7c47e1061::t_5f3c1a4192da50 2
+  s_4958c7c47e1061::t_4e620ffab0feaa 53-55,64
+  s_4958c7c47e1061::t_9dc4c98fb66c89 114-115,141-145,147-149,151-152,295-297,318,322,324,345,362
+  s_4958c7c47e1061::t_6e63efdaf04026 239,270-272,282-283,285,289
+  s_4958c7c47e1061::t_5d6543b52b22bd 346,360-361
+  s_4958c7c47e1061::t_9a4bc7931ce096 234-238,240-253,255-259,261-262,264-267,279-281,284,286-288
+  s_4958c7c47e1061::t_7c65512d07845b 298-303
+  s_4958c7c47e1061::t_b87222864f662b 113,116-121,123-124,140,150,153-157,159-170,193-194,304-308,315-316,323
+  s_4958c7c47e1061::t_09612d738f0045 3,30-31,34,70-71,74-80,82-83,85-86,89-90,92-98,102,125-130,133-136,171-192,195-207,209,212-213,228-231,233,273-278,291-292,325-341,343-344,347-354,356-359
+  s_4958c7c47e1061::t_ffd9c3f303f73f 35
+  s_4958c7c47e1061::t_1764f6e59c0f09 58-60
+  s_4958c7c47e1061::t_a7df6fb9d7c21f 311-314,317,319-321
+  s_4958c7c47e1061::t_d033ac9ac0770c 84,342,355
+  s_4958c7c47e1061::t_f5774c47e09742 15
+  s_4958c7c47e1061::t_983ddeb39a1c25 16
+  s_4958c7c47e1061::t_33ae955b8cc4f7 36
+  s_4958c7c47e1061::t_4779633cc943a9 103
+  s_4958c7c47e1061::t_e1bed643226ba6 363
+  s_abd17bfa3cc916::t_6d03db9ded1baa 105
+examples/task-manager/tests/db-error-mapping.test.ts
+  s_4958c7c47e1061::t_69624adf67385e 118
+packages/core/tests/client/sync/query-identity.test.ts
+  s_4958c7c47e1061::t_7b73d7465ba438 13
+  s_4958c7c47e1061::t_ff38dd6d2843dc 11-12,14
+  s_4958c7c47e1061::t_fa9db8297fd73e 15-17
+packages/core/src/client/query-store.ts
+  s_4958c7c47e1061::t_e2322d4dd3b07a 28
+  s_4958c7c47e1061::t_3790915fb55ceb 27,30
+  s_4958c7c47e1061::t_84c9d5dcaa1234 6,441
+  s_4958c7c47e1061::t_81d54f78ee1262 11
+  s_4958c7c47e1061::t_b679ad6456ee4e 29
+apps/docs/src/content/docs/sync.mdx
+  s_4958c7c47e1061::t_a3ed6ad84c311a 195
+  s_4958c7c47e1061::t_493ae88b96ad4e 240
+  s_4958c7c47e1061::t_5e7a25c5f105cd 465,468-469
+  s_4958c7c47e1061::t_5b76b0af94668d 374
+  s_4958c7c47e1061::t_66c3caa724b191 505
+  s_4958c7c47e1061::t_27dd8fc67c8a1e 400-401
+  s_4958c7c47e1061::t_5c82f540e1f0ad 225
+  s_4958c7c47e1061::t_58795d39d27eae 273,275,278
+  s_4958c7c47e1061::t_0d2a8028b791f4 135,137,141,149,154,159,167,170-172,189
+  s_4958c7c47e1061::t_f2eb9959bbe9c0 411,414-415,418-419,424,426
+  s_4958c7c47e1061::t_28c87fa6004e91 331,334-337,340-341,344
+  s_4958c7c47e1061::t_556d9d8c64fe93 486-487
+  s_4958c7c47e1061::t_cb220e495410d0 201
+  s_4958c7c47e1061::t_d6076625fa27d3 260,266
+  s_4958c7c47e1061::t_ee3386079a2e02 211
+  s_4958c7c47e1061::t_e82e9fe93ade30 283
+  s_4958c7c47e1061::t_0023a727c76b2b 390-393
+examples/task-manager/src/components/board-card.tsx
+  s_4958c7c47e1061::t_151e718122ed84 21
+packages/core/src/server/sync/plugin.ts
+  s_4958c7c47e1061::t_fda6cfcc2dcfd1 393,397,400,410
+  s_4958c7c47e1061::t_2e1d01212a00fa 39
+  s_4958c7c47e1061::t_cddd20fe94bc1d 1
+  s_4958c7c47e1061::t_ec828fb85e0b2e 34
+  s_4958c7c47e1061::t_726b1381eade02 396
+  s_4958c7c47e1061::t_5b833bdd04363d 409
+  s_4958c7c47e1061::t_859dcd9ac8fea7 192-193
+packages/core/tests/client/sync/query-client.test.tsx
+  s_4958c7c47e1061::t_57de0ada38e619 31
+  s_4958c7c47e1061::t_3107d005a77b2d 11,82,84,90-91,113,134,139,141,177,179,182,201,203,261,264,268,298,300,303,336,338,359-361
+  s_4958c7c47e1061::t_6da7f59f7f7d4b 16-17
+  s_4958c7c47e1061::t_9765b449968c64 42-46
+  s_4958c7c47e1061::t_2ddd08485baead 2,4
+  s_4958c7c47e1061::t_9c0e473d0cda62 207-209,211
+  s_4958c7c47e1061::t_dbe4b85f5dc5ec 32-41,47-69
+  s_4958c7c47e1061::t_ba55f3be877f8e 181,183,302,304
+packages/core/tests/fixtures/sync-bundles/browser.ts
+  s_4958c7c47e1061::t_112fd0040fa129 1,3
+examples/task-manager/e2e/task-manager.e2e.ts
+  s_4958c7c47e1061::t_0be7ec6c51f520 208-209
+  s_efc01cae7f170c::t_5a3a74e1a88717 233
+packages/core/tests/contract/sync-client-types.type.test.ts
+  s_4958c7c47e1061::t_0a77ad2b6ac73e 79
+  s_4958c7c47e1061::t_7a62303a53b4a1 6,21,23-36,38,59-60,62-64,67-78,80-82,85,89-90
+  s_4958c7c47e1061::t_7afdb347cfc05f 22
+  s_4958c7c47e1061::t_a0d239618a73dc 61
+  s_4958c7c47e1061::t_e628070d286790 91
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_4958c7c47e1061::t_ee67cf5ab0b7f8 185-186,231-232,269-270,320,348-349,466-467,563-564,804-805,832-833,865-866,905-906,953-954,988-989,1044-1045,1112-1113,1165-1166,1232-1233,1288-1289
+  s_4958c7c47e1061::t_b800359a2ee6d8 11
+  s_4958c7c47e1061::t_61334ee5b7843f 184,268,347,351,465,803,831,864,904,952,987,1043,1111,1164,1231,1287
+  s_4958c7c47e1061::t_24110425d448d5 279
+  s_4958c7c47e1061::t_079af4e26f53b7 1118-1137,1139-1150
+packages/core/tests/client/sync/atomic-sync.test.ts
+  s_4958c7c47e1061::t_9b45ab303cfe72 679,681-683
+examples/task-manager/src/api/modules/cards/index.ts
+  s_4958c7c47e1061::t_3c08e12e5379df 10-13,15-16,25,30-31,36-37,58-59,83-84,98-99
+examples/task-manager/tests/kanban-sync.test.tsx
+  s_4958c7c47e1061::t_bc51f9be46e0b1 38-42,86-94
+  s_4958c7c47e1061::t_cecf8d6f3305a4 4,85
+packages/core/tests/rendering/ssr/transport-lifecycle.test.tsx
+  s_4958c7c47e1061::t_5abb1da712f149 340,345,363
+  s_4958c7c47e1061::t_66e780d30b28f0 2
+  s_4958c7c47e1061::t_eb632262033656 6
+examples/task-manager/tests/board-card.test.tsx
+  s_4958c7c47e1061::t_e693eda9b3442a 4,18
+examples/task-manager/src/lib/api.ts
+  s_4958c7c47e1061::t_b76406370f63be 1,3,7-8
+packages/core/src/client/mutation.ts
+  s_4958c7c47e1061::t_5cc4851de3cc1f 147
+  s_4958c7c47e1061::t_8f55052b182fcb 3-10
+  s_4958c7c47e1061::t_2219e75ffed334 136,139
+  s_4958c7c47e1061::t_cf85e7436dcb41 187
+  s_4958c7c47e1061::t_92d12149d5285c 77-135,137-138,140-146,148-165
+apps/docs/src/pages/index.tsx
+  s_4958c7c47e1061::t_5d7488c2124187 90,97
+  s_4958c7c47e1061::t_256e9b2031481a 73-87
+examples/task-manager/src/api/modules/boards/index.ts
+  s_4958c7c47e1061::t_08ceae8bdddc4c 8-11,13-16,19-21,23-35,37-38
+packages/core/tests/runtime/cache/page-cache-isr.test.ts
+  s_4958c7c47e1061::t_5abb1da712f149 229,235,241,443,449,453
+  s_4958c7c47e1061::t_66e780d30b28f0 231-234,445-448
+  s_4958c7c47e1061::t_7afdb347cfc05f 230,444
+  s_4958c7c47e1061::t_eb632262033656 6
+packages/core/src/routes.ts
+  s_4958c7c47e1061::t_d41b576910d2e2 19-22,24
+packages/core/tests/client/sync/principal-secret.test.ts
+  s_4958c7c47e1061::t_126ca4c4778982 45
+packages/core/src/server/sync/stream.ts
+  s_4958c7c47e1061::t_1150d3cbe72334 7
+  s_4958c7c47e1061::t_488e98cc412340 188
+packages/core/tests/runtime/sync/principal-journal.integration.test.ts
+  s_4958c7c47e1061::t_4ea06d6c0e18d2 57
+  s_4958c7c47e1061::t_fb7bd8ad129b42 31-33
+  s_4958c7c47e1061::t_045acab0e8e9e9 10,69,73
+  s_4958c7c47e1061::t_b82a74eb0810a0 51
+examples/task-manager/src/pages/index.tsx
+  s_4958c7c47e1061::t_bc51f9be46e0b1 92,94,96
+  s_4958c7c47e1061::t_ef8aadce95f07e 9
+packages/core/src/shared/sync-query.ts
+  s_4958c7c47e1061::t_95844fa5a2d0ad 84-85,87-92,97-101
+  s_4958c7c47e1061::t_889f887747efb7 86
+  s_4958c7c47e1061::t_5fbb0b398b3026 102-106
+  s_4958c7c47e1061::t_6c6c4bfddf0ed1 5
+  s_4958c7c47e1061::t_4a9385c11165b1 67-68
+  s_4958c7c47e1061::t_0dcde2696ba2aa 107-108
+packages/core/tests/build/aot-prerender-isolation.test.ts
+  s_4958c7c47e1061::t_112fd0040fa129 20,27
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  s_4958c7c47e1061::t_151e718122ed84 19-20,66,70,82-83,93
+packages/core/src/client/router/use-sync-stream.ts
+  s_4958c7c47e1061::t_84c9d5dcaa1234 3,86
+  s_4958c7c47e1061::t_15ddddfe400a03 87-88
+examples/task-manager/src/components/ui/kanban.tsx
+  s_4958c7c47e1061::t_f1081fa1e02c2b 33-49,53,55-56
+  s_4958c7c47e1061::t_151e718122ed84 51,358,369
+apps/docs/src/content/docs/deployment.mdx
+  s_4958c7c47e1061::t_ebc6184840a2a8 40
+packages/core/tests/client/sync/sync-catch-up.test.ts
+  s_4958c7c47e1061::t_6b114f8b717aed 84
+examples/task-manager/tests/cards-invalidation.test.ts
+  s_4958c7c47e1061::t_26b6723f043a99 4,22-29,35-36,45-46
+packages/core/src/furin.ts
+  s_abd17bfa3cc916::t_32707746bc4fa4 369
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f1e237fa1f4d2ef326ec000d055a7eaaf31dd66e",
+  "prompts": {},
+  "sessions": {
+    "s_4958c7c47e1061": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "46a75c91-5cde-47b4-ae28-4d003fc2f1fd",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_abd17bfa3cc916": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ac8b0c63af99b0591",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_efc01cae7f170c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a1bbec2e6e202826e",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
