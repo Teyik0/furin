@@ -1,0 +1,27 @@
+CHANGELOG.md
+  s_98098e5eb83024::t_bcaa4614546548 22
+packages/core/src/server/dev-page-imports.ts
+  s_98098e5eb83024::t_e4da5677008cf8 14,177-178
+packages/core/src/server/dev/rewrite-module-specifiers.ts
+  s_98098e5eb83024::t_2029685fd22d3d 8,45
+packages/core/src/server/dev/server-only-module.ts
+  s_98098e5eb83024::t_37cb5edd430b22 1-23
+packages/core/tests/runtime/plugin/server-only-identity.test.ts
+  s_98098e5eb83024::t_b4263f4502937f 1-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3a83c0dacaa1b94c951c639c13c3abfa0c77c14e",
+  "prompts": {},
+  "sessions": {
+    "s_98098e5eb83024": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3c08702-d086-4128-b687-f5448ac0df4e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
