@@ -1,0 +1,67 @@
+examples/electrobun-todo/src/api/modules/todos/index.ts
+  s_18ef16e874533c::t_ddf9180d542be3 14-15,17-25
+  s_18ef16e874533c::t_9b5696422d6aec 1-3,5-10,12-13,26-35
+  s_18ef16e874533c::t_00707e17f4b74c 4,11,16
+examples/electrobun-todo/tests/server.test.ts
+  s_18ef16e874533c::t_4ed25ffb2a8e31 1-47
+examples/electrobun-todo/src/db/schema.ts
+  s_18ef16e874533c::t_7ff0d41aa073b0 1-10
+examples/electrobun-todo/src/db/index.ts
+  s_18ef16e874533c::t_fbe2b4b3878eff 1-22
+examples/electrobun-todo/src/server.ts
+  s_18ef16e874533c::t_bc039e3424d2b5 4-6,8,10-12,16
+  s_18ef16e874533c::t_7487566275473a 9
+examples/electrobun-todo/src/lib/api.ts
+  s_18ef16e874533c::t_0d2c1b21c6c2bb 1-9
+examples/electrobun-todo/tests/setup.ts
+  s_18ef16e874533c::t_ed1e762cc41f08 1-2
+examples/electrobun-todo/src/api/modules/todos/service.ts
+  s_18ef16e874533c::t_8e325bde371302 1-3,5-25,27-38
+  s_18ef16e874533c::t_00707e17f4b74c 4,26
+examples/electrobun-todo/src/pages/root.tsx
+  s_18ef16e874533c::t_efbed37b052416 1,5-15
+examples/electrobun-todo/src/sync.ts
+  s_18ef16e874533c::t_8935f9772b93ee 1-11
+examples/electrobun-todo/tests/todo-app.test.tsx
+  s_18ef16e874533c::t_9aaa045d16bd7f 1-23,25-28,32-39,41-135,138-143,150-175
+  s_18ef16e874533c::t_90d330c48285b6 24,29-31,40,136-137
+  s_18ef16e874533c::t_ddf9180d542be3 144-149
+examples/electrobun-todo/src/api/modules/todos/model.ts
+  s_18ef16e874533c::t_0d81236e3e00ee 1-16
+examples/electrobun-todo/src/api/index.ts
+  s_18ef16e874533c::t_52a426f7183a1d 1-15
+examples/electrobun-todo/bunfig.toml
+  s_18ef16e874533c::t_ed1e762cc41f08 6-8
+examples/electrobun-todo/src/components/todo.css
+  s_18ef16e874533c::t_2df8e9bc99e07e 1-359
+examples/electrobun-todo/tests/todos-api.test.ts
+  s_18ef16e874533c::t_18960706f9d487 1-78
+examples/electrobun-todo/src/pages/index.tsx
+  s_18ef16e874533c::t_934a62eb0ed90d 2-3,7-14,16
+examples/electrobun-todo/src/components/todo-app.tsx
+  s_18ef16e874533c::t_2247a7f6c6eae0 36
+  s_18ef16e874533c::t_00707e17f4b74c 3,9,181-182,193,220,229,239
+  s_18ef16e874533c::t_53b8f91325b810 39
+  s_18ef16e874533c::t_98c8d7e18edcd2 17-20
+  s_18ef16e874533c::t_1ec778fb116744 232
+  s_18ef16e874533c::t_96886817a623de 1-2,4-8,10-16,21-35,37-38,40-180,183-192,194-219,221-228,230-231,233-238,240-247
+examples/electrobun-todo/README.md
+  s_18ef16e874533c::t_3a61b523434de9 3-14,16-17,29,31,33,36-37,42-44,46
+  s_18ef16e874533c::t_c13b3321a1117e 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6799f2aa2649899883de820a2106a037da11002f",
+  "prompts": {},
+  "sessions": {
+    "s_18ef16e874533c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6a6b58ad-a2bb-486b-a6b6-62aaa9d3e19c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
