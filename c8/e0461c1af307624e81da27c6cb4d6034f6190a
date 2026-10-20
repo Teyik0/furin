@@ -1,0 +1,30 @@
+packages/electrobun/tests/dev-recovery.test.ts
+  s_3880474df67750::t_424084a7d61676 1-18,27-47,49-53,55-74,82-84,87-93,102-109,115,117,122-123,125-138,140-145,186-189
+  s_3880474df67750::t_b00a973a3c9bd1 48,110-114,116,172-173
+  s_3880474df67750::t_1926ad72cd2fb9 94-101
+  s_3880474df67750::t_70c210bbd424a1 24
+  s_3880474df67750::t_f5634364e7699a 19-23,25-26,54,75-81,119,124
+  s_3880474df67750::t_74ab47e0286598 85-86,118,120-121,139,146-171,174-185
+packages/electrobun/README.md
+  s_3880474df67750::t_44d3bef06d16b9 178-183
+packages/electrobun/src/cli.ts
+  s_3880474df67750::t_5801f6c41e2249 298-301,310-312,318,463
+  s_3880474df67750::t_d0925051ca8fda 265,289-290,297,305,307,309,317,319-323,329
+  s_3880474df67750::t_4e3d9731e6caca 13-16,27,41-47,264,313-316,324-325
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c8e0461c1af307624e81da27c6cb4d6034f6190a",
+  "prompts": {},
+  "sessions": {
+    "s_3880474df67750": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a159e4-e28c-74e3-94a9-a92fb4ca6bb7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
