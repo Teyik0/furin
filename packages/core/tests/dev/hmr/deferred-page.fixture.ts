@@ -50,8 +50,7 @@ try {
     `
     import { defineRoute } from "@teyik0/furin";
     import Never from "../never.content";
-    import { route as rootRoute } from "./root";
-    export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" })
+    export const route = defineRoute("/redirect").config({ mode: "ssr" })
       .loader(({ redirect }) => { throw redirect("/"); })
       .page(() => <Never />);
   `
@@ -80,8 +79,7 @@ try {
     `
     import { defineRoute } from "@teyik0/furin";
     import Content from "../article.content";
-    import { route as rootRoute } from "./root";
-    export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" })
+    export const route = defineRoute("/article").config({ mode: "ssr" })
       .page(() => <article><Content /></article>);
   `
   );
@@ -102,8 +100,7 @@ try {
     import Heavy from "../heavy";
     import { identity } from "../shared";
     import "../startup";
-    import { route as rootRoute } from "./root";
-    export const route = defineRoute().config({ layout: rootRoute, mode: "ssr", query: t.Object({ q: t.Optional(t.String({ minLength: 2 })) }) })
+    export const route = defineRoute("/heavy").config({ mode: "ssr", query: t.Object({ q: t.Optional(t.String({ minLength: 2 })) }) })
       .loader(() => ({ message: "loader intact", token: identity }))
       .page(({ message, token }) => <main><Heavy /><p>{message}</p><p>{token === identity ? "same identity" : "duplicated identity"}</p><p>{token}</p></main>);
   `
@@ -113,8 +110,7 @@ try {
     "src/pages/index.tsx",
     `
     import { defineRoute } from "@teyik0/furin";
-    import { route as rootRoute } from "./root";
-    export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" })
+    export const route = defineRoute("/").config({ mode: "ssr" })
       .page(() => <h1>Light page content</h1>);
   `
   );
@@ -130,7 +126,7 @@ try {
   expect(contentLoads).toBe(0);
   const invalid = await app.handle(new Request("http://localhost/heavy?q=x"));
   expect(invalid.status).toBe(422);
-  const data = await app.handle(new Request("http://localhost/_furin/data?path=/heavy"));
+  const data = await app.handle(new Request("http://localhost/heavy?_furin=data"));
   expect(data.status).toBe(200);
   expect(await data.text()).toContain("loader intact");
   expect(Reflect.get(globalThis, "furinHeavyLoads")).toBeUndefined();

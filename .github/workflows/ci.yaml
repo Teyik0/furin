@@ -9,6 +9,11 @@ permissions:
   contents: read
   pull-requests: write
 
+# Superseded pull request runs are cancelled; pushes to main always finish.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   distributed-sync:
     name: Distributed sync validation
@@ -33,7 +38,7 @@ jobs:
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: .bun-version
 
       - name: Install packages
         run: bun install --frozen-lockfile
@@ -72,9 +77,73 @@ jobs:
         run: bunx react-doctor -y --scope changed --base main --annotations
 
       - name: Publish Preview
+        id: publish-preview
         working-directory: packages/core
         if: github.event_name == 'pull_request'
-        run: bunx pkg-pr-new publish
+        run: bun run pkg-pr-new publish --bun --packageManager=bun --no-compact
+
+      - name: Verify preview installation
+        if: github.event_name == 'pull_request'
+        env:
+          FURIN_PREVIEW_URL: ${{ steps.publish-preview.outputs.urls }}
+        run: |
+          consumer_dir="$(mktemp -d "$RUNNER_TEMP/furin-preview-XXXXXX")"
+          cd "$consumer_dir"
+          bun -e 'await Bun.write("package.json", JSON.stringify({ private: true, dependencies: { "@teyik0/furin": process.env.FURIN_PREVIEW_URL } }));'
+          bun install --production --ignore-scripts
+          bun -e '
+            import { furin } from "@teyik0/furin";
+            import { defineRoute, defer, useMutation } from "@teyik0/furin/client";
+            const manifest = await Bun.file("node_modules/@teyik0/furin/package.json").json();
+            for (const field of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
+              for (const version of Object.values(manifest[field] ?? {})) {
+                if (/^(catalog|workspace):/.test(version)) throw new Error(`Unresolved dependency: ${version}`);
+              }
+            }
+            if (![furin, defineRoute, defer, useMutation].every(value => typeof value === "function")) throw new Error("Missing public export");
+          '
+
+  coverage:
+    name: Core coverage (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cache bun
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('.bun-version', 'bun.lock') }}
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install packages
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        working-directory: packages/core
+        run: bun run build
+
+      # Informational: the "Test" step of the build job gates the suite. No
+      # threshold is enforced and failures here don't fail the workflow.
+      - name: Test with coverage
+        working-directory: packages/core
+        continue-on-error: true
+        run: bun run test:coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: core-coverage
+          path: packages/core/coverage/lcov.info
+          if-no-files-found: warn
 
   windows:
     name: Windows compatibility
@@ -89,12 +158,12 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-1.4.2-${{ hashFiles('bun.lock') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('.bun-version', 'bun.lock') }}
 
       - name: Setup bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.2
+          bun-version-file: .bun-version
 
       - name: Install packages
         run: bun install --frozen-lockfile
@@ -127,8 +196,17 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: Teyik0/furin-vercel-benchmarks
-          ref: 54c6f6971b5ce6f032794345517c015c87567afb
+          ref: 0eabe4369a98d0d072019336f5050555725746e1
           path: .benchmark
+          persist-credentials: false
+
+      # The base branch predates file-id routes, so it builds the previous fixture.
+      - name: Checkout baseline benchmark
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: Teyik0/furin-vercel-benchmarks
+          ref: b06822ae1d74cafa70787c9617f29081d9784929
+          path: .benchmark-base
           persist-credentials: false
 
       - name: Cache bun
@@ -140,7 +218,7 @@ jobs:
       - name: Setup bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.2
+          bun-version-file: .bun-version
 
       - name: Install Furin
         run: bun install --frozen-lockfile
@@ -159,15 +237,19 @@ jobs:
         working-directory: .benchmark
         run: |
           react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$GITHUB_WORKSPACE/package.json")"
+          elysia_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.elysia)' "$GITHUB_WORKSPACE/package.json")"
+          evlog_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.evlog)' "$GITHUB_WORKSPACE/package.json")"
+          exact_mirror_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog["exact-mirror"])' "$GITHUB_WORKSPACE/package.json")"
+          typebox_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.typebox)' "$GITHUB_WORKSPACE/package.json")"
           react_types_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog["@types/react"])' "$GITHUB_WORKSPACE/package.json")"
           react_dom_types_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog["@types/react-dom"])' "$GITHUB_WORKSPACE/package.json")"
           cd apps/furin
           bun pm pkg set \
             "dependencies.@teyik0/furin=$FURIN_HEAD_TARBALL" \
-            dependencies.elysia=2.0.0-beta.21 \
-            dependencies.evlog=2.29.0 \
-            dependencies.exact-mirror=1.2.6 \
-            dependencies.typebox=1.3.34 \
+            "dependencies.elysia=$elysia_version" \
+            "dependencies.evlog=$evlog_version" \
+            "dependencies.exact-mirror=$exact_mirror_version" \
+            "dependencies.typebox=$typebox_version" \
             "dependencies.react=$react_version" \
             "dependencies.react-dom=$react_version" \
             "devDependencies.@types/react=$react_types_version" \
@@ -189,19 +271,7 @@ jobs:
           bun "$GITHUB_WORKSPACE/scripts/measure-vercel-server-bundle.ts" \
             "$RUNNER_TEMP/vercel-benchmark-head.json" apps/furin/.vercel/output/functions/__server.func
 
-      - name: Check baseline support
-        id: benchmark-baseline
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          if git cat-file -e "$BASE_SHA:packages/core/src/adapter/vercel.ts"; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Build baseline benchmark
-        if: steps.benchmark-baseline.outputs.available == 'true'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -214,14 +284,8 @@ jobs:
           bun pm pack --destination "$RUNNER_TEMP/furin-base-package"
           furin_tarball="$(find "$RUNNER_TEMP/furin-base-package" -maxdepth 1 -type f -name '*.tgz' -print -quit)"
           test -n "$furin_tarball"
-          cd "$GITHUB_WORKSPACE/.benchmark"
-          git restore bun.lock package.json apps/furin/package.json
+          cd "$GITHUB_WORKSPACE/.benchmark-base"
           base_elysia_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.elysia)' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
-          if [[ "$base_elysia_version" == ^1.* ]]; then
-            # The Elysia 1 baseline needs the matching fixture loader API and peer graph.
-            git fetch --depth=1 origin f124698be971e275a164c55a2fedcbc85256558c
-            git checkout --detach FETCH_HEAD
-          fi
           react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
           react_types_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog["@types/react"])' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
           react_dom_types_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog["@types/react-dom"])' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
@@ -245,7 +309,6 @@ jobs:
             "$RUNNER_TEMP/vercel-benchmark-base.json" apps/furin/.vercel/output/functions/__server.func
 
       - name: Enforce benchmark budgets
-        if: steps.benchmark-baseline.outputs.available == 'true'
         working-directory: .benchmark
         run: |
           base_elysia_version="$(bun -e 'const path = process.argv.at(-1); const pkg = await Bun.file(path).json(); console.log(pkg.catalog.elysia)' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
@@ -270,25 +333,6 @@ jobs:
           mv "$RUNNER_TEMP/vercel-benchmark-with-marker.md" "$RUNNER_TEMP/vercel-benchmark.md"
           cat "$RUNNER_TEMP/vercel-benchmark.md" >> "$GITHUB_STEP_SUMMARY"
           exit "$comparison_status"
-
-      - name: Bootstrap benchmark baseline
-        if: steps.benchmark-baseline.outputs.available != 'true'
-        run: |
-          {
-            echo '<!-- furin-vercel-benchmark-report -->'
-            echo "## Vercel framework benchmark"
-            echo
-            echo "The target branch does not contain the Vercel adapter yet. This PR establishes the external benchmark baseline."
-            echo
-            bun -e '
-              const head = await Bun.file(`${process.env.RUNNER_TEMP}/vercel-benchmark-head.json`).json();
-              console.log("| Metric | Base | Head |");
-              console.log("|---|---|---:|");
-              for (const key of ["serverHandlerBytes", "serverBootstrapBytes", "clientJavaScriptBytes", "clientCssBytes", "clientAssetCount"]) {
-                console.log(`| ${key} | No baseline | ${head[key]} |`);
-              }
-            '
-          } | tee "$RUNNER_TEMP/vercel-benchmark.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Report benchmark infrastructure failure
         if: always()
@@ -329,12 +373,12 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-1.4.2-${{ hashFiles('bun.lock') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('.bun-version', 'bun.lock') }}
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version-file: .bun-version
 
       - name: Build PR performance report
         run: bun scripts/build-performance-report.ts "$GITHUB_WORKSPACE" "$RUNNER_TEMP/furin-performance/head.json"
@@ -342,19 +386,7 @@ jobs:
       - name: Measure PR development startup
         run: bun scripts/measure-dev-startup.ts "$GITHUB_WORKSPACE" "$RUNNER_TEMP/furin-performance/startup-head.json"
 
-      - name: Check baseline support
-        id: baseline
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          if git grep --quiet -- '--analyze' "$BASE_SHA" -- packages/core/src/cli/index.ts; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Build baseline performance report
-        if: steps.baseline.outputs.available == 'true'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -362,11 +394,9 @@ jobs:
           bun scripts/build-performance-report.ts "$RUNNER_TEMP/furin-base" "$RUNNER_TEMP/furin-performance/base.json"
 
       - name: Measure baseline development startup
-        if: steps.baseline.outputs.available == 'true'
         run: bun scripts/measure-dev-startup.ts "$RUNNER_TEMP/furin-base" "$RUNNER_TEMP/furin-performance/startup-base.json"
 
       - name: Enforce performance budgets
-        if: steps.baseline.outputs.available == 'true'
         run: |
           base_react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$RUNNER_TEMP/furin-base/package.json")"
           head_react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$GITHUB_WORKSPACE/package.json")"
@@ -394,16 +424,6 @@ jobs:
             comparison_status=1
           fi
           exit "$comparison_status"
-
-      - name: Bootstrap performance baseline
-        if: steps.baseline.outputs.available != 'true'
-        run: |
-          {
-            echo '<!-- furin-performance-report -->'
-            echo "## Furin performance budgets"
-            echo
-            echo "The target branch cannot produce a compatible metafile yet. This PR establishes the baseline; comparisons become blocking once it lands."
-          } | tee "$RUNNER_TEMP/furin-performance/budgets.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install benchmark tools
         uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2

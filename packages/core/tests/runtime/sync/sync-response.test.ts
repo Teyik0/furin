@@ -21,6 +21,7 @@ function replayApp(storedHeaders: HeadersInit, replayHeaders: Record<string, str
   let stored: StoredResponse | undefined;
   const adapter: SyncAdapter = {
     abortMutation: async () => undefined,
+    appendInvalidations: () => Promise.resolve("0"),
     beginMutation: async (): Promise<BeginMutationResult> =>
       stored === undefined
         ? {
@@ -40,7 +41,7 @@ function replayApp(storedHeaders: HeadersInit, replayHeaders: Record<string, str
 
   return new Elysia()
     .use(furinSync({ adapter, notifier, principal: () => "test" }))
-    .post("/mutation", { sync: { tags: [] } }, ({ set }) => {
+    .post("/mutation", ({ set }) => {
       Object.assign(set.headers, replayHeaders);
       return new Response("stored", {
         headers: new Headers([["content-length", "6"], ...new Headers(storedHeaders).entries()]),
@@ -61,7 +62,7 @@ async function executeAndReplay(app: SyncTestApp): Promise<Response> {
 test("furinSync replay preserves every configured header value", async () => {
   const response = await executeAndReplay(
     replayApp(
-      { "x-furin-tag": "stale" },
+      {},
       {
         "x-furin-tag": ["alpha", "beta"],
       }
@@ -69,6 +70,23 @@ test("furinSync replay preserves every configured header value", async () => {
   );
 
   expect(response.headers.get("x-furin-tag")).toBe("alpha, beta");
+});
+
+test("furinSync replay preserves returned Response headers over configured headers", async () => {
+  const response = await executeAndReplay(
+    replayApp({ "x-furin-tag": "returned" }, { "x-furin-tag": ["configured"] })
+  );
+  expect(response.headers.get("x-furin-tag")).toBe("returned");
+});
+
+test("furinSync replay merges returned headers without retaining differently cased aliases", async () => {
+  const response = await executeAndReplay(
+    replayApp(
+      { "x-furin-tag": "returned" },
+      { "x-furin-tag": ["configured"], "X-Furin-Tag": ["stale-alias"] }
+    )
+  );
+  expect(response.headers.get("x-furin-tag")).toBe("returned");
 });
 
 test("furinSync replay discards configured cookies", async () => {

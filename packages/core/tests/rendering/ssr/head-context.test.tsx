@@ -1,13 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import "../../setup/evlog-mock";
-
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { HeadContent, Scripts } from "../../../src/client/document.tsx";
 import { defer } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute } from "../../../src/furin.ts";
 import { renderToHTML } from "../../../src/server/render/index.ts";
-import { prepareRender } from "../../../src/server/render/ssr.ts";
+import { prepareRender } from "../../../src/server/render/prepare-render.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
@@ -25,14 +23,39 @@ function createLoaderContext(): Context {
   } as Context;
 }
 
+const userRoot = defineRootRoute()
+  .config({ mode: "ssr" })
+  .requestLoader(() => ({ user: "alice" }))
+  .layout(({ children }) => (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  ));
+
+declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/head-context/account": {
+      kind: "page";
+      parent: typeof userRoot;
+      pathParams: NonNullable<unknown>;
+    };
+  }
+}
+
 describe("SSR head context", () => {
   test("runs head beside a requestLoader without a public loader", async () => {
     const rootTerminal = defineRootRoute()
       .config({ mode: "ssr" })
       .layout(({ children }) => children);
     const rootRoute = adaptDefinedLayout(rootTerminal, undefined);
-    const terminal = defineRoute()
-      .config({ layout: rootTerminal, mode: "ssg" })
+    const terminal = defineRoute("/terminal")
+      .config({ mode: "ssg" })
       .requestLoader(() => ({ result: "private" }))
       .head(({ path }) => ({ meta: [{ title: path }] }))
       .page(() => null);
@@ -69,8 +92,8 @@ describe("SSR head context", () => {
       .config({ mode: "ssr" })
       .layout(({ children }) => children);
     const rootRoute = adaptDefinedLayout(rootTerminal, undefined);
-    const terminal = defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr" })
+    const terminal = defineRoute("/terminal")
+      .config({ mode: "ssr" })
       .loader(() => ({}))
       .head((props) => {
         Object.assign(props, { headMutation: true });
@@ -105,29 +128,15 @@ describe("SSR head context", () => {
   });
 
   test("keeps deferred and request data out of head while exposing them to the page", async () => {
-    const rootTerminal = defineRootRoute()
-      .config({ mode: "ssr" })
-      .requestLoader(() => ({ user: "alice" }))
-      .layout(({ children }) => (
-        <html lang="en">
-          <head>
-            <HeadContent />
-          </head>
-          <body>
-            {children}
-            <Scripts />
-          </body>
-        </html>
-      ));
-    const rootRoute = adaptDefinedLayout(rootTerminal, undefined);
+    const rootRoute = adaptDefinedLayout(userRoot, undefined);
     let headReceivedCatalog = false;
     let headReceivedDeferredData = false;
     let headReceivedRequestData = false;
     let pageReceivedDeferredData = false;
     let pageReceivedRequestData = false;
     let pageReceivedUser = false;
-    const terminal = defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr" })
+    const terminal = defineRoute("/head-context/account")
+      .config({ mode: "ssr" })
       .loader(() => defer({ catalog: "Shoes", stock: Promise.resolve(42) }))
       .head((props) => {
         headReceivedCatalog = props.catalog === "Shoes";

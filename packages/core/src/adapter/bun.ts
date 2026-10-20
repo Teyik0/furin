@@ -1,282 +1,106 @@
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, rmSync } from "node:fs";
+import { join, relative } from "node:path";
 import { runBunBuild } from "../build/bun-build.ts";
-import { prepareCompileEntryApps } from "../build/compile-entry.ts";
-import { elysiaAot } from "../build/elysia-aot.ts";
-import type { BuildEntryOptions } from "../build/entry-template.ts";
-import { movePrivateServerSourceMaps } from "../build/private-server-sourcemaps.ts";
-import { productionInstrumentationPlugin } from "../build/production-instrumentation.ts";
-import { materializeServerAppEntry, serverBootSource } from "../build/server-app-entry.ts";
-import { buildTargetManifest, copyDirRecursive, ensureDir, toPosixPath } from "../build/shared.ts";
-import type { BuildAppOptions, TargetBuildManifest } from "../build/types.ts";
-import { createVirtualBuildEntry, type VirtualBuildEntry } from "../build/virtual-entry.ts";
-import type { BuildTarget } from "../config.ts";
-import { createRoutesPlugin } from "../plugin/routes.ts";
-import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
-import { environmentGuardPlugin } from "../rsc/build/environment.ts";
-import { clientDirNameForPrefix } from "../shared/prefix.ts";
+import { PRERENDER_SNAPSHOT_FILE } from "../build/entry-template.ts";
 import {
-  buildRuntimeAppsSequentially,
-  mixedRuntimePlugin,
-  pprRuntimePlugin,
-  type RuntimeTargetApp,
-} from "./runtime-build.ts";
+  movePrivateServerSourceMaps,
+  privateServerSourceMapDir,
+} from "../build/private-server-sourcemaps.ts";
+import { toPosixPath } from "../build/shared.ts";
+import type { TargetBuildManifest } from "../build/types.ts";
+import { clientDirNameForPrefix } from "../shared/prefix.ts";
+import { frameworkSourceModule } from "./runtime-build.ts";
+import type { AdapterBuildOutput, FurinAdapter } from "./types.ts";
 
-function generateBootEntry(
-  appEntry: string,
-  outDir: string,
-  filename: "_compile-entry.ts" | "server.ts"
-): VirtualBuildEntry {
-  ensureDir(outDir);
-  const entryPath = join(outDir, filename);
-  return createVirtualBuildEntry(entryPath, serverBootSource(appEntry), "ts");
-}
+const RUNTIME_MODULE = frameworkSourceModule("adapter/bun/server.ts");
 
-function collectEmbeddedAssets(
-  entryApps: BuildEntryOptions["apps"],
-  publicDir: string | undefined,
-  compile: BuildAppOptions["compile"]
-): string[] | undefined {
-  if (compile !== "embed") {
-    return;
-  }
-  const assets = entryApps.flatMap((app) => (app.embed ? [app.embed.clientDir] : []));
-  if (publicDir !== undefined) {
-    assets.push(publicDir);
-  }
-  return assets;
-}
+export type BunCompileMode = "server" | "embed";
 
 function compiledServerFilename(platform: NodeJS.Platform): string {
   return platform === "win32" ? "server.exe" : "server";
 }
 
-function serverSourcemapMode(enabled: boolean | undefined): "external" | "none" {
-  return enabled ? "external" : "none";
-}
-
-function relocateServerMaps(
-  build: Bun.BuildOutput,
-  enabled: boolean | undefined,
-  targetDir: string,
-  buildRoot: string
-): void {
-  if (!enabled) {
-    return;
-  }
-  movePrivateServerSourceMaps(
-    targetDir,
-    join(buildRoot, "private", "server-sourcemaps", "bun"),
-    build.outputs.filter((output) => output.kind === "sourcemap").map((output) => output.path)
-  );
-}
-
-function writeServerMetafile(
-  build: Bun.BuildOutput,
-  analyze: boolean | undefined,
-  buildRoot: string
-): void {
-  if (!analyze) {
-    return;
-  }
-  if (build.metafile === undefined) {
-    throw new Error("[furin] Bun server build did not produce the requested metafile.");
-  }
-  const analysisDir = join(buildRoot, "analysis");
-  ensureDir(analysisDir);
-  const metafilePath = join(analysisDir, "bun-server.json");
-  writeFileSync(metafilePath, `${JSON.stringify(build.metafile, null, 2)}\n`);
-  console.log(`[furin] Server metafile: ${toPosixPath(metafilePath)}`);
-}
-
-function finalizeEmbeddedAssets(
-  compile: BuildAppOptions["compile"],
-  apps: RuntimeTargetApp[],
-  targetDir: string,
+/**
+ * Turns the JavaScript server bundle into a standalone executable. The bundle
+ * already carries the prerender snapshot, which this pass inlines.
+ */
+async function compileExecutable(
+  output: AdapterBuildOutput,
+  compile: BunCompileMode,
   manifest: TargetBuildManifest
-): void {
-  if (compile !== "embed") {
-    return;
+): Promise<void> {
+  const { apps, buildRoot, server } = output;
+  const filename = compiledServerFilename(process.platform);
+  const publicDir = join(server.dir, "public");
+  const embedded =
+    compile === "embed"
+      ? [...apps.map((app) => app.clientDir), ...(existsSync(publicDir) ? [publicDir] : [])]
+      : undefined;
+  const build = await runBunBuild({
+    bytecode: true,
+    compile: { assets: embedded, outfile: join(server.dir, filename) },
+    entrypoints: [join(server.dir, server.entry)],
+    format: "esm",
+    minify: true,
+    sourcemap: output.serverSourceMaps ? "external" : "none",
+    splitting: true,
+    target: "bun",
+  });
+  if (output.serverSourceMaps) {
+    movePrivateServerSourceMaps(
+      server.dir,
+      privateServerSourceMapDir(buildRoot, "bun"),
+      build.outputs.filter((entry) => entry.kind === "sourcemap").map((entry) => entry.path)
+    );
   }
-  for (const app of apps) {
-    rmSync(join(targetDir, clientDirNameForPrefix(app.prefix)), {
-      force: true,
-      recursive: true,
-    });
+  for (const file of [...server.files, PRERENDER_SNAPSHOT_FILE]) {
+    rmSync(join(server.dir, file), { force: true });
   }
-  manifest.clientDir = null;
-  manifest.templatePath = null;
+  manifest.serverPath = toPosixPath(join(manifest.targetDir, filename));
+  console.log(`[furin] Server binary: ${join(server.dir, filename)}`);
+  if (compile === "embed") {
+    for (const app of apps) {
+      rmSync(join(server.dir, clientDirNameForPrefix(app.prefix)), {
+        force: true,
+        recursive: true,
+      });
+    }
+    rmSync(publicDir, { force: true, recursive: true });
+    manifest.clientDir = null;
+    manifest.templatePath = null;
+  }
 }
 
-async function createBunAppEntry(
-  apps: RuntimeTargetApp[],
-  entryApps: BuildEntryOptions["apps"],
-  options: BuildAppOptions,
-  publicDir: string | undefined,
-  serverEntry: string | null,
-  targetDir: string
-): Promise<string | undefined> {
-  if (!serverEntry) {
-    return;
-  }
-  const contexts = options.compile
-    ? prepareCompileEntryApps({
-        apps: entryApps,
-        outDir: targetDir,
-        publicDir,
-        serverEntry,
-      })
-    : entryApps.map(({ embed: _embed, ...context }) => ({
-        ...context,
-        extraContext: [
-          ...(context.extraContext ?? []),
-          `  clientDir: import.meta.dir + ${JSON.stringify(`/${clientDirNameForPrefix(context.prefix ?? "")}`)},`,
-        ],
-        templateHtml: readFileSync(
-          join(targetDir, clientDirNameForPrefix(context.prefix ?? ""), "index.html"),
-          "utf8"
-        ),
-      }));
-  return await materializeServerAppEntry({
-    apps: contexts,
-    headerComment: "// Auto-generated by furin build - do not edit",
-    instances: apps,
-    outDir: targetDir,
-    serverEntry,
-  });
-}
-
-export async function buildBunTarget(
-  apps: RuntimeTargetApp[],
-  rootDir: string,
-  buildRoot: string,
-  serverEntry: string | null,
-  options: BuildAppOptions
-): Promise<TargetBuildManifest> {
-  if (options.compile && !serverEntry) {
-    throw new Error(
-      `[furin] \`compile: "${options.compile}"\` requires a server entry point. ` +
-        "Create src/server.ts or set `serverEntry` in your furin.config.ts."
-    );
-  }
-  if (apps.length === 0) {
-    throw new Error("[furin] buildBunTarget requires at least one app.");
-  }
-
-  const target = "bun" satisfies BuildTarget;
-  const targetManifest = buildTargetManifest(rootDir, buildRoot, target, serverEntry);
-  const targetDir = resolve(rootDir, targetManifest.targetDir);
-
-  rmSync(targetDir, { force: true, recursive: true });
-  rmSync(join(buildRoot, "private", "server-sourcemaps", "bun"), {
-    force: true,
-    recursive: true,
-  });
-  ensureDir(targetDir);
-
-  const publicDir = existsSync(join(rootDir, "public")) ? join(rootDir, "public") : undefined;
-  const { entryApps, headlineBuildId } = await buildRuntimeAppsSequentially(
-    apps,
-    rootDir,
-    targetDir,
-    serverEntry,
-    options,
-    "bun"
-  );
-  targetManifest.buildId = headlineBuildId;
-  if (serverEntry) {
-    targetManifest.rscManifestPath = toPosixPath(
-      join(targetManifest.targetDir, "rsc", "manifest.json")
-    );
-  }
-
-  const targetPublicDir = publicDir ? join(targetDir, "public") : undefined;
-  if (publicDir && targetPublicDir && options.compile !== "embed") {
-    copyDirRecursive(publicDir, targetPublicDir);
-  }
-
-  const appEntry = await createBunAppEntry(
-    apps,
-    entryApps,
-    options,
-    publicDir,
-    serverEntry,
-    targetDir
-  );
-
-  if (options.compile && serverEntry && appEntry) {
-    const serverFilename = compiledServerFilename(process.platform);
-    const outfile = join(targetDir, serverFilename);
-
-    const entry = generateBootEntry(appEntry, targetDir, "_compile-entry.ts");
-    const embeddedAssets = collectEmbeddedAssets(entryApps, publicDir, options.compile);
-
-    const serverBuild = await runBunBuild({
-      bytecode: true,
-      compile: { assets: embeddedAssets, outfile },
-      define: { "process.env.NODE_ENV": JSON.stringify("production") },
-      entrypoints: [entry.entrypoint],
-      files: entry.files,
-      format: "esm",
-      metafile: options.analyze,
-      minify: true,
-      plugins: [
-        entry.plugin,
-        productionInstrumentationPlugin(),
-        pprRuntimePlugin(apps),
-        mixedRuntimePlugin(apps),
-        ...(options.plugins ?? []),
-        createRoutesPlugin({ instances: apps, target: "server" }),
-        isomorphicTransformPlugin("server"),
-        environmentGuardPlugin("ssr"),
-        elysiaAot(appEntry),
-      ],
-      sourcemap: serverSourcemapMode(options.serverSourceMaps),
-      splitting: true,
-      target: "bun",
-    });
-    relocateServerMaps(serverBuild, options.serverSourceMaps, targetDir, buildRoot);
-    writeServerMetafile(serverBuild, options.analyze, buildRoot);
-
-    console.log(`[furin] Server binary: ${outfile}`);
-
-    targetManifest.serverPath = toPosixPath(join(targetManifest.targetDir, serverFilename));
-
-    // Embed mode: assets are in the binary — clean up client dirs too.
-    finalizeEmbeddedAssets(options.compile, apps, targetDir, targetManifest);
-  } else if (serverEntry && appEntry) {
-    // Disk mode: generate server.ts then bundle it into self-contained server.js
-    const entry = generateBootEntry(appEntry, targetDir, "server.ts");
-
-    const serverBuild = await runBunBuild({
-      entrypoints: [entry.entrypoint],
-      files: entry.files,
-      metafile: options.analyze,
-      minify: true,
-      naming: { chunk: "[name]-[hash].[ext]", entry: "[name].[ext]" },
-      outdir: targetDir,
-      plugins: [
-        entry.plugin,
-        productionInstrumentationPlugin(),
-        pprRuntimePlugin(apps),
-        mixedRuntimePlugin(apps),
-        ...(options.plugins ?? []),
-        createRoutesPlugin({ instances: apps, target: "server" }),
-        isomorphicTransformPlugin("server"),
-        environmentGuardPlugin("ssr"),
-        elysiaAot(appEntry),
-      ],
-      sourcemap: serverSourcemapMode(options.serverSourceMaps),
-      target: "bun",
-    });
-    relocateServerMaps(serverBuild, options.serverSourceMaps, targetDir, buildRoot);
-    writeServerMetafile(serverBuild, options.analyze, buildRoot);
-    console.log(
-      `[furin] Server bundle: ${toPosixPath(join(targetManifest.targetDir, "server.js"))}`
-    );
-
-    targetManifest.serverPath = toPosixPath(join(targetManifest.targetDir, "server.js"));
-  }
-
-  return targetManifest;
+/**
+ * Bun server bundle, optionally compiled into an executable. Requests reach
+ * `Bun.serve()`, Furin serves assets and caches public pages itself.
+ */
+export function bun(compile: BunCompileMode | undefined): FurinAdapter {
+  return {
+    capabilities: {
+      assets: compile === "embed" ? "embedded" : "filesystem",
+      publicCache: "framework",
+      websocket: true,
+    },
+    name: "bun",
+    async onBuildComplete(output) {
+      const targetDir = toPosixPath(relative(output.rootDir, output.server.dir));
+      const manifest: TargetBuildManifest = {
+        buildId: output.buildId,
+        clientDir: toPosixPath(join(targetDir, "client")),
+        generatedAt: new Date().toISOString(),
+        rscManifestPath: toPosixPath(join(targetDir, "rsc", "manifest.json")),
+        serverPath: toPosixPath(join(targetDir, output.server.entry)),
+        targetDir,
+        templatePath: toPosixPath(join(targetDir, "client", "index.html")),
+      };
+      if (compile === undefined) {
+        console.log(`[furin] Server bundle: ${manifest.serverPath}`);
+        return manifest;
+      }
+      await compileExecutable(output, compile, manifest);
+      return manifest;
+    },
+    runtimeModule: RUNTIME_MODULE,
+  };
 }

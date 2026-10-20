@@ -5,13 +5,14 @@
  * collision guard, per-instance 404s, and the data endpoint under a prefix.
  */
 import { expect, test } from "bun:test";
+import { runProcess } from "../../support/process.ts";
 
 const TESTS_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
 
-test("multi-instance furin composition", () => {
+test("multi-instance furin composition", async () => {
   const coreDir = import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, "");
-  const proc = Bun.spawnSync({
-    cmd: [
+  const proc = await runProcess(
+    [
       "bun",
       "-e",
       `
@@ -33,6 +34,7 @@ import {
   sqliteSyncAdapter,
 } from "./src/server/sync/sqlite/index.ts";
 import { createTmpApp, writeAppFile } from "./tests/support/app-fixtures.ts";
+import { parseDeferredNdjson } from "./src/shared/deferred-ndjson.ts";
 
 const TEST_TEMPLATE = "<html><body><!--ssr-outlet--></body></html>";
 const ACTIVE_ADMIN_NAV_LINK_RE = new RegExp('href="/admin/nav"[^>]*data-status="active"');
@@ -79,10 +81,9 @@ function writeAdminPages(appPath) {
     "src/admin/index.tsx",
     [
       'import { defer, defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      "export const route = defineRoute('/admin')",
+      '  .config({ mode: "ssr" })',
       '  .loader(() => defer({ ready: Promise.resolve("yes") }))',
       "  .page(() => <main>Admin home</main>);",
     ].join("\\n")
@@ -93,9 +94,8 @@ function writeAdminPages(appPath) {
     [
       'import { Link } from "@teyik0/furin/link";',
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      'export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" }).page(() => (',
+      'export const route = defineRoute("/admin/nav").config({ mode: "ssr" }).page(() => (',
       "    <nav>",
       '      <Link to="/users">Users link</Link>',
       '      <Link to="/nav">Self link</Link>',
@@ -108,10 +108,9 @@ function writeAdminPages(appPath) {
     "src/admin/users.tsx",
     [
       'import { defineRoute, revalidatePath } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      "export const route = defineRoute('/admin/users')",
+      '  .config({ mode: "ssr" })',
       "  .loader(() => {",
       '    revalidatePath("/from-admin", "page");',
       '    return { who: "admin" };',
@@ -131,10 +130,9 @@ async function mountBothApps(options) {
     "src/pages/revalidating.tsx",
     [
       'import { defineRoute, revalidatePath } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      "export const route = defineRoute('/revalidating')",
+      '  .config({ mode: "ssr" })',
       "  .loader(() => {",
       '    revalidatePath("/from-front", "page");',
       "    return {};",
@@ -147,10 +145,9 @@ async function mountBothApps(options) {
     [
       'import { Link } from "@teyik0/furin/link";',
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssg" })',
+      "export const route = defineRoute('/nav')",
+      '  .config({ mode: "ssg" })',
       "  .page(() => (",
       "    <nav>",
       '      <Link to="/users">Users link</Link>',
@@ -179,6 +176,57 @@ async function runScenario(fn) {
 }
 
 try {
+  await runScenario(async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    process.chdir(app.path);
+    writeAppFile(app.path, "src/pages/item/[id].tsx", [
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { t } from "elysia";',
+      'export const route = defineRoute("/item/[id]").config({ mode: "ssr", params: t.Object({ id: t.String() }) })',
+      '  .loader(({ params }) => ({ id: params.id })).page(({ id }) => <main>{id}</main>);',
+    ].join("\\n"));
+    const parent = new Elysia().use(await furin({ pagesDir: join(app.path, "src/pages") }));
+    for (const [path, expected] of [["caf%C3%A9", "café"], ["a%2Fb", "a/b"], ["name/", "name"]]) {
+      const html = await parent.handle(new Request("http://furin/item/" + path));
+      expect(html.status).toBe(200);
+      expect(await html.text()).toContain("<main>" + expected + "</main>");
+      const data = await parent.handle(new Request("http://furin/item/" + path + "?_furin=data"));
+      expect(data.status).toBe(200);
+      const parsed = await parseDeferredNdjson(data.body);
+      expect(parsed.syncData.id).toBe(expected);
+    }
+  });
+
+  await runScenario(async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    process.chdir(app.path);
+    const adminPagesDir = writeAdminPages(app.path);
+    setProductionTemplateContent(TEST_TEMPLATE);
+    const first = new Elysia().use(await furin({ pagesDir: join(app.path, "src/pages") }));
+    expect(await (await first.handle(new Request("http://furin/"))).text()).toContain("Home page");
+    const second = new Elysia().use(await furin({ pagesDir: adminPagesDir }));
+    expect(await (await second.handle(new Request("http://furin/"))).text()).toContain("Admin home");
+    expect(await (await first.handle(new Request("http://furin/"))).text()).toContain("Home page");
+  });
+
+  await runScenario(async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    process.chdir(app.path);
+    const adminPagesDir = writeAdminPages(app.path);
+    setProductionTemplateContent(TEST_TEMPLATE);
+    const parent = new Elysia()
+      .macro({ adminOnly: { beforeHandle: ({ status }) => status(401) } })
+      .use(await furin({ pagesDir: join(app.path, "src/pages") }))
+      .guard({ adminOnly: true })
+      .use(await furin({ pagesDir: adminPagesDir, prefix: "/admin" }));
+    const front = await parent.handle(new Request("http://furin/"));
+    expect(front.status).toBe(200);
+    expect(await front.text()).toContain("Home page");
+    const admin = await parent.handle(new Request("http://furin/admin/users"));
+    expect(admin.status).toBe(401);
+    await admin.text();
+  });
+
   await runScenario(async () => {
     const { parent } = await mountBothApps();
 
@@ -223,13 +271,31 @@ try {
 
   await runScenario(async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
+    process.chdir(app.path);
+    const adminPagesDir = writeAdminPages(app.path);
+    setProductionTemplateContent(TEST_TEMPLATE);
+    // The full physical prefix is declared; the parent adds no prefix of its own.
+    const parent = new Elysia()
+      .use(new Elysia().use(await furin({ pagesDir: adminPagesDir, prefix: "/host/admin" })));
+    const html = await parent.handle(new Request("http://furin/host/admin"));
+    expect(html.status).toBe(200);
+    expect(await html.text()).toContain("Admin home");
+    const data = await parent.handle(new Request("http://furin/host/admin/users?_furin=data"));
+    expect(data.status).toBe(200);
+    expect(data.headers.get("content-type")).toContain("application/x-ndjson");
+    expect(await data.text()).toContain("admin");
+  });
+
+  await runScenario(async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
     __setDevMode(true);
     process.chdir(app.path);
     const adminPagesDir = writeAdminPages(app.path);
     setProductionTemplateContent(TEST_TEMPLATE);
 
-    await furin({ pagesDir: join(app.path, "src/pages") });
-    await expect(furin({ pagesDir: adminPagesDir })).rejects.toThrow("already mounted");
+    const parent = new Elysia().use(await furin({ pagesDir: join(app.path, "src/pages") }));
+    const conflicting = await furin({ pagesDir: adminPagesDir });
+    expect(() => parent.use(conflicting)).toThrow("already mounted");
   });
 
   await runScenario(async () => {
@@ -273,7 +339,7 @@ try {
   await runScenario(async () => {
     const { parent } = await mountBothApps();
 
-    const res = await parent.handle(new Request("http://furin/admin/_furin/data?path=%2Fusers"));
+    const res = await parent.handle(new Request("http://furin/admin/users?_furin=data"));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("application/x-ndjson");
     expect(await res.text()).toContain("admin");
@@ -315,18 +381,11 @@ try {
 }
       `,
     ],
-    cwd: coreDir,
-    env: { ...Bun.env, FURIN_RSC_CODEC_PATH: "./dist/rsc/server-codec.js" },
-    stderr: "pipe",
-    stdout: "pipe",
-  });
+    { cwd: coreDir, timeoutMs: 25_000 }
+  );
 
   if (proc.exitCode !== 0) {
-    throw new Error(
-      ["multi-instance subprocess failed", proc.stdout.toString(), proc.stderr.toString()].join(
-        "\n"
-      )
-    );
+    throw new Error(["multi-instance subprocess failed", proc.stdout, proc.stderr].join("\n"));
   }
 
   expect(proc.exitCode).toBe(0);

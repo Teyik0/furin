@@ -1,4 +1,4 @@
-import { type FurinInstance, instanceSlot } from "../instance.ts";
+import { currentInstance, type FurinInstance, instanceSlot } from "../instance.ts";
 import type { Cache } from "./route-cache";
 
 export type CacheInvalidator = Pick<Cache<unknown>, "invalidatePath" | "name">;
@@ -12,7 +12,7 @@ export function registerCacheInvalidator(
   invalidator: CacheInvalidator,
   instance?: FurinInstance
 ): () => void {
-  const invalidators = instanceInvalidators(instance);
+  const invalidators = instanceInvalidators(instance ?? currentInstance());
   const existing = invalidators.get(invalidator.name);
   if (existing !== undefined && existing !== invalidator) {
     throw new Error(
@@ -28,5 +28,5 @@ export function registerCacheInvalidator(
 }
 
 export function getCacheInvalidators(instance?: FurinInstance): IterableIterator<CacheInvalidator> {
-  return instanceInvalidators(instance).values();
+  return instanceInvalidators(instance ?? currentInstance()).values();
 }

@@ -1,6 +1,7 @@
-import { expect, test } from "bun:test";
+import { afterAll, expect, test } from "bun:test";
 import { join } from "node:path";
-import { Elysia } from "elysia";
+import { createElement, type ReactNode } from "react";
+import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { __resetCacheState } from "../../../src/server/cache/index.ts";
 import {
   createMemoryPageCache,
@@ -11,12 +12,46 @@ import {
   resetPageCacheAdapter,
   setPageCacheAdapter,
 } from "../../../src/server/cache/page-cache-state.ts";
-import { createInstance, registerInstance, withInstance } from "../../../src/server/instance.ts";
+import {
+  createInstance,
+  registerInstance,
+  unregisterInstance,
+  withInstance,
+} from "../../../src/server/instance.ts";
+import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { warmSSGCache } from "../../../src/server/render/ssg.ts";
 import { scanPages } from "../../../src/server/router/discovery.ts";
-import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
-import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
+import { mountProductionApp } from "../../support/production-app.ts";
+
+const originalDevMode = IS_DEV;
+afterAll(() => __setDevMode(originalDevMode));
+
+const rootTerminal = defineRootRoute()
+  .config({ mode: "ssr" })
+  .layout(({ children }: { children: ReactNode }) =>
+    createElement(
+      "html",
+      { lang: "en" },
+      createElement("head", null, createElement(HeadContent)),
+      createElement("body", null, children, createElement(Scripts))
+    )
+  );
+
+/** Mounts `/ssg-page` as an SSG page whose loader is `loader`. */
+function mountSsgPage(loader: () => unknown, pageCache: PageCacheAdapter) {
+  const route = defineRoute("/")
+    .config({ mode: "ssg" })
+    .loader(loader as () => { timestamp: number })
+    .page(({ timestamp }) => createElement("main", null, String(timestamp)));
+  return mountProductionApp({
+    buildId: "build-a",
+    pageCache,
+    pages: [{ pattern: "/ssg-page", route }],
+    root: rootTerminal,
+  });
+}
 
 function createDeferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve!: () => void;
@@ -47,45 +82,28 @@ test.serial(
 
 async function runSharedSsgCache(): Promise<void> {
   __setDevMode(false);
-  const result = await scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
-  const matched = result.routes.find((candidate) => candidate.pattern === "/ssg-page");
-  if (matched === undefined) {
-    throw new Error("Route /ssg-page not found");
-  }
-
   let loaderCalls = 0;
-  const route: ResolvedRoute = {
-    ...matched,
-    mode: "ssg",
-    page: {
-      ...matched.page,
-      loader: () => {
-        loaderCalls += 1;
-        return { timestamp: loaderCalls };
-      },
-    },
-  };
-  const instance = registerInstance(createInstance("", "/ssg/pages"));
-  instance.buildId = "build-a";
   const cache = createMemoryPageCache();
-  setPageCacheAdapter(instance, cache);
   const identity: PageCacheIdentity = {
-    buildId: instance.buildId,
+    buildId: "build-a",
     key: "/ssg-page",
     mode: "ssg",
     path: "/ssg-page",
     scope: "",
-    tags: route.tags ?? [],
+    tags: [],
   };
-  const app = new Elysia().use(createRoutePlugin(route, result.root, instance.buildId));
+  const { app } = await mountSsgPage(() => {
+    loaderCalls += 1;
+    return { timestamp: loaderCalls };
+  }, cache);
 
   try {
-    await withInstance(instance, () => app.handle(new Request("http://localhost/ssg-page")));
+    await app.handle(new Request("http://localhost/ssg-page"));
     await cache.invalidate({ kind: "path", path: "/ssg-page", scope: "", type: "page" });
-    await withInstance(instance, () => app.handle(new Request("http://localhost/ssg-page")));
+    await app.handle(new Request("http://localhost/ssg-page"));
   } finally {
-    resetPageCacheAdapter(instance);
     __resetCacheState();
+    __resetCompileContext();
   }
 
   expect(await cache.read(identity)).not.toBeNull();
@@ -102,12 +120,6 @@ test.serial(
 
 async function runUnavailableSsgCache(): Promise<void> {
   __setDevMode(false);
-  const result = await scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
-  const matched = result.routes.find((candidate) => candidate.pattern === "/ssg-page");
-  if (matched === undefined) {
-    throw new Error("Route /ssg-page not found");
-  }
-  const route: ResolvedRoute = { ...matched, mode: "ssg" };
   const unavailable = (): Promise<never> => Promise.reject(new Error("cache unavailable"));
   const cache: PageCacheAdapter = {
     acquire: unavailable,
@@ -116,20 +128,15 @@ async function runUnavailableSsgCache(): Promise<void> {
     read: unavailable,
     release: unavailable,
   };
-  const instance = registerInstance(createInstance("", "/ssg-unavailable/pages"));
-  instance.buildId = "build-a";
-  setPageCacheAdapter(instance, cache);
-  const app = new Elysia().use(createRoutePlugin(route, result.root, instance.buildId));
+  const { app } = await mountSsgPage(() => ({ timestamp: 1 }), cache);
 
   try {
-    const response = await withInstance(instance, () =>
-      app.handle(new Request("http://localhost/ssg-page"))
-    );
+    const response = await app.handle(new Request("http://localhost/ssg-page"));
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
   } finally {
-    resetPageCacheAdapter(instance);
     __resetCacheState();
+    __resetCompileContext();
   }
 }
 
@@ -143,47 +150,29 @@ test.serial(
 
 async function runSsgInvalidationRace(): Promise<void> {
   __setDevMode(false);
-  const result = await scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
-  const matched = result.routes.find((candidate) => candidate.pattern === "/ssg-page");
-  if (matched === undefined) {
-    throw new Error("Route /ssg-page not found");
-  }
   const gate = createDeferred();
   let loaderCalls = 0;
-  const route: ResolvedRoute = {
-    ...matched,
-    mode: "ssg",
-    page: {
-      ...matched.page,
-      loader: async () => {
-        loaderCalls += 1;
-        if (loaderCalls === 1) {
-          await gate.promise;
-        }
-        return { timestamp: loaderCalls };
-      },
-    },
-  };
-  const instance = registerInstance(createInstance("", "/ssg-race/pages"));
-  instance.buildId = "build-a";
   const cache = createMemoryPageCache();
-  setPageCacheAdapter(instance, cache);
-  const app = new Elysia().use(createRoutePlugin(route, result.root, instance.buildId));
+  const { app } = await mountSsgPage(async () => {
+    loaderCalls += 1;
+    if (loaderCalls === 1) {
+      await gate.promise;
+    }
+    return { timestamp: loaderCalls };
+  }, cache);
 
   try {
-    const first = withInstance(instance, () =>
-      app.handle(new Request("http://localhost/ssg-page"))
-    );
+    const first = app.handle(new Request("http://localhost/ssg-page"));
     await waitFor(() => loaderCalls === 1);
     await cache.invalidate({ kind: "path", path: "/ssg-page", scope: "", type: "page" });
     gate.resolve();
     const response = await first;
     expect(response.headers.get("cache-control")).toBe("no-store");
-    await withInstance(instance, () => app.handle(new Request("http://localhost/ssg-page")));
+    await app.handle(new Request("http://localhost/ssg-page"));
   } finally {
     gate.resolve();
-    resetPageCacheAdapter(instance);
     __resetCacheState();
+    __resetCompileContext();
   }
 
   expect(loaderCalls).toBe(2);
@@ -238,5 +227,6 @@ async function runSharedSsgWarmup(): Promise<void> {
   } finally {
     resetPageCacheAdapter(instance);
     __resetCacheState();
+    unregisterInstance(instance);
   }
 }

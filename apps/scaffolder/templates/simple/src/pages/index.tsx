@@ -1,16 +1,10 @@
 import { defineRoute } from "@teyik0/furin";
-import { route as parentRoute } from "./root";
+import { getHelloPayload } from "../api/hello";
 
-interface HelloPayload {
-  message: string;
-  source: string;
-}
-
-export const route = defineRoute()
-  .config({ layout: parentRoute })
-  .loader(async ({ request }) => {
-    const response = await fetch(new URL("/api/hello", request.url));
-    const payload = (await response.json()) as HelloPayload;
+export const route = defineRoute("/")
+  .config({ mode: "ssr" })
+  .loader(() => {
+    const payload = getHelloPayload();
 
     return {
       apiMessage: payload.message,
@@ -29,8 +23,8 @@ export const route = defineRoute()
         Frontend rendered by Furin
       </h1>
       <p className="mt-4 max-w-2xl text-lg text-slate-300 leading-8">
-        This page is server-rendered. Its loader calls the local Elysia API route before the HTML is
-        sent to the browser.
+        This page is server-rendered. Its loader calls the same service as the Elysia API route,
+        without an HTTP round trip, before the HTML is sent to the browser.
       </p>
       <div className="mt-8 grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
@@ -41,9 +35,7 @@ export const route = defineRoute()
           <p className="font-medium text-slate-400 text-sm uppercase tracking-[0.2em]">
             Loaded via
           </p>
-          <p className="mt-3 font-mono text-cyan-200 text-sm">
-            fetch(new URL("/api/hello", request.url))
-          </p>
+          <p className="mt-3 font-mono text-cyan-200 text-sm">getHelloPayload()</p>
           <p className="mt-3 text-slate-300">Source: {apiSource}</p>
         </div>
       </div>

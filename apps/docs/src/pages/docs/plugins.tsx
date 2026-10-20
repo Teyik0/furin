@@ -4,10 +4,9 @@ import { DocPage } from "@/components/doc-page";
 import { renderDocContent } from "@/lib/doc-content";
 import { DOCS_BY_PATH } from "@/lib/docs";
 import { getDocSourceText } from "@/lib/docs-server";
-import { route as parentRoute } from "./_route";
 
-export const route = defineRoute()
-  .config({ layout: parentRoute, mode: "ssg" })
+export const route = defineRoute("/docs/plugins")
+  .config({ mode: "ssg" })
   .loader(async () => {
     const { default: Plugins } = await import("@/content/docs/plugins.mdx");
     const doc = DOCS_BY_PATH["/docs/plugins"];

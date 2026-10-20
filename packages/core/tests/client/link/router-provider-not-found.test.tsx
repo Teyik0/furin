@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
 import { RouterProvider, type RouterProviderProps } from "../../../src/client/link.tsx";
+import { ROUTE_MATCHES_KEY } from "../../../src/shared/route-matches.ts";
 
 const PAGE_PATTERN = /^\/page$/;
 
@@ -19,10 +20,18 @@ test.each([false, true])(
       defaultPreload: "intent",
       defaultPreloadDelay: 50,
       defaultPreloadStaleTime: 30_000,
-      initialData: { params: {}, path: "/missing", query: {} },
+      // What renderRootNotFound embeds for a root without a loader.
+      initialData: {
+        params: {},
+        path: "/missing",
+        query: {},
+        [ROUTE_MATCHES_KEY]: [
+          { fields: {}, status: "success" },
+          { error: {}, status: "notFound" },
+        ],
+      },
       initialDigest: undefined,
       initialMatch: null,
-      initialNotFound: {},
       prefetchCacheSize: 50,
       root,
       routes: grouped

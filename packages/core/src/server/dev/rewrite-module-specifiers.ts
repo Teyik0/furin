@@ -1,9 +1,9 @@
 import { dirname, resolve } from "node:path";
 import MagicString from "magic-string";
+import type { Node, StringLiteral } from "yuku-parser";
 import { parseSource } from "../../shared/parser.ts";
-import type { AstNode } from "../../shared/utils/ast-walk.ts";
 import { walkAST } from "../../shared/utils/ast-walk.ts";
-import { detectLangFromPath } from "../lang-detect.ts";
+import { detectLangFromPath, SCRIPT_FILE_FILTER } from "../lang-detect.ts";
 import { routeModuleSourceVersion } from "../router/source-version.ts";
 
 interface RewriteModuleSpecifiersInput {
@@ -11,14 +11,6 @@ interface RewriteModuleSpecifiersInput {
   filePath: string;
   versioned: boolean;
 }
-
-const DEV_SOURCE_PATH_RE = /\.(?:jsx?|tsx?)$/;
-const MODULE_SPECIFIER_NODES = new Set([
-  "ExportAllDeclaration",
-  "ExportNamedDeclaration",
-  "ImportDeclaration",
-  "ImportExpression",
-]);
 
 function sourcePosition(source: string, byteOffset: number): { column: number; line: number } {
   const bytes = new TextEncoder().encode(source);
@@ -30,22 +22,26 @@ function sourcePosition(source: string, byteOffset: number): { column: number; l
   };
 }
 
-function relativeSpecifier(node: AstNode): AstNode | undefined {
-  if (!MODULE_SPECIFIER_NODES.has(node.type)) {
+function isStringLiteral(node: Node | null): node is StringLiteral {
+  return node?.type === "Literal" && typeof node.value === "string";
+}
+
+function relativeSpecifier(node: Node): StringLiteral | undefined {
+  if (
+    node.type !== "ExportAllDeclaration" &&
+    node.type !== "ExportNamedDeclaration" &&
+    node.type !== "ImportDeclaration" &&
+    node.type !== "ImportExpression"
+  ) {
     return;
   }
-  const { source } = node;
-  if (!source || typeof source !== "object") {
-    return;
-  }
-  const literal = source as AstNode;
-  return literal.type === "Literal" && typeof literal.value === "string" ? literal : undefined;
+  return isStringLiteral(node.source) ? node.source : undefined;
 }
 
 function resolvedSpecifier(specifier: string, directory: string, versioned: boolean): string {
   const path = versioned ? Bun.resolveSync(specifier, directory) : resolve(directory, specifier);
   const normalized = path.replaceAll("\\", "/");
-  return versioned && DEV_SOURCE_PATH_RE.test(normalized)
+  return versioned && SCRIPT_FILE_FILTER.test(normalized)
     ? `${normalized}?furin-server&t=${routeModuleSourceVersion(normalized)}`
     : normalized;
 }

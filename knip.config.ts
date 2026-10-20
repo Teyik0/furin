@@ -10,6 +10,8 @@ const config: KnipConfig = {
       entry: [
         "doctor.config.ts",
         "scripts/compare-vercel-framework-reports.ts",
+        // Run by hyperfine in ci.yaml, where knip cannot see the reference.
+        "scripts/probe-server-startup.ts",
         "scripts/startup-weather-preload.ts",
       ],
     },
@@ -24,9 +26,6 @@ const config: KnipConfig = {
     },
     "examples/task-manager": {
       entry: ["src/server.ts", "furin.config.ts", "src/pages/**/*.{ts,tsx}"],
-      ignoreIssues: {
-        "src/api/modules/boards/service.ts": ["exports", "types"],
-      },
       project: ["src/**/*.{ts,tsx,css}"],
     },
     "examples/weather": {
@@ -35,6 +34,19 @@ const config: KnipConfig = {
     },
     "packages/core": {
       entry: [
+        // Referenced by generated hydration entries and Bun codec aliases.
+        "src/rsc/client-references.ts",
+        // Adapter runtime modules, bundled as server entries by the build.
+        "src/adapter/bun/server.ts",
+        "src/adapter/vercel/bootstrap.ts",
+        "src/adapter/vercel/handler.ts",
+        // Spawned by the build to evaluate the server entry.
+        "src/build/discover-mounts-process.ts",
+        "src/rsc/bundled-client-codec.ts",
+        // Built as the browser `@teyik0/furin/rsc` entry, `dist/rsc-client.js`.
+        "src/rsc-client.ts",
+        // Re-exported by the generated static-export bundle entry.
+        "src/server/static-export.ts",
         "src/server/sync/postgres/migrate.ts",
         "tests/**/*.{ts,tsx}",
         "tests/fixtures/sync-prisma/schema.prisma",
@@ -43,17 +55,12 @@ const config: KnipConfig = {
         "src/server/dev-page-plugin.production.ts",
         "src/server/dev/runtime.production.ts",
         "src/server/devtools/instrumentation.production.ts",
-        "src/server/router/hmr.production.ts",
       ],
       ignoreIssues: {
         // discovery.ts loads this export through a runtime-computed module URL.
         "src/build/request-keys.ts": ["exports"],
-        "src/server/auto-invalidate/index.ts": ["exports"],
-        "src/server/cache/index.ts": ["exports", "types"],
-        "src/server/devtools/hub.ts": ["exports"],
-        "src/server/render/index.ts": ["exports", "types"],
-        "src/server/render/ssr.ts": ["types"],
-        "src/server/sync/config.ts": ["exports"],
+        // Subprocess test scripts import dev-loader helpers from this barrel as strings.
+        "src/server/cache/index.ts": ["exports"],
       },
       project: ["src/**/*.{ts,tsx}", "tests/fixtures/**/*.prisma"],
     },

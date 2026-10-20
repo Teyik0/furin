@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createTmpApp, writeAppFile } from "../support/app-fixtures.ts";
-import { runCli } from "../support/process.ts";
+import { runCli, runProcess } from "../support/process.ts";
 
 test("the split Vercel function loads optional sync routes when enabled", async () => {
   const app = createTmpApp("cli-app-ssr");
@@ -33,28 +33,24 @@ export default new Elysia().use(await furin({
     expect(build.exitCode).toBe(0);
     const functionDir = join(app.path, ".vercel/output/functions/__server.func");
     const bundleBytes = readdirSync(functionDir)
-      .filter((file) => file === "handler.js" || /^chunk-.*\.js$/.test(file))
+      .filter((file) => file.endsWith(".js") && file !== "index.js" && file !== "server-codec.js")
       .reduce((total, file) => total + statSync(join(functionDir, file)).size, 0);
-    expect(await Bun.file(join(functionDir, "index.js")).text()).toContain(
-      `server_bundle_bytes: ${bundleBytes}`
-    );
+    const runtimeData = await Bun.file(join(functionDir, "furin-vercel.json")).json();
+    expect(runtimeData.serverBundleBytes).toBe(bundleBytes);
     const handlerPath = join(functionDir, "handler.js");
-    const response = Bun.spawnSync({
-      cmd: [
+    const response = await runProcess(
+      [
         process.execPath,
         "-e",
         'const app = (await import(process.argv[1])).default; const changes = await app.fetch(new Request("http://localhost/_furin/sync/changes")); const page = await app.fetch(new Request("http://localhost/dashboard")); const client = await app.fetch(new Request("http://localhost/_furin/events/client.js")); const events = await app.fetch(new Request("http://localhost/_furin/events")); const html = await page.text(); const source = await client.text(); const reader = events.body?.getReader(); await reader?.read(); const cursor = await reader?.read(); await reader?.cancel(); console.log(changes.status, await changes.text()); console.log(page.status, html.includes("/_furin/events/client.js"), client.status, source.includes("EventSource"), events.status, events.headers.get("content-type"), new TextDecoder().decode(cursor?.value));',
         handlerPath,
       ],
-      cwd: app.path,
-      stderr: "pipe",
-      stdout: "pipe",
-      timeout: 10_000,
-    });
-    expect(response.exitCode, response.stderr.toString()).toBe(0);
-    expect(response.stdout.toString()).toContain('200 {"changes":[],"cursor":"7"');
-    expect(response.stdout.toString()).toContain("200 true 200 true 200 text/event-stream");
-    expect(response.stdout.toString()).toContain('"cursor":"7"');
+      { cwd: app.path, timeoutMs: 10_000 }
+    );
+    expect(response.exitCode, response.stderr).toBe(0);
+    expect(response.stdout).toContain('200 {"changes":[],"cursor":"7"');
+    expect(response.stdout).toContain("200 true 200 true 200 text/event-stream");
+    expect(response.stdout).toContain('"cursor":"7"');
   } finally {
     app.cleanup();
   }

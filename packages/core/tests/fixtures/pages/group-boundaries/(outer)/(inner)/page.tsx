@@ -1,10 +1,9 @@
 import { defineRoute, notFound } from "@teyik0/furin";
 import { t } from "elysia";
 import { useState } from "react";
-import { route as rootRoute } from "../../root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr", query: t.Object({ failure: t.String() }) })
+export const route = defineRoute("/(outer)/(inner)/page")
+  .config({ mode: "ssr", query: t.Object({ failure: t.String() }) })
   .page(({ query }) => {
     const [failed, setFailed] = useState(false);
     if (failed) {

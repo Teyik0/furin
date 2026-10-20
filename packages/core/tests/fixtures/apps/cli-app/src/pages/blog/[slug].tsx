@@ -1,10 +1,8 @@
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
-import { route as rootRoute } from "../root";
 
-export const route = defineRoute()
+export const route = defineRoute("/blog/[slug]")
   .config({
-    layout: rootRoute,
     mode: "ssg",
     params: t.Object({ slug: t.String() }),
   })

@@ -13,6 +13,7 @@ import type {
   SyncChange,
   SyncInvalidation,
 } from "../adapter.ts";
+import { journalChange, principalHash, registerPrincipalJournal } from "../principal-journal.ts";
 import migrationSql from "./migration.sql" with { type: "text" };
 
 const CHANGE_RETENTION = 1000;
@@ -44,14 +45,18 @@ interface CursorRow {
 interface ChangeRow {
   cursor: string;
   invalidations: string;
+  principal_hash: string | null;
 }
 
 interface MinimumCursorRow {
   cursor: string | null;
 }
 
+/** Same digest as the Postgres and Redis adapters: raw principals and client keys stay out of storage. */
 function mutationKey(input: Pick<MutationLease, "key" | "principal">): string {
-  return `${input.principal.length}:${input.principal}${input.key}`;
+  return new Bun.CryptoHasher("sha256")
+    .update(`${input.principal.length}:${input.principal}${input.key}`)
+    .digest("hex");
 }
 
 function storedResponse(row: MutationRow): StoredResponse {
@@ -66,7 +71,17 @@ function storedResponse(row: MutationRow): StoredResponse {
 }
 
 export function migrateSqliteSync(database: Database): void {
-  database.run(migrationSql);
+  database
+    .transaction(() => {
+      database.run(migrationSql);
+      const columns = database
+        .query<{ name: string }, []>("PRAGMA table_info(furin_sync_changes)")
+        .all();
+      if (!columns.some((column) => column.name === "principal_hash")) {
+        database.run("ALTER TABLE furin_sync_changes ADD COLUMN principal_hash TEXT");
+      }
+    })
+    .immediate();
 }
 
 export class SqliteSyncAdapter implements SyncAdapter {
@@ -80,6 +95,7 @@ export class SqliteSyncAdapter implements SyncAdapter {
     }
     this.database = options.database;
     this.namespace = options.namespace;
+    registerPrincipalJournal(this);
     this.scope =
       options.database.filename === "" || options.database.filename === ":memory:"
         ? "process-local"
@@ -181,61 +197,13 @@ export class SqliteSyncAdapter implements SyncAdapter {
           return { kind: "lost" };
         }
 
-        let cursor: string | undefined;
-        if (completion.invalidations.length > 0) {
-          this.database
-            .query<never, [string]>(
-              `INSERT INTO furin_sync_streams (namespace, current_cursor, oldest_cursor)
-               VALUES (?, 0, 0) ON CONFLICT (namespace) DO NOTHING`
-            )
-            .run(this.namespace);
-          this.database
-            .query<never, [string]>(
-              `UPDATE furin_sync_streams SET current_cursor = current_cursor + 1
-               WHERE namespace = ?`
-            )
-            .run(this.namespace);
-          const cursorRow = this.database
-            .query<Pick<CursorRow, "current_cursor">, [string]>(
-              `SELECT CAST(current_cursor AS TEXT) AS current_cursor
-                 FROM furin_sync_streams WHERE namespace = ?`
-            )
-            .get(this.namespace);
-          if (!cursorRow) {
-            throw new Error("[furin-sync-sqlite] Could not allocate a change cursor.");
-          }
-          cursor = cursorRow.current_cursor;
-          this.database
-            .query<never, [string, string, string, number]>(
-              `INSERT INTO furin_sync_changes (namespace, cursor, invalidations, created_at)
-               VALUES (?, ?, ?, ?)`
-            )
-            .run(
-              this.namespace,
-              cursorRow.current_cursor,
-              JSON.stringify(completion.invalidations),
-              now
-            );
-          const removed = this.database
-            .query<never, [string, string, number]>(
-              `DELETE FROM furin_sync_changes
-                 WHERE namespace = ? AND cursor <= MAX(0, CAST(? AS INTEGER) - ?)`
-            )
-            .run(this.namespace, cursorRow.current_cursor, CHANGE_RETENTION);
-          if (removed.changes > 0) {
-            const oldest = this.database
-              .query<MinimumCursorRow, [string]>(
-                `SELECT CAST(MIN(cursor) AS TEXT) AS cursor
-                   FROM furin_sync_changes WHERE namespace = ?`
+        const cursor =
+          completion.invalidations.length > 0
+            ? this.appendChangeSync(
+                completion.invalidations,
+                principalHash(this, completion.lease.principal)
               )
-              .get(this.namespace);
-            this.database
-              .query<never, [string, string]>(
-                "UPDATE furin_sync_streams SET oldest_cursor = ? WHERE namespace = ?"
-              )
-              .run(oldest?.cursor ?? cursorRow.current_cursor, this.namespace);
-          }
-        }
+            : undefined;
 
         this.database
           .query<never, [number, string, Uint8Array, number, number, string, string, string]>(
@@ -258,6 +226,64 @@ export class SqliteSyncAdapter implements SyncAdapter {
       }
     );
     return transaction.immediate(input);
+  }
+
+  async appendInvalidations(invalidations: readonly SyncInvalidation[]): Promise<string> {
+    return this.database.transaction(() => this.appendChangeSync(invalidations, null)).immediate();
+  }
+
+  private appendChangeSync(
+    invalidations: readonly SyncInvalidation[],
+    principal: string | null
+  ): string {
+    const now = Date.now();
+    this.database
+      .query<never, [string]>(
+        `INSERT INTO furin_sync_streams (namespace, current_cursor, oldest_cursor)
+         VALUES (?, 0, 0) ON CONFLICT (namespace) DO NOTHING`
+      )
+      .run(this.namespace);
+    this.database
+      .query<never, [string]>(
+        `UPDATE furin_sync_streams SET current_cursor = current_cursor + 1
+         WHERE namespace = ?`
+      )
+      .run(this.namespace);
+    const cursorRow = this.database
+      .query<Pick<CursorRow, "current_cursor">, [string]>(
+        `SELECT CAST(current_cursor AS TEXT) AS current_cursor
+           FROM furin_sync_streams WHERE namespace = ?`
+      )
+      .get(this.namespace);
+    if (!cursorRow) {
+      throw new Error("[furin-sync-sqlite] Could not allocate a change cursor.");
+    }
+    this.database
+      .query<never, [string, string, string, number, string | null]>(
+        `INSERT INTO furin_sync_changes (namespace, cursor, invalidations, created_at, principal_hash)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      .run(this.namespace, cursorRow.current_cursor, JSON.stringify(invalidations), now, principal);
+    const removed = this.database
+      .query<never, [string, string, number]>(
+        `DELETE FROM furin_sync_changes
+           WHERE namespace = ? AND cursor <= MAX(0, CAST(? AS INTEGER) - ?)`
+      )
+      .run(this.namespace, cursorRow.current_cursor, CHANGE_RETENTION);
+    if (removed.changes > 0) {
+      const oldest = this.database
+        .query<MinimumCursorRow, [string]>(
+          `SELECT CAST(MIN(cursor) AS TEXT) AS cursor
+             FROM furin_sync_changes WHERE namespace = ?`
+        )
+        .get(this.namespace);
+      this.database
+        .query<never, [string, string]>(
+          "UPDATE furin_sync_streams SET oldest_cursor = ? WHERE namespace = ?"
+        )
+        .run(oldest?.cursor ?? cursorRow.current_cursor, this.namespace);
+    }
+    return cursorRow.current_cursor;
   }
 
   protected hasMutationLeaseSync(lease: MutationLease): boolean {
@@ -311,15 +337,20 @@ export class SqliteSyncAdapter implements SyncAdapter {
       }
       const rows = this.database
         .query<ChangeRow, [string, string, number]>(
-          `SELECT CAST(cursor AS TEXT) AS cursor, invalidations FROM furin_sync_changes
+          `SELECT CAST(cursor AS TEXT) AS cursor, invalidations, principal_hash FROM furin_sync_changes
            WHERE namespace = ? AND cursor > CAST(? AS INTEGER) ORDER BY cursor ASC LIMIT ?`
         )
         .all(this.namespace, page.after, page.limit + 1);
       const hasMore = rows.length > page.limit;
-      const changes: SyncChange[] = rows.slice(0, page.limit).map((row) => ({
-        cursor: row.cursor,
-        invalidations: JSON.parse(row.invalidations) as SyncInvalidation[],
-      }));
+      const changes: SyncChange[] = rows.slice(0, page.limit).map((row) =>
+        journalChange(
+          {
+            cursor: row.cursor,
+            invalidations: JSON.parse(row.invalidations) as SyncInvalidation[],
+          },
+          row.principal_hash
+        )
+      );
       return {
         changes,
         cursor: changes.at(-1)?.cursor ?? page.after,

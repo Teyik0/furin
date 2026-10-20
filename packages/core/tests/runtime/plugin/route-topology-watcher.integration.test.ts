@@ -1,5 +1,8 @@
 import { expect, spyOn, test } from "bun:test";
-import {
+// biome-ignore lint/performance/noNamespaceImport: a spy on the default export misses named imports.
+import * as fsModule from "node:fs";
+import nodeFs, {
+  type FSWatcher,
   mkdirSync,
   mkdtempSync,
   realpathSync,
@@ -9,8 +12,9 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
-import { registerDevRouteTopologyWatcher, routeSourcePaths } from "../../../src/plugin/routes.ts";
+import { dirname, join, relative } from "node:path";
+import { registerDevRouteTopologyWatcher } from "../../../src/plugin/dev-routes.ts";
+import { routeSourcePaths } from "../../../src/plugin/route-tree.ts";
 
 async function waitForCount(readCount: () => number, expected: number): Promise<void> {
   const deadline = Date.now() + 3000;
@@ -49,7 +53,7 @@ test("the dev topology watcher reloads only when the route set changes", async (
     writeFileSync(join(pagesDir, "index.ts"), "export const route = 2;\n");
     await waitForCount(() => touchedRouteFiles, 1);
     expect(topologies).toHaveLength(0);
-    expect(touchedSources[0]).toContain(join(pagesDir, "index.ts"));
+    expect(touchedSources[0]).toContain(join(pagesDir, "index.ts").replaceAll("\\", "/"));
 
     await Bun.sleep(80);
     expect(touchedRouteFiles).toBe(1);
@@ -68,6 +72,87 @@ test("the dev topology watcher reloads only when the route set changes", async (
     expect(topologies[1]).toEqual(["index.ts"]);
   } finally {
     watcher.close();
+    rmSync(projectRoot, { force: true, recursive: true });
+  }
+});
+
+test("the dev topology watcher reports changed sources with POSIX separators", async () => {
+  const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-posix-watch-"));
+  const pagesDir = join(projectRoot, "src/pages");
+  const routePath = join(pagesDir, "items/[id].ts");
+  mkdirSync(dirname(routePath), { recursive: true });
+  writeFileSync(routePath, "export const route = 1;\n");
+  const listeners: Array<(event: string, filename: string) => void> = [];
+  const watchSpy = spyOn(fsModule, "watch").mockImplementation(((
+    _directory: string,
+    _options: { recursive: boolean },
+    listener: (event: string, filename: string) => void
+  ) => {
+    listeners.push(listener);
+    return { close: () => undefined, unref: () => undefined };
+  }) as unknown as typeof fsModule.watch);
+
+  const touchedSources: string[][] = [];
+  const watcher = registerDevRouteTopologyWatcher({
+    instance: { pagesDir, prefix: "" },
+    onRouteFilesTouched: (sourcePaths) => {
+      touchedSources.push([...sourcePaths]);
+    },
+    onTopologyChange: () => undefined,
+  });
+
+  try {
+    writeFileSync(routePath, "export const route = 22;\n");
+    // A recursive watcher on Windows names the file relative to the pages
+    // directory with backslashes.
+    for (const listener of listeners) {
+      listener("change", "items\\[id].ts");
+    }
+    await watcher.refresh();
+    expect(touchedSources).toEqual([[routePath.replaceAll("\\", "/")]]);
+  } finally {
+    watcher.close();
+    watchSpy.mockRestore();
+    rmSync(projectRoot, { force: true, recursive: true });
+  }
+});
+
+test("a reloaded server mount replaces its watcher without letting stale cleanup stop it", async () => {
+  const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-reload-watch-"));
+  const pagesDir = join(projectRoot, "src/pages");
+  mkdirSync(pagesDir, { recursive: true });
+  writeFileSync(join(pagesDir, "index.ts"), "export const route = 1;\n");
+  const server = {};
+  let staleChanges = 0;
+  let currentChanges = 0;
+  const previous = registerDevRouteTopologyWatcher({
+    instance: { pagesDir, prefix: "" },
+    owner: { app: server, prefix: "/admin" },
+    onTopologyChange: () => {
+      staleChanges += 1;
+    },
+  });
+  const current = registerDevRouteTopologyWatcher({
+    instance: { pagesDir, prefix: "" },
+    owner: { app: server, prefix: "/admin" },
+    onTopologyChange: () => {
+      currentChanges += 1;
+    },
+  });
+  try {
+    writeFileSync(join(pagesDir, "added.ts"), "export const route = 2;\n");
+    await current.refresh();
+    await previous.refresh();
+    expect(currentChanges).toBe(1);
+    expect(staleChanges).toBe(0);
+    previous.close();
+    writeFileSync(join(pagesDir, "later.ts"), "export const route = 3;\n");
+    await current.refresh();
+    expect(currentChanges).toBe(2);
+    expect(staleChanges).toBe(0);
+  } finally {
+    previous.close();
+    current.close();
     rmSync(projectRoot, { force: true, recursive: true });
   }
 });
@@ -163,7 +248,7 @@ test("the dev topology watcher skips installed packages but follows linked proje
         { cause: error }
       );
     }
-    expect(touchedSources[0]).toContain(realpathSync.native(linkedPath));
+    expect(touchedSources[0]).toContain(realpathSync.native(linkedPath).replaceAll("\\", "/"));
   } finally {
     watcher.close();
     rmSync(projectRoot, { force: true, recursive: true });
@@ -230,6 +315,84 @@ test("the dev topology watcher can refresh before the filesystem debounce", asyn
     expect(touchedRouteFiles).toBe(1);
   } finally {
     watcher.close();
+    rmSync(projectRoot, { force: true, recursive: true });
+  }
+});
+
+test("the dev topology watcher keeps an edit saved while a refresh is running", async () => {
+  const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-overlap-watch-"));
+  const pagesDir = join(projectRoot, "src/pages");
+  mkdirSync(pagesDir, { recursive: true });
+  const routePath = join(pagesDir, "index.ts");
+  writeFileSync(routePath, "export const route = 1;\n");
+
+  let touchedRouteFiles = 0;
+  const watcher = registerDevRouteTopologyWatcher({
+    instance: { pagesDir, prefix: "" },
+    onRouteFilesTouched: () => {
+      touchedRouteFiles += 1;
+      if (touchedRouteFiles === 1) {
+        // A second save (e.g. format-on-save) lands before this refresh ends.
+        writeFileSync(routePath, "export const route = 'formatted';\n");
+        const changedAt = new Date(Date.now() + 2000);
+        utimesSync(routePath, changedAt, changedAt);
+      }
+    },
+    onTopologyChange: () => undefined,
+  });
+
+  try {
+    writeFileSync(routePath, "export const route = 2;\n");
+    const changedAt = new Date(Date.now() + 1000);
+    utimesSync(routePath, changedAt, changedAt);
+
+    await watcher.refresh();
+    await watcher.refresh();
+
+    expect(touchedRouteFiles).toBe(2);
+  } finally {
+    watcher.close();
+    rmSync(projectRoot, { force: true, recursive: true });
+  }
+});
+
+test("the dev topology watcher picks up a save that lands as a refresh ends", async () => {
+  const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-late-save-watch-"));
+  const pagesDir = join(projectRoot, "src/pages");
+  mkdirSync(pagesDir, { recursive: true });
+  const routePath = join(pagesDir, "index.ts");
+  writeFileSync(routePath, "export const route = 1;\n");
+  // The save's fs event reaches the replaced watcher and is dropped (inotify):
+  // watchers that never fire make that loss deterministic.
+  const watchSpy = spyOn(nodeFs, "watch").mockImplementation(
+    () => ({ close: () => undefined, unref: () => undefined }) as unknown as FSWatcher
+  );
+
+  let touchedRouteFiles = 0;
+  const watcher = registerDevRouteTopologyWatcher({
+    instance: { pagesDir, prefix: "" },
+    onRouteFilesTouched: () => {
+      touchedRouteFiles += 1;
+      if (touchedRouteFiles === 1) {
+        writeFileSync(routePath, "export const route = 'saved';\n");
+        const changedAt = new Date(Date.now() + 2000);
+        utimesSync(routePath, changedAt, changedAt);
+      }
+    },
+    onTopologyChange: () => undefined,
+  });
+
+  try {
+    writeFileSync(routePath, "export const route = 2;\n");
+    const changedAt = new Date(Date.now() + 1000);
+    utimesSync(routePath, changedAt, changedAt);
+
+    await watcher.refresh();
+
+    expect(touchedRouteFiles).toBe(2);
+  } finally {
+    watcher.close();
+    watchSpy.mockRestore();
     rmSync(projectRoot, { force: true, recursive: true });
   }
 });

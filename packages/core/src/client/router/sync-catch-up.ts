@@ -1,7 +1,11 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: sync catch-up pages must be fetched sequentially by cursor
-export interface SyncChangePayload {
+import type { SyncInvalidation } from "../../server/sync/adapter.ts";
+import { encodeInvalidationEntry } from "../../shared/invalidation-header.ts";
+import { type QueryIdentity, queryFromTag } from "../../shared/sync-query.ts";
+
+interface SyncChangePayload {
   cursor: string;
-  invalidations: readonly string[];
+  invalidations: readonly (string | SyncInvalidation)[];
   queries?: readonly import("../../shared/sync-query.ts").QueryIdentity[];
 }
 
@@ -17,6 +21,38 @@ interface SyncCatchUpOptions {
   onInvalidations: (invalidations: readonly string[]) => void;
   onQueries?: (identities: readonly import("../../shared/sync-query.ts").QueryIdentity[]) => void;
   onReset?: () => void;
+}
+
+const LAYOUT_SUFFIX_RE = /:layout$/;
+/** Minimum spacing between reset-driven full refreshes; the trailing one always runs. */
+const RESET_REFRESH_INTERVAL_MS = 1000;
+
+function changeInvalidations(change: SyncChangePayload): {
+  paths: string[];
+  queries: QueryIdentity[];
+} {
+  const paths: string[] = [];
+  const queries = [...(change.queries ?? [])];
+  for (const entry of change.invalidations) {
+    if (typeof entry === "string") {
+      const trimmed = entry.trim();
+      const type = trimmed.endsWith(":layout") ? "layout" : "page";
+      const path = trimmed.replace(LAYOUT_SUFFIX_RE, "");
+      paths.push(encodeInvalidationEntry(path, type));
+    } else if (entry.kind === "path") {
+      paths.push(encodeInvalidationEntry(entry.path, entry.type));
+    } else {
+      for (const tag of entry.tags) {
+        const identity = queryFromTag(tag);
+        if (identity) {
+          queries.push(identity);
+        } else {
+          paths.push("/:layout");
+        }
+      }
+    }
+  }
+  return { paths, queries };
 }
 
 export interface SyncCatchUp {
@@ -76,6 +112,28 @@ export function createSyncCatchUp(options: SyncCatchUpOptions): SyncCatchUp {
   let currentCursor: string | undefined;
   let running: Promise<void> | undefined;
   let requested = false;
+  let lastReset = Number.NEGATIVE_INFINITY;
+  let pendingReset: ReturnType<typeof setTimeout> | undefined;
+
+  const refreshAfterReset = () => {
+    pendingReset = undefined;
+    lastReset = Date.now();
+    options.onReset?.();
+    options.onInvalidations(["/:layout"]);
+  };
+
+  // Another principal's write loop must not re-run every loader on every commit.
+  const scheduleResetRefresh = () => {
+    if (pendingReset) {
+      return;
+    }
+    const wait = lastReset + RESET_REFRESH_INTERVAL_MS - Date.now();
+    if (wait <= 0) {
+      refreshAfterReset();
+    } else {
+      pendingReset = setTimeout(refreshAfterReset, wait);
+    }
+  };
 
   const readUntilCurrent = async (): Promise<void> => {
     do {
@@ -84,15 +142,15 @@ export function createSyncCatchUp(options: SyncCatchUpOptions): SyncCatchUp {
       do {
         page = await options.fetchPage(currentCursor ?? "0");
         if (page.reset) {
-          options.onReset?.();
-          options.onInvalidations(["/:layout"]);
           currentCursor = page.cursor;
+          scheduleResetRefresh();
           break;
         }
         for (const change of page.changes) {
-          options.onInvalidations(change.invalidations);
-          if (change.queries) {
-            options.onQueries?.(change.queries);
+          const { paths, queries } = changeInvalidations(change);
+          options.onInvalidations(paths);
+          if (queries.length > 0) {
+            options.onQueries?.(queries);
           }
         }
         currentCursor = page.cursor;

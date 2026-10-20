@@ -1,5 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: readable streams must be consumed sequentially
 import type { toCrossJSON } from "seroval";
+import { applyLinkParams } from "../../client/router/link-utils.ts";
 import { getSyncPath } from "../sync/config.ts";
 import { safeJson } from "./shell";
 
@@ -9,7 +10,7 @@ import { safeJson } from "./shell";
  * it centralised here avoids `<script>`/JS source drift if the name is ever
  * renamed.
  */
-export const FURIN_DEFERRED_GLOBAL = "__FURIN_DEFERRED__";
+const FURIN_DEFERRED_GLOBAL = "__FURIN_DEFERRED__";
 
 // ── Deferred streaming helpers ─────────────────────────────────────────────────
 
@@ -26,7 +27,7 @@ export const FURIN_DEFERRED_GLOBAL = "__FURIN_DEFERRED__";
  * `__FURIN_DATA__` JSON script that the hydrate entry reads.
  *
  */
-export function nonceAttribute(nonce?: string): string {
+function nonceAttribute(nonce?: string): string {
   return nonce === undefined ? "" : ` nonce="${nonce}"`;
 }
 
@@ -79,11 +80,7 @@ export interface LoaderContext {
 }
 
 export function resolvePath(pattern: string, params: Record<string, string>): string {
-  let path = pattern;
-  for (const [key, val] of Object.entries(params)) {
-    path = path.replace(key === "*" ? "*" : `:${key}`, val);
-  }
-  return path;
+  return applyLinkParams(pattern, params);
 }
 
 export async function streamToString(stream: ReadableStream): Promise<string> {
@@ -161,7 +158,7 @@ export function buildRouteFrameCloseScript(nonce?: string): string {
   return `<script${nonceAttribute(nonce)}>window.__FURIN_ROUTE_FRAME_STREAM__.close()</script>`;
 }
 
-export function buildSyncRuntimeScript(): string {
+function buildSyncRuntimeScript(): string {
   const syncPath = getSyncPath();
   if (!syncPath) {
     return "";

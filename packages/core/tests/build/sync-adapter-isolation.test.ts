@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import {
   mkdirSync,
   mkdtempSync,
@@ -9,6 +9,8 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertDistFresh } from "../support/dist.ts";
+import { runProcess } from "../support/process.ts";
 
 const fixtures = new URL("../fixtures/sync-bundles/", import.meta.url);
 const postgresMarker = "pg_advisory_xact_lock";
@@ -52,6 +54,9 @@ function dependencyNames(manifestValue: PackageManifest): string[] {
 }
 
 describe("sync adapter bundle isolation", () => {
+  // These tests inspect the published dist/ output; refuse to run on a stale build.
+  beforeAll(() => assertDistFresh("server/sync/index.js"));
+
   test("loads the built sync entrypoint without exposing test internals", async () => {
     const sync = await import("../../dist/server/sync/index.js");
     expect(sync.furinSync).toBeFunction();
@@ -116,34 +121,31 @@ describe("sync adapter bundle isolation", () => {
     const root = resolve(import.meta.dir, "../../../..");
     const directory = mkdtempSync(join(tmpdir(), "furin-client-consumer-"));
     try {
-      const archive = pack(join(root, "packages/core"), directory);
+      const archive = await pack(join(root, "packages/core"), directory);
       writeFileSync(
         join(directory, "package.json"),
         JSON.stringify({ dependencies: { "@teyik0/furin": archive }, private: true })
       );
-      const install = Bun.spawnSync({
-        cmd: ["bun", "install", "--production", "--ignore-scripts"],
+      const install = await runProcess(["bun", "install", "--production", "--ignore-scripts"], {
         cwd: directory,
-        stderr: "pipe",
-        stdout: "pipe",
+        // A cold install of the packed tarball can exceed 25 s on Windows runners.
+        timeoutMs: 60_000,
       });
       expect(install.exitCode).toBe(0);
-      const client = Bun.spawnSync({
-        cmd: [
+      const client = await runProcess(
+        [
           "bun",
           "-e",
-          'import { createClient, defineRoute, defer } from "@teyik0/furin/client"; if (![createClient, defineRoute, defer].every(value => typeof value === "function")) throw new Error("Missing client export");',
+          'import { defineRoute, defer, furinSync } from "@teyik0/furin/client"; if (typeof furinSync !== "object" || ![defineRoute, defer].every(value => typeof value === "function")) throw new Error("Missing client export");',
         ],
-        cwd: directory,
-        stderr: "pipe",
-        stdout: "pipe",
-      });
-      expect(client.stderr.toString()).toBe("");
+        { cwd: directory, timeoutMs: 25_000 }
+      );
+      expect(client.stderr).toBe("");
       expect(client.exitCode).toBe(0);
     } finally {
       rmSync(directory, { force: true, recursive: true });
     }
-  }, 30_000);
+  }, 120_000);
 
   test("bundles isolated subpaths from the packed core package", async () => {
     const root = resolve(import.meta.dir, "../../../..");
@@ -151,7 +153,7 @@ describe("sync adapter bundle isolation", () => {
     const packed = join(temporaryRoot, "packed");
     mkdirSync(packed);
     try {
-      const core = pack(join(root, "packages/core"), packed);
+      const core = await pack(join(root, "packages/core"), packed);
 
       const scenarios: Array<{
         absent: string[];
@@ -186,7 +188,7 @@ describe("sync adapter bundle isolation", () => {
       ];
 
       for (const [index, scenario] of scenarios.entries()) {
-        const fixture = installFixture(join(temporaryRoot, `consumer-${index}`), core);
+        const fixture = await installFixture(join(temporaryRoot, `consumer-${index}`), core);
         writeFileSync(join(fixture, "entry.ts"), scenario.entry);
         const result = await Bun.build({
           entrypoints: [join(fixture, "entry.ts")],
@@ -231,16 +233,14 @@ describe("sync adapter bundle isolation", () => {
   }, 30_000);
 });
 
-function pack(packageDirectory: string, destination: string): string {
+async function pack(packageDirectory: string, destination: string): Promise<string> {
   const before = new Set(readdirSync(destination));
-  const result = Bun.spawnSync({
-    cmd: ["bun", "pm", "pack", "--destination", destination],
+  const result = await runProcess(["bun", "pm", "pack", "--destination", destination], {
     cwd: packageDirectory,
-    stderr: "pipe",
-    stdout: "pipe",
+    timeoutMs: 25_000,
   });
   if (result.exitCode !== 0) {
-    throw new Error(result.stderr.toString());
+    throw new Error(result.stderr);
   }
   const archive = readdirSync(destination).find((entry) => !before.has(entry));
   if (archive === undefined) {
@@ -249,22 +249,25 @@ function pack(packageDirectory: string, destination: string): string {
   return join(destination, archive);
 }
 
-function installFixture(directory: string, core: string): string {
+async function installFixture(directory: string, core: string): Promise<string> {
   mkdirSync(directory, { recursive: true });
-  installPackedPackage(directory, "@teyik0/furin", core);
+  await installPackedPackage(directory, "@teyik0/furin", core);
   return directory;
 }
 
-function installPackedPackage(directory: string, name: string, archive: string): void {
+async function installPackedPackage(
+  directory: string,
+  name: string,
+  archive: string
+): Promise<void> {
   const destination = join(directory, "node_modules", ...name.split("/"));
   mkdirSync(destination, { recursive: true });
-  const result = Bun.spawnSync({
-    cmd: ["tar", "-xzf", archive, "--strip-components=1", "-C", destination],
-    stderr: "pipe",
-    stdout: "pipe",
-  });
+  const result = await runProcess(
+    ["tar", "-xzf", archive, "--strip-components=1", "-C", destination],
+    { cwd: directory, timeoutMs: 25_000 }
+  );
   if (result.exitCode !== 0) {
-    throw new Error(result.stderr.toString());
+    throw new Error(result.stderr);
   }
 }
 

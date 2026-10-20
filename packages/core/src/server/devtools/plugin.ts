@@ -45,7 +45,8 @@ function cacheSnapshot(key: string, entry: DevLoaderCacheEntry): DevtoolsCacheEn
   return {
     ageMs: Math.max(0, Date.now() - entry.generatedAt),
     dependencies: entry.dependencies.map(toRelativePath),
-    fieldNames: Object.keys(entry.loaderData),
+    // Route matches are framework metadata, not loader fields.
+    fieldNames: Object.keys(entry.loaderData).filter((field) => !field.startsWith("__furin")),
     id: Bun.hash(key).toString(16),
     isFresh: isDevLoaderCacheFresh(entry),
     mode: entry.mode,

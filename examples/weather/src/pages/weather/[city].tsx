@@ -3,11 +3,9 @@ import { t } from "elysia";
 import { loadWeatherPage } from "../../api/weather-page";
 import { WeatherPage } from "../../components/weather-page";
 import { cityNameFromSlug, POPULAR_CITIES } from "../../lib/cities";
-import { route as parentRoute } from "../root";
 
-export const route = defineRoute()
+export const route = defineRoute("/weather/[city]")
   .config({
-    layout: parentRoute,
     mode: "isr",
     params: t.Object({ city: t.String({ minLength: 1 }) }),
     revalidate: 300,

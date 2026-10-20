@@ -1,3 +1,4 @@
+import { BUNDLED_FURIN_VERSION } from "../../furin-version.ts";
 import type { PackageCatalog } from "../../package-catalog.ts";
 import { getPackageCatalog } from "../../package-catalog.ts";
 import type { PipelineContext } from "../context.ts";
@@ -65,9 +66,9 @@ export async function stage4Deps(ctx: PipelineContext): Promise<void> {
   const catalog = getPackageCatalog();
 
   // Fetch the latest published version of @teyik0/furin from npm.
-  // Fall back to the pinned catalog version if the registry is unreachable.
+  // Fall back to the version this scaffolder was built with if the registry is unreachable.
   const liveVersion = await fetchLatestVersion("@teyik0/furin");
-  const furinVersion = liveVersion ?? catalog["@teyik0/furin"];
+  const furinVersion = liveVersion ?? `^${BUNDLED_FURIN_VERSION}`;
 
   // Expose on context so Stage 1 and the EJS vars can reference it.
   ctx.furinVersion = furinVersion;

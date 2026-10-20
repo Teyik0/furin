@@ -1,5 +1,7 @@
 import { statSync } from "node:fs";
 import { relative } from "node:path";
+import type { RuntimeData } from "../../client/internal/runtime-types.ts";
+import { isInvalidatedPath } from "../../shared/invalidation-header.ts";
 import { autoInvalidateRegistry } from "../auto-invalidate/registry";
 import { devGraph } from "../dev/graph.ts";
 import {
@@ -15,7 +17,7 @@ export interface DevLoaderCacheEntry {
   dependencies: string[];
   generatedAt: number;
   headers: Record<string, string>;
-  loaderData: Record<string, unknown>;
+  loaderData: RuntimeData;
   mode: "isr" | "ssg";
   revalidate: number;
 }
@@ -37,16 +39,21 @@ interface DevLoaderState {
   ssg: CacheKindHandle;
 }
 
+/** Source index key: Windows paths may arrive native or with forward slashes. */
+function sourceKey(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
 function indexEntryDependencies(
   index: Map<string, Set<string>>,
   cacheKey: string,
   deps: string[]
 ): void {
   for (const dep of deps) {
-    let bucket = index.get(dep);
+    let bucket = index.get(sourceKey(dep));
     if (!bucket) {
       bucket = new Set<string>();
-      index.set(dep, bucket);
+      index.set(sourceKey(dep), bucket);
     }
     bucket.add(cacheKey);
   }
@@ -58,13 +65,13 @@ function unindexEntryDependencies(
   deps: string[]
 ): void {
   for (const dep of deps) {
-    const bucket = index.get(dep);
+    const bucket = index.get(sourceKey(dep));
     if (!bucket) {
       continue;
     }
     bucket.delete(cacheKey);
     if (bucket.size === 0) {
-      index.delete(dep);
+      index.delete(sourceKey(dep));
     }
   }
 }
@@ -186,18 +193,10 @@ export function invalidateDevLoaderCacheByPath(
   let isr = 0;
   let ssg = 0;
 
-  const matches = (urlPath: string): boolean => {
-    if (type === "page") {
-      return urlPath === path;
-    }
-    const prefix = path === "/" || path.endsWith("/") ? path : `${path}/`;
-    return urlPath === path || urlPath.startsWith(prefix);
-  };
-
   for (const handle of [state.isr, state.ssg]) {
     for (const key of [...handle.cache.keys()]) {
       const urlPath = urlPathFromCacheKey(key);
-      if (urlPath === null || !matches(urlPath)) {
+      if (urlPath === null || !isInvalidatedPath(urlPath, path, type)) {
         continue;
       }
       const entry = handle.cache.get(key);
@@ -217,9 +216,24 @@ export function invalidateDevLoaderCacheByPath(
   return { cleared, isr, ssg };
 }
 
+/**
+ * Bun's `onLoad` hook is process-wide and runs outside any request, so a
+ * source edit is dispatched to every runtime whose loader cache depends on it.
+ */
 export function invalidateDevLoaderCacheBySource(filePath: string): InvalidateOutcome {
-  const state = instanceDevLoaderState(undefined);
-  const keys = state.sourceFileToCacheKeys.get(filePath);
+  const outcome: InvalidateOutcome = { cleared: [], isr: 0, ssg: 0 };
+  for (const instance of allStateBuckets()) {
+    const result = withInstance(instance, () => invalidateInstanceBySource(instance, filePath));
+    outcome.cleared.push(...result.cleared);
+    outcome.isr += result.isr;
+    outcome.ssg += result.ssg;
+  }
+  return outcome;
+}
+
+function invalidateInstanceBySource(instance: FurinInstance, filePath: string): InvalidateOutcome {
+  const state = instanceDevLoaderState(instance);
+  const keys = state.sourceFileToCacheKeys.get(sourceKey(filePath));
   if (!keys || keys.size === 0) {
     return { cleared: [], isr: 0, ssg: 0 };
   }

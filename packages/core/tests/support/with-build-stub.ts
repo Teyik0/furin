@@ -1,6 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+const REAL_BUILD_ENTRY_RE = /(?:_furin-app|_furin-static|register|vercel[/\\]bootstrap)\.ts$/;
+
 type BunBuildGlobal = typeof globalThis & {
   __FURIN_BUN_BUILD_FOR_TESTS?: typeof Bun.build;
 };
@@ -67,9 +69,9 @@ export function withBuildStub<T>(
 
   const build = ((config) => {
     onBuild?.(config as Bun.BuildConfig);
-    // Vercel prerenders execute the compiled handler, so its server bundle
-    // must be real even when client assets are stubbed for adapter assertions.
-    if (typeof config.naming === "object" && config.naming.entry === "handler.[ext]") {
+    // Builds prerender inside the production server code, so server bundles
+    // stay real even when client assets are stubbed for adapter assertions.
+    if (config.entrypoints.some((entrypoint) => REAL_BUILD_ENTRY_RE.test(entrypoint))) {
       return Bun.build(config);
     }
     const { compile, outdir, plugins } = config as Bun.BuildConfig;

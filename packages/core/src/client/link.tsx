@@ -1,50 +1,47 @@
+"use client";
+
 import type React from "react";
-import { createElement, useCallback, useEffect, useRef } from "react";
+import { createElement, useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import {
   findSearchDefaultsForRouteTarget,
   type SearchParamsInput,
 } from "../shared/search-params.ts";
-import { CLIENT_FALLBACK_ROUTER, RouterContext, useRouterContext } from "./router/context.ts";
+import { CLIENT_FALLBACK_ROUTER, RouterContext, useRouterStore } from "./router/context.ts";
 import {
   applyLinkParams,
   buildHref,
   navigationHrefPolicy,
   normalizeHref,
+  shouldInterceptClick,
 } from "./router/link-utils.ts";
-import type { LinkBaseProps, LinkProps, RouterContextValue, RouteTo } from "./router/types.ts";
+import type {
+  LinkBaseProps,
+  LinkProps,
+  RouterContextValue,
+  RouteTo,
+  StableRouter,
+} from "./router/types.ts";
 
 // biome-ignore lint/performance/noBarrelFile: re-exporting router symbols preserves backward compatibility for @teyik0/furin/link consumers
 export * from "./router/index.ts";
 
 // ── Link ───────────────────────────────────────────────────────────────────────
 
-interface LinkView {
-  extraProps: React.AnchorHTMLAttributes<HTMLAnchorElement>;
+interface LinkHref {
+  /** Normalized logical href compared with `currentHref`; undefined for absolute URLs. */
+  activeHref: string | undefined;
   href: string;
-  isActive: boolean;
   logicalHref: string;
-  resolvedChildren: React.ReactNode;
 }
 
 /**
- * Shared href/active-state/props computation used by both LinkInteractive (CSR)
- * and renderLinkElement (SSR). Centralising this keeps the two render paths in sync.
+ * Shared href computation used by both LinkInteractive (CSR) and
+ * renderLinkElement (SSR). Centralising this keeps the two render paths in sync.
  */
-function computeLinkView<To extends RouteTo>(
-  {
-    to,
-    params,
-    search,
-    hash,
-    children,
-    activeProps,
-    inactiveProps,
-  }: Pick<
-    LinkBaseProps<To>,
-    "to" | "params" | "search" | "hash" | "children" | "activeProps" | "inactiveProps"
-  >,
-  router: RouterContextValue
-): LinkView {
+function resolveLinkHref<To extends RouteTo>(
+  { to, params, search, hash }: Pick<LinkBaseProps<To>, "to" | "params" | "search" | "hash">,
+  router: Pick<StableRouter, "basePath" | "searchRoutes">
+): LinkHref {
   const resolvedTo = applyLinkParams(
     to as string,
     params as Record<string, string | number> | null | undefined
@@ -68,13 +65,28 @@ function computeLinkView<To extends RouteTo>(
     logicalHref.startsWith("//");
   const candidateHref = isAbsolute ? logicalHref : router.basePath + logicalHref;
   const href = navigationHrefPolicy(candidateHref, undefined) === "blocked" ? "#" : candidateHref;
-  const isActive = !isAbsolute && router.currentHref === normalizeHref(logicalHrefWithoutHash);
+  const activeHref = isAbsolute ? undefined : normalizeHref(logicalHrefWithoutHash);
+  return { activeHref, href, logicalHref };
+}
+
+/** Active-state dependent children and props, shared by both render paths. */
+function resolveLinkState<To extends RouteTo>(
+  {
+    children,
+    activeProps,
+    inactiveProps,
+  }: Pick<LinkBaseProps<To>, "children" | "activeProps" | "inactiveProps">,
+  isActive: boolean
+): {
+  extraProps: React.AnchorHTMLAttributes<HTMLAnchorElement>;
+  resolvedChildren: React.ReactNode;
+} {
   const resolvedChildren = typeof children === "function" ? children({ isActive }) : children;
   const extraProps: React.AnchorHTMLAttributes<HTMLAnchorElement> = {
     ...(inactiveProps && !isActive ? inactiveProps() : {}),
     ...(activeProps ? activeProps({ isActive }) : {}),
   };
-  return { extraProps, href, isActive, logicalHref, resolvedChildren };
+  return { extraProps, resolvedChildren };
 }
 
 function isSameOriginUrl(url: string): boolean {
@@ -109,15 +121,24 @@ function LinkInteractive<To extends RouteTo>({
   href: _href,
   ...anchorProps
 }: LinkBaseProps<To>): React.ReactElement {
-  const router = useRouterContext();
+  const store = useRouterStore();
+  const { router } = store;
   const anchorRef = useRef<HTMLAnchorElement>(null);
   const intentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // logicalHref: route-relative path (no basePath), used for navigation + active state.
   // physicalHref (href): what the browser sees — basePath + logicalHref.
-  const { logicalHref, href, isActive, resolvedChildren, extraProps } = computeLinkView(
-    { activeProps, children, hash, inactiveProps, params, search, to },
-    router
+  const { activeHref, logicalHref, href } = resolveLinkHref({ hash, params, search, to }, router);
+  // Select only this Link's active state so unrelated navigation state
+  // (isNavigating, other hrefs, search) does not re-render it.
+  const isActive = useSyncExternalStore(
+    store.subscribe,
+    () => activeHref !== undefined && store.getCurrentHref() === activeHref,
+    () => activeHref !== undefined && store.getCurrentHref() === activeHref
+  );
+  const { resolvedChildren, extraProps } = resolveLinkState(
+    { activeProps, children, inactiveProps },
+    isActive
   );
   const effectivePreload = preload ?? router.defaultPreload;
   const effectiveDelay = preloadDelay ?? router.defaultPreloadDelay;
@@ -125,10 +146,22 @@ function LinkInteractive<To extends RouteTo>({
 
   const { prefetch } = router;
   const triggerPrefetch = useCallback(() => {
-    // prefetch() expects the logical href (no basePath prefix).
-    prefetch(logicalHref, { staleTime: effectiveStaleTime });
+    const anchor = anchorRef.current;
+    if (!anchor) {
+      return;
+    }
+    const target = shouldInterceptClick(
+      anchor,
+      { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false },
+      router.basePath,
+      window.location.origin,
+      window.location.pathname
+    );
+    if (target !== null) {
+      prefetch(target, { staleTime: effectiveStaleTime });
+    }
     // react-doctor-disable-next-line react-doctor/exhaustive-deps
-  }, [prefetch, logicalHref, effectiveStaleTime]);
+  }, [prefetch, logicalHref, effectiveStaleTime, router.basePath]);
 
   // "render": preload immediately on mount
   useEffect(() => {
@@ -178,20 +211,21 @@ function LinkInteractive<To extends RouteTo>({
       e.preventDefault();
       return;
     }
-    // Let browser handle modifier+click (new tab, etc.)
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
-      return;
-    }
-    // Let browser handle non-self targets (e.g. target="_blank")
-    if (anchorProps.target && anchorProps.target !== "_self") {
+    if (e.button !== 0) {
       return;
     }
     if (navigationHrefPolicy(logicalHref, window.location.origin) === "blocked") {
       e.preventDefault();
       return;
     }
-    // Let browser handle external links
-    if (!isSameOriginUrl(href)) {
+    const target = shouldInterceptClick(
+      e.currentTarget,
+      e,
+      router.basePath,
+      window.location.origin,
+      window.location.pathname
+    );
+    if (target === null) {
       return;
     }
     e.preventDefault();
@@ -202,7 +236,7 @@ function LinkInteractive<To extends RouteTo>({
       return;
     }
     // navigate() expects the logical href (no basePath prefix).
-    router.navigate(logicalHref, { replace, resetScroll: resetScroll ?? true });
+    router.navigate(target, { replace, resetScroll: resetScroll ?? true });
   };
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -281,7 +315,9 @@ function renderLinkElement<To extends RouteTo>(
   props: LinkBaseProps<To>,
   router: RouterContextValue
 ): React.ReactElement {
-  const { href, isActive, resolvedChildren, extraProps } = computeLinkView(props, router);
+  const { activeHref, href } = resolveLinkHref(props, router);
+  const isActive = activeHref !== undefined && router.currentHref === activeHref;
+  const { resolvedChildren, extraProps } = resolveLinkState(props, isActive);
 
   // Destructure to strip Link-specific and client-only props before spreading onto <a>.
   const {
@@ -358,3 +394,4 @@ export function Link<To extends RouteTo>(props: LinkProps<To>): React.ReactEleme
 // apps to add "seroval" as a direct dependency.
 export { fromCrossJSON } from "seroval";
 export { parseDeferredNdjson } from "../shared/deferred-ndjson.ts";
+export { findRouteFailure } from "../shared/route-matches.ts";

@@ -1,6 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: integration polling waits for the dev server
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { DevDiagnosticEvent } from "../../../src/shared/dev-diagnostics.ts";
@@ -14,7 +14,7 @@ interface EmbeddedDiagnosticState {
     diagnostic: {
       cause: string | undefined;
       importChain: readonly string[];
-      location: { file: string } | undefined;
+      location: { file: string; line: number } | undefined;
       message: string;
       phase: string;
       route: string;
@@ -116,10 +116,9 @@ async function openDiagnosticSocket(port: number): Promise<DiagnosticSocket> {
 function healthyPage(content: string): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     `  .page(() => <main>${content}</main>);`,
   ].join("\n");
 }
@@ -127,10 +126,9 @@ function healthyPage(content: string): string {
 function failingLoaderPage(): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     '  .loader(() => { throw new Error("loader exploded", { cause: new Error("upstream") }); })',
     "  .page(() => <main>Unreachable loader page</main>);",
   ].join("\n");
@@ -139,10 +137,9 @@ function failingLoaderPage(): string {
 function failingResponseLoaderPage(): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     '  .loader(() => { throw new Response("response exploded", { status: 500, statusText: "Upstream" }); })',
     "  .page(() => <main>Unreachable response page</main>);",
   ].join("\n");
@@ -151,10 +148,9 @@ function failingResponseLoaderPage(): string {
 function failingRenderPage(mode: "ssg" | "ssr"): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     "",
-    "export const route = defineRoute()",
-    `  .config({ layout: rootRoute, mode: "${mode}" })`,
+    'export const route = defineRoute("/")',
+    `  .config({ mode: "${mode}" })`,
     '  .page(() => { throw new Error("render exploded"); });',
   ].join("\n");
 }
@@ -163,10 +159,9 @@ function importedComponentPage(): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
     'import { BrokenCard } from "../components/broken-card";',
-    'import { route as rootRoute } from "./root";',
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     "  .page(() => <BrokenCard />);",
   ].join("\n");
 }
@@ -313,9 +308,8 @@ throw new Error("recovery exploded");`
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { ClientCard } from "../components/client-card.tsx";',
-        'import { route as rootRoute } from "./root";',
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssr" })',
         "  .page(() => <ClientCard />);",
       ].join("\n")
     );
@@ -353,9 +347,9 @@ throw new Error("recovery exploded");`
       "src/pages/blog/[slug].tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "../root";',
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'import { t } from "elysia";',
+        'export const route = defineRoute("/blog/[slug]")',
+        '  .config({ mode: "ssr", params: t.Object({ slug: t.String() }) })',
         "  .page(() => <main>Dynamic client page</main>);",
       ].join("\n")
     );
@@ -454,6 +448,98 @@ throw new Error("recovery exploded");`
     expect(state?.event.diagnostic.location?.file).toContain("src/pages/index.tsx");
   }, 20_000);
 
+  test("a server render failure is located on its source line below TypeScript-only code", async () => {
+    writeAppFile(
+      app.path,
+      "src/pages/index.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import type { ReactNode } from "react";',
+        "",
+        "interface Props {",
+        "  label: string;",
+        "}",
+        "",
+        "type Rendered = ReactNode;",
+        "",
+        "function Typed({ label }: Props): Rendered {",
+        "  const prefix: string = label;",
+        '  throw new Error(prefix + " exploded", { cause: "typed" });',
+        "}",
+        "",
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssr" })',
+        '  .page(() => <Typed label="typed render" />);',
+      ].join("\n")
+    );
+
+    let state: EmbeddedDiagnosticState | undefined;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const html = await (await fetch(`http://localhost:${port}/`)).text();
+      const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: the diagnostic state may not yet be available.
+      if (stateMatch?.[1]) {
+        state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
+        if (state.event.diagnostic.message === "typed render exploded") {
+          break;
+        }
+      }
+      await Bun.sleep(250);
+    }
+
+    expect(state?.event.diagnostic.message).toBe("typed render exploded");
+    expect(state?.event.diagnostic.location?.file).toContain("src/pages/index.tsx");
+    expect(state?.event.diagnostic.location?.line).toBe(12);
+  }, 20_000);
+
+  test("an imported component render failure is located on its source line", async () => {
+    writeAppFile(
+      app.path,
+      "src/components/typed-card.tsx",
+      [
+        'import type { ReactNode } from "react";',
+        "",
+        "interface CardProps {",
+        "  title: string;",
+        "}",
+        "",
+        "export function TypedCard({ title }: CardProps): ReactNode {",
+        '  throw new Error((title satisfies string) + " exploded", { cause: "typed" });',
+        "}",
+      ].join("\n")
+    );
+    writeAppFile(
+      app.path,
+      "src/pages/index.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { TypedCard } from "../components/typed-card";',
+        "",
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssr" })',
+        '  .page(() => <TypedCard title="typed card" />);',
+      ].join("\n")
+    );
+
+    let state: EmbeddedDiagnosticState | undefined;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const html = await (await fetch(`http://localhost:${port}/`)).text();
+      const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: the diagnostic state may not yet be available.
+      if (stateMatch?.[1]) {
+        state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
+        if (state.event.diagnostic.message === "typed card exploded") {
+          break;
+        }
+      }
+      await Bun.sleep(250);
+    }
+
+    expect(state?.event.diagnostic.message).toBe("typed card exploded");
+    expect(state?.event.diagnostic.location?.file).toContain("src/components/typed-card.tsx");
+    expect(state?.event.diagnostic.location?.line).toBe(8);
+  }, 20_000);
+
   test("an SSG render failure is classified as render rather than import", async () => {
     writeAppFile(app.path, "src/pages/index.tsx", failingRenderPage("ssg"));
 
@@ -536,10 +622,9 @@ throw new Error("recovery exploded");`
       "src/pages/index.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssr" })',
         "  .loader(() => ({}));",
       ].join("\n")
     );
@@ -562,4 +647,123 @@ throw new Error("recovery exploded");`
     expect(state?.event.diagnostic.message).toContain("valid Furin page export");
     expect(state?.event.diagnostic.location?.file).toContain("src/pages/index.tsx");
   }, 20_000);
+
+  test("a route config mistake is reported without rewriting the file, then cleared", async () => {
+    writeAppFile(app.path, "src/pages/index.tsx", healthyPage("Config baseline"));
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const response = await fetch(`http://localhost:${port}/`);
+      if (response.ok && (await response.text()).includes("Config baseline")) {
+        break;
+      }
+      await Bun.sleep(250);
+    }
+    const events = await openDiagnosticSocket(port);
+    const missingMode = healthyPage("Missing mode").replace('{ mode: "ssr" }', "{}");
+    writeAppFile(app.path, "src/pages/index.tsx", missingMode);
+    // Skip the replayed state of earlier tests.
+    let errorEvent = await events.next("error");
+    while (errorEvent.type === "error" && !errorEvent.diagnostic.message.includes("config()")) {
+      errorEvent = await events.next("error");
+    }
+    if (errorEvent.type !== "error") {
+      throw new Error(`Expected an error diagnostic, received ${errorEvent.type}`);
+    }
+    expect(errorEvent.diagnostic.message).toContain(
+      'src/pages/index.tsx:4:11: config() must declare mode ("ssg", "ssr" or "isr"), e.g. mode: "ssg".'
+    );
+    expect(errorEvent.diagnostic.location?.line).toBe(4);
+    expect(readFileSync(join(app.path, "src/pages/index.tsx"), "utf8")).toBe(missingMode);
+    // The socket event can arrive before the server's stderr is read.
+    const configMessage = 'config() must declare mode ("ssg", "ssr" or "isr")';
+    for (
+      let attempt = 0;
+      attempt < 40 && !server.getStderr().includes(configMessage);
+      attempt += 1
+    ) {
+      await Bun.sleep(50);
+    }
+    expect(server.getStderr()).toContain(configMessage);
+
+    writeAppFile(app.path, "src/pages/index.tsx", healthyPage("Config fixed"));
+    let readyEvent = await events.next("ready");
+    while (readyEvent.id < errorEvent.id) {
+      readyEvent = await events.next("ready");
+    }
+    expect(readyEvent.revision).toBeGreaterThan(errorEvent.revision);
+    events.close();
+  }, 20_000);
+
+  test("an invalid _route.tsx export is routed through the diagnostic overlay, then cleared", async () => {
+    const layoutSource = (terminal: string): string =>
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        "",
+        'export const route = defineRoute("/section/_route")',
+        '  .config({ mode: "ssr" })',
+        `  ${terminal};`,
+      ].join("\n");
+    writeAppFile(
+      app.path,
+      "src/pages/section/_route.tsx",
+      layoutSource("  .layout(({ children }) => <section>Section layout{children}</section>)")
+    );
+    writeAppFile(
+      app.path,
+      "src/pages/section/index.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        "",
+        'export const route = defineRoute("/section")',
+        '  .config({ mode: "ssr" })',
+        "  .page(() => <main>Section page</main>);",
+      ].join("\n")
+    );
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const response = await fetch(`http://localhost:${port}/section`);
+      if (response.ok && (await response.text()).includes("Section layout")) {
+        break;
+      }
+      await Bun.sleep(250);
+    }
+
+    writeAppFile(app.path, "src/pages/section/_route.tsx", layoutSource(".loader(() => ({}))"));
+    let response: Response | undefined;
+    let state: EmbeddedDiagnosticState | undefined;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      response = await fetch(`http://localhost:${port}/section`);
+      const stateMatch = DIAGNOSTIC_STATE_RE.exec(await response.text());
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: the diagnostic state may not yet be available.
+      if (stateMatch?.[1]) {
+        state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
+        break;
+      }
+      await Bun.sleep(250);
+    }
+
+    expect(response?.status).toBe(500);
+    expect(state?.event.diagnostic.phase).toBe("transform");
+    expect(state?.event.diagnostic.route).toBe("/section");
+    expect(state?.event.diagnostic.message).toContain("_route.tsx must export");
+    expect(state?.event.diagnostic.location?.file).toContain("src/pages/section/_route.tsx");
+
+    const events = await openDiagnosticSocket(port);
+    const readyEvent = events.next("ready");
+    writeAppFile(
+      app.path,
+      "src/pages/section/_route.tsx",
+      layoutSource("  .layout(({ children }) => <section>Section fixed{children}</section>)")
+    );
+    let html = "";
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const fixed = await fetch(`http://localhost:${port}/section`);
+      html = await fixed.text();
+      if (fixed.ok && html.includes("Section fixed")) {
+        break;
+      }
+      await Bun.sleep(250);
+    }
+    expect(html).toContain("Section fixed");
+    expect((await readyEvent).type).toBe("ready");
+    events.close();
+  }, 30_000);
 });

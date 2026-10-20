@@ -58,10 +58,9 @@ describe.serial("dev HMR", () => {
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { MobileNav } from "../../components/mobile-nav";',
-      'import { route as rootRoute } from "../root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      'export const route = defineRoute("/docs/_route")',
+      '  .config({ mode: "ssr" })',
       "  .layout(({ children }) => (",
       "    <section>",
       "      <MobileNav />",
@@ -76,10 +75,9 @@ describe.serial("dev HMR", () => {
     "src/pages/docs/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as parentRoute } from "./_route";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: parentRoute, mode: "ssg" })',
+      'export const route = defineRoute("/docs")',
+      '  .config({ mode: "ssg" })',
       "  .page(() => <main>Docs page</main>);",
     ].join("\n")
   );
@@ -89,17 +87,24 @@ describe.serial("dev HMR", () => {
     "src/pages/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })',
+      'export const route = defineRoute("/")',
+      '  .config({ mode: "isr", revalidate: 60 })',
       "  .page(() => <main>ISR home</main>);",
     ].join("\n")
   );
 
   beforeAll(async () => {
     port = await getFreePort();
-  });
+    server = startProcess(["bun", "--hot", join(app.path, "src/server.ts")], {
+      cwd: app.path,
+      env: { PORT: String(port) },
+    });
+    // Shared by every test below, so start it here rather than in the first test.
+    await waitForHttp(`http://localhost:${port}/`, { timeoutMs: 20_000 }).catch((error) => {
+      throw new Error(`${error}\nstderr:\n${server.getStderr()}`);
+    });
+  }, 30_000);
 
   afterAll(async () => {
     server?.kill();
@@ -108,27 +113,6 @@ describe.serial("dev HMR", () => {
   });
 
   test("server starts and SSR renders initial content", async () => {
-    server = startProcess(["bun", "--hot", join(app.path, "src/server.ts")], {
-      cwd: app.path,
-      env: { PORT: String(port) },
-    });
-
-    // Wait for server to be ready (poll with retries)
-    let ready = false;
-    for (let i = 0; i < 80; i += 1) {
-      try {
-        const r = await fetch(`http://localhost:${port}/`);
-        if (r.ok) {
-          ready = true;
-          break;
-        }
-      } catch {
-        // not ready yet
-      }
-      await Bun.sleep(250);
-    }
-    expect(ready).toBe(true);
-
     const html = await (await fetch(`http://localhost:${port}/`)).text();
     expect(html).toContain("ISR home");
     expect(html).toContain("__FURIN_DATA__");
@@ -143,7 +127,9 @@ describe.serial("dev HMR", () => {
     );
   }, 30_000);
 
-  test("native HMR entry stays quiet with inherited application hooks", async () => {
+  // Elysia warns that inherited hooks do not run for natively served HTML bundles;
+  // Furin no longer strips them through Elysia internals, so only serving is asserted.
+  test("native HMR entry is served despite inherited application hooks", async () => {
     const hookedApp = createTmpApp("cli-app");
     const hookedPort = await getFreePort();
     writeAppFile(
@@ -152,7 +138,7 @@ describe.serial("dev HMR", () => {
       [
         'import { furin } from "@teyik0/furin";',
         'import Elysia from "elysia";',
-        'new Elysia().beforeHandle("global", () => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" })).listen(Number(process.env.PORT));',
+        'new Elysia().onBeforeHandle("global", () => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" })).listen(Number(process.env.PORT));',
       ].join("\n")
     );
     const hookedServer = startProcess(["bun", "--hot", join(hookedApp.path, "src/server.ts")], {
@@ -162,9 +148,6 @@ describe.serial("dev HMR", () => {
     try {
       const response = await waitForHttp(`http://localhost:${hookedPort}/_bun_hmr_entry`, {});
       expect(await response.text()).toContain("data-bun-dev-server-script");
-      expect(hookedServer.getStderr()).not.toContain(
-        "is an HTML bundle served natively, hooks do not run for it"
-      );
     } finally {
       hookedServer.kill();
       await hookedServer.exitCode;
@@ -172,7 +155,7 @@ describe.serial("dev HMR", () => {
     }
   }, 30_000);
 
-  test("native HMR entry stays quiet with inherited hooks and nested prefixes", async () => {
+  test("native HMR entry is served under a declared nested prefix with inherited hooks", async () => {
     const hookedApp = createTmpApp("cli-app");
     const hookedPort = await getFreePort();
     writeAppFile(
@@ -181,7 +164,7 @@ describe.serial("dev HMR", () => {
       [
         'import { furin } from "@teyik0/furin";',
         'import Elysia from "elysia";',
-        'new Elysia({ prefix: "/api" }).beforeHandle("global", () => {}).use(await furin({ pagesDir: import.meta.dir + "/pages", prefix: "/admin" })).listen(Number(process.env.PORT));',
+        'new Elysia().onBeforeHandle("global", () => {}).use(await furin({ pagesDir: import.meta.dir + "/pages", prefix: "/api/admin" })).listen(Number(process.env.PORT));',
       ].join("\n")
     );
     const hookedServer = startProcess(["bun", "--hot", join(hookedApp.path, "src/server.ts")], {
@@ -194,9 +177,6 @@ describe.serial("dev HMR", () => {
         {}
       );
       expect(await response.text()).toContain("data-bun-dev-server-script");
-      expect(hookedServer.getStderr()).not.toContain(
-        "is an HTML bundle served natively, hooks do not run for it"
-      );
     } finally {
       hookedServer.kill();
       await hookedServer.exitCode;
@@ -221,10 +201,9 @@ describe.serial("dev HMR", () => {
       "src/pages/index.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssg" })',
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssg" })',
         "  .page(() => <main>Updated via HMR</main>);",
       ].join("\n")
     );
@@ -254,10 +233,9 @@ describe.serial("dev HMR", () => {
       "src/pages/index.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssg" })',
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssg" })',
         "  .page(() => <main>Second edit works</main>);",
       ].join("\n")
     );
@@ -363,10 +341,9 @@ describe.serial("dev HMR", () => {
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { MobileNav } from "../../components/mobile-nav";',
-        'import { route as rootRoute } from "../root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/docs/_route")',
+        '  .config({ mode: "ssr" })',
         "  .layout(({ children }) => (",
         '    <section data-docs-layout="docs-v2">',
         "      <MobileNav />",
@@ -408,12 +385,11 @@ describe.serial("dev HMR", () => {
       "src/pages/index.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
         'const example = `import "./styles/globals.css"`;',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssr" })',
         "  .page(() => <main>{example}</main>);",
       ].join("\n")
     );

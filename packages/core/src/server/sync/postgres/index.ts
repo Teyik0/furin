@@ -14,6 +14,7 @@ import type {
   SyncNotifier,
   SyncSubscription,
 } from "../adapter.ts";
+import { journalChange, principalHash, registerPrincipalJournal } from "../principal-journal.ts";
 import type { SyncSql, SyncSqlQuery } from "./sql.ts";
 
 const CHANGE_RETENTION = 1000;
@@ -47,6 +48,7 @@ interface CursorRow {
 interface ChangeRow {
   cursor: string | number | bigint;
   invalidations: SyncInvalidation[];
+  principal_hash: string | null;
 }
 
 function notificationChannel(namespace: string): string {
@@ -93,6 +95,7 @@ export class PostgresSyncAdapter implements SyncAdapter {
     this.publishesNotifications = options.publishNotifications !== false;
     this.namespace = options.namespace;
     this.sql = options.sql;
+    registerPrincipalJournal(this);
   }
 
   beginMutation(input: BeginMutationInput): Promise<BeginMutationResult> {
@@ -204,40 +207,14 @@ export class PostgresSyncAdapter implements SyncAdapter {
         return { kind: "lost" } as const;
       }
 
-      let cursor: string | undefined;
-      if (input.invalidations.length > 0) {
-        await tx`
-          INSERT INTO furin_sync.streams (namespace, current_cursor, oldest_cursor)
-          VALUES (${this.namespace}, 0, 0)
-          ON CONFLICT (namespace) DO NOTHING
-        `;
-        const cursors = await tx<{ current_cursor: string | number | bigint }[]>`
-          UPDATE furin_sync.streams
-          SET current_cursor = current_cursor + 1
-          WHERE namespace = ${this.namespace}
-          RETURNING current_cursor
-        `;
-        cursor = String(cursors[0]?.current_cursor);
-        await tx`
-          INSERT INTO furin_sync.changes (namespace, cursor, invalidations)
-          VALUES (
-            ${this.namespace},
-            ${cursor},
-            ${JSON.stringify(input.invalidations)}::text::jsonb
-          )
-        `;
-        await tx`
-          WITH removed AS (
-            DELETE FROM furin_sync.changes
-            WHERE namespace = ${this.namespace}
-              AND cursor <= GREATEST(0, ${cursor}::bigint - ${CHANGE_RETENTION})
-            RETURNING cursor
-          )
-          UPDATE furin_sync.streams
-          SET oldest_cursor = COALESCE((SELECT MAX(cursor) + 1 FROM removed), oldest_cursor)
-          WHERE namespace = ${this.namespace}
-        `;
-      }
+      const cursor =
+        input.invalidations.length > 0
+          ? await this.appendChangeInTransaction(
+              tx,
+              input.invalidations,
+              principalHash(this, input.lease.principal)
+            )
+          : undefined;
 
       await tx`
         UPDATE furin_sync.mutations
@@ -256,6 +233,56 @@ export class PostgresSyncAdapter implements SyncAdapter {
       }
       return { cursor, kind: "committed" } as const;
     });
+  }
+
+  appendInvalidations(invalidations: readonly SyncInvalidation[]): Promise<string> {
+    return this.sql.begin(async (tx) => {
+      const cursor = await this.appendChangeInTransaction(tx, invalidations, null);
+      if (this.publishesNotifications) {
+        await tx.notify(this.notificationChannel, cursor);
+      }
+      return cursor;
+    });
+  }
+
+  private async appendChangeInTransaction(
+    tx: SyncSqlQuery,
+    invalidations: readonly SyncInvalidation[],
+    principal: string | null
+  ): Promise<string> {
+    await tx`
+      INSERT INTO furin_sync.streams (namespace, current_cursor, oldest_cursor)
+      VALUES (${this.namespace}, 0, 0)
+      ON CONFLICT (namespace) DO NOTHING
+    `;
+    const cursors = await tx<{ current_cursor: string | number | bigint }[]>`
+      UPDATE furin_sync.streams
+      SET current_cursor = current_cursor + 1
+      WHERE namespace = ${this.namespace}
+      RETURNING current_cursor
+    `;
+    const cursor = String(cursors[0]?.current_cursor);
+    await tx`
+      INSERT INTO furin_sync.changes (namespace, cursor, invalidations, principal_hash)
+      VALUES (
+        ${this.namespace},
+        ${cursor},
+        ${JSON.stringify(invalidations)}::text::jsonb,
+        ${principal}
+      )
+    `;
+    await tx`
+      WITH removed AS (
+        DELETE FROM furin_sync.changes
+        WHERE namespace = ${this.namespace}
+          AND cursor <= GREATEST(0, ${cursor}::bigint - ${CHANGE_RETENTION})
+        RETURNING cursor
+      )
+      UPDATE furin_sync.streams
+      SET oldest_cursor = COALESCE((SELECT MAX(cursor) + 1 FROM removed), oldest_cursor)
+      WHERE namespace = ${this.namespace}
+    `;
+    return cursor;
   }
 
   lockMutation(lease: MutationLease): Promise<boolean> {
@@ -315,7 +342,7 @@ export class PostgresSyncAdapter implements SyncAdapter {
       return { changes: [], cursor: currentCursor, hasMore: false, reset: true };
     }
     const rows = await this.sql<ChangeRow[]>`
-      SELECT cursor, invalidations
+      SELECT cursor, invalidations, principal_hash
       FROM furin_sync.changes
       WHERE namespace = ${this.namespace} AND cursor > ${input.after}::bigint
       ORDER BY cursor ASC
@@ -338,10 +365,15 @@ export class PostgresSyncAdapter implements SyncAdapter {
       };
     }
     const hasMore = rows.length > input.limit;
-    const changes: SyncChange[] = rows.slice(0, input.limit).map((row) => ({
-      cursor: String(row.cursor),
-      invalidations: row.invalidations,
-    }));
+    const changes: SyncChange[] = rows.slice(0, input.limit).map((row) =>
+      journalChange(
+        {
+          cursor: String(row.cursor),
+          invalidations: row.invalidations,
+        },
+        row.principal_hash
+      )
+    );
     return {
       changes,
       cursor: changes.at(-1)?.cursor ?? input.after,

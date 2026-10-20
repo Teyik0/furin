@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { migrateSqliteSync, sqliteSyncAdapter } from "../../../../src/server/sync/sqlite/index.ts";
 import { testSyncAdapterConformance } from "../../../helpers/sync-adapter-conformance.ts";
+import type { MigrationOutcome } from "./sqlite-migration.scenario.ts";
 
 const database = new Database(":memory:");
 migrateSqliteSync(database);
@@ -12,6 +13,7 @@ afterAll(() => database.close());
 afterEach(() => setSystemTime());
 let conformanceNamespace = 0;
 const succeededResponseCheckPattern = /furin_sync_mutations_succeeded_response_check/;
+const SHA256_HEX = /^[a-f0-9]{64}$/;
 
 testSyncAdapterConformance(() => {
   conformanceNamespace += 1;
@@ -33,6 +35,62 @@ test("declares empty-filename databases as process-local", () => {
     );
   } finally {
     emptyDatabase.close();
+  }
+});
+
+test("concurrent workers upgrade one legacy SQLite journal without startup errors", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "furin-sqlite-upgrade-"));
+  const file = join(directory, "sync.sqlite");
+  const legacy = new Database(file);
+  legacy.run("PRAGMA journal_mode=WAL");
+  migrateSqliteSync(legacy);
+  legacy.run("ALTER TABLE furin_sync_changes DROP COLUMN principal_hash");
+  legacy.close();
+  const barrier = new SharedArrayBuffer(4);
+  const state = new Int32Array(barrier);
+  const workers: Worker[] = [];
+  let ready = 0;
+  const count = 24;
+  try {
+    const outcomes = await Promise.all(
+      Array.from({ length: count }, () => {
+        const worker = new Worker(new URL("./sqlite-migration.scenario.ts", import.meta.url));
+        workers.push(worker);
+        return new Promise<MigrationOutcome>((resolve, reject) => {
+          worker.onmessage = (event: MessageEvent<MigrationOutcome>) => {
+            if (event.data.type === "ready") {
+              ready += 1;
+              if (ready === count) {
+                Atomics.store(state, 0, 1);
+                Atomics.notify(state, 0, count);
+              }
+            } else {
+              resolve(event.data);
+            }
+          };
+          worker.onerror = (event) => reject(event.error ?? new Error(event.message));
+          worker.postMessage({ barrier, file });
+        });
+      })
+    );
+    expect(outcomes).toEqual(Array.from({ length: count }, () => ({ type: "completed" })));
+    const reopened = new Database(file);
+    try {
+      expect(
+        reopened
+          .query<{ name: string }, []>("PRAGMA table_info(furin_sync_changes)")
+          .all()
+          .some((column) => column.name === "principal_hash")
+      ).toBe(true);
+      expect(() => migrateSqliteSync(reopened)).not.toThrow();
+    } finally {
+      reopened.close();
+    }
+  } finally {
+    for (const worker of workers) {
+      worker.terminate();
+    }
+    rmSync(directory, { recursive: true, force: true });
   }
 });
 
@@ -61,6 +119,23 @@ test("persists and replays a completed mutation", async () => {
       principal: "user",
     })
   ).toEqual({ kind: "replay", response });
+});
+
+test("stores mutation keys as digests instead of raw principals and idempotency keys", async () => {
+  const namespace = "hashed-keys";
+  const adapter = sqliteSyncAdapter({ database, namespace });
+  await adapter.beginMutation({
+    fingerprint: "body",
+    key: "POST:/cards:client-key-91c2",
+    principal: "alice@example.com",
+  });
+  const rows = database
+    .query<{ mutation_key: string }, [string]>(
+      "SELECT mutation_key FROM furin_sync_mutations WHERE namespace = ?"
+    )
+    .all(namespace);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.mutation_key).toMatch(SHA256_HEX);
 });
 
 test("rejects succeeded mutations without replay data", () => {

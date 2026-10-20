@@ -6,7 +6,7 @@ import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 // ── parseDeferredNdjson tests ────────────────────────────────────────────────
 //
 // parseDeferredNdjson(stream: ReadableStream<Uint8Array>):
-//   Promise<{ syncData: Record<string, unknown>; deferredPromises: Record<string, Promise<unknown>> }>
+//   Promise<{ syncData: RuntimeData; deferredPromises: Record<string, Promise<unknown>> }>
 //
 // Behaviour:
 // - Line 0: CrossJSON skeleton — contains syncData + placeholders for Promises
@@ -108,7 +108,7 @@ function toCrossJSONStream(value: unknown): ReadableStream<string> {
   return new ReadableStream<string>({
     async start(controller) {
       try {
-        const result = await toCrossJSONAsync(value as Record<string, unknown>);
+        const result = await toCrossJSONAsync(value);
         controller.enqueue(JSON.stringify(result));
         controller.close();
       } catch (e) {

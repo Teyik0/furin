@@ -1,22 +1,23 @@
 import { createElement } from "react";
 import { type DocumentAssets, FurinDocumentFallback } from "../../client/document.tsx";
+import { resolveRouteElement } from "../../client/route-element.tsx";
 import { normalizeHref, toLogical } from "../../client/router/link-utils.ts";
 import type { RouterContextValue } from "../../client/router/types.ts";
 import type { FurinSchema } from "../../shared/elysia-contract.ts";
 import { FurinNotFoundError } from "../../shared/not-found.ts";
+import { ROUTE_MATCHES_KEY, type SerializedRouteMatch } from "../../shared/route-matches.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
 import { getLogger } from "../context-logger.ts";
-import { currentInstance } from "../instance.ts";
+import { currentInstance, isDevelopment } from "../instance.ts";
 import { parseRouteQuery } from "../router/schemas.ts";
 import type { RootLayout } from "../router/types.ts";
-import { IS_DEV } from "../runtime-env.ts";
 import { useRequestCspNonce } from "../security/csp.ts";
 import { streamToString } from "./assemble.ts";
 import { withDocumentState } from "./document.tsx";
-import { buildNotFoundElement, wrapRootLayout } from "./element.tsx";
+import { buildNotFoundElement, SERVER_RESET_NOOP } from "./element.tsx";
+import { withSSRRouterContext } from "./prepare-render.ts";
 import { renderToReadableStream } from "./react-stream.ts";
 import { generateIndexHtml } from "./shell.ts";
-import { withSSRRouterContext } from "./ssr.ts";
 import {
   documentAssetsFromTemplate,
   getDevDocumentAssets,
@@ -27,6 +28,7 @@ import {
  * Renders the root-level not-found component into a complete 404 HTML Response.
  * Used by the Elysia `.error` catch-all when no route matches the request URL.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the catch-all resolves document assets, route context and a safe fallback for an unexecuted root loader.
 export async function renderRootNotFound(
   root: RootLayout,
   request: Request | undefined,
@@ -34,7 +36,7 @@ export async function renderRootNotFound(
 ): Promise<Response> {
   const productionAssets = getProductionDocumentAssets();
   let assets: DocumentAssets;
-  if (IS_DEV && listenerOrigin) {
+  if (isDevelopment() && listenerOrigin) {
     try {
       assets = await getDevDocumentAssets(listenerOrigin);
     } catch {
@@ -97,14 +99,36 @@ export async function renderRootNotFound(
     },
   });
 
-  const rootData = { params: {}, path: logicalPath, query };
-  const data = { ...rootData, __furinStatus: 404 };
+  // No page matched, so no loader ran. A root layout that needs loader data
+  // cannot render: the not-found then belongs to the root segment and renders
+  // inside the minimal document.
+  const failure: SerializedRouteMatch = {
+    error: { message: notFoundError.message },
+    status: "notFound",
+  };
+  const data = {
+    params: {},
+    path: logicalPath,
+    query,
+    [ROUTE_MATCHES_KEY]:
+      root.route.loader || root.route.requestLoader
+        ? [failure]
+        : [{ fields: {}, status: "success" }, failure],
+  };
   let reactStream: Awaited<ReturnType<typeof renderToReadableStream>>;
   try {
     reactStream = await renderToReadableStream(
       withDocumentState(
         withSSRRouterContext(
-          wrapRootLayout(buildNotFoundElement(root.notFound, notFoundError), rootData, root.route),
+          resolveRouteElement({
+            boundaries: [{ depth: 0, error: root.error, notFound: root.notFound }],
+            boundaryOptions: undefined,
+            chain: [root.route],
+            data,
+            page: undefined,
+            reset: SERVER_RESET_NOOP,
+            rootBoundary: root,
+          }),
           notFoundContext
         ),
         assets,

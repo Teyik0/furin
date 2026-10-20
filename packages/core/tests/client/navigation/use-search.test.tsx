@@ -78,6 +78,28 @@ async function renderWithRouter(
 describe("useSearch", () => {
   useDomTests();
 
+  test("object selections remain stable while search changes are delivered", async () => {
+    function Page() {
+      const [search] = useSearch("/products", (value) => ({ page: value.page }));
+      return createElement("output", null, String(search.page));
+    }
+    const context = makeRouterContext({ currentHref: "/products?page=1", search: { page: 1 } });
+    const view = await renderWithRouter(createElement(Page), context);
+    try {
+      expect(view.container.textContent).toBe("1");
+      await act(() => {
+        view.searchStore.setSnapshot({
+          ...searchSnapshotFromRouterContext(context),
+          search: { page: 2 },
+        });
+        view.searchStore.flush();
+      });
+      expect(view.container.textContent).toBe("2");
+    } finally {
+      await view.cleanup();
+    }
+  });
+
   test("keeps the matching root fallback usable without a router provider", () => {
     function Page() {
       const [search] = useSearch("/");
@@ -125,7 +147,7 @@ describe("useSearch", () => {
 
   test("reads search for a named dynamic route", () => {
     function Page(): React.ReactElement {
-      const [search] = useSearch("/products/:productId");
+      const [search] = useSearch("/products/:productId" as string);
       return createElement("output", null, String(search.page));
     }
 
@@ -230,7 +252,7 @@ describe("useNavigate", () => {
     function Page(): React.ReactElement {
       const go = useNavigate();
       useEffect(() => {
-        go({ params: { boardId: 42 }, to: "/elysia-boards/:boardId" });
+        go({ params: { boardId: 42 }, search: { page: 2 }, to: "/elysia-boards/:boardId" });
       }, [go]);
       return createElement("output");
     }
@@ -241,7 +263,7 @@ describe("useNavigate", () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(navigate).toHaveBeenCalledWith("/elysia-boards/42", undefined);
+      expect(navigate).toHaveBeenCalledWith("/elysia-boards/42?page=2", undefined);
     } finally {
       await rendered.cleanup();
     }
@@ -288,7 +310,7 @@ describe("useNavigate", () => {
     function Page(): React.ReactElement {
       const go = useNavigate();
       useEffect(() => {
-        go({ replace: true, resetScroll: false, to: "/products" });
+        go({ replace: true, resetScroll: false, search: { page: 2 }, to: "/products" });
       }, [go]);
       return createElement("output");
     }
@@ -299,7 +321,7 @@ describe("useNavigate", () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(navigate).toHaveBeenCalledWith("/products", {
+      expect(navigate).toHaveBeenCalledWith("/products?page=2", {
         replace: true,
         resetScroll: false,
       });

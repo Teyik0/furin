@@ -41,10 +41,9 @@ function createPreloadApp(): TmpApp {
       'import { defineRoute } from "@teyik0/furin";',
       'import { clientModule, preloadClientModule } from "@teyik0/furin/client";',
       'import { a } from "../lib/a";',
-      'import { route as rootRoute } from "./root";',
       'export const scene = clientModule(() => import("../lib/scene"));',
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssg" })',
+      "export const route = defineRoute(\"/\")",
+      '  .config({ mode: "ssg" })',
       "  .page(() => {",
       "    preloadClientModule(scene);",
       "    return <main>INDEX_MARKER {a()}</main>;",
@@ -59,9 +58,8 @@ function createPreloadApp(): TmpApp {
       'import { t } from "elysia";',
       'import { a } from "../../lib/a";',
       'import { deep } from "../../lib/deep";',
-      'import { route as rootRoute } from "../root";',
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssg", params: t.Object({ slug: t.String() }) })',
+      "export const route = defineRoute(\"/blog/[slug]\")",
+      '  .config({ mode: "ssg", params: t.Object({ slug: t.String() }) })',
       "  .page(() => <article>{a()}</article>);",
     ].join("\n")
   );
@@ -71,9 +69,8 @@ function createPreloadApp(): TmpApp {
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { deep } from "../lib/deep";',
-      'import { route as rootRoute } from "./root";',
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssg" })',
+      "export const route = defineRoute(\"/about\")",
+      '  .config({ mode: "ssg" })',
       "  .page(() => <main>{deep()}</main>);",
     ].join("\n")
   );

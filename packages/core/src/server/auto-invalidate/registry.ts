@@ -1,4 +1,4 @@
-import { type FurinInstance, instanceSlot } from "../instance.ts";
+import { currentInstance, type FurinInstance, instanceSlot } from "../instance.ts";
 
 export class AutoInvalidateRegistry {
   private readonly pathToTags = new Map<string, Set<string>>();
@@ -94,7 +94,7 @@ const instanceAutoInvalidateRegistry = instanceSlot(() => new AutoInvalidateRegi
 
 /** The current furin instance's registry (see server/instance.ts). */
 export function getAutoInvalidateRegistry(instance?: FurinInstance): AutoInvalidateRegistry {
-  return instanceAutoInvalidateRegistry(instance);
+  return instanceAutoInvalidateRegistry(instance ?? currentInstance());
 }
 
 /**
@@ -105,10 +105,10 @@ export const autoInvalidateRegistry: Pick<
   AutoInvalidateRegistry,
   "registerLoaderTags" | "pathsForTags" | "unregisterPath" | "reset"
 > = {
-  pathsForTags: (tags) => instanceAutoInvalidateRegistry().pathsForTags(tags),
+  pathsForTags: (tags) => instanceAutoInvalidateRegistry(currentInstance()).pathsForTags(tags),
   registerLoaderTags: (urlPath, tags, owner) =>
-    instanceAutoInvalidateRegistry().registerLoaderTags(urlPath, tags, owner),
-  reset: () => instanceAutoInvalidateRegistry().reset(),
+    instanceAutoInvalidateRegistry(currentInstance()).registerLoaderTags(urlPath, tags, owner),
+  reset: () => instanceAutoInvalidateRegistry(currentInstance()).reset(),
   unregisterPath: (urlPath, owner) =>
-    instanceAutoInvalidateRegistry().unregisterPath(urlPath, owner),
+    instanceAutoInvalidateRegistry(currentInstance()).unregisterPath(urlPath, owner),
 };

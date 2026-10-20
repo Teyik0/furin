@@ -14,7 +14,7 @@ import { currentInstance } from "../instance.ts";
 import { resolveDocumentMode } from "../router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { resolvePath } from "./assemble.ts";
-import { renderForPath } from "./ssr.ts";
+import { renderForPath } from "./buffered-render.ts";
 import { hasStaticParams, resolveStaticParams } from "./static-params.ts";
 
 export async function prerenderRoute(
@@ -248,7 +248,13 @@ export async function prerenderRuntimeSSG(
  * Centralises the repeated `createLogger → set → error → emit` dance so every
  * failure path stays consistent.
  */
-function logSsgError(furin: Record<string, unknown>, error: unknown): void {
+interface SsgFailureLog {
+  action: "prerender_failed" | "warmup_failed";
+  render: "ssg";
+  route: string;
+}
+
+function logSsgError(furin: SsgFailureLog, error: unknown): void {
   const logger = createLogger({});
   logger.set({ furin });
   logger.error(error instanceof Error ? error : new Error(String(error)));
@@ -306,13 +312,6 @@ export async function warmSSGCache(
       continue;
     }
     const { route, paramSets } = result;
-    if (!Array.isArray(paramSets)) {
-      logSsgError(
-        { action: "warmup_failed", render: "ssg", route: route.pattern },
-        new Error(`staticParams() for "${route.pattern}" returned a non-array value`)
-      );
-      continue;
-    }
     for (const params of paramSets) {
       tasks.push(async () => {
         try {
@@ -331,15 +330,5 @@ export async function warmSSGCache(
     }
   }
 
-  if (tasks.length === 0) {
-    return;
-  }
-
-  const queue = [...tasks];
-  const workers = Array.from({ length: Math.min(SSG_WARM_CONCURRENCY, tasks.length) }, async () => {
-    while (queue.length > 0) {
-      await queue.shift()?.();
-    }
-  });
-  await Promise.all(workers);
+  await mapWithConcurrency(tasks, SSG_WARM_CONCURRENCY, (task) => task());
 }

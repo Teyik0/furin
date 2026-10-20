@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { generateCompileEntry } from "../../../src/build/compile-entry";
 import { createTmpApp, removeAppPath } from "../../support/app-fixtures";
-import { getTestPort, waitForHttp } from "../../support/http";
+import { getFreePort } from "../../support/hmr.ts";
+import { waitForHttp } from "../../support/http";
 import { runCli, startProcess } from "../../support/process";
 
 const tmpApps: Array<{ cleanup: () => void }> = [];
@@ -88,7 +89,7 @@ export default app;
       expect(existsSync(join(targetDir, file))).toBe(false);
     }
 
-    const port = getTestPort();
+    const port = await getFreePort();
     const server = startProcess([serverBin], {
       cwd: app.path,
       env: { PORT: String(port) },
@@ -147,20 +148,16 @@ export default app;
     20_000,
   );
 
-  test("CLI build --compile=embed writes a single server binary", async () => {
+  // The mode itself is covered by the full embed build above; only check that the
+  // --compile=<mode> spelling reaches mode validation, without a second compile.
+  test("CLI build parses the --compile=<mode> spelling", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
 
-    const result = await runCli(["build", "--compile=embed"], { cwd: app.path });
+    const result = await runCli(["build", "--compile=invalid"], { cwd: app.path });
 
-    expect(result.exitCode).toBe(0);
-    const targetDir = join(app.path, ".furin/build/bun");
-    const serverBin = existsSync(join(targetDir, "server"))
-      ? join(targetDir, "server")
-      : join(targetDir, "server.exe");
-
-    expect(existsSync(serverBin)).toBe(true);
-    expect(existsSync(join(targetDir, "client"))).toBe(false);
-  }, 20_000);
+    expect(result.exitCode).toBeGreaterThan(0);
+    expect(result.stderr + result.stdout).toContain('Invalid compile mode "invalid"');
+  });
 
   test("CLI build rejects unknown flags", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));

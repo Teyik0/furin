@@ -1,5 +1,4 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: HTTP readiness helper must wait between fetch attempts
-let _testPortCounter = 10_000 + (process.pid % 18_000);
 
 export async function waitForHttp(
   url: string,
@@ -35,9 +34,4 @@ export async function waitForHttp(
 
     await Bun.sleep(intervalMs);
   }
-}
-
-export function getTestPort(): number {
-  _testPortCounter += 1;
-  return _testPortCounter;
 }

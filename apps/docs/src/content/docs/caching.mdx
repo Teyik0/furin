@@ -37,9 +37,9 @@ SSG and ISR responses also expose `Cache-Tag` with the concrete resolved path. T
 For `mode: "isr"`, `revalidate` is seconds:
 
 ```tsx
-export const route = defineRoute()
+// src/pages/blog/index.tsx
+export const route = defineRoute("/blog")
   .config({
-    layout: rootRoute,
     mode: "isr",
     revalidate: 60,
     tags: ["posts"],
@@ -54,7 +54,7 @@ export const route = defineRoute()
 4. Other stale hits reuse the same in-flight regeneration, including hits handled by another replica when the page cache is shared.
 5. Success replaces the entry atomically; failure retains the last good entry.
 
-ISR cache keys include the request search string. Avoid query-dependent SSG output: SSG entries are keyed by concrete pathname.
+ISR and PPR cache keys include the query as the route's `query` schema decodes it, serialized like a `Link` URL: undeclared params are dropped, schema defaults are omitted and params are sorted, so `?page=01`, `?page=1&utm_source=x` and `?page=1` share one entry. Invalid queries are rejected before rendering and never cached. Routes without a query schema are keyed on the pathname alone. Avoid query-dependent SSG output: SSG entries are keyed by concrete pathname.
 
 ## Runtime Data Cache
 
@@ -81,6 +81,8 @@ The application API stays the same on every target:
 - future deployment adapters can install their own provider without changing application imports.
 
 Cache handles resolve the active provider when an operation runs, not when the module is imported. This guarantees that top-level handles created by statically imported route modules still use the deployment provider.
+
+The memory provider retains up to 1,000 values across namespaces and evicts the least recently used value when full. Empty namespaces are released; existing handles remain valid after eviction.
 
 The runtime data cache is intentionally separate from the page cache. Page artifacts need conditional writes and distributed regeneration leases so a render that started before an invalidation cannot publish stale HTML afterward.
 
@@ -148,9 +150,9 @@ The adapter is the source of truth; Redis Pub/Sub is not required. Notifications
 Routes continue to declare their mode, revalidation window, and tags:
 
 ```tsx
-export const route = defineRoute()
+// src/pages/blog/index.tsx
+export const route = defineRoute("/blog")
   .config({
-    layout: rootRoute,
     mode: "isr",
     revalidate: 60,
     tags: ["posts"],
@@ -172,7 +174,7 @@ await revalidatePath("/blog", "layout");
 
 `page` evicts the exact pathname and all of its query variants. `layout` evicts the path and its descendants. The promise resolves after origin invalidation is committed, returns whether an origin entry was affected, queues an `X-Furin-Revalidate` signal for the current response, and invokes the configured CDN purger asynchronously.
 
-Manual invalidation is asynchronous because a shared adapter must durably advance its invalidation version before the mutation is considered complete. Always await it in application code. Declarative invalidation through `furinInvalidate()` or Furin Sync already performs this wait for you.
+Manual invalidation is asynchronous because a shared adapter must durably advance its invalidation version before the mutation is considered complete. Always await it in application code. The handler `invalidate()` of `furinInvalidate()` or Furin Sync already performs this wait for you.
 
 Logical paths are unprefixed. `revalidatePath()` intentionally checks every mounted Furin instance; physical CDN purge paths include each instance prefix.
 
@@ -182,7 +184,6 @@ Declare data dependencies in route config:
 
 ```tsx
 .config({
-  layout: rootRoute,
   mode: "isr",
   revalidate: 300,
   tags: ["posts", "homepage"],
@@ -202,7 +203,7 @@ Tag invalidation spans mounted instances but evicts only paths registered by eac
 
 Prefer tags when a mutation changes shared data used by several pages. Prefer paths when the changed URL is already known. This keeps invalidation precise instead of clearing the entire route cache.
 
-For an Elysia mutation, declarative invalidation is the shortest path:
+For an Elysia mutation, the handler's `invalidate()` is the shortest path:
 
 ```ts
 import { furinInvalidate } from "@teyik0/furin";
@@ -210,11 +211,10 @@ import { Elysia } from "elysia";
 
 export const postsApi = new Elysia({ prefix: "/api/posts" })
   .use(furinInvalidate())
-  .post(
-    "/",
-    { invalidate: { tags: ["posts"] } },
-    ({ body }) => db.posts.create(body)
-  );
+  .post("/", ({ body, invalidate }) => {
+    invalidate({ tags: ["posts"] });
+    return db.posts.create(body);
+  });
 ```
 
 The mutation response is not completed until origin invalidation succeeds. It also carries `X-Furin-Revalidate` for the initiating browser.
@@ -233,17 +233,31 @@ For other tabs and devices, configure [Sync & Invalidations](/docs/sync). Sync d
 
 ## CDN Purging
 
-Register one process-wide callback at server startup when a CDN needs explicit invalidation:
+Pass a purge callback to each `furin()` mount whose pages sit behind a CDN that needs explicit invalidation:
 
 ```ts
-import { setCachePurger } from "@teyik0/furin";
-
-setCachePurger(async (paths) => {
-  await cdn.purge(paths);
+await furin({
+  pagesDir: "./src/pages",
+  cachePurger: async (paths) => {
+    await cdn.purge(paths);
+  },
 });
 ```
 
-Furin batches and deduplicates physical paths for an invalidation call. The callback is fire-and-forget; a rejection is written to the structured logger and does not fail the mutation response.
+Each callback receives only the physical (prefixed) paths of its own mount. `setCachePurger(callback)` from `@teyik0/furin` registers a process-wide fallback for mounts without their own `cachePurger`. Furin batches and deduplicates physical paths per callback for an invalidation call. The callback is fire-and-forget; a rejection is written to the structured logger and does not fail the mutation response.
+
+CDNs with surrogate-key purging can also receive the semantic tags passed to `revalidateTag()`:
+
+```ts
+await furin({
+  pagesDir: "./src/pages",
+  cacheTagPurger: async (tags) => {
+    await cdn.purgeTags(tags);
+  },
+});
+```
+
+`revalidateTag()` invalidates tags across every mounted instance, so each instance's `cacheTagPurger` receives the whole tag list. Instances sharing one callback receive a single deduplicated call. Without a `cacheTagPurger`, a mount uses the tag purger installed by its deployment adapter (Vercel purges its native cache tags), if any. Like `cachePurger`, the callback is fire-and-forget and a rejection is only logged.
 
 An origin cache and a CDN cache must both be coherent. In a multi-replica Bun deployment, configure the shared page cache in addition to CDN purging. Purging only the CDN can allow another origin replica with a local cache to repopulate it with stale HTML.
 

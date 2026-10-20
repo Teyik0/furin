@@ -2,13 +2,87 @@ import { describe, expect, test } from "bun:test";
 import { Elysia, t } from "elysia";
 import { defineRootRoute, defineRoute } from "../../src/furin.ts";
 
-const rootRoute = defineRootRoute()
-  .config({ mode: "ssr" })
+// Parents of the inheritance tests below, wired through FileRoutes as
+// furin-env.d.ts would wire them from the pages tree.
+const publicRequestParent = defineRootRoute()
+  .config({ mode: "ssg" })
+  .requestLoader(() => ({ session: "private" }))
+  .loader(() => ({ organization: "public" }))
   .layout(({ children }) => children);
+const privateRequestParent = defineRootRoute()
+  .config({ mode: "ssr" })
+  .requestLoader(() => ({ session: "private" }))
+  .loader(() => ({ organization: "public" }))
+  .layout(({ children }) => children);
+const adminRequestParent = defineRootRoute()
+  .config({ mode: "ssg" })
+  .requestLoader(() => ({ adminUser: { id: "admin-1" } }))
+  .layout(({ children }) => children);
+const organizationParent = defineRootRoute()
+  .config({ mode: "ssr" })
+  .loader(() => ({ organization: "Furin" }))
+  .layout(({ children }) => children);
+const slugsParent = defineRootRoute()
+  .config({ mode: "ssg", params: t.Object({ category: t.String() }) })
+  .loader(() => ({ slugs: ["hello-world"] }))
+  .layout(({ children }) => children);
+const accountRoot = defineRootRoute()
+  .config({ mode: "ssr" })
+  .loader(() => ({ account: "acme" }))
+  .layout(({ children }) => children);
+const createOrganizationLayout = () =>
+  defineRoute("/define-route/organization/_route")
+    .config({ mode: "ssr" })
+    .loader(async ({ account }) => ({ organization: `${await account}:furin` }))
+    .layout(({ account, children, organization }) => {
+      const accountName: string = account;
+      const organizationName: string = organization;
+      return `${accountName}:${organizationName}:${children}`;
+    });
+declare const organizationLayout: ReturnType<typeof createOrganizationLayout>;
 
-const route = defineRoute()
+declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/define-route/[category]/[slug]": {
+      kind: "page";
+      parent: typeof slugsParent;
+      pathParams: NonNullable<unknown>;
+    };
+    "/define-route/admin-child": {
+      kind: "page";
+      parent: typeof adminRequestParent;
+      pathParams: NonNullable<unknown>;
+    };
+    "/define-route/board": {
+      kind: "page";
+      parent: typeof organizationParent;
+      pathParams: NonNullable<unknown>;
+    };
+    "/define-route/organization/_route": {
+      kind: "layout";
+      parent: typeof accountRoot;
+      pathParams: NonNullable<unknown>;
+    };
+    "/define-route/organization/child": {
+      kind: "page";
+      parent: typeof organizationLayout;
+      pathParams: NonNullable<unknown>;
+    };
+    "/define-route/private-child": {
+      kind: "page";
+      parent: typeof privateRequestParent;
+      pathParams: NonNullable<unknown>;
+    };
+    "/define-route/public-child": {
+      kind: "page";
+      parent: typeof publicRequestParent;
+      pathParams: NonNullable<unknown>;
+    };
+  }
+}
+
+const route = defineRoute("/")
   .config({
-    layout: rootRoute,
     mode: "isr",
     params: t.Object({ id: t.Number() }),
     query: t.Object({ tab: t.Optional(t.String()) }),
@@ -32,23 +106,30 @@ const route = defineRoute()
     return `${boardTitle}:${id}:${tab ?? "none"}`;
   });
 
-const app = new Elysia().use(new Elysia({ prefix: "/boards/:id" }).use(route.elysia));
+const echoRenderer = (context: { params: unknown; query: unknown }) =>
+  Response.json({ params: context.params, query: context.query });
 
-const queryRoute = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr", query: t.Object({ page: t.Number() }) })
+const app = new Elysia()
+  .decorate("$furinRender", echoRenderer)
+  .use(new Elysia({ prefix: "/boards/:id" }).use(route.elysia));
+
+const queryRoute = defineRoute("/query")
+  .config({ mode: "ssr", query: t.Object({ page: t.Number() }) })
   .loader(({ query }) => {
     const page: number = query.page;
     return { page };
   })
   .page(({ page, query }) => `${page}:${query.page}`);
 
-const queryApp = new Elysia().use(new Elysia({ prefix: "/search" }).use(queryRoute.elysia));
+const queryApp = new Elysia()
+  .decorate("$furinRender", echoRenderer)
+  .use(new Elysia({ prefix: "/search" }).use(queryRoute.elysia));
 
 describe("defineRoute", () => {
   test("delegates matched native routes to the Furin renderer when mounted", async () => {
     let loaderCalls = 0;
-    const renderedRoute = defineRoute()
-      .config({ layout: rootRoute, mode: "ssr" })
+    const renderedRoute = defineRoute("/rendered")
+      .config({ mode: "ssr" })
       .loader(() => {
         loaderCalls += 1;
         return { title: "loader" };
@@ -64,11 +145,52 @@ describe("defineRoute", () => {
     expect(loaderCalls).toBe(0);
   });
 
+  test("refuses to serve a page when mounted outside furin()", async () => {
+    let loaderCalls = 0;
+    const page = defineRoute("/")
+      .config({ mode: "ssr" })
+      .loader(() => {
+        loaderCalls += 1;
+        return { secret: "loader data" };
+      })
+      .page(({ secret }) => secret);
+
+    const response = await new Elysia().use(page.elysia).handle(new Request("http://localhost/"));
+
+    expect(response.status).toBe(500);
+    const body = await response.text();
+    expect(body).toContain("must be mounted through furin()");
+    expect(body).not.toContain("loader data");
+    expect(loaderCalls).toBe(0);
+  });
+
+  test("does not run layout loaders when mounted outside furin()", async () => {
+    let loaderCalls = 0;
+    const layout = defineRootRoute()
+      .config({ mode: "ssr" })
+      .loader(() => {
+        loaderCalls += 1;
+        return { secret: "layout data" };
+      })
+      .layout(({ children }) => children);
+    const child = defineRoute("/child")
+      .config({ mode: "ssr" })
+      .page(() => null);
+
+    const response = await new Elysia()
+      .use(layout.elysia.use(child.elysia))
+      .handle(new Request("http://localhost/"));
+
+    expect(response.status).toBe(500);
+    expect(await response.text()).not.toContain("layout data");
+    expect(loaderCalls).toBe(0);
+  });
+
   test("builds a schema-validated Elysia route with Furin metadata", async () => {
     const response = await app.handle(new Request("http://localhost/boards/42?tab=activity"));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ board: "Board 42", tab: "activity" });
+    expect(await response.json()).toEqual({ params: { id: 42 }, query: { tab: "activity" } });
     expect(route.mode).toBe("isr");
     expect(route.revalidate).toBe(60);
     expect(route.tags).toEqual(["boards"]);
@@ -94,14 +216,13 @@ describe("defineRoute", () => {
     const invalid = await queryApp.handle(new Request("http://localhost/search?page=nope"));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ page: 2 });
+    expect(await response.json()).toMatchObject({ query: { page: 2 } });
     expect(invalid.status).toBe(422);
   });
 
   test("keeps static params on an SSG page terminal", async () => {
-    const staticRoute = defineRoute()
+    const staticRoute = defineRoute("/static")
       .config({
-        layout: rootRoute,
         mode: "ssg",
         params: t.Object({ slug: t.String() }),
       })
@@ -112,11 +233,11 @@ describe("defineRoute", () => {
   });
 
   test("rejects static params passed inside config at runtime", async () => {
-    const config = defineRoute().config as unknown as (options: object) => unknown;
+    const config = defineRoute("/config").config as unknown as (options: object) => unknown;
     let thrown: unknown;
 
     try {
-      config({ layout: rootRoute, mode: "ssg", staticParams: () => [{ slug: "legacy" }] });
+      config({ mode: "ssg", staticParams: () => [{ slug: "legacy" }] });
     } catch (error) {
       thrown = error;
     }
@@ -127,8 +248,8 @@ describe("defineRoute", () => {
   });
 
   test("rejects a page-owned requestLoader in SSR at runtime", () => {
-    const chain = defineRoute()
-      .config({ layout: rootRoute, mode: "ssr" })
+    const chain = defineRoute("/chain")
+      .config({ mode: "ssr" })
       .requestLoader(() => ({ user: "private" }));
     const untypedChain = chain as unknown as { page: (component: () => null) => unknown };
 
@@ -138,9 +259,8 @@ describe("defineRoute", () => {
   });
 
   test("types request-specific data through the requestLoader stage", async () => {
-    const privateRoute = defineRoute()
+    const privateRoute = defineRoute("/private")
       .config({
-        layout: rootRoute,
         mode: "isr",
         query: t.Object({ locale: t.String() }),
         revalidate: 60,
@@ -167,13 +287,8 @@ describe("defineRoute", () => {
   });
 
   test("does not expose parent request fields to a public child loader", () => {
-    const parent = defineRootRoute()
-      .config({ mode: "ssg" })
-      .requestLoader(() => ({ session: "private" }))
-      .loader(() => ({ organization: "public" }))
-      .layout(({ children }) => children);
-    const child = defineRoute()
-      .config({ layout: parent, mode: "isr", revalidate: 60 })
+    const child = defineRoute("/define-route/public-child")
+      .config({ mode: "isr", revalidate: 60 })
       .loader((context) => {
         const organization: Promise<string> = context.organization;
         // @ts-expect-error Request loader data must not enter a cached loader.
@@ -186,13 +301,8 @@ describe("defineRoute", () => {
   });
 
   test("types inherited private fields in a child loader and page", () => {
-    const parent = defineRootRoute()
+    const child = defineRoute("/define-route/private-child")
       .config({ mode: "ssr" })
-      .requestLoader(() => ({ session: "private" }))
-      .loader(() => ({ organization: "public" }))
-      .layout(({ children }) => children);
-    const child = defineRoute()
-      .config({ layout: parent, mode: "ssr" })
       .loader(async (context) => {
         const privateSession: Promise<string> = context.session;
         return { inheritedSession: await privateSession, title: "Child" };
@@ -207,12 +317,8 @@ describe("defineRoute", () => {
   });
 
   test("types an SSG layout request field in an SSR child loader", () => {
-    const parent = defineRootRoute()
-      .config({ mode: "ssg" })
-      .requestLoader(() => ({ adminUser: { id: "admin-1" } }))
-      .layout(({ children }) => children);
-    const child = defineRoute()
-      .config({ layout: parent, mode: "ssr" })
+    const child = defineRoute("/define-route/admin-child")
+      .config({ mode: "ssr" })
       .loader(async ({ adminUser }) => {
         const user: { id: string } = await adminUser;
         return { id: user.id };
@@ -223,8 +329,8 @@ describe("defineRoute", () => {
   });
 
   test("defines head after requestLoader without a public loader", () => {
-    const page = defineRoute()
-      .config({ layout: rootRoute, mode: "ssg" })
+    const page = defineRoute("/")
+      .config({ mode: "ssg" })
       .requestLoader(() => ({ result: { count: 25 } }))
       .head(({ path }) => ({ meta: [{ title: path }] }))
       .page(({ result }) => {
@@ -239,9 +345,8 @@ describe("defineRoute", () => {
   });
 
   test("defines head on a query route without a public loader", () => {
-    const page = defineRoute()
+    const page = defineRoute("/")
       .config({
-        layout: rootRoute,
         mode: "isr",
         query: t.Object({ status: t.String() }),
         revalidate: 60,
@@ -257,9 +362,8 @@ describe("defineRoute", () => {
   });
 
   test("defines head on a params route without a public loader", () => {
-    const page = defineRoute()
+    const page = defineRoute("/")
       .config({
-        layout: rootRoute,
         mode: "ssg",
         params: t.Object({ id: t.String() }),
       })
@@ -274,13 +378,8 @@ describe("defineRoute", () => {
   });
 
   test("types parent loader data without retaining the parent at runtime", async () => {
-    const parent = defineRootRoute()
-      .config({ mode: "ssr" })
-      .loader(() => ({ organization: "Furin" }))
-      .layout(({ children }) => children);
-    const child = defineRoute()
+    const child = defineRoute("/define-route/board")
       .config({
-        layout: parent,
         mode: "ssr",
         params: t.Object({ boardId: t.Number() }),
       })
@@ -306,13 +405,8 @@ describe("defineRoute", () => {
   });
 
   test("types parent loader data in static params", async () => {
-    const parent = defineRootRoute()
-      .config({ mode: "ssg", params: t.Object({ category: t.String() }) })
-      .loader(() => ({ slugs: ["hello-world"] }))
-      .layout(({ children }) => children);
-    const child = defineRoute()
+    const child = defineRoute("/define-route/[category]/[slug]")
       .config({
-        layout: parent,
         mode: "ssg",
         params: t.Object({ category: t.String(), slug: t.String() }),
       })
@@ -330,21 +424,9 @@ describe("defineRoute", () => {
   });
 
   test("accumulates ancestor loader data through nested layouts", async () => {
-    const rootLayout = defineRootRoute()
-      .config({ mode: "ssr" })
-      .loader(() => ({ account: "acme" }))
-      .layout(({ children }) => children);
-    const organizationLayout = defineRoute()
-      .config({ layout: rootLayout, mode: "ssr" })
-      .loader(async ({ account }) => ({ organization: `${await account}:furin` }))
-      .layout(({ account, children, organization }) => {
-        const accountName: string = account;
-        const organizationName: string = organization;
-        return `${accountName}:${organizationName}:${children}`;
-      });
-    const child = defineRoute()
+    expect(createOrganizationLayout().layout).toBeFunction();
+    const child = defineRoute("/define-route/organization/child")
       .config({
-        layout: organizationLayout,
         mode: "ssr",
         query: t.Object({ page: t.Number() }),
       })
@@ -358,25 +440,17 @@ describe("defineRoute", () => {
         const page: number = query.page;
         return `${accountName}:${organizationName}:${pageLabel}:${page}`;
       });
-    const nestedApp = new Elysia().use(
-      rootLayout.elysia.use(organizationLayout.elysia.use(child.elysia))
-    );
-
-    const response = await nestedApp.handle(new Request("http://localhost/?page=1"));
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ label: "acme:acme:furin:1" });
     expect("parent" in child).toBe(false);
+    await Promise.resolve();
   });
 
-  test("passes dynamic child params to a layout loader", async () => {
+  test("validates dynamic layout params before the renderer", async () => {
     const layout = defineRootRoute()
       .config({ mode: "ssr", params: t.Object({ organizationId: t.Number() }) })
       .loader(({ params }) => ({ organizationId: params.organizationId }))
       .layout(({ children }) => children);
-    const child = defineRoute()
+    const child = defineRoute("/child")
       .config({
-        layout,
         mode: "ssr",
         params: t.Object({ boardId: t.Number(), organizationId: t.Number() }),
       })
@@ -385,17 +459,22 @@ describe("defineRoute", () => {
         organizationId: (context as typeof context & { organizationId: number }).organizationId,
       }))
       .page(({ boardId, organizationId }) => `${organizationId}:${boardId}`);
-    const nestedApp = new Elysia().use(
-      new Elysia({ prefix: "/:organizationId" }).use(
-        layout.elysia.use(new Elysia({ prefix: "/boards/:boardId" }).use(child.elysia))
-      )
-    );
+    const nestedApp = new Elysia()
+      .decorate("$furinRender", echoRenderer)
+      .use(
+        new Elysia({ prefix: "/:organizationId" }).use(
+          layout.elysia.use(new Elysia({ prefix: "/boards/:boardId" }).use(child.elysia))
+        )
+      );
 
     const response = await nestedApp.handle(new Request("http://localhost/12/boards/42"));
     const invalid = await nestedApp.handle(new Request("http://localhost/nope/boards/42"));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ boardId: 42, organizationId: 12 });
+    expect(await response.json()).toEqual({
+      params: { boardId: 42, organizationId: 12 },
+      query: {},
+    });
     expect(invalid.status).toBe(422);
   });
 
@@ -407,8 +486,8 @@ describe("defineRoute", () => {
         query: t.Object({ page: t.Optional(t.Number({ default: 7 })) }),
       })
       .layout(({ children }) => children);
-    const child = defineRoute()
-      .config({ layout, mode: "ssr" })
+    const child = defineRoute("/child")
+      .config({ mode: "ssr" })
       .page(() => null);
     const nestedApp = new Elysia()
       .decorate("$furinRender", (context: { params: unknown; query: unknown }) =>

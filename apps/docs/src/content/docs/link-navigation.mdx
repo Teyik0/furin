@@ -18,15 +18,28 @@ import { Link } from "@teyik0/furin/link";
 </Link>;
 ```
 
-Generated route patterns autocomplete in `to`; dynamic patterns require their typed `params`. Concrete URLs remain supported. Values are validated again by the destination route's TypeBox schemas on the server.
+Generated route patterns autocomplete in `to`; dynamic patterns require their typed `params`. Concrete paths such as `/blog/hello-furin` are accepted when they match a route pattern, and static routes take precedence over dynamic siblings. Values are validated again by the destination route's TypeBox schemas on the server.
+
+### Destination checking
+
+Once `furin-env.d.ts` is generated, `<Link to>`, `navigate()`, `router.navigate()`, `router.prefetch()` and `useSearch()` all apply the same rules to string literals:
+
+| Destination | Accepted |
+|---|---|
+| Route pattern: `"/blog/:slug"` | Yes, with its `params` |
+| Path matching a pattern: `"/blog/hello-furin"`, `"/search?q=bun"` | Yes |
+| Absolute URL: `"https://bun.sh"`, `"mailto:team@example.com"`, `"//cdn.example.com/a.pdf"` | Yes, except in `useSearch()` |
+| Unknown internal path: `"/blgo/hello"` | No. The compile error names the route |
+
+A value typed as plain `string`, such as an href loaded from a CMS, can't be checked statically and is accepted as-is. TanStack Router uses the same escape hatch. Use it intentionally (`to={href}`, or `"/legacy" as string`). Furin still renders its 404 boundary for an unknown path at runtime. Before `furin-env.d.ts` exists, every string is accepted, so a new project can type-check.
 
 ### Props
 
 | Prop | Purpose |
 |---|---|
-| `to` | Logical route path or an `http(s)` external URL |
+| `to` | Route pattern, a path matching one, or an absolute URL (see [destination checking](#destination-checking)) |
 | `params` | Replaces typed `:param` segments |
-| `search` | Serializes typed search values; schema defaults are omitted |
+| `search` | Typed navigation input: required when the query schema has a required field; schema defaults are omitted from the URL ([input vs output](/docs/routing#validated-search-parameters)) |
 | `hash` | Fragment without `#` |
 | `replace` | Replaces the current history entry |
 | `resetScroll` | Scrolls to the hash target or top after navigation; defaults to `true` |
@@ -125,7 +138,7 @@ const navigate = useNavigate();
 await navigate({ to: "/blog/:slug", params: { slug: "hello-furin" } });
 ```
 
-Once the route manifest is generated, unknown internal destinations are rejected by TypeScript. Before generation, navigation accepts plain strings so a new project can type-check.
+Unknown internal destinations are rejected by TypeScript as described in [destination checking](#destination-checking).
 
 `useRouter().navigate()` and `useRouter().prefetch()` accept the same typed route patterns, params and search values:
 
@@ -145,13 +158,13 @@ await router.navigate({
 });
 ```
 
-Prefetch loads data without navigating; navigation reuses it while fresh. Path encoding and search-default omission use the same rules as `<Link>`. Historical calls such as `router.navigate("/blog/hello-furin", { replace: true })` and `router.prefetch("/blog/hello-furin", { staleTime: 30_000 })` remain supported. Raw URL strings do not receive schema checking; use structured destinations for type safety and route-pattern completion.
+Prefetch loads data without navigating; navigation reuses it while fresh. Path encoding and search-default omission use the same rules as `<Link>`. Href strings such as `router.navigate("/blog/hello-furin", { replace: true })` and `router.prefetch("/blog/hello-furin", { staleTime: 30_000 })` are checked against the route manifest but don't receive params or search typing. Use structured destinations for that and for route-pattern completion.
 
 Unsafe schemes are rejected. External `http(s)` destinations use a document navigation.
 
 ## Search State
 
-`useSearch()` returns the validated search state for a route and an async setter:
+`useSearch()` returns the validated search state for a route (schema output, defaults applied) and an async setter:
 
 ```tsx
 import { useSearch } from "@teyik0/furin/search";
@@ -169,7 +182,7 @@ function Pagination() {
 
 Updates merge with the current search object. Pass `{ replace: true }` to avoid a new history entry or `{ resetScroll: false }` to preserve the current position. Setting a field back to its schema default removes it from the URL.
 
-The route argument autocompletes generated patterns (for example, `/products/:productId`) and must identify the currently rendered route. A mismatch throws instead of reading or updating search state under the wrong route type.
+The route argument autocompletes generated patterns (for example, `/products/:productId`). It must be a known route pattern or a path matching one, and it must identify the currently rendered route. A mismatch throws instead of reading or updating search state under the wrong route type.
 
 ## Router Controls
 

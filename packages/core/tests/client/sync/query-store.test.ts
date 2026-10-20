@@ -3,6 +3,26 @@ import { QueryStore } from "../../../src/client/query-store.ts";
 
 const url = "http://localhost/cards";
 const identity = { id: "board.cards", scope: { boardId: "alpha" }, session: "alice" };
+const SECURE_REQUEST_KEY = /#furin-query:[a-f0-9]{32}:1$/;
+test("invalid header coercion reaches the query error instead of crashing key generation", async () => {
+  const store = new QueryStore(undefined);
+  const invalid = {
+    toString: () => {
+      throw new Error("invalid header");
+    },
+  };
+  const reference = {
+    client: store,
+    url,
+    load: async () => ({ data: String(invalid), error: null }),
+  };
+  const key = store.readKey(reference, { headers: { Authorization: invalid } });
+  store.bind(key, reference.load);
+  await store.fetch(key);
+  expect(store.snapshot(key).error).toEqual(new Error("invalid header"));
+  expect(store.snapshot(key).data).toBeUndefined();
+});
+
 function result(data: unknown, session: string) {
   return {
     data,
@@ -12,6 +32,145 @@ function result(data: unknown, session: string) {
     }),
   };
 }
+
+test("request-scoped seeds stay isolated when browser UUID APIs are unavailable", () => {
+  const uuid = Object.getOwnPropertyDescriptor(globalThis.crypto, "randomUUID");
+  const random = Object.getOwnPropertyDescriptor(globalThis.crypto, "getRandomValues");
+  const originalUuid = globalThis.crypto.randomUUID;
+  const originalRandom = globalThis.crypto.getRandomValues;
+  try {
+    Object.defineProperty(globalThis.crypto, "randomUUID", {
+      configurable: true,
+      value: undefined,
+    });
+    for (const secureRandom of [originalRandom, undefined]) {
+      Object.defineProperty(globalThis.crypto, "getRandomValues", {
+        configurable: true,
+        value: secureRandom,
+      });
+      const server = new QueryStore(undefined);
+      const reference = { client: server, url, load: async () => result("Alice", "alice") };
+      const options = { headers: { Authorization: "private-alice" } };
+      const serverKey = server.readKey(reference, options);
+      if (secureRandom) {
+        expect(serverKey).toMatch(SECURE_REQUEST_KEY);
+      }
+      server.observe(serverKey, result("Alice", "alice"), server.generation());
+      const browser = new QueryStore(undefined);
+      browser.hydrate(server.dehydrate());
+      const browserKey = browser.readKey({ ...reference, client: browser }, options);
+      expect(browserKey).not.toBe(serverKey);
+      expect(browser.snapshot(browserKey).data).toBeUndefined();
+      expect(browser.snapshot(url).data).toBeUndefined();
+    }
+  } finally {
+    if (uuid) {
+      Object.defineProperty(globalThis.crypto, "randomUUID", uuid);
+    } else {
+      Reflect.deleteProperty(globalThis.crypto, "randomUUID");
+    }
+    if (random) {
+      Object.defineProperty(globalThis.crypto, "getRandomValues", random);
+    } else {
+      Reflect.deleteProperty(globalThis.crypto, "getRandomValues");
+    }
+  }
+  expect(globalThis.crypto.randomUUID).toBe(originalUuid);
+  expect(globalThis.crypto.getRandomValues).toBe(originalRandom);
+});
+
+test("a dependency-only seed leaves its GET stale so consumers fetch the full response", async () => {
+  const store = new QueryStore(undefined);
+  let loads = 0;
+  store.bind(url, () => {
+    loads += 1;
+    return Promise.resolve(result(["Fresh"], "alice"));
+  });
+  store.hydrate([{ url, data: undefined, identity, bindings: [] }]);
+  expect(store.dehydrate()).toEqual([]);
+  await store.fetch(url);
+  expect(loads).toBe(1);
+  expect(store.snapshot(url).data).toEqual(["Fresh"]);
+});
+
+test("request-specific seeds retain isolated identities without serializing credentials", () => {
+  const store = new QueryStore(undefined);
+  const reference = { client: store, url, load: async () => result("Alice", "alice") };
+  const aliceKey = store.readKey(reference, { headers: { Authorization: "Bearer private-alice" } });
+  store.observe(aliceKey, result("Alice", "alice"), store.generation());
+  expect(store.dehydrate()).toMatchObject([{ url: aliceKey, data: "Alice", identity }]);
+  expect(JSON.stringify(store.dehydrate())).not.toContain("private-alice");
+  const bobKey = store.readKey(reference, { headers: { Authorization: "Bearer private-bob" } });
+  store.observe(bobKey, result("Bob", "bob"), store.generation());
+  expect(store.snapshot(aliceKey).data).toBe("Alice");
+  expect(store.snapshot(bobKey).data).toBe("Bob");
+  expect(store.dehydrate()).toMatchObject([
+    { url: aliceKey, data: "Alice", identity },
+    { url: bobKey, data: "Bob", identity: { session: "bob" } },
+  ]);
+  expect(JSON.stringify(store.dehydrate())).not.toContain("private-bob");
+  const browser = new QueryStore(undefined);
+  browser.hydrate(store.dehydrate(), "https://browser.example");
+  expect(browser.snapshot("https://browser.example/cards").data).toBeUndefined();
+  const browserReference = {
+    ...reference,
+    client: browser,
+    url: "https://browser.example/cards",
+  };
+  const browserAlice = browser.readKey(browserReference, {
+    headers: { Authorization: "Bearer private-alice" },
+  });
+  expect(browser.snapshot(browserAlice).data).toBeUndefined();
+});
+
+test("a principal change clears reads sharing the same credential options and rejects their late response", () => {
+  const store = new QueryStore(undefined);
+  const reference = { client: store, url, load: async () => result("Alice", "alice") };
+  const headers = () => ({ Authorization: "current token" });
+  const key = store.readKey(reference, { headers });
+  const other = store.readKey({ ...reference, url: "http://localhost/profile" }, { headers });
+  const isolated = store.readKey(reference, { headers: { Authorization: "separate" } });
+  for (const entry of [key, other]) {
+    store.observe(entry, result("Alice", "alice"), store.generation());
+  }
+  store.observe(isolated, result("Independent", "independent"), store.generation());
+  const previous = store.generation();
+  store.observe(key, result("Bob", "bob"), previous);
+  expect(store.snapshot(key).data).toBe("Bob");
+  expect(store.snapshot(other).data).toBeUndefined();
+  expect(store.snapshot(isolated).data).toBe("Independent");
+  expect(store.generation()).toBeGreaterThan(previous);
+  store.observe(other, result("Late Alice", "alice"), previous);
+  expect(store.snapshot(other).data).toBeUndefined();
+});
+
+test("a session change lets an independent active query recover from an obsolete response", async () => {
+  const store = new QueryStore(undefined);
+  const reference = { client: store, url, load: async () => result("Alice", "alice") };
+  const shared = store.readKey(reference, { headers: () => ({ Authorization: "current token" }) });
+  const independent = store.readKey(reference, { headers: { Authorization: "independent" } });
+  store.observe(shared, result("Alice", "alice"), store.generation());
+  const delayed = Promise.withResolvers<ReturnType<typeof result>>();
+  let reads = 0;
+  store.bind(independent, () => {
+    reads += 1;
+    return reads === 1 ? delayed.promise : Promise.resolve(result("Independent", "independent"));
+  });
+  const unsubscribe = store.subscribe(independent, () => undefined);
+  try {
+    const fetching = store.fetch(independent);
+    await Bun.sleep(0);
+    store.observe(shared, result("Bob", "bob"), store.generation());
+    delayed.resolve(result("Obsolete", "independent"));
+    await fetching;
+    await Bun.sleep(0);
+    expect(store.snapshot(independent).data).toBe("Independent");
+    expect(store.snapshot(independent).isFetching).toBe(false);
+    expect(reads).toBe(2);
+  } finally {
+    unsubscribe();
+  }
+});
 
 test("a stale read cannot confirm an optimistic increment twice", async () => {
   const store = new QueryStore(undefined);
@@ -107,6 +266,45 @@ test("scoped invalidation refreshes all variants of one board and leaves another
     store.fetch(`${url}/other`),
   ]);
   expect(reads).toBe(2);
+});
+
+test("an invalidation omitting a param refreshes every value of it; numbers name URL params", async () => {
+  const store = new QueryStore(undefined);
+  const reads: string[] = [];
+  const read = (boardId: string, column: string) => {
+    const path = `http://localhost/boards/${boardId}/columns/${column}`;
+    const response = {
+      data: path,
+      error: null,
+      response: new Response(null, {
+        headers: {
+          "x-furin-query": JSON.stringify({
+            id: "/boards/:boardId/columns/:column",
+            scope: { boardId, column },
+            session: "alice",
+          }),
+        },
+      }),
+    };
+    store.observe(path, response, store.generation());
+    store.bind(path, () => {
+      reads.push(`${boardId}/${column}`);
+      return Promise.resolve(response);
+    });
+    store.subscribe(path, () => undefined);
+    return path;
+  };
+  const paths = [read("1", "todo"), read("1", "done"), read("2", "todo")];
+  const refetch = async (scope: { [param: string]: string | number }) => {
+    reads.length = 0;
+    store.invalidate([{ id: "/boards/:boardId/columns/:column", scope }]);
+    await Promise.all(paths.map((path) => store.fetch(path)));
+    return reads.toSorted();
+  };
+  expect(await refetch({ boardId: 1 })).toEqual(["1/done", "1/todo"]);
+  expect(await refetch({ column: "todo" })).toEqual(["1/todo", "2/todo"]);
+  expect(await refetch({})).toEqual(["1/done", "1/todo", "2/todo"]);
+  expect(await refetch({ boardId: "2", column: "done" })).toEqual([]);
 });
 
 test("a different principal clears the old session and discards its in-flight responses", () => {

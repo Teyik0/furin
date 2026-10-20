@@ -1,9 +1,7 @@
-import type {
-  BuildTarget,
-  StaticExportConfig,
-  VercelDeploymentConfig,
-} from "../config";
+import type { AdapterTargetManifest } from "../adapter/types.ts";
+import type { FurinTarget, StaticExportConfig } from "../config";
 import type { ResolvedRoute } from "../server/router/types.ts";
+import type { ClientBoundary } from "../rsc/build/discover.ts";
 
 export interface BuildClientOptions {
   /**
@@ -19,6 +17,8 @@ export interface BuildClientOptions {
   clientDirName?: string;
   /** Inject the evlog client logger into the hydrate entry. Off by default. */
   clientLogging: boolean;
+  /** Client boundaries found in the unstripped server graph. */
+  clientBoundaries?: readonly ClientBoundary[];
   /** Write Bun's complete build metafile to this path when provided. */
   metafilePath?: string;
   /** Package barrels Bun should parse on demand instead of loading in full. */
@@ -37,12 +37,6 @@ export interface BuildClientOptions {
    */
   publicPath: string;
   rootLayout: string;
-  /**
-   * Skip furin-env.d.ts generation. Set for non-root instances in
-   * multi-instance dev — the file lives at the project root and only the root
-   * app owns it.
-   */
-  skipRouteTypes?: boolean;
 }
 
 export interface BuildRouteManifestEntry {
@@ -59,7 +53,6 @@ export interface TargetBuildManifest {
   clientDir: string | null;
   generatedAt: string;
   rscManifestPath?: string;
-  serverEntry: string | null;
   serverPath: string | null;
   targetDir: string;
   templatePath: string | null;
@@ -73,14 +66,15 @@ export interface PackageTargetBuildManifest {
   targetDir: string;
 }
 
-export type AnyTargetManifest =
+type AnyTargetManifest =
+  | AdapterTargetManifest
   | TargetBuildManifest
   | StaticTargetBuildManifest
   | PackageTargetBuildManifest
   | VercelTargetBuildManifest;
 
 /** One mounted app in a multi-instance build. */
-export interface BuildAppSpec {
+interface BuildAppSpec {
   pagesDir: string;
   /** Mount prefix (`""` or absent = root). */
   prefix?: string;
@@ -95,7 +89,8 @@ export interface BuildManifest {
   rootPath: string;
   routes: BuildRouteManifestEntry[];
   serverEntry: string | null;
-  targets: Partial<Record<BuildTarget, AnyTargetManifest>>;
+  /** Keyed by target name. */
+  targets: { [target: string]: AnyTargetManifest };
   version: 1;
 }
 
@@ -104,7 +99,7 @@ export interface BuildAppOptions {
   analyze?: boolean;
   /**
    * Explicit multi-app build (furin.config.ts `apps`). Overrides `pagesDir`
-   * and server-entry auto-detection.
+   * and the mounts found by evaluating the server entry.
    */
   apps?: BuildAppSpec[];
   /** Inject the evlog client logger into the hydrate entry. Defaults to false. */
@@ -124,9 +119,8 @@ export interface BuildAppOptions {
   serverSourceMaps?: boolean;
   /** Configuration for the `static` build target. */
   staticConfig?: StaticExportConfig;
-  target: BuildTarget | "all";
-  /** Configuration for the Vercel build target. */
-  vercelConfig?: VercelDeploymentConfig;
+  /** One target, several, or `"all"` deploy targets (bun, vercel, static). */
+  target: FurinTarget | FurinTarget[] | "all";
 }
 
 /** Build manifest entry produced by the `static` adapter. */
@@ -150,7 +144,7 @@ export interface VercelTargetBuildManifest {
 
 export interface BuildAppResult {
   manifest: BuildManifest;
-  targets: Partial<Record<BuildTarget, AnyTargetManifest>>;
+  targets: BuildManifest["targets"];
 }
 
 export type BunBuildAliasConfig = Bun.BuildConfig & {

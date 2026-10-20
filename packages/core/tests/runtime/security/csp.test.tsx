@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
-import { Elysia, NotFound } from "elysia";
+import { Elysia } from "elysia";
 import { Suspense, use } from "react";
 import { clientModule, preloadClientModule } from "../../../src/client/client-module.ts";
 import {
@@ -9,35 +9,47 @@ import {
   HeadContent,
   Scripts,
 } from "../../../src/furin.ts";
-import { renderRootNotFound } from "../../../src/server/render/not-found.ts";
-import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
-import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
+import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
-import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
+import { mountProductionApp } from "../../support/production-app.ts";
 
 const noncePattern = /'nonce-([^']+)'/;
 const scriptTagPattern = /<script\b[^>]*>/g;
 const previousDevMode = IS_DEV;
 __setDevMode(false);
-afterAll(() => __setDevMode(previousDevMode));
+afterAll(() => {
+  __resetCompileContext();
+  __setDevMode(previousDevMode);
+});
+
+const rootRoute = defineRootRoute()
+  .config({ mode: "ssr" })
+  .requestLoader(() => ({ user: "Alice" }))
+  .layout(({ children }) => (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  ));
+
+declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/csp/account": {
+      kind: "page";
+      parent: typeof rootRoute;
+      pathParams: NonNullable<unknown>;
+    };
+  }
+}
 
 test("SSR emits a fresh CSP nonce on framework and authored scripts", async () => {
-  const rootRoute = defineRootRoute()
+  const page = defineRoute("/csp/account")
     .config({ mode: "ssr" })
-    .requestLoader(() => ({ user: "Alice" }))
-    .layout(({ children }) => (
-      <html lang="en">
-        <head>
-          <HeadContent />
-        </head>
-        <body>
-          {children}
-          <Scripts />
-        </body>
-      </html>
-    ));
-  const page = defineRoute()
-    .config({ layout: rootRoute, mode: "ssr" })
     .loader(() => ({ title: "Account" }))
     .head(() => ({ scripts: [{ children: "window.accountReady = true" }] }))
     .page(({ title, user }) => (
@@ -53,17 +65,11 @@ test("SSR emits a fresh CSP nonce on framework and authored scripts", async () =
     preloadClientModule(clientModule(() => Promise.resolve({}), ["/_client/account.js"]));
     return <strong>{user}</strong>;
   }
-  const root = { path: "/root.tsx", route: adaptDefinedLayout(rootRoute, undefined) };
-  const definedPage = adaptDefinedPage(page, root.route);
-  const route = {
-    mode: "ssr" as const,
-    page: definedPage,
-    path: "/account.tsx",
-    pattern: "/account",
-    requestKeys: ["user"],
-    routeChain: collectRouteChainFromRoute(definedPage._route),
-    segmentBoundaries: [],
-  };
+  const { app: furinApp } = await mountProductionApp({
+    buildId: "build-1",
+    pages: [{ pattern: "/account", requestKeys: ["user"], route: page }],
+    root: rootRoute,
+  });
   const app = new Elysia()
     .use(
       furinCsp({
@@ -71,8 +77,7 @@ test("SSR emits a fresh CSP nonce on framework and authored scripts", async () =
           `default-src 'self'; script-src 'self'${nonce ? ` 'nonce-${nonce}'` : ""}; object-src 'none'`,
       })
     )
-    .use(createRoutePlugin(route, root, "build-1"))
-    .error("global", NotFound, ({ request }) => renderRootNotFound(root, request));
+    .use(furinApp);
 
   const [first, second] = await Promise.all([
     app.handle(new Request("http://localhost/account")),

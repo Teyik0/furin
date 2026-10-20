@@ -1,6 +1,6 @@
 export const DEVTOOLS_PROTOCOL_VERSION = 2 as const;
 
-export type DevtoolsRouteMode = "isr" | "ssg" | "ssr";
+type DevtoolsRouteMode = "isr" | "ssg" | "ssr";
 
 export interface DevtoolsRoute {
   file: string;
@@ -22,12 +22,12 @@ export interface DevtoolsCacheEntry {
   revalidateSeconds: number | null;
 }
 
-export interface DevtoolsInstance {
+interface DevtoolsInstance {
   id: string;
   prefix: string;
 }
 
-export interface DevtoolsSyncSnapshot {
+interface DevtoolsSyncSnapshot {
   changesPath: string | null;
   enabled: boolean;
 }

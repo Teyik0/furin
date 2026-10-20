@@ -1,11 +1,15 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: template fixture checks are intentionally sequential for clearer assertion context
 import { beforeAll, describe, expect, it } from "bun:test";
-import { extname, relative, resolve } from "node:path";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { extname, join, relative, resolve } from "node:path";
 import { renderEjsFile } from "../src/engine/renderer";
 import type { EjsTemplateVars } from "../src/pipeline/context";
 
 const SCAFFOLDER_ROOT = resolve(import.meta.dir, "..");
 const TEMPLATES_DIR = resolve(SCAFFOLDER_ROOT, "templates");
+// Loaded by path so Furin's sources stay out of the scaffolder's type-check program.
+const ROUTE_TYPES_MODULE = resolve(SCAFFOLDER_ROOT, "../../packages/core/src/build/route-types.ts");
 const TOKEN_RE = /\{\{[A-Z_]+\}\}/;
 /** Matches strings that are absolute paths (start with / or \). */
 const ABSOLUTE_PATH_RE = /^[/\\]/;
@@ -270,6 +274,95 @@ describe("Furin page templates", () => {
       expect(page.indexOf(".page(")).toBeGreaterThan(page.indexOf(".loader("));
       expect(page).toContain(".page(({");
       expect(page).not.toContain(".page(({ data");
+    }
+  });
+
+  it("call the shared service from the loader instead of fetching their own API", async () => {
+    for (const template of registry.templates) {
+      const pageFile = template.files.find((file) => file.dest === "src/pages/index.tsx");
+      if (!pageFile?.src) {
+        throw new Error(`Missing index page template for ${template.id}`);
+      }
+
+      const page = await Bun.file(resolve(TEMPLATES_DIR, pageFile.src)).text();
+
+      expect(page, template.id).toContain("getHelloPayload()");
+      expect(page, template.id).not.toContain("await fetch(");
+    }
+  });
+});
+
+describe("generated furin-env.d.ts", () => {
+  // Keeps the scaffolded file identical to what `furin` writes on the first dev
+  // run, so a new project type-checks before it is ever started.
+  it("matches the route types Furin generates for the template pages", async () => {
+    const { writeRouteTypes } = (await import(ROUTE_TYPES_MODULE)) as {
+      writeRouteTypes: (routes: { path: string; pattern: string }[], projectRoot: string) => void;
+    };
+    const projectRoot = mkdtempSync(join(tmpdir(), "create-furin-route-types-"));
+    try {
+      writeRouteTypes(
+        [{ path: join(projectRoot, "src/pages/index.tsx"), pattern: "/" }],
+        projectRoot
+      );
+      const expected = readFileSync(join(projectRoot, "furin-env.d.ts"), "utf8");
+
+      for (const template of registry.templates) {
+        const envFile = template.files.find((file) => file.dest === "furin-env.d.ts");
+        if (!envFile?.src) {
+          throw new Error(`Missing furin-env.d.ts template for ${template.id}`);
+        }
+        const rendered = await renderEjsFile(resolve(TEMPLATES_DIR, envFile.src), MOCK_EJS_VARS);
+        expect(rendered, `${template.id} furin-env.d.ts drifted from writeRouteTypes()`).toBe(
+          expected
+        );
+      }
+    } finally {
+      rmSync(projectRoot, { force: true, recursive: true });
+    }
+  });
+});
+
+describe("generated README", () => {
+  it("documents commands, config ownership, type generation and deployment", async () => {
+    for (const template of registry.templates) {
+      const readmeFile = template.files.find((file) => file.dest === "README.md");
+      if (!readmeFile?.src) {
+        throw new Error(`Missing README.md template for ${template.id}`);
+      }
+      const readme = await renderEjsFile(resolve(TEMPLATES_DIR, readmeFile.src), MOCK_EJS_VARS);
+
+      expect(readme, template.id).toStartWith("# test-app\n");
+      for (const topic of [
+        "bun dev",
+        "bun run build",
+        "bunfig.toml",
+        "furin.config.ts",
+        "furin-env.d.ts",
+        "--target vercel",
+      ]) {
+        expect(readme, `${template.id} README mentions ${topic}`).toContain(topic);
+      }
+    }
+  });
+});
+
+describe("generated server entry", () => {
+  // The Vercel adapter imports the server entry: it needs the app as default
+  // export and must not start a listener when imported.
+  it("exports the app and only listens when run directly", async () => {
+    for (const template of registry.templates) {
+      const serverFile = template.files.find((file) => file.dest === "src/server.ts");
+      if (!serverFile?.src) {
+        throw new Error(`Missing src/server.ts template for ${template.id}`);
+      }
+      const rendered = await renderEjsFile(resolve(TEMPLATES_DIR, serverFile.src), MOCK_EJS_VARS);
+      const { exports } = new Bun.Transpiler({ loader: "ts" }).scan(rendered);
+      const [beforeGuard, guarded] = rendered.split("if (import.meta.main) {");
+
+      expect(exports, template.id).toContain("default");
+      expect(beforeGuard, template.id).not.toContain(".listen(");
+      expect(guarded, template.id).toContain(".listen(");
     }
   });
 });

@@ -1,12 +1,13 @@
 import "../../../packages/core/tests/setup/global.ts";
 import { afterEach, expect, mock, test } from "bun:test";
 import { treaty } from "@elysia/eden";
-import { withSync } from "@teyik0/furin/client";
+import { furinSync } from "@teyik0/furin/client";
 import { RouterContext, SSR_FALLBACK_ROUTER } from "@teyik0/furin/link";
 import { Elysia } from "elysia";
-import { buildPageElement } from "../../../packages/core/src/client/router/boundary-tree.tsx";
+import { resolveRouteElement } from "../../../packages/core/src/client/route-element.tsx";
 import type { LoadedClientRoute } from "../../../packages/core/src/client/router/types.ts";
 import { adaptDefinedPage } from "../../../packages/core/src/server/router/defined-route.ts";
+import { collectRouteChainFromRoute } from "../../../packages/core/src/shared/utils/index.ts";
 import {
   installDom,
   resetDomState,
@@ -29,22 +30,20 @@ const app = new Elysia().patch("/cards/:id", ({ body }) => {
   return Response.json({ message: "Save rejected" }, { status: 422 });
 });
 mock.module("../src/lib/api", () => ({
-  api: withSync(
-    treaty<typeof app>(window.location.origin, {
-      fetcher: ((input, init) => {
-        mutationRequests += 1;
-        if (pendingMutation) {
-          return pendingMutation;
-        }
-        if (mutationFailure) {
-          return mutationFailure instanceof Error
-            ? Promise.reject(mutationFailure)
-            : Promise.resolve(mutationFailure.clone());
-        }
-        return app.handle(new Request(input, init));
-      }) as typeof fetch,
-    })
-  ),
+  api: treaty<typeof app>(window.location.origin, {
+    fetcher: ((input, init) => {
+      mutationRequests += 1;
+      if (pendingMutation) {
+        return pendingMutation;
+      }
+      if (mutationFailure) {
+        return mutationFailure instanceof Error
+          ? Promise.reject(mutationFailure)
+          : Promise.resolve(mutationFailure.clone());
+      }
+      return app.handle(new Request(input, init));
+    }) as typeof fetch,
+  }).use(furinSync),
 }));
 const { route } = await import("../src/pages/board/[boardId]/card/[cardId]");
 const page = adaptDefinedPage(route, { __type: "FURIN_ROUTE" });
@@ -57,7 +56,15 @@ const match: LoadedClientRoute = {
 };
 
 function CardPage(props: Parameters<typeof route.page>[0]) {
-  return buildPageElement(match, null, props, undefined, undefined);
+  return resolveRouteElement({
+    boundaries: [],
+    boundaryOptions: undefined,
+    chain: collectRouteChainFromRoute(match.pageRoute),
+    data: props,
+    page: { component: match.component, pattern: match.pattern },
+    reset: () => undefined,
+    rootBoundary: undefined,
+  });
 }
 
 afterEach(() => {

@@ -1,5 +1,5 @@
 /**
- * Regression tests — schema merging in createRoutePlugin (router.ts).
+ * Regression tests — schema merging across a route chain.
  *
  * Fix: mergeRouteSchemas() merges all TObject.properties across the routeChain
  * into a single t.Object so every ancestor's fields are present in the Elysia guard.
@@ -9,16 +9,49 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import "../../setup/evlog-mock";
-
+import { join } from "node:path";
 import { Elysia, t } from "elysia";
 import type { RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
-import { collectRouteTags } from "../../../src/server/router/discovery.ts";
+import { __resetCompileContext } from "../../../src/server/internal.ts";
+import { collectRouteTags, scanPages } from "../../../src/server/router/discovery.ts";
 import { mergeRouteSchemas } from "../../../src/server/router/schema-merge.ts";
-import { parseRouteQuery } from "../../../src/server/router/schemas.ts";
+import { createSearchRouteMetadata, parseRouteQuery } from "../../../src/server/router/schemas.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
+import { buildSearchParams, findSearchDefaults } from "../../../src/shared/search-params.ts";
+import { mountProductionPages } from "../../support/production-app.ts";
 
-const ROUTER_TESTS_DIR_RE = /[\\/]tests(?:[\\/].*)?$/;
+test("root search defaults take priority over a matching catch-all", () => {
+  const metadata = createSearchRouteMetadata([
+    {
+      pattern: "/*",
+      routeChain: [
+        { __type: "FURIN_ROUTE", query: t.Object({ tab: t.String({ default: "wildcard" }) }) },
+      ],
+    },
+    {
+      pattern: "/",
+      routeChain: [
+        { __type: "FURIN_ROUTE", query: t.Object({ tab: t.String({ default: "root" }) }) },
+      ],
+    },
+  ]);
+  expect(buildSearchParams({ tab: "root" }, findSearchDefaults("/", metadata)).toString()).toBe("");
+});
+
+test("a route without defaults keeps search values matching a less specific route's defaults", () => {
+  const metadata = createSearchRouteMetadata([
+    {
+      pattern: "/products/:id",
+      routeChain: [
+        { __type: "FURIN_ROUTE", query: t.Object({ tab: t.String({ default: "details" }) }) },
+      ],
+    },
+    { pattern: "/products/new", routeChain: [{ __type: "FURIN_ROUTE" }] },
+  ]);
+  expect(
+    buildSearchParams({ tab: "details" }, findSearchDefaults("/products/new", metadata)).toString()
+  ).toBe("tab=details");
+});
 
 let originalDevMode: boolean;
 beforeAll(() => {
@@ -346,69 +379,30 @@ describe("collectRouteTags", () => {
 // ── Integration: HTTP requests resolve defaults from all ancestors ────────────
 
 describe("schema merge — parent + child both declare query schemas", () => {
-  test("HTTP requests resolve merged query defaults", () => {
-    const proc = Bun.spawnSync({
-      cmd: [
-        "bun",
-        "-e",
-        `
-import { expect } from "bun:test";
+  test("HTTP requests resolve merged query defaults", async () => {
+    const routePattern = "/schema-merge-parent/child";
+    const fixturesDir = join(import.meta.dir, "../../fixtures/pages/default");
+    const { routes } = await scanPages(fixturesDir);
+    const route = routes.find((candidate) => candidate.pattern === routePattern);
+    expect(route).toBeDefined();
+    // Parent layout, child layout, and the leaf terminal each carry their local
+    // Elysia query contract in the generated route chain.
+    expect(route?.routeChain.filter((entry) => entry.query)).toHaveLength(3);
 
-await import("./tests/setup/evlog-mock.ts");
+    try {
+      const { app } = await mountProductionPages(fixturesDir, "");
+      let res = await app.handle(new Request(`http://localhost${routePattern}`));
+      expect(res.status).toBe(200);
+      expect(res.headers.get("location")).toBeNull();
 
-const { Elysia } = await import("elysia");
-const { join } = await import("node:path");
-const { scanPages } = await import("./src/server/router/discovery.ts");
-const { createRoutePlugin } = await import("./src/server/router/plugin.ts");
-const { __setDevMode, IS_DEV } = await import("./src/server/runtime-env.ts");
-
-const originalDevMode = IS_DEV;
-const routePattern = "/schema-merge-parent/child";
-__setDevMode(false);
-
-try {
-  const result = await scanPages(join(import.meta.dir, "tests/fixtures/pages/default"));
-  const route = result.routes.find((candidate) => candidate.pattern === routePattern);
-  if (!route) {
-    throw new Error("Route " + routePattern + " not found");
-  }
-
-  const chainEntries = route.routeChain.filter((entry) => entry.query);
-  // Parent layout, child layout, and the leaf terminal each carry their local
-  // Elysia query contract in the generated route chain.
-  expect(chainEntries.length).toBe(3);
-
-  let app = new Elysia().use(createRoutePlugin(route, result.root));
-  let res = await app.handle(new Request("http://localhost" + routePattern));
-  expect(res.status).toBe(200);
-  expect(res.headers.get("location")).toBeNull();
-
-  app = new Elysia().use(createRoutePlugin(route, result.root));
-  res = await app.handle(
-    new Request("http://localhost" + routePattern + "?parentFilter=parent-default&childFilter=child-default")
-  );
-  expect(res.status).toBe(200);
-} finally {
-  __setDevMode(originalDevMode);
-}
-process.exit(0);
-`,
-      ],
-      cwd: import.meta.dir.replace(ROUTER_TESTS_DIR_RE, ""),
-      stderr: "pipe",
-      stdout: "pipe",
-    });
-
-    if (proc.exitCode !== 0) {
-      throw new Error(
-        [
-          `schema merge subprocess exited with ${proc.exitCode}`,
-          new TextDecoder().decode(proc.stdout),
-          new TextDecoder().decode(proc.stderr),
-        ].join("\n")
+      res = await app.handle(
+        new Request(
+          `http://localhost${routePattern}?parentFilter=parent-default&childFilter=child-default`
+        )
       );
+      expect(res.status).toBe(200);
+    } finally {
+      __resetCompileContext();
     }
-
-    expect(proc.exitCode).toBe(0);
   });
 });

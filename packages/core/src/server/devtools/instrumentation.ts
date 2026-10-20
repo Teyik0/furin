@@ -1,12 +1,12 @@
-import type { AnyElysia } from "elysia";
+import { type AnyElysia, Elysia } from "elysia";
 import type { DevtoolsServerEventInput } from "../../devtools/protocol.ts";
 import type { ResolvedRoutesSource } from "../router/types.ts";
 import { appendDevtoolsEvent } from "./hub.ts";
 import { createDevtoolsPlugin } from "./plugin.ts";
 import {
+  createDevtoolsRequestPlugin,
   currentDevtoolsRequest,
   type DevtoolsRequestContext,
-  runWithDevtoolsRequest,
 } from "./request-context.ts";
 
 const CLIENT_PATH = "/_furin/devtools/client.js";
@@ -41,11 +41,7 @@ export function currentInstrumentationRequest(): DevtoolsRequestContext | undefi
   return currentDevtoolsRequest();
 }
 
-export function runWithRequestInstrumentation<T>(request: Request, fn: () => T): T {
-  return runWithDevtoolsRequest(request, fn);
-}
-
-export function shouldInstrumentRequest(pathname: string, prefix: string): boolean {
+function shouldInstrumentRequest(pathname: string, prefix: string): boolean {
   const internalPaths = [
     `${prefix}/_furin/dev`,
     `${prefix}/_furin/devtools`,
@@ -64,7 +60,9 @@ export function createInstrumentationPlugin(
   routes: ResolvedRoutesSource,
   syncPath: string | undefined
 ): AnyElysia {
-  return createDevtoolsPlugin(routes, syncPath);
+  return new Elysia()
+    .use(createDevtoolsRequestPlugin(shouldInstrumentRequest))
+    .use(createDevtoolsPlugin(routes, syncPath));
 }
 
 export function injectInstrumentationClient(html: string, prefix: string): string {

@@ -1,3 +1,4 @@
+import { isWithinPrefix } from "../../shared/prefix.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
 import type { QueryStore } from "../query-store.ts";
 import type { OptimisticCache } from "../sync.ts";
@@ -76,9 +77,7 @@ export function findOptimisticRuntime(domain: string): OptimisticRuntime | undef
   }
   const path = window.location.pathname;
   const matches = [...runtimes]
-    .filter(
-      ({ basePath }) => basePath === "" || path === basePath || path.startsWith(`${basePath}/`)
-    )
+    .filter(({ basePath }) => isWithinPrefix(path, basePath))
     .sort((a, b) => b.basePath.length - a.basePath.length);
   // Overlapping providers must not receive one another's projections.
   return matches[0]?.basePath === matches[1]?.basePath ? undefined : matches[0];

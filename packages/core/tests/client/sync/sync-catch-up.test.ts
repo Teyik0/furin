@@ -1,10 +1,110 @@
-import { describe, expect, test } from "bun:test";
+import { Database } from "bun:sqlite";
+import { describe, expect, jest, test } from "bun:test";
+import { Elysia } from "elysia";
+import {
+  applyRevalidateEntries,
+  shouldAutoRefreshPath,
+} from "../../../src/client/router/link-utils.ts";
 import {
   createInvalidationRefresh,
   createSyncCatchUp,
 } from "../../../src/client/router/sync-catch-up.ts";
+import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/sqlite/index.ts";
+import { createSyncChangesPlugin } from "../../../src/server/sync/stream.ts";
+import { queryTag } from "../../../src/shared/sync-query.ts";
 
 describe("createSyncCatchUp", () => {
+  test("legacy journal paths preserve encoded slashes through the recovery transport", async () => {
+    const app = new Elysia().get("/changes", () => ({
+      changes: [{ cursor: "1", invalidations: ["/a%2Fb:layout", "/東京/%25"] }],
+      cursor: "1",
+      hasMore: false,
+      reset: false,
+    }));
+    const paths: { path: string; type: "page" | "layout" }[] = [];
+    const sync = createSyncCatchUp({
+      fetchPage: async () => {
+        const response = await app.handle(new Request("http://localhost/changes"));
+        return response.json();
+      },
+      onInvalidations: (entries) =>
+        applyRevalidateEntries(entries, (path, type) => paths.push({ path, type: type ?? "page" })),
+    });
+    await sync.catchUp();
+    expect(paths).toEqual([
+      { path: "/a%2Fb", type: "layout" },
+      { path: "/東京/%25", type: "page" },
+    ]);
+    expect(shouldAutoRefreshPath("/a%2Fb/child", paths)).toBe(true);
+    expect(shouldAutoRefreshPath("/a/b/child", paths)).toBe(false);
+  });
+  test("applies the typed path records returned by the real changes endpoint", async () => {
+    const database = new Database(":memory:");
+    migrateSqliteSync(database);
+    const adapter = sqliteSyncAdapter({ database, namespace: "typed-path" });
+    const lease = await adapter.beginMutation({
+      key: "typed-path",
+      fingerprint: "body",
+      principal: "alice",
+    });
+    if (lease.kind !== "execute") {
+      throw new Error("Expected mutation lease");
+    }
+    await adapter.completeMutation({
+      lease: lease.lease,
+      response: { status: 200, body: new Uint8Array(), headers: [] },
+      invalidations: [
+        { kind: "path", path: "/foo:layout", type: "page" },
+        { kind: "path", path: "/東京", type: "layout" },
+      ],
+    });
+    const app = new Elysia().use(createSyncChangesPlugin({ adapter, principal: () => "alice" }));
+    const paths: { path: string; type: string | undefined }[] = [];
+    try {
+      const sync = createSyncCatchUp({
+        fetchPage: async (after) => {
+          const response = await app.handle(
+            new Request(`http://localhost/_furin/sync/changes?after=${after}`)
+          );
+          return response.json();
+        },
+        onInvalidations: (entries) =>
+          applyRevalidateEntries(entries, (path, type) => paths.push({ path, type })),
+      });
+      await sync.catchUp();
+      expect(paths).toEqual([
+        { path: "/foo:layout", type: "page" },
+        { path: "/東京", type: "layout" },
+      ]);
+    } finally {
+      database.close();
+    }
+  });
+  test("recovers query identities from journal tags and refreshes unrecognized cache tags", async () => {
+    const identity = { id: "/boards/:board/cards", scope: { board: "42" } };
+    const queries: object[] = [];
+    const paths: string[] = [];
+    const sync = createSyncCatchUp({
+      fetchPage: () =>
+        Promise.resolve({
+          changes: [
+            {
+              cursor: "1",
+              invalidations: [{ kind: "tags", tags: [queryTag(identity), "custom-cache-tag"] }],
+            },
+          ],
+          cursor: "1",
+          hasMore: false,
+          reset: false,
+        }),
+      onInvalidations: (entries) => paths.push(...entries),
+      onQueries: (identities) => queries.push(...identities),
+    });
+    await sync.catchUp();
+    expect(queries).toEqual([identity]);
+    expect(paths).toEqual(["/:layout"]);
+  });
+
   test("starts at cursor zero and applies every paginated change", async () => {
     const requestedAfter: Array<string | undefined> = [];
     const invalidations: string[][] = [];
@@ -62,6 +162,42 @@ describe("createSyncCatchUp", () => {
     expect(requestedAfter).toEqual(["0"]);
     expect(invalidations).toEqual(["/:layout"]);
     expect(sync.cursor()).toBe("8");
+  });
+
+  test("throttles reset-driven full refreshes and always runs the trailing one", async () => {
+    jest.useFakeTimers();
+    try {
+      let cursor = 0;
+      const refreshes: string[] = [];
+      const sync = createSyncCatchUp({
+        fetchPage: () => {
+          cursor += 1;
+          return Promise.resolve({
+            changes: [],
+            cursor: String(cursor),
+            hasMore: false,
+            reset: true,
+          });
+        },
+        onInvalidations: () => refreshes.push(`invalidate@${sync.cursor()}`),
+        onReset: () => refreshes.push(`reset@${sync.cursor()}`),
+      });
+
+      for (let reset = 0; reset < 5; reset += 1) {
+        // biome-ignore lint/performance/noAwaitInLoops: each wake-up completes before the next.
+        await sync.catchUp();
+      }
+      expect(refreshes).toEqual(["reset@1", "invalidate@1"]);
+
+      jest.advanceTimersByTime(1000);
+      expect(refreshes).toEqual(["reset@1", "invalidate@1", "reset@5", "invalidate@5"]);
+
+      jest.advanceTimersByTime(1000);
+      await sync.catchUp();
+      expect(refreshes.slice(4)).toEqual(["reset@6", "invalidate@6"]);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test("starts from a cursor supplied by the sync stream", async () => {

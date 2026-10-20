@@ -1,14 +1,18 @@
 import "../../setup/global.ts";
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
+import { treaty } from "@elysia/eden";
 import { Elysia } from "elysia";
-import { act } from "react";
+import { act, Suspense } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { toCrossJSON } from "seroval";
 import { RouterProvider, useRouter } from "../../../src/client/link.tsx";
 import type { ClientRoute } from "../../../src/client/router/index.ts";
-import { createClient, useQuery } from "../../../src/client.ts";
+import { Await, furinSync, useQuery } from "../../../src/client.ts";
+import { serializeRouteFrame, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
+import { ROUTE_MATCHES_KEY, type RouteMatchFailure } from "../../../src/shared/route-matches.ts";
 import type { QuerySeed } from "../../../src/shared/sync-query.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
+import { navigationDataPath } from "../../support/navigation-data.ts";
 
 let root: Root | undefined;
 let originalFetch: typeof fetch;
@@ -61,7 +65,6 @@ async function mount(
           component: initial.default.component,
           pageRoute: initial.default._route,
         }}
-        initialNotFound={undefined}
         prefetchCacheSize={50}
         root={null}
         routes={routes}
@@ -77,18 +80,141 @@ function response(data: object): Response {
   });
 }
 
+/** A payload whose page segment failed (chain = [pageRoute], page = index 1). */
+function failedMatch(failure: RouteMatchFailure): object {
+  return { [ROUTE_MATCHES_KEY]: [{ fields: {}, status: "success" }, failure] };
+}
+
+test("returning to a page refetches its cancelled deferred transport", async () => {
+  let reads = 0;
+  function Home() {
+    router = useRouter();
+    return <main>Home</main>;
+  }
+  function Deferred({ slow }: { slow: Promise<string> }) {
+    router = useRouter();
+    return (
+      <Suspense fallback="Pending">
+        <Await resolve={slow}>{(value) => <main>{value}</main>}</Await>
+      </Suspense>
+    );
+  }
+  globalThis.fetch = Object.assign((input: RequestInfo | URL) => {
+    const path = navigationDataPath(input, window.location.origin);
+    if (path === "/a") {
+      reads += 1;
+      if (reads === 1) {
+        return Promise.resolve(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode(serializeRouteFrames({}, ["slow"])));
+              },
+            }),
+            { headers: { "Content-Type": "application/x-ndjson" } }
+          )
+        );
+      }
+      return Promise.resolve(
+        new Response(
+          serializeRouteFrames({}, ["slow"]) +
+            serializeRouteFrame({
+              type: "defer-resolve",
+              key: "slow",
+              value: toCrossJSON("Ready"),
+            }),
+          { headers: { "Content-Type": "application/x-ndjson" } }
+        )
+      );
+    }
+    return Promise.resolve(response({}));
+  }, originalFetch);
+  const container = await mount(
+    [route("/", Home), route("/a", Deferred as never), route("/b", Home)],
+    {}
+  );
+  await act(() => router.navigate("/a" as string));
+  expect(container.textContent).toBe("Pending");
+  await act(() => router.navigate("/b" as string));
+  await act(() => router.navigate("/a" as string));
+  expect(reads).toBe(2);
+  expect(container.textContent).toBe("Ready");
+});
+
+test("the visible page keeps streaming deferred data until the next navigation commits", async () => {
+  let stream: ReadableStreamDefaultController<Uint8Array> | undefined;
+  let releaseB: (() => void) | undefined;
+  function Home() {
+    router = useRouter();
+    return <main>Home</main>;
+  }
+  function Deferred({ slow }: { slow: Promise<string> }) {
+    router = useRouter();
+    return (
+      <Suspense fallback="Pending">
+        <Await resolve={slow}>{(value) => <main>{value}</main>}</Await>
+      </Suspense>
+    );
+  }
+  globalThis.fetch = Object.assign((input: RequestInfo | URL) => {
+    const path = navigationDataPath(input, window.location.origin);
+    if (path === "/a") {
+      return Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              stream = controller;
+              controller.enqueue(new TextEncoder().encode(serializeRouteFrames({}, ["slow"])));
+            },
+          }),
+          { headers: { "Content-Type": "application/x-ndjson" } }
+        )
+      );
+    }
+    return new Promise<Response>((resolve) => {
+      releaseB = () => resolve(response({}));
+    });
+  }, originalFetch);
+  const container = await mount(
+    [route("/", Home), route("/a", Deferred as never), route("/b", Home)],
+    {}
+  );
+  await act(() => router.navigate("/a" as string));
+  expect(container.textContent).toBe("Pending");
+  let toB: Promise<void> | undefined;
+  await act(async () => {
+    toB = router.navigate("/b" as string);
+    await Bun.sleep(0);
+  });
+  await act(async () => {
+    stream?.enqueue(
+      new TextEncoder().encode(
+        serializeRouteFrame({ type: "defer-resolve", key: "slow", value: toCrossJSON("Ready") })
+      )
+    );
+    stream?.close();
+    await Bun.sleep(10);
+  });
+  expect(container.textContent).toBe("Ready");
+  await act(async () => {
+    releaseB?.();
+    await toB;
+  });
+  expect(container.textContent).toBe("Home");
+});
+
 test("a prefetched loader cannot overwrite a GET completed after that prefetch", async () => {
   const identity = { id: "counter", scope: {}, session: "test" };
   const app = new Elysia().get("/counter", ({ set }) => {
     set.headers["x-furin-query"] = JSON.stringify(identity);
     return 1;
   });
-  const api = createClient<typeof app>(window.location.origin, {
+  const api = treaty<typeof app>(window.location.origin, {
     fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-  });
+  }).use(furinSync);
   function Counter() {
     router = useRouter();
-    return <main>{useQuery(api.counter.get).data}</main>;
+    return <main>{useQuery(api.counter.get.live()).data}</main>;
   }
   const seed: QuerySeed = { url: `${window.location.origin}/counter`, identity, data: 0 };
   let prefetched = false;
@@ -101,15 +227,15 @@ test("a prefetched loader cannot overwrite a GET completed after that prefetch",
   });
   expect(container.textContent).toBe("0");
   await act(async () => {
-    router.prefetch("/target");
+    router.prefetch("/target" as string);
     await Bun.sleep(0);
   });
   expect(prefetched).toBe(true);
   await act(async () => {
-    await api.counter.get();
+    await api.counter.get.live();
   });
   expect(container.textContent).toBe("1");
-  await act(() => router.navigate("/target"));
+  await act(() => router.navigate("/target" as string));
   expect(window.location.pathname).toBe("/target");
   expect(container.textContent).toBe("1");
 });
@@ -153,13 +279,76 @@ test.each(["page", "layout"] as const)(
       await act(() => router.navigate(href));
       expect(container.textContent).toBe("After");
     }
-    await act(() => router.navigate(child));
+    await act(() => router.navigate(child as string));
     expect(container.textContent).toBe(type === "layout" ? "After" : "Before");
-    await act(() => router.navigate(sibling));
+    await act(() => router.navigate(sibling as string));
     expect(container.textContent).toBe("Before");
     expect(reads).toBe(type === "layout" ? 7 : 6);
   }
 );
+
+function heldTargetFetch() {
+  const state = { value: "Before", reads: 0, release: [] as Array<() => void> };
+  globalThis.fetch = Object.assign((input: RequestInfo | URL) => {
+    const path = navigationDataPath(input, window.location.origin);
+    if (path !== "/target") {
+      return Promise.resolve(response({}));
+    }
+    state.reads += 1;
+    const message = state.value;
+    if (state.reads > 1) {
+      return Promise.resolve(response({ message }));
+    }
+    return new Promise<Response>((resolve) => {
+      state.release.push(() => resolve(response({ message })));
+    });
+  }, originalFetch);
+  return state;
+}
+
+function MessagePage({ message }: { message?: unknown }) {
+  router = useRouter();
+  return <main>{String(message ?? "Home")}</main>;
+}
+
+test("a navigation snapshot invalidated while in flight is not cached", async () => {
+  const server = heldTargetFetch();
+  const container = await mount([route("/", MessagePage), route("/target", MessagePage)], {});
+  let toTarget: Promise<void> | undefined;
+  await act(async () => {
+    toTarget = router.navigate("/target" as string);
+    await Bun.sleep(0);
+  });
+  server.value = "After";
+  router.invalidatePrefetch("/target", "page");
+  await act(async () => {
+    server.release[0]?.();
+    await toTarget;
+  });
+  await act(() => router.navigate("/" as string));
+  await act(() => router.navigate("/target" as string));
+  expect(server.reads).toBe(2);
+  expect(container.textContent).toBe("After");
+});
+
+test("a navigation awaiting a prefetch invalidated mid-flight refetches it", async () => {
+  const server = heldTargetFetch();
+  const container = await mount([route("/", MessagePage), route("/target", MessagePage)], {});
+  let toTarget: Promise<void> | undefined;
+  await act(async () => {
+    router.prefetch("/target" as string);
+    toTarget = router.navigate("/target" as string);
+    await Bun.sleep(0);
+  });
+  server.value = "After";
+  router.invalidatePrefetch("/target", "page");
+  await act(async () => {
+    server.release[0]?.();
+    await toTarget;
+  });
+  expect(server.reads).toBe(2);
+  expect(container.textContent).toBe("After");
+});
 
 test("an intercepted native anchor scrolls to the fragment after rendering its destination", async () => {
   globalThis.fetch = Object.assign(() => Promise.resolve(response({})), originalFetch);
@@ -187,4 +376,85 @@ test("an intercepted native anchor scrolls to the fragment after rendering its d
   } finally {
     scrollIntoView.mockRestore();
   }
+});
+
+test("a failed prefetch does not poison the cache for the next navigation", async () => {
+  let reads = 0;
+  globalThis.fetch = Object.assign(() => {
+    reads += 1;
+    if (reads === 1) {
+      return Promise.reject(new TypeError("Failed to fetch"));
+    }
+    return Promise.resolve(response({ message: "Target" }));
+  }, originalFetch);
+  function Page({ message }: { message?: unknown }) {
+    router = useRouter();
+    return <main>{String(message ?? "Home")}</main>;
+  }
+  const container = await mount([route("/", Page), route("/target", Page)], {});
+  await act(async () => {
+    router.prefetch("/target" as string);
+    await Bun.sleep(0);
+  });
+  expect(reads).toBe(1);
+  await act(() => router.navigate("/target" as string));
+  expect(reads).toBe(2);
+  expect(window.location.pathname).toBe("/target");
+  expect(container.textContent).toBe("Target");
+});
+
+test.each([
+  [
+    "error",
+    failedMatch({ error: { digest: "d1", message: "Boom", status: 500 }, status: "error" }),
+  ],
+  ["not-found", failedMatch({ error: { message: "Missing" }, status: "notFound" })],
+] as const)("a %s snapshot is not served from the cache", async (_kind, failure) => {
+  let reads = 0;
+  globalThis.fetch = Object.assign((input: RequestInfo | URL) => {
+    const path = navigationDataPath(input, window.location.origin);
+    if (path !== "/target") {
+      return Promise.resolve(response({}));
+    }
+    reads += 1;
+    return Promise.resolve(response(reads === 1 ? failure : { message: "Target" }));
+  }, originalFetch);
+  function Page({ message }: { message?: unknown }) {
+    router = useRouter();
+    return <main>{String(message ?? "Home")}</main>;
+  }
+  const container = await mount([route("/", Page), route("/target", Page)], {});
+  await act(() => router.navigate("/target" as string));
+  expect(reads).toBe(1);
+  expect(container.textContent).not.toContain("Target");
+  await act(() => router.navigate("/" as string));
+  await act(() => router.navigate("/target" as string));
+  expect(reads).toBe(2);
+  expect(container.textContent).toBe("Target");
+});
+
+test.each([
+  [
+    "error",
+    failedMatch({ error: { digest: "d1", message: "Boom", status: 500 }, status: "error" }),
+  ],
+  ["not-found", failedMatch({ error: { message: "Missing" }, status: "notFound" })],
+] as const)("a prefetched %s snapshot is refetched on navigation", async (_kind, failure) => {
+  let reads = 0;
+  globalThis.fetch = Object.assign(() => {
+    reads += 1;
+    return Promise.resolve(response(reads === 1 ? failure : { message: "Target" }));
+  }, originalFetch);
+  function Page({ message }: { message?: unknown }) {
+    router = useRouter();
+    return <main>{String(message ?? "Home")}</main>;
+  }
+  const container = await mount([route("/", Page), route("/target", Page)], {});
+  await act(async () => {
+    router.prefetch("/target" as string);
+    await Bun.sleep(0);
+  });
+  await act(() => router.navigate("/target" as string));
+  expect(reads).toBe(2);
+  expect(container.textContent).toBe("Target");
 });

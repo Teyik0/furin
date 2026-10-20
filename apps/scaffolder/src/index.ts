@@ -19,14 +19,8 @@ try {
   }
 
   if (args.version) {
-    const { getPackageCatalog } = await import("./package-catalog.ts");
-    const catalog = getPackageCatalog();
-    const pkg = catalog["@teyik0/furin"];
-    if (pkg === undefined) {
-      cancel("package not found in catalog");
-      process.exit(1);
-    }
-    console.log(pkg);
+    const { BUNDLED_FURIN_VERSION } = await import("./furin-version.ts");
+    console.log(BUNDLED_FURIN_VERSION);
     process.exit(0);
   }
 
@@ -46,7 +40,7 @@ function printHelp(): void {
   Usage:
     bun create furin <dir>
     bun create furin <dir> --template full
-    bunx @teyik0/create-furin <dir>
+    bunx create-furin <dir>
 
   Options:
     --template <simple|full>   Template to use (default: prompted)

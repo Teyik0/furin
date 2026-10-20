@@ -57,6 +57,7 @@ explicit:
 - `dom.ts`: installs and resets the DOM environment.
 - `hmr.ts`: HMR-specific process and port helpers.
 - `http.ts`: HTTP polling helpers.
+- `evlog-capture.ts`: a real evlog drain that records wide events.
 
 Do not add generic helpers until at least two tests need the same behavior.
 
@@ -69,6 +70,19 @@ state.
 Use subprocess tests for global module state, Bun `--hot`, or scenarios that
 cannot be isolated safely inside the current Bun test process. Mark those tests
 with `.integration.test.ts` when they are intentionally slow or process-heavy.
+Start long-lived children with `startProcess()`: still kill them in `afterAll`,
+but a sidecar also terminates them when the test process exits without running
+hooks (`--bail`, crash), so no `bun --hot` server outlives the run.
+
+## Process State
+
+A file that changes process-level Furin state restores it before it ends:
+`__setDevMode()` in `afterAll`, and runtimes it registers (a `furin()` mount,
+`registerInstance()`) through `__clearInstanceRegistry()` or
+`unregisterInstance()`. The `setup/process-state.ts` preload fails the file
+otherwise. Do not use `mock.module()`: a module mock cannot be undone and
+reaches every later file of a run without `--isolate`. Assert logs through
+`support/evlog-capture.ts` or a restorable `spyOn()`.
 
 ## DOM And Browser Tests
 
@@ -80,9 +94,10 @@ Use `Bun.WebView` only for browser-level integration tests that need a real
 browser runtime, such as hydration, trusted click/input events, or client
 navigation. Put those tests under `browser/` with a `.webview.test.ts` suffix and
 gate them behind `FURIN_WEBVIEW_TESTS=1` until the tier is stable in CI. The
-`test:webview` script runs the HMR browser conformance tier, including React
-boundaries, import graphs, error recovery, CSS, route topology, concurrent
-loaders, multi-tab reconnects, multiple prefixed instances, and the
+`test:webview` script covers HMR conformance and packaged composite Link navigation
+in development and production. The suite includes React boundaries, import graphs,
+error recovery, CSS, route topology, concurrent loaders, multi-tab reconnects,
+multiple prefixed instances, and the
 SSR/SSG/ISR/defer/RSC matrix. Timing-sensitive Bun-backed pipeline gaps use
 `test.todo`: they remain executable with
 `FURIN_WEBVIEW_TESTS=1 bun test --todo tests/browser/hmr-conformance.webview.test.ts`

@@ -1,7 +1,7 @@
 import type { AnyElysia } from "elysia";
 import { closeBrowserEventConnections } from "./browser-events/shutdown.ts";
 import { waitForPendingISRRevalidations } from "./cache/isr.ts";
-import { setRuntimeEvlogWaitUntil } from "./evlog.ts";
+import { setRequestEvlogWaitUntil, setRuntimeEvlogWaitUntil } from "./evlog.ts";
 import { closeSyncCursorStates, waitForSyncCursorUnsubscriptions } from "./sync/stream.ts";
 
 const DEFAULT_PRE_STOP_DELAY_MS = 5000;
@@ -40,10 +40,13 @@ export function startProductionServer(options: ProductionServerOptions): {
   let draining = false;
   let rejecting = false;
 
-  const unregisterWaitUntil = setRuntimeEvlogWaitUntil((emission) => {
+  const trackEmission = (emission: Promise<unknown>): void => {
     pendingEmissions.add(emission);
     emission.finally(() => pendingEmissions.delete(emission)).catch(() => undefined);
-  });
+  };
+  // Request logs drain on the server that received them; the process-wide
+  // registration covers emissions without a request (ISR background renders).
+  const unregisterWaitUntil = setRuntimeEvlogWaitUntil(trackEmission);
 
   app
     .wrap((fetch) => (request, ...rest) => {
@@ -51,6 +54,7 @@ export function startProductionServer(options: ProductionServerOptions): {
       if (rejecting && path !== "/_furin/health/live" && path !== "/_furin/health/ready") {
         return Promise.resolve(new Response("Service Unavailable", { status: 503 }));
       }
+      setRequestEvlogWaitUntil(request, trackEmission);
       return fetch(request, ...rest);
     })
     .get("/_furin/health/live", () =>
@@ -74,6 +78,12 @@ export function startProductionServer(options: ProductionServerOptions): {
   }
 
   let shutdownPromise: Promise<void> | undefined;
+  const drainSync = (): Promise<void> => {
+    syncDrainsReached.add(shutdown);
+    return syncDrainsReached.size === activeShutdowns.size
+      ? closeSyncCursorStates()
+      : waitForSyncCursorUnsubscriptions();
+  };
   const shutdown = (): Promise<void> => {
     if (shutdownPromise) {
       return shutdownPromise;
@@ -83,31 +93,47 @@ export function startProductionServer(options: ProductionServerOptions): {
     const delayMs = options.preStopDelayMs ?? DEFAULT_PRE_STOP_DELAY_MS;
     shutdownPromise = (async () => {
       let timeout: ReturnType<typeof setTimeout> | undefined;
+      let forced = false;
       try {
         await Bun.sleep(delayMs);
         rejecting = true;
-        const deadline = new Promise<void>((resolve) => {
+        const deadline = new Promise<void>((resolve, reject) => {
           timeout = setTimeout(() => {
+            forced = true;
             console.error("[furin] Shutdown deadline exceeded; forcing server stop");
-            server.stop(true).catch((error: unknown) => {
-              console.error("[furin] Forced server stop failed", error);
+            const stopped = server.stop(true);
+            Promise.resolve(app.stop(true)).catch((error: unknown) => {
+              console.error("[furin] Forced Elysia app cleanup failed", error);
             });
-            resolve();
+            drainSync().catch((error: unknown) => {
+              console.error("[furin] Forced Sync cursor cleanup failed", error);
+            });
+            stopped.then(resolve, (error: unknown) => {
+              console.error("[furin] Forced server stop failed", error);
+              reject(error);
+            });
           }, timeoutMs);
         });
         const drain = async (): Promise<void> => {
-          closeBrowserEventConnections(server);
-          server.closeIdleConnections();
-          await server.stop();
-          await waitForPendingISRRevalidations();
-          await Promise.allSettled([...pendingEmissions]);
-          syncDrainsReached.add(shutdown);
-          if (syncDrainsReached.size === activeShutdowns.size) {
-            await closeSyncCursorStates();
-          } else {
-            await waitForSyncCursorUnsubscriptions();
+          const steps = [
+            () => closeBrowserEventConnections(server),
+            () => {
+              server.closeIdleConnections();
+              return server.stop();
+            },
+            waitForPendingISRRevalidations,
+            () => Promise.allSettled([...pendingEmissions]),
+            drainSync,
+            () => app.stop(),
+            () => options.onShutdown?.(),
+          ];
+          for (const step of steps) {
+            if (forced) {
+              return;
+            }
+            // biome-ignore lint/performance/noAwaitInLoops: each shutdown stage depends on the preceding drain.
+            await step();
           }
-          await options.onShutdown?.();
         };
         await Promise.race([drain(), deadline]);
       } finally {

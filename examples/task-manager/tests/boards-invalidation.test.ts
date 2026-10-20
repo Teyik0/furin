@@ -26,7 +26,7 @@ function resetState() {
 }
 
 describe("boards API cache invalidation", () => {
-  test("creating a board invalidates both the index page and board layout sidebars", async () => {
+  test("creating a board invalidates GET /boards, read by the index page and the board sidebar", async () => {
     resetState();
     try {
       const response = await boardApp.handle(
@@ -41,18 +41,17 @@ describe("boards API cache invalidation", () => {
       );
 
       expect(response.status).toBe(200);
-      // The macro's afterHandle consumes the pending invalidations into the
-      // response header — that is the contract observed by the SPA client.
-      // Reading the header is the authoritative check; `consumePendingInvalidations`
-      // is already drained by the macro at this point.
-      expect(response.headers.get("x-furin-revalidate")).toBe("/,/rsc,/board:layout");
+      // Self-invalidation: the GET at the mutation's own URL.
+      expect(JSON.parse(response.headers.get("x-furin-queries") ?? "[]")).toEqual([
+        { id: "/boards", scope: {} },
+      ]);
       await response.json();
     } finally {
       resetState();
     }
   });
 
-  test("deleting a board invalidates both the index page and board layout sidebars", async () => {
+  test("deleting a board invalidates its own GET and the board list", async () => {
     resetState();
     try {
       const createResponse = await boardApp.handle(
@@ -75,7 +74,11 @@ describe("boards API cache invalidation", () => {
       );
 
       expect(response.status).toBe(200);
-      expect(response.headers.get("x-furin-revalidate")).toBe("/,/rsc,/board:layout");
+      // This standalone plugin has no /api prefix: the explicit list target names the served app's route.
+      expect(JSON.parse(response.headers.get("x-furin-queries") ?? "[]")).toEqual([
+        { id: "/api/boards", scope: {} },
+        { id: "/boards/:boardId", scope: { boardId: created.id } },
+      ]);
       await response.json();
     } finally {
       resetState();

@@ -5,12 +5,8 @@ import { expectTypeOf } from "expect-type";
 import { type DefineRouteConfig, defineRootRoute, defineRoute } from "../../src/furin.ts";
 
 function assertRemountTypes() {
-  const layout = defineRootRoute()
-    .config({ mode: "ssr" })
-    .layout(({ children }) => children);
-  defineRoute()
+  defineRoute("/")
     .config({
-      layout,
       mode: "ssr",
       params: t.Object({ id: t.Number() }),
       query: t.Object({ tab: t.Optional(t.String()) }),
@@ -30,8 +26,7 @@ function assertRemountTypes() {
       expectTypeOf(params.id).toEqualTypeOf<number>();
       return null;
     });
-  defineRoute().config({
-    layout,
+  defineRoute("/").config({
     mode: "ssg",
     params: t.Object({ slug: t.String() }),
     remountDeps: ({ params, query }) => {
@@ -40,8 +35,7 @@ function assertRemountTypes() {
       return [params.slug];
     },
   });
-  defineRoute().config({
-    layout,
+  defineRoute("/").config({
     mode: "isr",
     revalidate: 60,
     query: t.Object({ page: t.Number() }),
@@ -51,7 +45,7 @@ function assertRemountTypes() {
       return [query.page];
     },
   });
-  defineRoute().config({ layout, mode: "ssr", remountDeps: () => [] });
+  defineRoute("/").config({ mode: "ssr", remountDeps: () => [] });
   defineRootRoute().config({
     mode: "ssr",
     params: t.Object({ id: t.String() }),

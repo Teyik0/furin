@@ -1,8 +1,9 @@
 import { furin } from "@teyik0/furin";
+import Elysia from "elysia";
 import { api } from "./api";
 import { taskManagerSync } from "./sync";
 
-const app = api.use(
+const app = new Elysia({ name: "task-manager" }).use(api).use(
   await furin({
     logger: {
       keep: (context) => {

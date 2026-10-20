@@ -1,31 +1,27 @@
 import { describe, expect, test } from "bun:test";
-import { act, createElement } from "react";
+import { act, createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { toCrossJSON } from "seroval";
 import type { RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
 import { RouterProvider, useRouter } from "../../../src/client/link.tsx";
+import { resolveRouteElement } from "../../../src/client/route-element.tsx";
 import type { LoadedClientRoute } from "../../../src/client/router/types.ts";
 import { getRouteApi } from "../../../src/client.ts";
-import { defineRoute as createRoute, defineRootRoute } from "../../../src/define-route.ts";
-import { buildElement } from "../../../src/server/render/element.tsx";
+import { defineRoute as createRoute } from "../../../src/define-route.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { useDomTests, waitForDom } from "../../support/dom.ts";
 
 declare const defineRoute: typeof import("../../../src/define-route.ts").defineRoute;
 declare const t: typeof import("elysia").t;
-const layout = defineRootRoute()
-  .config({ mode: "ssr" })
-  .layout(({ children }) => children);
-
 const defineBoard = () =>
-  defineRoute()
-    .config({ layout, mode: "ssr", params: t.Object({ boardId: t.Number() }) })
+  defineRoute("/route-api-board/[boardId]")
+    .config({ mode: "ssr", params: t.Object({ boardId: t.Number() }) })
     .loader(() => ({ title: "Board" }))
     .page(() => null);
 
 declare module "@teyik0/furin/routes" {
-  interface RoutePatternMap {
+  interface RouteMap {
     "/route-api-board/:boardId": ReturnType<typeof defineBoard>;
   }
 }
@@ -49,16 +45,28 @@ const route: ResolvedRoute = {
   segmentBoundaries: [],
 };
 
+function routeTree(target: ResolvedRoute, data: { [key: string]: unknown }): ReactNode {
+  return resolveRouteElement({
+    boundaries: target.segmentBoundaries,
+    boundaryOptions: undefined,
+    chain: target.routeChain,
+    data,
+    page: { component: target.page.component, pattern: target.pattern },
+    reset: () => undefined,
+    rootBoundary: undefined,
+  });
+}
+
 describe("getRouteApi", () => {
   test("reads the active loader and validated params during SSR without fetching", () => {
-    const element = buildElement(route, { params: { boardId: 42 }, title: "SSR board" }, pageRoute);
+    const element = routeTree(route, { params: { boardId: 42 }, title: "SSR board" });
 
     expect(renderToStaticMarkup(element)).toBe("<output>42:SSR board</output>");
   });
 
   test("route definitions do not expose a callable that pretends to read loader data", () => {
-    const definition = createRoute()
-      .config({ layout, mode: "ssr" })
+    const definition = createRoute("/board")
+      .config({ mode: "ssr" })
       .loader(() => ({ title: "Board" }))
       .page(() => null);
 
@@ -66,16 +74,16 @@ describe("getRouteApi", () => {
   });
 
   test("rejects a snapshot from a different active route", () => {
-    expect(() =>
-      renderToStaticMarkup(buildElement({ ...route, pattern: "/other" }, {}, pageRoute))
-    ).toThrow('getRouteApi("/route-api-board/:boardId")');
+    expect(() => renderToStaticMarkup(routeTree({ ...route, pattern: "/other" }, {}))).toThrow(
+      'getRouteApi("/route-api-board/:boardId")'
+    );
   });
 
   test("does not expose reserved render props as loader fields", () => {
     function Keys() {
       return createElement("output", null, Object.keys(board.useLoaderData()).sort().join(","));
     }
-    const element = buildElement(
+    const element = routeTree(
       { ...route, page: { ...route.page, component: Keys } },
       {
         __furinQueries: [],
@@ -91,8 +99,7 @@ describe("getRouteApi", () => {
         path: "/board/42",
         query: { page: 1 },
         title: "Board",
-      },
-      pageRoute
+      }
     );
     expect(renderToStaticMarkup(element)).toBe("<output>title</output>");
   });
@@ -145,7 +152,6 @@ describe("getRouteApi in the browser", () => {
             initialData: { params: { boardId: 42 }, title: "Hydrated board" },
             initialDigest: undefined,
             initialMatch: match,
-            initialNotFound: undefined,
             prefetchCacheSize: 50,
             root: null,
             routes: [match],

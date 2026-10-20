@@ -22,9 +22,8 @@ test("Vercel prerenders production-compatible composite Flight for direct hydrat
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";',
-        'import { route as rootRoute } from "./root";',
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "isr", revalidate: 300 })',
+        'export const route = defineRoute("/rsc")',
+        '  .config({ mode: "isr", revalidate: 300 })',
         "  .loader(async () => {",
         '    if (process.env.NODE_ENV !== "production") throw new Error("Prerender must use the production handler");',
         "    return { shell: await createCompositeComponent<{ action: () => React.ReactNode }>(({ action }) => <main><h1>RSC page</h1>{action()}</main>) };",

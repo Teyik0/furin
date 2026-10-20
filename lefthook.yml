@@ -1,20 +1,18 @@
 pre-commit:
-  # Top-level jobs run sequentially. The parallel group runs first; only once
-  # its `stage_fixed` jobs have re-staged their changes does `react doctor`
-  # run, so `--staged` always reflects the final commit content. Running it
-  # inside the parallel group would race the re-stage and be nondeterministic.
+  # Top-level jobs run sequentially. `files format` rewrites and re-stages files
+  # first, so the parallel checks and `react doctor --staged` always see the
+  # final commit content instead of racing the formatter.
   jobs:
-    - name: format-and-check
+    - name: files format
+      run: bun run fix
+      stage_fixed: true
+
+    - name: checks
       group:
         parallel: true
         jobs:
-          - name: files format
-            run: bun run fix
-            stage_fixed: true
-
           - name: typescript check
             run: bun run tscheck
-            stage_fixed: true
 
           - name: knip
             run: bun run knip
@@ -29,11 +27,9 @@ pre-push:
   jobs:
     - name: Build
       run: bun run build
-      stage_fixed: true
 
     - name: Test
       run: bun run test
-      stage_fixed: true
 
 commit-msg:
   commands:

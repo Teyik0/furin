@@ -71,7 +71,7 @@ export async function createProductionAssetsPlugin(
   embedded: EmbeddedAppData | undefined,
   clientDir: string
 ): Promise<AnyElysia> {
-  if (ctx.serveAssets === false) {
+  if (ctx.adapter?.capabilities.assets === "platform") {
     return new Elysia();
   }
   if (embedded) {

@@ -1,10 +1,21 @@
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
+import { createTmpApp, type TmpApp } from "../../support/app-fixtures.ts";
+import { runProcess } from "../../support/process.ts";
 
 const TESTS_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
+// Fixtures are owned by the parent so they are removed even if the child dies.
+const fixtures: TmpApp[] = [];
 
-test("request scope isolation when furin is mounted as a plugin", () => {
-  const proc = Bun.spawnSync({
-    cmd: [
+afterEach(() => {
+  while (fixtures.length > 0) {
+    fixtures.pop()?.cleanup();
+  }
+});
+
+test("request scope isolation when furin is mounted as a plugin", async () => {
+  fixtures.push(...Array.from({ length: 2 }, () => createTmpApp("cli-app")));
+  const proc = await runProcess(
+    [
       "bun",
       "-e",
       `
@@ -15,18 +26,24 @@ import { furin, revalidatePath } from "furin";
 import { __resetCacheState } from "./src/server/cache/index.ts";
 import { __resetCompileContext } from "./src/server/internal.ts";
 import {
+  __resetTemplateState,
   setProductionTemplateContent,
-  setProductionTemplatePath,
 } from "./src/server/render/template.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
-import { createTmpApp, writeAppFile } from "./tests/support/app-fixtures.ts";
+import { writeAppFile } from "./tests/support/app-fixtures.ts";
+
+const fixturePaths = JSON.parse(process.env.FURIN_TEST_FIXTURE_PATHS);
+// The parent test owns and removes these fixtures.
+function takeFixture() {
+  return { cleanup: () => undefined, path: fixturePaths.shift() };
+}
 
 const tmpApps = [];
 const originalCwd = process.cwd();
 
 function resetState() {
   __setDevMode(true);
-  setProductionTemplatePath(null);
+  __resetTemplateState();
   __resetCompileContext();
   process.chdir(originalCwd);
   __resetCacheState();
@@ -42,10 +59,9 @@ function writeRevalidatePages(appPath, asyncLoader) {
     "src/pages/revalidate-a.tsx",
     [
       'import { defineRoute, revalidatePath } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      "export const route = defineRoute('/revalidate-a')",
+      '  .config({ mode: "ssr" })',
       "  .loader(" + loaderPrefix + "() => {",
       '    revalidatePath("/page-a", "page");',
       "    return {};",
@@ -58,10 +74,9 @@ function writeRevalidatePages(appPath, asyncLoader) {
     "src/pages/revalidate-b.tsx",
     [
       'import { defineRoute, revalidatePath } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      "export const route = defineRoute('/revalidate-b')",
+      '  .config({ mode: "ssr" })',
       "  .loader(" + loaderPrefix + "() => {",
       '    revalidatePath("/page-b", "page");',
       "    return {};",
@@ -72,7 +87,7 @@ function writeRevalidatePages(appPath, asyncLoader) {
 
 try {
   resetState();
-  let app = createTmpApp("cli-app");
+  let app = takeFixture();
   tmpApps.push(app);
   __setDevMode(true);
   process.chdir(app.path);
@@ -89,7 +104,7 @@ try {
   expect(response.headers.get("x-furin-revalidate")).toBe("/page-a");
 
   resetState();
-  app = createTmpApp("cli-app");
+  app = takeFixture();
   tmpApps.push(app);
   __setDevMode(true);
   process.chdir(app.path);
@@ -112,18 +127,16 @@ try {
 }
 `,
     ],
-    cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
-    stderr: "pipe",
-    stdout: "pipe",
-  });
+    {
+      cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
+      env: { FURIN_TEST_FIXTURE_PATHS: JSON.stringify(fixtures.map((f) => f.path)) },
+      timeoutMs: 25_000,
+    }
+  );
 
   if (proc.exitCode !== 0) {
     throw new Error(
-      [
-        `request scope subprocess exited with ${proc.exitCode}`,
-        new TextDecoder().decode(proc.stdout),
-        new TextDecoder().decode(proc.stderr),
-      ].join("\n")
+      [`request scope subprocess exited with ${proc.exitCode}`, proc.stdout, proc.stderr].join("\n")
     );
   }
 

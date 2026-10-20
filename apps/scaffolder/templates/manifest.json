@@ -58,6 +58,11 @@
           "kind": "ejs"
         },
         {
+          "src": "shared/README.md.ejs",
+          "dest": "README.md",
+          "kind": "ejs"
+        },
+        {
           "src": "simple/src/server.ts.ejs",
           "dest": "src/server.ts",
           "kind": "ejs"
@@ -140,6 +145,11 @@
         {
           "src": "full/furin-env.d.ts.ejs",
           "dest": "furin-env.d.ts",
+          "kind": "ejs"
+        },
+        {
+          "src": "shared/README.md.ejs",
+          "dest": "README.md",
           "kind": "ejs"
         },
         {

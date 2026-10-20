@@ -1,10 +1,21 @@
 import { describe, expect, test } from "bun:test";
+import { resolvePath } from "../../../src/server/render/assemble.ts";
 import {
   buildRouteMatcher,
   buildRouteRegex,
   compareRouteSpecificity,
+  escapeRegExp,
   filePathToPattern,
+  routePatternRegexSource,
 } from "../../../src/server/router/patterns.ts";
+
+test("decoded route params preserve their segment boundary in rendered cache paths", () => {
+  const match = buildRouteMatcher([{ pattern: "/item/:id" }])("/item/a%2Fb");
+  expect(match?.params.id).toBe("a/b");
+  expect(resolvePath("/item/:id", match?.params ?? {})).toBe("/item/a%2Fb");
+  expect(resolvePath("/item/*", { "*": "a/b" })).toBe("/item/a/b");
+  expect(resolvePath("/item/:id", { id: "a?b#c%" })).toBe("/item/a%3Fb%23c%25");
+});
 
 describe("filePathToPattern", () => {
   test("converts index route to root", () => {
@@ -137,6 +148,23 @@ describe("buildRouteRegex", () => {
     expect(regex.test("/release/v1.0+stable")).toBe(true);
     expect(regex.test("/release/v1x0+stable")).toBe(false);
     expect(regex.test("/release/v1.00stable")).toBe(false);
+  });
+});
+
+describe("escapeRegExp", () => {
+  test("matches the value literally", () => {
+    const value = "/a.b+c?(d)[e]{f}|g^h$i*j\\k";
+
+    expect(new RegExp(`^${escapeRegExp(value)}$`).test(value)).toBe(true);
+    expect(new RegExp(`^${escapeRegExp("/a.b")}$`).test("/axb")).toBe(false);
+  });
+});
+
+describe("routePatternRegexSource", () => {
+  test("substitutes the given sources for params and catch-alls, in order", () => {
+    expect(
+      routePatternRegexSource("/v1.0/:org/:repo/*", { catchAll: "(?:.*)", param: "[^/]+" })
+    ).toEqual({ paramNames: ["org", "repo", "*"], source: "/v1\\.0/[^/]+/[^/]+/(?:.*)" });
   });
 });
 

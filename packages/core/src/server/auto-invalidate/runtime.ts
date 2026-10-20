@@ -1,4 +1,5 @@
 import type { Context } from "elysia";
+import { serializeInvalidationPaths } from "../../shared/invalidation-header.ts";
 import { physicalPath } from "../../shared/prefix.ts";
 import {
   callCachePurger,
@@ -14,30 +15,12 @@ import {
   emitCacheInvalidated,
 } from "../devtools/instrumentation.ts";
 import { allInstances, withInstance } from "../instance.ts";
-import { IS_DEV } from "../runtime-env.ts";
+import { effectiveResponseStatus } from "../sync/response.ts";
 import { getAutoInvalidateRegistry } from "./registry.ts";
 import type { InvalidationInput, InvalidationRule } from "./types.ts";
 
 function toRules(input: InvalidationInput): readonly InvalidationRule[] {
   return Array.isArray(input) ? input : [input as InvalidationRule];
-}
-
-function statusFromResponseValue(responseValue: unknown): number | undefined {
-  if (responseValue instanceof Response) {
-    return responseValue.status;
-  }
-  if (responseValue && typeof responseValue === "object" && "status" in responseValue) {
-    const { status } = responseValue as { status?: unknown };
-    if (typeof status === "number") {
-      return status;
-    }
-  }
-  if (responseValue && typeof responseValue === "object" && "code" in responseValue) {
-    const { code } = responseValue as { code?: unknown };
-    if (typeof code === "number") {
-      return code;
-    }
-  }
 }
 
 export function isSuccessfulMutationResponse(
@@ -46,68 +29,8 @@ export function isSuccessfulMutationResponse(
     response?: unknown;
   }
 ): boolean {
-  const responseStatus =
-    statusFromResponseValue(ctx.responseValue) ?? statusFromResponseValue(ctx.response);
-  if (responseStatus !== undefined) {
-    return responseStatus >= 200 && responseStatus < 400;
-  }
-
-  const setStatus = ctx.set.status;
-  if (typeof setStatus === "number") {
-    return setStatus >= 200 && setStatus < 400;
-  }
-  if (typeof setStatus === "string") {
-    // Elysia allows string status codes (e.g. "Not Found"). We cannot map
-    // every possible string to its numeric code without the StatusMap, so we
-    // treat known client-error (4xx) and server-error (5xx) texts as failures
-    // and everything else as success (1xx, 2xx, 3xx, and any unknown string).
-    const errorStatusTexts = new Set([
-      "Bad Request",
-      "Unauthorized",
-      "Payment Required",
-      "Forbidden",
-      "Not Found",
-      "Method Not Allowed",
-      "Not Acceptable",
-      "Proxy Authentication Required",
-      "Request Timeout",
-      "Conflict",
-      "Gone",
-      "Length Required",
-      "Precondition Failed",
-      "Payload Too Large",
-      "URI Too Long",
-      "Unsupported Media Type",
-      "Range Not Satisfiable",
-      "Expectation Failed",
-      "I'm a teapot",
-      "Misdirected Request",
-      "Unprocessable Content",
-      "Locked",
-      "Failed Dependency",
-      "Too Early",
-      "Upgrade Required",
-      "Precondition Required",
-      "Too Many Requests",
-      "Enhance Your Calm",
-      "Request Header Fields Too Large",
-      "Unavailable For Legal Reasons",
-      "Internal Server Error",
-      "Not Implemented",
-      "Bad Gateway",
-      "Service Unavailable",
-      "Gateway Timeout",
-      "HTTP Version Not Supported",
-      "Variant Also Negotiates",
-      "Insufficient Storage",
-      "Loop Detected",
-      "Not Extended",
-      "Network Authentication Required",
-    ]);
-    return !errorStatusTexts.has(setStatus);
-  }
-  // No explicit status was set — default to success (200).
-  return true;
+  const status = effectiveResponseStatus(ctx.responseValue ?? ctx.response, ctx.set);
+  return status >= 200 && status < 400;
 }
 
 export function appendPendingInvalidationHeader(set: Context["set"]): string[] {
@@ -120,8 +43,8 @@ export function appendPendingInvalidationHeader(set: Context["set"]): string[] {
   const existing = set.headers[headerName];
   set.headers[headerName] =
     typeof existing === "string" && existing.length > 0
-      ? `${existing},${pending.join(",")}`
-      : pending.join(",");
+      ? `${existing},${serializeInvalidationPaths(pending)}`
+      : serializeInvalidationPaths(pending);
   return pending;
 }
 
@@ -179,7 +102,7 @@ async function invalidateTagsForInstance(
   }
   const pathResults = await Promise.all(sharedInvalidations);
   deleted = pathResults.some((result) => result.invalidated) || deleted;
-  if (IS_DEV) {
+  if (instance.development) {
     withInstance(instance, () => {
       const request = currentInstrumentationRequest();
       const operationId = request === undefined ? null : request.operationId;
@@ -204,22 +127,17 @@ export async function revalidateTag(tags: string | readonly string[]): Promise<b
   // But each instance's tag-registered paths are evicted from THAT instance's
   // caches only — the cross-app fan-out of `revalidatePath` would also evict
   // a sibling app's unrelated page that merely shares the pathname.
-  callCacheTagPurger(tagList);
+  const instances = allInstances();
+  callCacheTagPurger(instances, tagList);
   const results = await Promise.all(
-    allInstances().map((instance) => invalidateTagsForInstance(instance, tagList))
+    instances.map((instance) => invalidateTagsForInstance(instance, tagList))
   );
-  const purgedPaths = new Set<string>();
-  let deleted = false;
-  for (const result of results) {
-    deleted = result.deleted || deleted;
-    for (const path of result.purgedPaths) {
-      purgedPaths.add(path);
-    }
-  }
-  // One batched CDN purge — the CDN sits in front of every mounted app, so
-  // physical paths from all instances go out together, deduped.
-  callCachePurger([...purgedPaths]);
-  return deleted;
+  // Physical paths go to each runtime's purger; runtimes sharing one purger
+  // (e.g. a CDN in front of every mounted app) get a single deduped batch.
+  callCachePurger(
+    new Map(instances.map((instance, index) => [instance, results[index]?.purgedPaths ?? []]))
+  );
+  return results.some((result) => result.deleted);
 }
 
 export async function runInvalidationRules(input: InvalidationInput): Promise<boolean> {

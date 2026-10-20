@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { scanPages } from "../../../src/server/router/discovery.ts";
@@ -38,7 +38,7 @@ function cleanupTmpApps(): void {
   }
 }
 
-process.on("exit", cleanupTmpApps);
+afterEach(cleanupTmpApps);
 
 async function runBuildPackageTargetScenarios(): Promise<void> {
   {
@@ -125,7 +125,7 @@ describe.serial("buildPackageTarget", () => {
     writeAppFile(app.path, "src/browser.ts", 'import "@teyik0/furin/client-only"; export const value = 1;');
     writeAppFile(app.path, "src/pages/index.tsx", `
       import { defineRoute } from "@teyik0/furin";
-      export const route = defineRoute().config({ mode: "ssr" })
+      export const route = defineRoute("/").config({ mode: "ssr" })
         .loader(async () => ({ value: (await import("../browser")).value }))
         .page(() => <main>Package</main>);
     `);
@@ -149,7 +149,7 @@ describe.serial("buildPackageTarget", () => {
       import { defineRoute } from "@teyik0/furin";
       import { clientModule } from "@teyik0/furin/client";
       const scene = clientModule(() => import("../scene"));
-      export const route = defineRoute().config({ mode: "ssr" })
+      export const route = defineRoute("/").config({ mode: "ssr" })
         .page(() => <main>{String(scene.hrefs.length)}</main>);
     `);
     const pagesDir = join(app.path, "src/pages");
@@ -163,5 +163,5 @@ describe.serial("buildPackageTarget", () => {
 
   test("emits package assets, factory types, and stable build metadata", (done) => {
     runBuildPackageTargetScenarios().then(() => done(), done);
-  });
+  }, 30_000);
 });

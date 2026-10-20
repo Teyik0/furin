@@ -39,8 +39,8 @@ test("prerenders a route without requestLoader fields", async () => {
         </body>
       </html>
     ));
-  const terminal = defineRoute()
-    .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+  const terminal = defineRoute("/terminal")
+    .config({ mode: "isr", revalidate: 60 })
     .page(() => <main>Public page</main>);
   const root = { path: "/root.tsx", route: adaptDefinedLayout(rootRoute, undefined) };
   const page = adaptDefinedPage(terminal, root.route);
@@ -53,7 +53,15 @@ test("prerenders a route without requestLoader fields", async () => {
     segmentBoundaries: [],
   };
   const app = new Elysia().get("/public", async (ctx) => {
-    const artifact = await prerenderPprDocument(route, ctx, root, "build-1", undefined, undefined);
+    const artifact = await prerenderPprDocument(
+      route,
+      ctx,
+      root,
+      "build-1",
+      undefined,
+      undefined,
+      undefined
+    );
     expect(isPprArtifact(artifact)).toBe(true);
     if (!isPprArtifact(artifact)) {
       throw new Error("Prerender failed");
@@ -85,8 +93,8 @@ test("a serialized public shell resumes independently for two sessions", async (
   function Private({ data }: { data: Promise<string> }) {
     return <strong>{use(data)}</strong>;
   }
-  const terminal = defineRoute()
-    .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+  const terminal = defineRoute("/terminal")
+    .config({ mode: "isr", revalidate: 60 })
     .requestLoader(async ({ cookies }) => {
       privateCalls += 1;
       if (cookies.get("session") === "Alice") {
@@ -125,13 +133,21 @@ test("a serialized public shell resumes independently for two sessions", async (
           `default-src 'self'; script-src 'self'${nonce ? ` 'nonce-${nonce}'` : " 'unsafe-inline'"}`,
       })
     )
-    .beforeHandle("global", ({ request, set }) => {
+    .onBeforeHandle("global", ({ request, set }) => {
       const session = new URLSearchParams(request.headers.get("cookie") ?? "").get("session");
       set.headers["set-cookie"] = `session=${session}; Path=/; HttpOnly`;
     })
     .get("/account", async (ctx) => {
       if (artifact === undefined) {
-        artifact = await prerenderPprDocument(route, ctx, root, "build-1", undefined, undefined);
+        artifact = await prerenderPprDocument(
+          route,
+          ctx,
+          root,
+          "build-1",
+          undefined,
+          undefined,
+          undefined
+        );
         expect(privateCalls).toBe(0);
       }
       if (!isPprArtifact(artifact)) {

@@ -1,11 +1,14 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runBunBuild } from "../../build/bun-build.ts";
+import { PRODUCTION_DEFINE, runBunBuild } from "../../build/bun-build.ts";
+import { CLIENT_MODULE_PATH, LINK_MODULE_PATH } from "../../build/shared.ts";
 import { isomorphicTransformPlugin } from "../../plugin/transform-isomorphic.ts";
 import type { ResolvedRoute, RootLayout } from "../../server/router/types.ts";
 import { assertInstalledRscVersions } from "../version.ts";
+import { referencedClientExports, rscClientReferencesPlugin } from "./client-references.ts";
 import { environmentGuardPlugin } from "./environment.ts";
+import { flightLoaderPlugin } from "./flight-loader.ts";
 
 export interface ClientReference {
   chunks: readonly string[];
@@ -13,7 +16,7 @@ export interface ClientReference {
   name: string;
 }
 
-export interface RscCssAsset {
+interface RscCssAsset {
   href: string;
 }
 
@@ -28,6 +31,34 @@ export interface RscBuildApp {
   routes: ResolvedRoute[];
 }
 
+// Both builds run in the react-server graph with the same transforms.
+const reactServerBuild = {
+  conditions: ["react-server"],
+  define: PRODUCTION_DEFINE,
+  format: "esm",
+  target: "bun",
+} satisfies Partial<Bun.BuildConfig>;
+const reactServerPlugins = () => [isomorphicTransformPlugin("server"), environmentGuardPlugin("rsc")];
+
+/** Builds the isolated Flight codec the bundled runtime loads as `server-codec.js` next to itself. */
+export async function buildFlightCodec(
+  outDir: string,
+  userPlugins: Bun.BunPlugin[] | undefined
+): Promise<void> {
+  const codecResult = await runBunBuild({
+    ...reactServerBuild,
+    entrypoints: [fileURLToPath(import.meta.resolve("../server-codec.ts"))],
+    outdir: outDir,
+    naming: "server-codec.js",
+    plugins: [...(userPlugins ?? []), flightLoaderPlugin(), ...reactServerPlugins()],
+  });
+  if (!codecResult.success) {
+    throw new Error(
+      `[furin] Flight codec build failed.\n${codecResult.logs.map((log) => log.message).join("\n")}`
+    );
+  }
+}
+
 export async function buildRscGraph(
   apps: RscBuildApp[],
   outDir: string,
@@ -40,10 +71,7 @@ export async function buildRscGraph(
   const rscEntry = fileURLToPath(import.meta.resolve("../../rsc-server.tsx"));
   const entrypoints = [
     ...new Set(
-      apps.flatMap(({ root, routes }) => [
-        root.path,
-        ...routes.map((route) => route.path),
-      ])
+      apps.flatMap(({ root, routes }) => [root.path, ...routes.map((route) => route.path)])
     ),
   ];
   const aliasPlugin: Bun.BunPlugin = {
@@ -53,54 +81,48 @@ export async function buildRscGraph(
         if (path === "furin/rsc" || path === "@teyik0/furin/rsc") {
           return { path: rscEntry };
         }
+        if (path.endsWith("/link")) {
+          return { path: LINK_MODULE_PATH };
+        }
+        if (path.endsWith("/client")) {
+          return { path: CLIENT_MODULE_PATH };
+        }
         return { path, external: true };
       });
     },
   };
+  const clientReferences: ClientReference[] = [];
   const result = await runBunBuild({
+    ...reactServerBuild,
     entrypoints,
+    metafile: true,
     outdir: graphDir,
-    target: "bun",
-    format: "esm",
     splitting: true,
-    conditions: ["react-server"],
     naming: { entry: "[dir]/[name]-[hash].[ext]", chunk: "[name]-[hash].[ext]" },
     plugins: [
       ...(userPlugins ?? []),
-      isomorphicTransformPlugin("server"),
-      environmentGuardPlugin("rsc"),
+      rscClientReferencesPlugin(clientReferences),
+      ...reactServerPlugins(),
       aliasPlugin,
     ],
-    define: { "process.env.NODE_ENV": JSON.stringify("production") },
   });
   if (!result.success) {
     throw new Error(
       `[furin] RSC graph build failed.\n${result.logs.map((log) => log.message).join("\n")}`
     );
   }
-  const codecResult = await runBunBuild({
-    entrypoints: [fileURLToPath(import.meta.resolve("../server-codec.ts"))],
-    outdir: outDir,
-    target: "bun",
-    format: "esm",
-    conditions: ["react-server"],
-    naming: "server-codec.js",
-    plugins: [
-      ...(userPlugins ?? []),
-      isomorphicTransformPlugin("server"),
-      environmentGuardPlugin("rsc"),
-    ],
-    define: { "process.env.NODE_ENV": JSON.stringify("production") },
-  });
-  if (!codecResult.success) {
-    throw new Error(
-      `[furin] Flight codec build failed.\n${codecResult.logs.map((log) => log.message).join("\n")}`
-    );
+  if (result.metafile === undefined) {
+    throw new Error("[furin] The RSC graph build did not produce its metafile.");
   }
+  await buildFlightCodec(outDir, userPlugins);
   const css = result.outputs
     .filter((output) => output.path.endsWith(".css"))
     .map((output) => ({ href: `/_rsc/${basename(output.path)}` }));
-  const manifest: RscManifest = { buildId, clientReferences: [], css };
+  const manifest: RscManifest = {
+    buildId,
+    clientReferences: referencedClientExports(clientReferences, result.metafile),
+    css,
+  };
   writeFileSync(join(graphDir, "manifest.json"), JSON.stringify(manifest, null, 2));
   return manifest;
 }

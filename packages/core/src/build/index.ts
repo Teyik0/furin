@@ -1,26 +1,28 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: build phases run in sequence because later phases consume prior artifacts
 import { existsSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { buildBunTarget } from "../adapter/bun";
+import { buildAdapterTarget } from "../adapter/build.ts";
+import { bun } from "../adapter/bun.ts";
 import { buildPackageTarget } from "../adapter/package";
 import type { RuntimeTargetApp } from "../adapter/runtime-build";
 import { buildStaticTarget } from "../adapter/static";
-import { buildVercelTarget } from "../adapter/vercel";
-import { BUILD_TARGETS, type BuildTarget, type FurinPlugin } from "../config";
+import type { FurinAdapter } from "../adapter/types.ts";
+import { vercel } from "../adapter/vercel.ts";
+import { BUILD_TARGETS, type BuildTarget, type FurinPlugin, type FurinTarget } from "../config";
+import { assertValidRouteConfig } from "../plugin/route-config.ts";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
 import { normalizePrefix } from "../server/instance.ts";
 import { scanPages } from "../server/router/discovery.ts";
-import { assertNoPrefixSlugCollisions } from "../shared/prefix.ts";
+import { assertNoPrefixSlugCollisions, assertOnePagesDirPerMount } from "../shared/prefix.ts";
 import { withProductionBuild } from "../shared/production-build.ts";
-import { scanFurinInstances } from "./scan-server";
+import { discoverFurinMounts } from "./discover-mounts.ts";
+import { writeRouteTypes } from "./route-types";
 import { ensureDir, toBuildRouteManifestEntry, toPosixPath } from "./shared";
 import type { BuildAppOptions, BuildAppResult, BuildManifest } from "./types";
 
 // biome-ignore lint/performance/noBarrelFile: intentional — build/index.ts is the public build API entry
 export { buildClient } from "./client";
-export { writeDevFiles } from "./hydrate";
 export { writeRouteTypes } from "./route-types";
-export { buildSSGCacheSnapshot, type SSGCacheSnapshot } from "./ssg-cache";
 export type {
   BuildAppOptions,
   BuildAppResult,
@@ -34,7 +36,32 @@ export type {
 // "package" is intentionally excluded from `--target all` — it is an
 // alternative packaging of ONE app, not an additional deploy target.
 const IMPLEMENTED_TARGETS = ["bun", "vercel", "static"] as const satisfies BuildTarget[];
-export const BUILD_OUTPUT_DIR = ".furin/build";
+
+/** Targets without a server bundle: static ships none, package leaves it to the host. */
+function isServerless(target: FurinTarget): target is "package" | "static" {
+  return target === "static" || target === "package";
+}
+
+function requestedTargets(target: BuildAppOptions["target"]): FurinTarget[] {
+  if (target === "all") {
+    return [...IMPLEMENTED_TARGETS];
+  }
+  const targets = Array.isArray(target) ? target : [target];
+  for (const entry of targets) {
+    if (typeof entry === "string" && !(BUILD_TARGETS as readonly string[]).includes(entry)) {
+      throw new Error(`[furin] Unsupported build target "${entry}"`);
+    }
+  }
+  return targets;
+}
+
+function adapterFor(target: FurinAdapter | "bun" | "vercel", options: BuildAppOptions): FurinAdapter {
+  if (typeof target !== "string") {
+    return target;
+  }
+  return target === "bun" ? bun(options.compile) : vercel({});
+}
+const BUILD_OUTPUT_DIR = ".furin/build";
 let isomorphicRuntimePluginRegistered = false;
 
 function registerIsomorphicRuntimePlugin(): void {
@@ -49,14 +76,14 @@ function registerIsomorphicRuntimePlugin(): void {
  * Resolves the list of apps to build, in priority order:
  * 1. explicit `apps` config (furin.config.ts),
  * 2. explicit single `pagesDir` option (mounted at root),
- * 3. every `furin({ pagesDir, prefix })` call detected in the server entry,
+ * 3. every `furin({ pagesDir, prefix })` call made by evaluating the server entry,
  * 4. the `src/pages` default.
  */
-function resolveAppSpecs(
-  options: BuildAppOptions,
+async function resolveAppSpecs(
+  options: RouteTypegenOptions,
   serverEntry: string | null,
   rootDir: string
-): Array<{ pagesDir: string; prefix: string }> {
+): Promise<Array<{ pagesDir: string; prefix: string }>> {
   if (options.apps && options.apps.length > 0) {
     // normalizePrefix is the choke point for config/CLI-provided prefixes:
     // `"/"` → `""` (otherwise the bun target derives `publicPath: "//_client/"`,
@@ -71,15 +98,102 @@ function resolveAppSpecs(
     return [{ pagesDir: resolve(rootDir, options.pagesDir), prefix: "" }];
   }
   if (serverEntry) {
-    const detected = scanFurinInstances(serverEntry);
-    if (detected.length > 0) {
-      return detected.map((app) => ({
+    const mounted = await discoverFurinMounts(serverEntry, rootDir);
+    if (mounted.length > 0) {
+      return mounted.map((app) => ({
         pagesDir: resolve(rootDir, app.pagesDir),
         prefix: app.prefix,
       }));
     }
   }
   return [{ pagesDir: resolve(rootDir, "src/pages"), prefix: "" }];
+}
+
+/**
+ * Registers runtime plugins, resolves the configured apps and scans their
+ * pages. Shared by `buildApp()` and `generateRouteTypes()`.
+ */
+async function scanApps(
+  options: RouteTypegenOptions,
+  serverEntry: string | null,
+  rootDir: string
+): Promise<RuntimeTargetApp[]> {
+  // Register user plugins as runtime module loaders BEFORE scanPages.
+  //
+  // scanPages() calls import() on every page file, which triggers all their
+  // static imports (e.g. ".mdx" files). If the loader is not yet registered
+  // at that point, Bun caches the raw/unprocessed result — and that cached
+  // value is reused for every subsequent import(), including prerenderSSG().
+  //
+  // Plugins marked `buildOnly` (e.g. bun-plugin-tailwind uses onBeforeParse,
+  // which doesn't exist in the runtime context) only affect Bun.build()
+  // bundles. Any other registration failure would make route imports differ
+  // from the bundle, so it fails the build.
+  for (const plugin of options.plugins ?? []) {
+    const { buildOnly, ...runtimePlugin } = plugin as FurinPlugin;
+    if (buildOnly) {
+      continue;
+    }
+    try {
+      Bun.plugin(runtimePlugin);
+    } catch (err) {
+      throw new Error(
+        `[furin] Plugin "${runtimePlugin.name}" could not be registered for server-side route imports: ${err instanceof Error ? err.message : String(err)}\n` +
+          "If it only transforms the client bundle (for example bun-plugin-tailwind), mark it build-only in furin.config.ts:\n" +
+          "  plugins: [{ ...plugin, buildOnly: true }]",
+        { cause: err }
+      );
+    }
+  }
+  registerIsomorphicRuntimePlugin();
+
+  const appSpecs = await resolveAppSpecs(options, serverEntry, rootDir);
+  const duplicatePrefix = appSpecs.find(
+    (spec, index) => appSpecs.findIndex((other) => other.prefix === spec.prefix) !== index
+  );
+  if (duplicatePrefix) {
+    throw new Error(
+      `[furin] Two apps are configured with the prefix "${duplicatePrefix.prefix || "/"}" — give each app a unique prefix.`
+    );
+  }
+  assertOnePagesDirPerMount(appSpecs);
+  // Distinct prefixes can still slug to the same client dir (`/a-b` vs `/a/b`
+  // → `client-a-b`), which would let a later app's assets overwrite an earlier
+  // one's — reject before any target writes output.
+  assertNoPrefixSlugCollisions(appSpecs.map((spec) => spec.prefix));
+
+  // scanPages throws if root.tsx is missing, so root is always defined per app.
+  const apps: RuntimeTargetApp[] = [];
+  for (const spec of appSpecs) {
+    assertValidRouteConfig(spec);
+    const { root, routes } = await scanPages(spec.pagesDir);
+    apps.push({ pagesDir: spec.pagesDir, prefix: spec.prefix, root, routes });
+  }
+  return apps;
+}
+
+/** `RouteMap` for the root-mounted app, `FileRoutes` for every app. */
+function writeAppRouteTypes(apps: RuntimeTargetApp[], rootDir: string): void {
+  writeRouteTypes(apps.find((app) => app.prefix === "")?.routes ?? [], rootDir, apps);
+}
+
+/** Options for `generateRouteTypes()`, a subset of the build options. */
+export type RouteTypegenOptions = Pick<
+  BuildAppOptions,
+  "apps" | "pagesDir" | "plugins" | "rootDir" | "serverEntry"
+>;
+
+/**
+ * Writes `furin-env.d.ts` for every mounted app without building, e.g.
+ * before `tsc` in CI.
+ */
+export function generateRouteTypes(options: RouteTypegenOptions): Promise<void> {
+  return withProductionBuild(async () => {
+    const rootDir = resolve(options.rootDir ?? process.cwd());
+    const entry = resolve(rootDir, options.serverEntry ?? "src/server.ts");
+    const apps = await scanApps(options, existsSync(entry) ? entry : null, rootDir);
+    writeAppRouteTypes(apps, rootDir);
+  });
 }
 
 export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult> {
@@ -89,9 +203,9 @@ export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult
 async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResult> {
   const rootDir = resolve(options.rootDir ?? process.cwd());
   const buildRoot = join(rootDir, BUILD_OUTPUT_DIR);
+  const targets = requestedTargets(options.target);
   const serverEntry = (() => {
-    // Static and package builds don't need a server entry point
-    if (options.target === "static" || options.target === "package") {
+    if (targets.every(isServerless)) {
       return null;
     }
     if (options.serverEntry) {
@@ -102,64 +216,17 @@ async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResul
     }
     const entry = resolve(rootDir, "src/server.ts");
     if (!existsSync(entry)) {
-      throw new Error("[furin] Entrypoint server.ts not found");
+      throw new Error(
+        "[furin] Server targets need a server entry: src/server.ts not found. Create it or set `serverEntry` in furin.config.ts."
+      );
     }
     return entry;
   })();
 
-  // Register user plugins as runtime module loaders BEFORE scanPages.
-  //
-  // scanPages() calls import() on every page file, which triggers all their
-  // static imports (e.g. ".mdx" files). If the loader is not yet registered
-  // at that point, Bun caches the raw/unprocessed result — and that cached
-  // value is reused for every subsequent import(), including prerenderSSG().
-  //
-  // Build-only plugins (e.g. bun-plugin-tailwind uses onBeforeParse which
-  // doesn't exist in the runtime context) are skipped silently — they only
-  // affect the Bun.build() client bundle, not server-side rendering.
-  for (const plugin of options.plugins ?? []) {
-    const { buildOnly, ...runtimePlugin } = plugin as FurinPlugin;
-    if (buildOnly) {
-      continue;
-    }
-    try {
-      Bun.plugin(runtimePlugin);
-    } catch (err) {
-      console.debug("[furin] Skipped plugin at runtime:", err);
-    }
-  }
-  registerIsomorphicRuntimePlugin();
-
-  const appSpecs = resolveAppSpecs(options, serverEntry, rootDir);
-  const duplicatePrefix = appSpecs.find(
-    (spec, index) => appSpecs.findIndex((other) => other.prefix === spec.prefix) !== index
-  );
-  if (duplicatePrefix) {
-    throw new Error(
-      `[furin] Two apps are configured with the prefix "${duplicatePrefix.prefix || "/"}" — give each app a unique prefix.`
-    );
-  }
-  // Distinct prefixes can still slug to the same client dir (`/a-b` vs `/a/b`
-  // → `client-a-b`), which would let a later app's assets overwrite an earlier
-  // one's — reject before any target writes output.
-  assertNoPrefixSlugCollisions(appSpecs.map((spec) => spec.prefix));
-
-  const requestedTargets =
-    options.target === "all"
-      ? [...IMPLEMENTED_TARGETS]
-      : [options.target].map((target) => {
-          if (!(BUILD_TARGETS as readonly string[]).includes(target)) {
-            throw new Error(`[furin] Unsupported build target "${target}"`);
-          }
-          return target as BuildTarget;
-        });
-
-  // scanPages throws if root.tsx is missing, so root is always defined per app.
-  const apps: RuntimeTargetApp[] = [];
-  for (const spec of appSpecs) {
-    const { root, routes } = await scanPages(spec.pagesDir);
-    apps.push({ pagesDir: spec.pagesDir, prefix: spec.prefix, root, routes });
-  }
+  const apps = await scanApps(options, serverEntry, rootDir);
+  // furin-env.d.ts is one file at the project root, owned by the root-mounted
+  // app — the same rule as the dev server, so builds keep types current too.
+  writeAppRouteTypes(apps, rootDir);
   // The root-mounted app drives single-app manifest fields and the static target.
   const primaryApp = (apps.find((app) => app.prefix === "") ?? apps[0]) as RuntimeTargetApp;
 
@@ -181,63 +248,44 @@ async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResul
     targets: {},
   };
 
-  for (const target of requestedTargets) {
-    switch (target) {
-      case "bun":
-        manifest.targets.bun = await buildBunTarget(apps, rootDir, buildRoot, serverEntry, options);
-        break;
-      case "static":
-        if (apps.length > 1) {
-          console.warn(
-            "[furin] `--target static` exports the root-mounted app only — prefixed apps are skipped."
-          );
-        }
-        // The static adapter only knows about staticConfig.basePath — the mount
-        // prefix is a server-side concept it never sees. Exporting a prefixed
-        // app without a matching basePath produces root-relative asset URLs.
-        if (primaryApp.prefix !== "") {
-          console.warn(
-            `[furin] \`--target static\` exports an app mounted at "${primaryApp.prefix}", but the ` +
-              `static export ignores the mount prefix — set \`static.basePath\` to "${primaryApp.prefix}" ` +
-              "(or the sub-path the site is served from) so asset URLs resolve correctly."
-          );
-        }
-        manifest.targets.static = await buildStaticTarget(
-          primaryApp.routes,
-          rootDir,
-          buildRoot,
-          primaryApp.root,
-          options
+  for (const target of targets) {
+    if (target === "static") {
+      if (apps.length > 1) {
+        console.warn(
+          "[furin] `--target static` exports the root-mounted app only — prefixed apps are skipped."
         );
-        break;
-      case "package":
-        if (apps.length > 1) {
-          throw new Error(
-            "[furin] `--target package` builds exactly one app — configure a single pagesDir/prefix."
-          );
-        }
-        manifest.targets.package = await buildPackageTarget(
-          primaryApp,
-          rootDir,
-          buildRoot,
-          options
+      }
+      // The static adapter only knows about staticConfig.basePath — the mount
+      // prefix is a server-side concept it never sees. Exporting a prefixed
+      // app without a matching basePath produces root-relative asset URLs.
+      if (primaryApp.prefix !== "") {
+        console.warn(
+          `[furin] \`--target static\` exports an app mounted at "${primaryApp.prefix}", but the ` +
+            `static export ignores the mount prefix — set \`static.basePath\` to "${primaryApp.prefix}" ` +
+            "(or the sub-path the site is served from) so asset URLs resolve correctly."
         );
-        break;
-      case "vercel":
-        if (!serverEntry) {
-          throw new Error("[furin] `--target vercel` requires a server entry point.");
-        }
-        manifest.targets.vercel = await buildVercelTarget(
-          apps,
-          rootDir,
-          buildRoot,
-          serverEntry,
-          options
-        );
-        break;
-      default:
-        throw new Error(`[furin] Unsupported build target "${target}"`);
+      }
+      manifest.targets.static = await buildStaticTarget(primaryApp, rootDir, buildRoot, options);
+      continue;
     }
+    if (target === "package") {
+      if (apps.length > 1) {
+        throw new Error(
+          "[furin] `--target package` builds exactly one app — configure a single pagesDir/prefix."
+        );
+      }
+      manifest.targets.package = await buildPackageTarget(primaryApp, rootDir, buildRoot, options);
+      continue;
+    }
+    const adapter = adapterFor(target, options);
+    manifest.targets[adapter.name] = await buildAdapterTarget(
+      adapter,
+      apps,
+      rootDir,
+      buildRoot,
+      serverEntry as string,
+      options
+    );
   }
 
   writeFileSync(join(buildRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);

@@ -33,7 +33,7 @@ As an agent, you should help the user develop senior-grade features, as such you
 - **Runtime**: Bun only. Never use Node.js, npm, yarn, pnpm, dotenv, express, vite, or webpack.
 - **Linting**: Ultracite (wraps Biome). Config in `biome.jsonc`.
 - **CSS**: Tailwind v4 via `bun-plugin-tailwind` (configured in `bunfig.toml`).
-- **Path alias**: `"furin"` maps to `./packages/core/src/furin.ts` (see `tsconfig.json` paths).
+- **Path alias**: `"furin"` maps to `./packages/core/src/furin.ts` (see `packages/core/tsconfig.json` paths).
 
 ## HMR
 

@@ -48,6 +48,7 @@ export class PrismaSyncAdapter<Tx extends PrismaQuery>
   ): Promise<AtomicMutationResult<T>> {
     return this.client.$transaction((tx) =>
       executePostgresMutation(
+        this,
         new PostgresSyncAdapter({
           namespace: this.syncNamespace,
           sql: prismaSql(tx),

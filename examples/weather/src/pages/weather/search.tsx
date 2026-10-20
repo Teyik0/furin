@@ -1,11 +1,9 @@
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 import { toCitySlug, weatherHrefForSlug } from "../../lib/cities";
-import { route as parentRoute } from "../root";
 
-export const route = defineRoute()
+export const route = defineRoute("/weather/search")
   .config({
-    layout: parentRoute,
     mode: "ssr",
     query: t.Object({ city: t.String({ minLength: 1 }) }),
   })

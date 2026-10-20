@@ -4,6 +4,7 @@ import { prerender } from "react-dom/static.edge";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { physicalPath } from "../../shared/prefix.ts";
 import { parseRouteFrameLines, serializeRouteFrames } from "../../shared/route-frame.ts";
+import { ROUTE_MATCHES_KEY } from "../../shared/route-matches.ts";
 import type { SearchRouteMetadata } from "../../shared/search-params.ts";
 import { queryTagsFromData } from "../../shared/sync-query.ts";
 import { getLogger } from "../context-logger.ts";
@@ -17,16 +18,15 @@ import {
   type LoaderResult,
   runPublicLoaders,
   runSegmentPublicLoaders,
-  withRequestLoaderData,
 } from "./loaders.ts";
 import { isPprResumeState, type PprResumeState } from "./ppr-request.ts";
+import { assertDeferredModeAllowed, prepareRender } from "./prepare-render.ts";
+import { withRequestLoaderData } from "./request-loaders.ts";
 import {
-  assertDeferredModeAllowed,
   buildSsrTransportScripts,
   injectAfterEntry,
-  prepareRender,
   writeDeferredSsrChunks,
-} from "./ssr.ts";
+} from "./ssr-transport.ts";
 
 const DOCUMENT_END = "</body></html>";
 
@@ -72,16 +72,40 @@ function postponedRequestData(controller: AbortController, reason: Error): Promi
   const pending = new Promise<never>(() => {
     /* Deliberately unresolved public placeholder. */
   });
+  // Any consumer postpones the shell: `<Await>` subscribes through `catch`.
+  const postpone = () => queueMicrotask(() => controller.abort(reason));
   return {
     [Symbol.toStringTag]: "Promise",
-    catch: (rejected) => pending.catch(rejected),
-    finally: (callback) => pending.finally(callback),
+    catch: (rejected) => {
+      postpone();
+      return pending.catch(rejected);
+    },
+    finally: (callback) => {
+      postpone();
+      return pending.finally(callback);
+    },
     // biome-ignore lint/suspicious/noThenProperty: React and await must observe this intentionally postponed thenable.
     then: (fulfilled, rejected) => {
-      queueMicrotask(() => controller.abort(reason));
+      postpone();
       return pending.then(fulfilled, rejected);
     },
   };
+}
+
+function runShellLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
+  return hasMixedLoaderModes(route)
+    ? runSegmentPublicLoaders(route, ctx)
+    : runPublicLoaders(route, ctx);
+}
+
+function assertCompleteShell(html: string, postponed: boolean, postponeReason: Error): void {
+  if (html.startsWith("<!DOCTYPE html><html") && html.endsWith(DOCUMENT_END)) {
+    return;
+  }
+  // A request field read outside Suspense postpones the whole shell.
+  throw postponed
+    ? postponeReason
+    : new Error("[furin] PPR requires a complete root HTML document.");
 }
 
 export async function prerenderPprDocument(
@@ -90,11 +114,10 @@ export async function prerenderPprDocument(
   root: RootLayout,
   buildId: string,
   searchRoutes: SearchRouteMetadata[] | undefined,
-  basePath: string | undefined
+  basePath: string | undefined,
+  publicResult: LoaderResult | undefined
 ): Promise<PprResult> {
-  const result = await (hasMixedLoaderModes(route)
-    ? runSegmentPublicLoaders(route, ctx)
-    : runPublicLoaders(route, ctx));
+  const result = publicResult ?? (await runShellLoaders(route, ctx));
   if (result.type !== "data") {
     return result;
   }
@@ -138,6 +161,7 @@ export async function prerenderPprDocument(
       headers: prepared.headers,
       message: "Something went wrong",
       status: prepared.status,
+      syncData: { ...prepared.syncData, [ROUTE_MATCHES_KEY]: [] },
       type: "error",
     };
   }
@@ -157,9 +181,7 @@ export async function prerenderPprDocument(
     throw renderError;
   }
   const html = await new Response(output.prelude).text();
-  if (!(html.startsWith("<!DOCTYPE html><html") && html.endsWith(DOCUMENT_END))) {
-    throw new Error("[furin] PPR requires a complete root HTML document.");
-  }
+  assertCompleteShell(html, controller.signal.aborted, reason);
   const scripts = buildSsrTransportScripts(result.syncData, requestKeys, true, false);
   const openDocument = html.slice(0, -DOCUMENT_END.length);
   const shell = injectAfterEntry(

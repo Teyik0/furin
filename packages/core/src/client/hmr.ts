@@ -4,7 +4,7 @@ import { jsx } from "react/jsx-runtime";
 type ClientComponent<Props> = (props: Props) => ReactNode;
 const HOT_COMPONENT_SIGNATURE = Symbol.for("furin.hmr.hook-signature");
 
-export interface HotComponentSlot {
+interface HotComponentSlot {
   boundary: ClientComponent<never>;
   current: ClientComponent<never>;
   signature: string | undefined;

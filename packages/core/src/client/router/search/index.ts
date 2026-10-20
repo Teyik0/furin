@@ -1,5 +1,5 @@
-import type { RouteSearch, RouteTo } from "@teyik0/furin/link";
-import { useCallback, useContext, useSyncExternalStore } from "react";
+import type { RouteManifest, RoutePatternOf, RouteSearchOutput, RouteTo } from "@teyik0/furin/link";
+import { useCallback, useContext, useMemo, useSyncExternalStore } from "react";
 import {
   findSearchDefaultsForRouteTarget,
   type SearchParamsInput,
@@ -14,7 +14,21 @@ import {
 
 export type SearchRouteTo = RouteTo;
 
-type SearchRouteSearch<To extends SearchRouteTo> = RouteSearch<To>;
+/**
+ * `useSearch()` reads a known route: a pattern or a path matching one. A value
+ * typed as plain `string` cannot be checked statically and is accepted.
+ */
+export type SearchRouteCheck<To extends SearchRouteTo> = keyof RouteManifest extends never
+  ? unknown
+  : string extends To
+    ? unknown
+    : [RoutePatternOf<To>] extends [never]
+      ? {
+          readonly "~furinError": `[furin] useSearch("${To}") needs a route pattern or a path matching one.`;
+        }
+      : unknown;
+
+type SearchRouteSearch<To extends SearchRouteTo> = RouteSearchOutput<To>;
 
 export type EmptyRouteSearch = Record<PropertyKey, never>;
 
@@ -56,25 +70,35 @@ function useSearchSelection<To extends SearchRouteTo, TSelected>(
 ): TSelected {
   const store = useContext(SearchStoreContext) ?? FALLBACK_SEARCH_STORE;
 
-  const getSnapshot = useCallback(() => {
-    const snapshot = store.getSnapshot();
-    assertSearchRoute(from, snapshot, store);
-    return selector(snapshot.search as ResolvedRouteSearch<To>);
+  const selectSnapshot = useMemo(() => {
+    let previous: { snapshot: SearchStoreSnapshot; selection: TSelected } | undefined;
+    return (snapshot: SearchStoreSnapshot): TSelected => {
+      assertSearchRoute(from, snapshot, store);
+      if (previous?.snapshot === snapshot) {
+        return previous.selection;
+      }
+      const selection = selector(snapshot.search as ResolvedRouteSearch<To>);
+      previous = { snapshot, selection };
+      return selection;
+    };
   }, [from, selector, store]);
-  const getServerSnapshot = useCallback(() => {
-    const snapshot = store.getServerSnapshot();
-    assertSearchRoute(from, snapshot, store);
-    return selector(snapshot.search as ResolvedRouteSearch<To>);
-  }, [from, selector, store]);
+  const getSnapshot = useCallback(
+    () => selectSnapshot(store.getSnapshot()),
+    [selectSnapshot, store]
+  );
+  const getServerSnapshot = useCallback(
+    () => selectSnapshot(store.getServerSnapshot()),
+    [selectSnapshot, store]
+  );
 
   return useSyncExternalStore(store.subscribe, getSnapshot, getServerSnapshot);
 }
 
 export function useSearch<To extends SearchRouteTo>(
-  _from: To
+  _from: To & SearchRouteCheck<NoInfer<To>>
 ): [ResolvedRouteSearch<To>, SetSearch<To>];
 export function useSearch<To extends SearchRouteTo, TSelected>(
-  _from: To,
+  _from: To & SearchRouteCheck<NoInfer<To>>,
   selector: (search: ResolvedRouteSearch<To>) => TSelected
 ): [TSelected, SetSearch<To>];
 export function useSearch<To extends SearchRouteTo, TSelected>(

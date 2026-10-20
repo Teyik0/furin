@@ -1,41 +1,40 @@
-import "../../setup/global.ts";
-
 import { expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
+import { buildStaticTarget } from "../../../src/adapter/static.ts";
+import { scanPages } from "../../../src/server/router/discovery.ts";
+import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
+import { withBuildStub } from "../../support/with-build-stub.ts";
 
-const { buildStaticTarget } = await import("../../../src/adapter/static.ts");
 const UNSAFE_PATH_RE = /unsafe output path/;
 
-test("buildStaticTarget rejects all unsafe output paths before creating artifacts", async () => {
-  const rootDir = mkdtempSync(join(tmpdir(), "furin-static-unsafe-"));
-  const buildRoot = join(rootDir, ".furin/build");
-  const outDir = join(rootDir, "dist");
-  const routeEntry = { __type: "FURIN_ROUTE" } satisfies RootLayout["route"];
-  const root: RootLayout = { path: join(rootDir, "root.tsx"), route: routeEntry };
-  const unsafeRoute: ResolvedRoute = {
-    mode: "ssg",
-    page: {
-      __type: "FURIN_PAGE",
-      _route: routeEntry,
-      component: () => null,
-      staticParams: async () => [{ slug: "../../etc/passwd" }],
-    },
-    path: join(rootDir, "[slug].tsx"),
-    pattern: "/:slug",
-    routeChain: [routeEntry],
-    segmentBoundaries: [],
-  };
+test("buildStaticTarget rejects all unsafe output paths before writing the export", async () => {
+  const app = createTmpApp("cli-app");
+  const buildRoot = join(app.path, ".furin/build");
+  const outDir = join(app.path, "dist");
+  writeAppFile(
+    app.path,
+    "src/pages/[...slug].tsx",
+    `import { defineRoute } from "@teyik0/furin";
+
+export const route = defineRoute("/[...slug]")
+  .config({ mode: "ssg" })
+  .staticParams(async () => [{ "*": "../../etc/passwd" }])
+  .page(() => null);
+`
+  );
 
   try {
+    const pagesDir = join(app.path, "src/pages");
+    const { root, routes } = await scanPages(pagesDir);
     let thrown: unknown;
     try {
-      await buildStaticTarget([unsafeRoute], rootDir, buildRoot, root, {
-        staticConfig: { outDir },
-        target: "static",
-      });
+      await withBuildStub(() =>
+        buildStaticTarget({ pagesDir, prefix: "", root, routes }, app.path, buildRoot, {
+          staticConfig: { outDir },
+          target: "static",
+        })
+      );
     } catch (error) {
       thrown = error;
     }
@@ -48,6 +47,6 @@ test("buildStaticTarget rejects all unsafe output paths before creating artifact
     expect(existsSync(join(buildRoot, "static"))).toBe(false);
     expect(existsSync(outDir)).toBe(false);
   } finally {
-    rmSync(rootDir, { force: true, recursive: true });
+    app.cleanup();
   }
-});
+}, 60_000);

@@ -22,10 +22,59 @@ const createParentRoute = () =>
     .config({ mode: "ssr" })
     .loader(() => ({ user: "teyik", visits: 2 }))
     .layout(({ children }) => children);
+declare const parentRoute: ReturnType<typeof createParentRoute>;
+
+const createPrivateParent = () =>
+  defineRootRoute()
+    .config({ mode: "ssr" })
+    .requestLoader(() => ({ user: "private" }))
+    .layout(({ children }) => children);
+declare const privateParent: ReturnType<typeof createPrivateParent>;
+const createPublicOverrideLayout = () =>
+  defineRoute("/conflicts/private/_route")
+    .config({ mode: "ssr" })
+    .loader(() => ({ user: "public" }))
+    .layout(({ children }) => children);
+declare const publicOverrideLayout: ReturnType<typeof createPublicOverrideLayout>;
+
+declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/conflicts/compatible": {
+      kind: "page";
+      parent: typeof parentRoute;
+      pathParams: NonNullable<unknown>;
+    };
+    "/conflicts/conflicting": {
+      kind: "page";
+      parent: typeof parentRoute;
+      pathParams: NonNullable<unknown>;
+    };
+    "/conflicts/conflicting-head": {
+      kind: "page";
+      parent: typeof parentRoute;
+      pathParams: NonNullable<unknown>;
+    };
+    "/conflicts/layout/_route": {
+      kind: "layout";
+      parent: typeof parentRoute;
+      pathParams: NonNullable<unknown>;
+    };
+    "/conflicts/private/_route": {
+      kind: "layout";
+      parent: typeof privateParent;
+      pathParams: NonNullable<unknown>;
+    };
+    "/conflicts/private/child": {
+      kind: "page";
+      parent: typeof publicOverrideLayout;
+      pathParams: NonNullable<unknown>;
+    };
+  }
+}
 
 const createCompatibleChild = () =>
-  defineRoute()
-    .config({ layout: createParentRoute(), mode: "ssr" })
+  defineRoute("/conflicts/compatible")
+    .config({ mode: "ssr" })
     .loader(() => ({ visits: 3 }))
     .page(({ user, visits }) => {
       expectTypeOf(visits).toEqualTypeOf<number>();
@@ -34,8 +83,8 @@ const createCompatibleChild = () =>
     });
 
 const createConflictingChild = () =>
-  defineRoute()
-    .config({ layout: createParentRoute(), mode: "ssr" })
+  defineRoute("/conflicts/conflicting")
+    .config({ mode: "ssr" })
     .loader(() => ({ user: 42 }))
     .page(({ user: conflictedUser }) => {
       // @ts-expect-error — `user` is the branded conflict marker: the child
@@ -45,8 +94,8 @@ const createConflictingChild = () =>
     });
 
 const createConflictingHead = () =>
-  defineRoute()
-    .config({ layout: createParentRoute(), mode: "ssr" })
+  defineRoute("/conflicts/conflicting-head")
+    .config({ mode: "ssr" })
     .loader(() => ({ visits: "many" }))
     .head(({ visits }) => {
       // @ts-expect-error — `visits` conflicts: number (parent) vs string.
@@ -56,8 +105,8 @@ const createConflictingHead = () =>
     .page(() => null);
 
 const createConflictingLayout = () =>
-  defineRoute()
-    .config({ layout: createParentRoute(), mode: "ssr" })
+  defineRoute("/conflicts/layout/_route")
+    .config({ mode: "ssr" })
     .loader(() => ({ visits: "many" }))
     .layout(({ children, visits }) => {
       // @ts-expect-error — same branded conflict, layout reads included.
@@ -116,24 +165,15 @@ const createPrivatePublicConflict = () =>
       return String(privateUser) + publicUser;
     });
 
-const createDescendantOfPrivateConflict = () => {
-  const parent = defineRootRoute()
+const createDescendantOfPrivateConflict = () =>
+  defineRoute("/conflicts/private/child")
     .config({ mode: "ssr" })
-    .requestLoader(() => ({ user: "private" }))
-    .layout(({ children }) => children);
-  const child = defineRoute()
-    .config({ layout: parent, mode: "ssr" })
-    .loader(() => ({ user: "public" }))
-    .layout(({ children }) => children);
-  return defineRoute()
-    .config({ layout: child, mode: "ssr" })
     .loader((context) => {
       // @ts-expect-error the conflict contains private data and must not reach a public loader.
       context.user;
       return {};
     })
     .page(() => "done");
-};
 
 const createRoutesWithReservedLoaderKeys = () => {
   const noSchema = defineRootRoute()

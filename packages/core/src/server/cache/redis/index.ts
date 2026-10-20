@@ -1,9 +1,12 @@
 import type { RedisClient } from "bun";
-import type {
-  PageCacheAdapter,
-  PageCacheEntry,
-  PageCacheIdentity,
-  PageCacheLease,
+import {
+  normalizePageCacheInvalidationPath,
+  type PageCacheAdapter,
+  type PageCacheEntry,
+  type PageCacheIdentity,
+  type PageCacheLease,
+  pageCacheIdentityKey,
+  pageCacheLayoutPaths,
 } from "../page-cache.ts";
 import {
   ACQUIRE_PAGE_CACHE_LEASE_SCRIPT,
@@ -14,7 +17,6 @@ import {
   RELEASE_PAGE_CACHE_LEASE_SCRIPT,
 } from "./scripts.ts";
 
-const TRAILING_SLASHES = /\/+$/;
 const DEFAULT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const METADATA_GRACE_MS = 24 * 60 * 60 * 1000;
 
@@ -62,30 +64,13 @@ function digest(value: string): string {
 }
 
 function identityDigest(identity: PageCacheIdentity): string {
-  return digest(JSON.stringify([identity.scope, identity.buildId, identity.mode, identity.key]));
-}
-
-function layoutPaths(path: string): string[] {
-  if (path === "/") {
-    return ["/"];
-  }
-  const paths = ["/"];
-  let current = "";
-  for (const segment of path.split("/").filter(Boolean)) {
-    current += `/${segment}`;
-    paths.push(current);
-  }
-  return paths;
-}
-
-function normalizeInvalidationPath(path: string): string {
-  return path.length > 1 ? path.replace(TRAILING_SLASHES, "") : path;
+  return digest(pageCacheIdentityKey(identity));
 }
 
 function selectorFields(identity: PageCacheIdentity): string[] {
   return [
     `page:${identity.path}`,
-    ...layoutPaths(identity.path).map((path) => `layout:${path}`),
+    ...pageCacheLayoutPaths(identity.path).map((path) => `layout:${path}`),
     ...identity.tags.map((tag) => `tag:${tag}`),
   ];
 }
@@ -147,7 +132,7 @@ function parseEntry(raw: string): PageCacheEntry {
   return value.entry as PageCacheEntry;
 }
 
-export class RedisPageCache implements PageCacheAdapter {
+class RedisPageCache implements PageCacheAdapter {
   private readonly client: RedisClient;
   private readonly metadataRetentionMs: number;
   private readonly prefix: string;
@@ -260,7 +245,9 @@ export class RedisPageCache implements PageCacheAdapter {
 
   async invalidate(input: Parameters<PageCacheAdapter["invalidate"]>[0]) {
     if (input.kind === "path") {
-      const path = normalizeInvalidationPath(input.path);
+      const path = normalizePageCacheInvalidationPath(input.path);
+      const encoded = `"path":${JSON.stringify(path)}`;
+      const memberPath = input.type === "page" ? encoded : encoded.slice(0, -1);
       const result = stringArrayResult(
         await this.client.send("EVAL", [
           INVALIDATE_PAGE_CACHE_PATH_SCRIPT,
@@ -272,6 +259,9 @@ export class RedisPageCache implements PageCacheAdapter {
           path,
           input.type,
           String(this.metadataRetentionMs),
+          memberPath,
+          // Lease members use Lua cjson, which escapes slashes.
+          memberPath.replaceAll("/", "\\/"),
         ]),
         "path invalidation"
       );

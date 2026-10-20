@@ -1,4 +1,9 @@
-import { type Context, type Elysia, ElysiaStatus, StatusMap, Validator } from "elysia";
+import { type Context, type Elysia, ElysiaStatus, Validator } from "elysia";
+import {
+  decodeInvalidationEntry,
+  encodeInvalidationEntry,
+  serializeInvalidationPaths,
+} from "../../shared/invalidation-header.ts";
 import {
   appendPendingInvalidationHeader,
   runInvalidationRules,
@@ -12,12 +17,10 @@ import type {
   SyncInvalidation,
   TransactionalSyncAdapter,
 } from "./adapter.ts";
+import { appendQueryInvalidations, resolveSyncInvalidations } from "./queries.ts";
 import {
-  appendQueryInvalidations,
-  resolveSyncInvalidations,
-  type SyncInvalidationSelector,
-} from "./queries.ts";
-import {
+  effectiveResponseHeaders,
+  effectiveResponseStatus,
   mergeStoredResponseHeaders,
   type StoreResponseResult,
   storeResponse,
@@ -42,24 +45,10 @@ interface Execution<Tx> {
   adapter: TransactionalSyncAdapter<Tx, "async" | "sync">;
   app: Elysia;
   context: Context;
-  invalidate: SyncInvalidationSelector | undefined;
   lease: MutationLease;
   onCommit: (result: CommittedMutation) => void;
   resolvedInvalidate?: InvalidationInput;
   runtime: ResolvedSyncRuntime;
-}
-
-function responseStatus(context: Context, value: unknown): number {
-  if (value instanceof Response && value.status !== 200) {
-    return value.status;
-  }
-  if (value instanceof ElysiaStatus) {
-    return value.status;
-  }
-  if (typeof context.set.status === "string") {
-    return StatusMap[context.set.status];
-  }
-  return context.set.status ?? 200;
 }
 
 function withStatus(original: unknown, value: unknown): unknown {
@@ -113,7 +102,7 @@ function validateResult<Tx>(execution: Execution<Tx>, value: unknown): unknown {
       schema.response ? [schema.response] : []
     ),
   });
-  const validator = validators?.[responseStatus(context, value)];
+  const validator = validators?.get(effectiveResponseStatus(value, context.set));
   if (!validator) {
     return value;
   }
@@ -135,11 +124,11 @@ function validateResult<Tx>(execution: Execution<Tx>, value: unknown): unknown {
 
 function prepare<Tx>(execution: Execution<Tx>, value: unknown, original: unknown) {
   const { context } = execution;
-  const status = responseStatus(context, value);
+  const status = effectiveResponseStatus(value, context.set);
   if (status < 200 || status >= 400) {
     throw new RejectedMutation(original);
   }
-  const invalidate = resolveSyncInvalidations(execution.invalidate, context, original);
+  const invalidate = resolveSyncInvalidations(context);
   execution.resolvedInvalidate = invalidate;
   appendQueryInvalidations(invalidate, context);
   const invalidations = [
@@ -151,9 +140,9 @@ function prepare<Tx>(execution: Execution<Tx>, value: unknown, original: unknown
   }
   const paths = invalidations
     .filter((entry): entry is Extract<SyncInvalidation, { kind: "path" }> => entry.kind === "path")
-    .map((entry) => (entry.type === "layout" ? `${entry.path}:layout` : entry.path));
+    .map((entry) => encodeInvalidationEntry(entry.path, entry.type));
   if (paths.length > 0) {
-    context.set.headers["x-furin-revalidate"] = paths.join(",");
+    context.set.headers["x-furin-revalidate"] = serializeInvalidationPaths(paths);
   }
   const finish = (stored: StoreResponseResult) => {
     if (stored.kind === "unreplayable") {
@@ -161,12 +150,7 @@ function prepare<Tx>(execution: Execution<Tx>, value: unknown, original: unknown
         "[furin] Atomic mutation responses must be bounded JSON, text or bodyless responses."
       );
     }
-    let { headers } = context.set;
-    if (value instanceof ElysiaStatus) {
-      headers = { ...headers, ...value.headers };
-    } else if (value instanceof Response) {
-      headers = { ...headers, ...Object.fromEntries(value.headers) };
-    }
+    const headers = effectiveResponseHeaders(value, context.set);
     return {
       invalidations,
       response: mergeStoredResponseHeaders({ ...stored.response, status }, headers),
@@ -295,9 +279,5 @@ export function normalizedInvalidations(input: InvalidationInput | undefined): S
 export function pendingPathInvalidations(
   entries: readonly string[]
 ): Extract<SyncInvalidation, { kind: "path" }>[] {
-  return entries.map((entry) =>
-    entry.endsWith(":layout")
-      ? { kind: "path" as const, path: entry.slice(0, -":layout".length), type: "layout" }
-      : { kind: "path" as const, path: entry, type: "page" }
-  );
+  return entries.map((entry) => ({ kind: "path" as const, ...decodeInvalidationEntry(entry) }));
 }

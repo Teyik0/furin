@@ -1,6 +1,10 @@
 import { parse } from "node:path";
 import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
+import { compareRouteSpecificity } from "../../shared/route-specificity.ts";
 import type { ResolvedRoute } from "./types.ts";
+
+// biome-ignore lint/performance/noBarrelFile: preserve the existing comparator import while sharing its implementation with the client.
+export { compareRouteSpecificity } from "../../shared/route-specificity.ts";
 
 export function collectIntermediateLayoutDirs(pagePath: string, rootPath: string): string[] {
   const pageDir = pagePath.slice(0, pagePath.lastIndexOf("/"));
@@ -158,71 +162,22 @@ export function filePathToPattern(path: string): string {
   return `/${segments.join("/")}`;
 }
 
-const REGEX_META_CHARS_RE = /[.*+?^${}()|[\]\\]/;
+const REGEX_META_CHARS_RE = /[.*+?^${}()|[\]\\]/g;
 
-export function escapeRegExpChar(ch: string): string {
-  return REGEX_META_CHARS_RE.test(ch) ? `\\${ch}` : ch;
+export function escapeRegExp(value: string): string {
+  return value.replace(REGEX_META_CHARS_RE, "\\$&");
 }
 
 /**
- * Ranks a single route segment by how tightly it constrains a URL position:
- * a literal segment outranks a `:param`, which outranks a `*` wildcard.
+ * Unanchored regex source for a route pattern: literal characters (e.g. dots
+ * in `v1.0`) are escaped, each `:param` becomes `sources.param` and `*`
+ * becomes `sources.catchAll`. `paramNames` lists them in order (`*` for the
+ * catch-all).
  */
-function segmentSpecificity(segment: string): number {
-  if (segment === "*") {
-    return 1;
-  }
-  if (segment.startsWith(":")) {
-    return 2;
-  }
-  return 3;
-}
-
-/**
- * Compares two route patterns by specificity so the `/_furin/data` matcher can
- * prefer the more specific of two siblings that both match a pathname.
- *
- * Patterns are compared segment by segment from the left; the first position
- * where they differ decides (literal > `:param` > `*`). When every shared
- * position ties, the pattern with more explicit segments wins over a shorter
- * one whose wildcard absorbs the tail.
- *
- * Returns a positive number when `a` is MORE specific than `b`, negative when
- * less, and `0` only when the two are indistinguishable. This lexicographic
- * ranking replaces the previous summed-weight score, which produced ties such
- * as `/blog/new/:section` vs `/blog/:id/edit` (both summed to 8) that resolved
- * non-deterministically by scan order.
- */
-export function compareRouteSpecificity(a: string, b: string): number {
-  const aSegments = a.split("/").filter((segment) => segment.length > 0);
-  const bSegments = b.split("/").filter((segment) => segment.length > 0);
-  const length = Math.max(aSegments.length, bSegments.length);
-  for (let i = 0; i < length; i += 1) {
-    const aSegment = aSegments[i];
-    const bSegment = bSegments[i];
-    // The pattern that still has a segment here constrains one more position.
-    if (aSegment === undefined) {
-      return bSegment === "*" ? 1 : -1;
-    }
-    if (bSegment === undefined) {
-      return aSegment === "*" ? -1 : 1;
-    }
-    const diff = segmentSpecificity(aSegment) - segmentSpecificity(bSegment);
-    if (diff !== 0) {
-      return diff;
-    }
-  }
-  return 0;
-}
-
-/**
- * Builds a regex from a route pattern, extracts named capture groups for
- * each `:param` segment, and returns `{ regex, paramNames }`.
- *
- * Literal characters (e.g. dots in filenames like `v1.0`) are escaped so
- * they are matched exactly rather than interpreted as regex syntax.
- */
-export function buildRouteRegex(pattern: string): { regex: RegExp; paramNames: string[] } {
+export function routePatternRegexSource(
+  pattern: string,
+  sources: { catchAll: string; param: string }
+): { paramNames: string[]; source: string } {
   const paramNames: string[] = [];
   let source = "";
   let i = 0;
@@ -234,20 +189,35 @@ export function buildRouteRegex(pattern: string): { regex: RegExp; paramNames: s
         i += 1;
       }
       paramNames.push(pattern.slice(start, i));
-      source += "([^/]+)";
+      source += sources.param;
     } else if (pattern[i] === "*") {
       paramNames.push("*");
-      source += "(.*)";
+      source += sources.catchAll;
       i += 1;
     } else {
       const ch = pattern[i];
       if (ch !== undefined) {
-        source += escapeRegExpChar(ch);
+        source += escapeRegExp(ch);
       }
       i += 1;
     }
   }
-  return { paramNames, regex: new RegExp(`^${source}$`) };
+  return { paramNames, source };
+}
+
+/**
+ * Builds an anchored regex from a route pattern with one capture group per
+ * `:param` / `*` segment, and returns `{ regex, paramNames }`.
+ */
+export function buildRouteRegex(pattern: string): { regex: RegExp; paramNames: string[] } {
+  const { paramNames, source } = routePatternRegexSource(pattern, {
+    catchAll: "(.*)",
+    param: "([^/]+)",
+  });
+  return {
+    paramNames,
+    regex: new RegExp(`^${source}${pattern === "/" || pattern.endsWith("/") ? "" : "/?"}$`),
+  };
 }
 
 export interface RoutePatternLike {
@@ -285,7 +255,11 @@ export function buildRouteMatcher<TRoute extends RoutePatternLike>(
       for (let i = 0; i < candidate.paramNames.length; i += 1) {
         const name = candidate.paramNames[i];
         if (name !== undefined) {
-          params[name] = match[i + 1] ?? "";
+          try {
+            params[name] = decodeURIComponent(match[i + 1] ?? "");
+          } catch {
+            params[name] = match[i + 1] ?? "";
+          }
         }
       }
       return { params, route: candidate.route };

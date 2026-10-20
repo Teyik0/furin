@@ -142,6 +142,27 @@ describe("RSC graph environment guards", () => {
     expect(resolveConfiguredCodecPath(codecPath)).toBe(codecPath);
   });
 
+  test("leaves no temporary directory behind when it builds the Flight codec on demand", async () => {
+    const temporaryRoot = mkdtempSync(join(tmpdir(), "furin-rsc-tmpdir-"));
+    paths.push(temporaryRoot);
+    const rscEntry = join(import.meta.dir, "../../../src/rsc.tsx");
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        "-e",
+        `const { renderServerComponent } = await import(${JSON.stringify(rscEntry)}); await renderServerComponent("codec");`,
+      ],
+      {
+        env: { ...process.env, FURIN_RSC_CODEC_PATH: "", TMPDIR: temporaryRoot },
+        stderr: "pipe",
+      }
+    );
+    const [status, errors] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+
+    expect({ errors, status }).toEqual({ errors: "", status: 0 });
+    expect(readdirSync(temporaryRoot)).toEqual([]);
+  });
+
   test("treats a blank configured Flight codec path as unset", () => {
     expect(resolveConfiguredCodecPath("   ")).toBeUndefined();
   });

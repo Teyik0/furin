@@ -1,5 +1,13 @@
 import { EdenFetchError } from "@elysia/eden";
 import { useCallback, useRef, useState } from "react";
+import { createRequestId } from "./request-id.ts";
+import {
+  callWithOperation,
+  finishMutation,
+  inProgress,
+  type MutationOperation,
+  type OptimisticCache,
+} from "./sync.ts";
 
 interface MutationResponse {
   data: unknown;
@@ -66,6 +74,95 @@ function normalizeMutationError<Method extends MutationMethod>(
 interface MutationOptions<Method extends MutationMethod> {
   onError?: (error: MutationError<Method>) => void | Promise<void>;
   onSuccess?: (data: MutationData<Method>) => void | Promise<void>;
+  /** Projects the mutation before it is sent; rolled back if the server rejects it. */
+  optimistic?: (cache: OptimisticCache, ...args: Parameters<Method>) => void;
+  /** Additional attempts after Furin's explicit in-progress response, with the same Idempotency-Key. */
+  retry?: number;
+}
+
+function retryDelay(response: Response | undefined, attempt: number): number {
+  const header = response?.headers.get("Retry-After");
+  if (header !== null && header !== undefined) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return seconds * 1000;
+    }
+    const date = Date.parse(header);
+    if (Number.isFinite(date)) {
+      return Math.max(0, date - Date.now());
+    }
+  }
+  return Math.min(250 * 2 ** attempt, 4000);
+}
+
+function delay(ms: number, signal: AbortSignal | null | undefined): Promise<boolean> {
+  if (signal?.aborted) {
+    return Promise.resolve(false);
+  }
+  return new Promise((resolve) => {
+    const abort = () => {
+      clearTimeout(timer);
+      resolve(false);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve(true);
+    }, ms);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+
+/** One key per mutate(), reused by every attempt, so a retry is never applied twice. */
+async function runMutation<Method extends MutationMethod>(
+  method: Method,
+  args: Parameters<Method>,
+  options: MutationOptions<Method> | undefined
+): Promise<Awaited<ReturnType<Method>>> {
+  const retry = options?.retry ?? 0;
+  if (!Number.isSafeInteger(retry) || retry < 0) {
+    throw new RangeError("[furin] retry must be a nonnegative integer.");
+  }
+  const optimistic = options?.optimistic;
+  const operation: MutationOperation = {
+    consumed: false,
+    key: createRequestId(),
+    optimistic: optimistic && ((cache) => optimistic(cache, ...args)),
+  };
+  // An Eden mutation verb takes (body, options): a fresh options object engages the sync plugin.
+  const direct = typeof Reflect.get(method, "~path") === "string";
+  const callArgs = direct ? [args[0], { ...(args[1] as object | undefined) }] : args;
+  const signal = direct ? (callArgs[1] as { fetch?: RequestInit }).fetch?.signal : undefined;
+  for (let attempt = 0; ; attempt += 1) {
+    // The plugin's `after` records each consumed attempt's result on the operation.
+    const pending = callWithOperation(
+      operation,
+      () => Reflect.apply(method, undefined, callArgs) as Promise<Awaited<ReturnType<Method>>>
+    );
+    if (!operation.consumed) {
+      if (retry > 0 && process.env.NODE_ENV !== "production") {
+        console.warn(
+          "[furin] useMutation retry is disabled: the mutation did not call an Eden method with options synchronously, so its Idempotency-Key could not be attached."
+        );
+      }
+      // biome-ignore lint/performance/noAwaitInLoops: retries are sequential attempts of one mutation.
+      return await pending;
+    }
+    const settled = await pending.then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error })
+    );
+    if (
+      attempt >= retry ||
+      !inProgress(operation.result) ||
+      !(await delay(retryDelay(operation.result?.response, attempt), signal))
+    ) {
+      finishMutation(operation);
+      if ("error" in settled) {
+        throw settled.error;
+      }
+      return settled.value;
+    }
+  }
 }
 
 export function useMutation<Method extends MutationMethod>(
@@ -87,9 +184,7 @@ export function useMutation<Method extends MutationMethod>(
       pending.current += 1;
       setState({ data: undefined, error: null, isPending: true });
       try {
-        const result = (await Reflect.apply(method, undefined, args)) as Awaited<
-          ReturnType<Method>
-        >;
+        const result = await runMutation(method, args, options);
         if (result.error !== null) {
           if (
             "response" in result &&

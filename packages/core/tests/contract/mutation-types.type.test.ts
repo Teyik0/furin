@@ -1,9 +1,10 @@
 // biome-ignore-all lint/suspicious/noUnusedExpressions: compile-time assertions.
 import { expect, test } from "bun:test";
 import type { EdenFetchError } from "@elysia/eden";
+import { treaty } from "@elysia/eden";
 import { Elysia, t } from "elysia";
 import { expectTypeOf } from "expect-type";
-import { createClient, useMutation } from "../../src/client.ts";
+import { furinSync, type OptimisticCache, useMutation } from "../../src/client.ts";
 
 const app = new Elysia()
   .get("/cards/:id", () => ({ id: "1", title: "Before" }))
@@ -11,7 +12,7 @@ const app = new Elysia()
     body.title ? { id: "1", title: body.title } : status(422, { detail: "Invalid title" })
   )
   .delete("/cards/:id", () => ({ ok: true as const }));
-const api = createClient(app);
+const api = treaty(app).use(furinSync);
 
 function assertMutationTypes() {
   const save = useMutation(api.cards.post, {
@@ -38,7 +39,7 @@ function assertMutationTypes() {
     { title: "Draft" },
     {
       optimistic(cache) {
-        cache.update(api.cards({ id: "1" }).get, (data) => data);
+        cache.update(api.cards({ id: "1" }).get.live(), (data) => data);
       },
     }
   );
@@ -46,8 +47,18 @@ function assertMutationTypes() {
   save.mutate();
   // @ts-expect-error body field types are preserved
   save.mutate({ title: 1 });
-  // @ts-expect-error retry remains numeric
-  save.mutate({ title: "Draft" }, { retry: true });
+  // @ts-expect-error retry belongs to useMutation, not to a call
+  save.mutate({ title: "Draft" }, { retry: 1 });
+  useMutation(api.cards.post, {
+    retry: 2,
+    optimistic(cache, body, options) {
+      expectTypeOf(cache).toEqualTypeOf<OptimisticCache>();
+      expectTypeOf(body).toEqualTypeOf<Parameters<typeof api.cards.post>[0]>();
+      expectTypeOf(options).toEqualTypeOf<Parameters<typeof api.cards.post>[1]>();
+    },
+  });
+  // @ts-expect-error retry is a number of attempts
+  useMutation(api.cards.post, { retry: true });
   const remove = useMutation(api.cards({ id: "1" }).delete);
   remove.mutate();
   const external = useMutation(async (title: string) => ({ data: { title }, error: null }));

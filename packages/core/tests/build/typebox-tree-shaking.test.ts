@@ -43,7 +43,7 @@ test("a Furin app without TypeBox schemas ships no TypeBox in its Vercel server 
     ).default;
     expect((await handler.fetch(new Request("http://localhost/dashboard"))).status).toBe(200);
     expect(
-      (await handler.fetch(new Request("http://localhost/_furin/data?path=%2Fdashboard"))).status
+      (await handler.fetch(new Request("http://localhost/dashboard?_furin=data"))).status
     ).toBe(200);
   } finally {
     app.cleanup();
@@ -78,7 +78,7 @@ test("a Furin app with a TypeBox route still serves its navigation data", async 
       )
     ).default;
     const response = await handler.fetch(
-      new Request("http://localhost/_furin/data?path=%2Fblog%2Fhello-world")
+      new Request("http://localhost/blog/hello-world?_furin=data")
     );
     expect(response.status).toBe(200);
   } finally {

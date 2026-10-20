@@ -21,7 +21,7 @@ export type DeferredData<T extends object> = T & {
  * Wraps loader data so that Promise-valued fields are streamed lazily while
  * scalar fields are embedded in the initial HTML shell immediately.
  *
- * Use in any `defineRoute().loader()`. Promise-valued fields are streamed lazily;
+ * Use in any `defineRoute(id).loader()`. Promise-valued fields are streamed lazily;
  * scalar fields are embedded in the initial HTML shell.
  */
 export function defer<T extends object>(

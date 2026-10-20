@@ -1,10 +1,21 @@
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
+import { createTmpApp, type TmpApp } from "../../support/app-fixtures.ts";
+import { runProcess } from "../../support/process.ts";
 
 const TESTS_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
+// Fixtures are owned by the parent so they are removed even if the child dies.
+const fixtures: TmpApp[] = [];
 
-test("furin() catch-all 404 scenarios", () => {
-  const proc = Bun.spawnSync({
-    cmd: [
+afterEach(() => {
+  while (fixtures.length > 0) {
+    fixtures.pop()?.cleanup();
+  }
+});
+
+test("furin() catch-all 404 scenarios", async () => {
+  fixtures.push(...Array.from({ length: 5 }, () => createTmpApp("cli-app")));
+  const proc = await runProcess(
+    [
       "bun",
       "-e",
       `
@@ -13,9 +24,15 @@ import { join } from "node:path";
 import { Elysia, NotFound } from "elysia";
 import { furin } from "furin";
 import { __resetCompileContext } from "./src/server/internal.ts";
-import { setProductionTemplatePath } from "./src/server/render/template.ts";
+import { __resetTemplateState } from "./src/server/render/template.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
-import { createTmpApp, writeAppFile } from "./tests/support/app-fixtures.ts";
+import { writeAppFile } from "./tests/support/app-fixtures.ts";
+
+const fixturePaths = JSON.parse(process.env.FURIN_TEST_FIXTURE_PATHS);
+// The parent test owns and removes these fixtures.
+function takeFixture() {
+  return { cleanup: () => undefined, path: fixturePaths.shift() };
+}
 
 const tmpApps = [];
 const originalCwd = process.cwd();
@@ -23,7 +40,7 @@ const furinDataRe = /<script id="__FURIN_DATA__"[^>]*>([\\s\\S]*?)<\\/script>/;
 
 function resetNotFoundTestState() {
   __setDevMode(true);
-  setProductionTemplatePath(null);
+  __resetTemplateState();
   __resetCompileContext();
   process.chdir(originalCwd);
   while (tmpApps.length > 0) {
@@ -33,7 +50,7 @@ function resetNotFoundTestState() {
 
 try {
   resetNotFoundTestState();
-  let app = createTmpApp("cli-app");
+  let app = takeFixture();
   tmpApps.push(app);
   __setDevMode(true);
   process.chdir(app.path);
@@ -54,7 +71,7 @@ try {
   expect(body).toContain("Nothing at this URL");
 
   resetNotFoundTestState();
-  app = createTmpApp("cli-app");
+  app = takeFixture();
   tmpApps.push(app);
   __setDevMode(true);
   process.chdir(app.path);
@@ -75,7 +92,7 @@ try {
   expect(apiBody).toContain("Nothing at this URL");
 
   resetNotFoundTestState();
-  app = createTmpApp("cli-app");
+  app = takeFixture();
   tmpApps.push(app);
   __setDevMode(true);
   process.chdir(app.path);
@@ -88,7 +105,7 @@ try {
 
   plugin = await furin({ pagesDir: join(app.path, "src/pages") });
   parent = new Elysia()
-    .error(NotFound, ({ path }) => {
+    .onError(NotFound, ({ path }) => {
       if (path.startsWith("/api/")) {
         return new Response(JSON.stringify({ error: "not_found" }), {
           headers: { "Content-Type": "application/json" },
@@ -105,7 +122,7 @@ try {
   expect(apiBody).toEqual({ error: "not_found" });
 
   resetNotFoundTestState();
-  app = createTmpApp("cli-app");
+  app = takeFixture();
   tmpApps.push(app);
   __setDevMode(true);
   process.chdir(app.path);
@@ -119,7 +136,7 @@ try {
   expect(body).toContain("404 — NOT FOUND");
 
   resetNotFoundTestState();
-  app = createTmpApp("cli-app");
+  app = takeFixture();
   tmpApps.push(app);
   __setDevMode(true);
   process.chdir(app.path);
@@ -133,24 +150,24 @@ try {
   const match = body.match(furinDataRe);
   expect(match).not.toBeNull();
   const data = JSON.parse(match?.[1] ?? "{}");
-  expect(data.__furinStatus).toBe(404);
+  expect(data.__furinMatches.at(-1).status).toBe("notFound");
 } finally {
   resetNotFoundTestState();
 }
 `,
     ],
-    cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
-    stderr: "pipe",
-    stdout: "pipe",
-  });
+    {
+      cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
+      env: { FURIN_TEST_FIXTURE_PATHS: JSON.stringify(fixtures.map((f) => f.path)) },
+      timeoutMs: 25_000,
+    }
+  );
 
   if (proc.exitCode !== 0) {
     throw new Error(
-      [
-        `furin not-found subprocess exited with ${proc.exitCode}`,
-        new TextDecoder().decode(proc.stdout),
-        new TextDecoder().decode(proc.stderr),
-      ].join("\n")
+      [`furin not-found subprocess exited with ${proc.exitCode}`, proc.stdout, proc.stderr].join(
+        "\n"
+      )
     );
   }
 

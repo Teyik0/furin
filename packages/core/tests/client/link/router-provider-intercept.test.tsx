@@ -9,16 +9,18 @@ import {
   type DocumentState,
   useDocumentState,
 } from "../../../src/client/document.tsx";
+import type { RuntimeData } from "../../../src/client/internal/runtime-types.ts";
 import { Link, RouterProvider } from "../../../src/client/link.tsx";
 import type { ClientRoute } from "../../../src/client/router/index.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
+import { navigationDataPath } from "../../support/navigation-data.ts";
 
 const CATCH_ALL_ROUTE_RE = /^\/(.*)$/;
 const PAGE_B_RE = /^\/page-b$/;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function makePage(linkTo: string): React.ComponentType<Record<string, unknown>> {
+function makePage(linkTo: string): React.ComponentType<RuntimeData> {
   return () =>
     createElement(
       "div",
@@ -95,8 +97,8 @@ function waitFor(condition: () => boolean): Promise<void> {
   });
 }
 
-/** Returns a single-line NDJSON response (CrossJSON-serialised) for the /_furin/data endpoint. */
-function makeNdjsonResponse(data: Record<string, unknown>): Response {
+/** Returns a single-line NDJSON response (CrossJSON-serialised) for `?_furin=data` navigation requests. */
+function makeNdjsonResponse(data: RuntimeData): Response {
   const ndjson = JSON.stringify(toCrossJSON(data));
   return new Response(ndjson, { headers: { "Content-Type": "application/x-ndjson" }, status: 200 });
 }
@@ -123,7 +125,7 @@ async function renderRouterWithLink(
 
   let initialMatch:
     | (ClientRoute & {
-        component: React.ComponentType<Record<string, unknown>>;
+        component: React.ComponentType<RuntimeData>;
         pageRoute: unknown;
       })
     | null = null;
@@ -146,7 +148,6 @@ async function renderRouterWithLink(
     initialData: {},
     initialDigest: undefined,
     initialMatch,
-    initialNotFound: undefined,
     prefetchCacheSize: 50,
     root: null,
     routes,
@@ -204,8 +205,7 @@ describe("RouterProvider click interception", () => {
 
     globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(input.toString(), window.location.origin);
-      const logicalPath =
-        url.pathname === "/_furin/data" ? (url.searchParams.get("path") ?? "") : url.pathname;
+      const logicalPath = navigationDataPath(url, window.location.origin) ?? url.pathname;
 
       if (logicalPath === "/page-a") {
         pageARequests += 1;

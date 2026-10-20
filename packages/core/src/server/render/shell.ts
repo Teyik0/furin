@@ -151,7 +151,7 @@ export function generateIndexHtml(): string {
  * @param staticMode - `true` for static exports, `false` for SSR/ISR. When
  *   `true`, a `<meta name="furin-mode" content="static">` tag is injected so
  *   the SPA client knows to fetch loader data from the per-route
- *   `__furin_data.ndjson` file instead of the runtime `/_furin/data` endpoint
+ *   `__furin_data.ndjson` file instead of runtime `?_furin=data` requests
  *   (which doesn't exist on a static host).
  */
 export function generateProdIndexHtml(

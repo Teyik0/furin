@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type DevelopmentRouteSnapshot, devGraph } from "../../../src/server/dev/graph.ts";
 import { createInstance, withInstance } from "../../../src/server/instance.ts";
+import type { CompiledModule } from "../../../src/server/internal.ts";
 import {
   importStampedRouteModule,
   invalidateStampedRouteModules,
@@ -15,9 +16,9 @@ test("dev route modules are imported once per source version", async () => {
   const routePath = join(directory, "page.tsx");
   writeFileSync(routePath, "version one\n");
   let imports = 0;
-  const resolveImport = (): Promise<Record<string, unknown>> => {
+  const resolveImport = (): Promise<CompiledModule> => {
     imports += 1;
-    return Promise.resolve({ version: imports });
+    return Promise.resolve({ default: imports });
   };
 
   try {
@@ -46,9 +47,9 @@ test("invalidating route modules refreshes a route whose dependency changed", as
   const routePath = join(directory, "page.tsx");
   writeFileSync(routePath, "unchanged route source\n");
   let imports = 0;
-  const resolveImport = (): Promise<Record<string, unknown>> => {
+  const resolveImport = (): Promise<CompiledModule> => {
     imports += 1;
-    return Promise.resolve({ version: imports });
+    return Promise.resolve({ default: imports });
   };
 
   try {
@@ -72,12 +73,12 @@ test("refreshing one app keeps another app's route source version", () => {
   const firstGraph = devGraph(first);
   const secondGraph = devGraph(second);
   firstGraph.commit({
-    render: () => undefined,
+    render: { native: () => undefined, notFound: () => Promise.resolve(undefined) },
     root: { path: firstPath } as DevelopmentRouteSnapshot["root"],
     routes: [],
   });
   secondGraph.commit({
-    render: () => undefined,
+    render: { native: () => undefined, notFound: () => Promise.resolve(undefined) },
     root: { path: secondPath } as DevelopmentRouteSnapshot["root"],
     routes: [],
   });

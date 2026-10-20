@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { movePrivateServerSourceMaps } from "../../src/build/private-server-sourcemaps.ts";
+import {
+  movePrivateServerSourceMaps,
+  privateServerSourceMapDir,
+} from "../../src/build/private-server-sourcemaps.ts";
 import { createTmpApp } from "../support/app-fixtures.ts";
 
 describe("private server source maps", () => {
@@ -41,5 +44,11 @@ describe("private server source maps", () => {
     } finally {
       app.cleanup();
     }
+  });
+
+  test("keeps each adapter's maps in its own private directory", () => {
+    expect(privateServerSourceMapDir("/app/.furin/build", "vercel")).toBe(
+      join("/app/.furin/build", "private", "server-sourcemaps", "vercel")
+    );
   });
 });
