@@ -1,0 +1,42 @@
+packages/core/src/client/dev-error-overlay.ts
+  s_e7f127a11135e1::t_1e714a8f4208b8 62-63,183-185,189-199
+  s_e7f127a11135e1::t_0a8368582cf512 55
+  s_e7f127a11135e1::t_f5deeb4cadf8e5 200
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_e7f127a11135e1::t_a7f975f8e18ecd 1851,1853,1858-1870,1872-1875,1911,1939-1940,2077-2078
+  s_e7f127a11135e1::t_e6d620f03a6e61 1852,1856,1881-1884
+  s_e7f127a11135e1::t_e9493dcae32706 1854-1855,1857,1871,1876-1880,1885-1909
+packages/core/tests/dev/hmr/dev-error-overlay-runtime.test.ts
+  s_e7f127a11135e1::t_0f446c3e936775 1-2,4,6-12,16-26,32-47,49,98-99,123
+  s_e7f127a11135e1::t_0a8368582cf512 3,5,27-31,48,50-69,71-97
+  s_e7f127a11135e1::t_dd1ec4331ef53e 13-15,100-107,109-122
+  s_e7f127a11135e1::t_63849a76ae7c60 70
+  s_e7f127a11135e1::t_6a98cbdc46dddf 108
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_e7f127a11135e1::t_9595bc31712e92 297-298,309-315,416
+packages/core/tests/dev/hmr/symbolicate.test.ts
+  s_e7f127a11135e1::t_7e723883c4667d 10-27
+  s_e7f127a11135e1::t_fb1cb4b3c8f556 47-77
+packages/core/src/server/dev/symbolicate.ts
+  s_e7f127a11135e1::t_9595bc31712e92 33
+  s_e7f127a11135e1::t_a7f975f8e18ecd 21,34
+  s_e7f127a11135e1::t_0a8368582cf512 22
+packages/core/src/build/hydrate.ts
+  s_e7f127a11135e1::t_1e714a8f4208b8 212-217
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9e6e12fbf571c305444d133f911cc905b78c9718",
+  "prompts": {},
+  "sessions": {
+    "s_e7f127a11135e1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a15a09-729f-7ba0-9649-f90143cf5464",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
