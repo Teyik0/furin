@@ -22,6 +22,7 @@ packages/core/src/server/sync/queries.ts
   s_4958c7c47e1061::t_6f5127e7a580f7 48-52,55
   s_4958c7c47e1061::t_f3ca2da02054cb 58,62,67
   s_4958c7c47e1061::t_bcb07d655c8520 1,10,13-43,45-47,53-54,56-57,126,132-135
+  s_4958c7c47e1061::t_1c9233cc557707 11,59-61,63-66,68-74,77-80,90-123,138,140-146
 packages/core/tests/contract/query-types.type.test.ts
   s_4958c7c47e1061::t_46705fc4ad355f 6,11,14,17,19,23-26,28-30,33,35,37,40,45-46
   s_4958c7c47e1061::t_0a77ad2b6ac73e 31
@@ -33,6 +34,7 @@ packages/core/tests/client/sync/query-store.test.ts
   s_4958c7c47e1061::t_bd237a2a334e69 271-309
 packages/core/tests/client/sync/imperative-invalidation.test.ts
   s_4958c7c47e1061::t_1a18b41e53828b 34-37,51,57,78,82-83,98,102,195,253,262
+  s_4958c7c47e1061::t_1c9233cc557707 6,42-46,66,71-75,118-129,131-143,145-148,152-193,196-206,227-236,270-321
 packages/core/tests/rendering/ssr/query-loaders.test.tsx
   s_4958c7c47e1061::t_5567a4173c0ec4 6,42,48,71,148,158,168,211,227,237,249,293,299,307,369,374,382
   s_4958c7c47e1061::t_147bc115a95901 26,38-41,84-88,106-107,134,136-138
@@ -47,6 +49,7 @@ packages/core/tests/client/sync/security-regressions.test.ts
   s_4958c7c47e1061::t_c85d100363569e 377
   s_4958c7c47e1061::t_ffb5c22fd07ee6 275,277-278,281-282,284
   s_4958c7c47e1061::t_530bad29678432 288
+  s_4958c7c47e1061::t_1c9233cc557707 226-229,231-232,317-321,389-392,424-427
 examples/task-manager/tests/board-page-sync.test.tsx
   s_4958c7c47e1061::t_cecf8d6f3305a4 4,26-28
 examples/task-manager/src/api/index.ts
@@ -54,6 +57,7 @@ examples/task-manager/src/api/index.ts
 packages/core/tests/contract/sync-invalidate-types.type.test.ts
   s_4958c7c47e1061::t_5cad02f7c43b5a 8,10-34,53-57,67-74
   s_4958c7c47e1061::t_df923fb4434e26 75-76
+  s_4958c7c47e1061::t_1c9233cc557707 6,35-52,60-66,77
 examples/task-manager/src/components/create-board-form.tsx
   s_4958c7c47e1061::t_151e718122ed84 8,21
 apps/docs/src/components/landing/sync-section.tsx
@@ -77,6 +81,7 @@ packages/core/src/server/render/mixed-cache.ts
 packages/core/tests/contract/furin-plugin-types.type.test.ts
   s_4958c7c47e1061::t_0a77ad2b6ac73e 3,34-35
   s_4958c7c47e1061::t_e78475d4bbca54 7,32-33
+  s_4958c7c47e1061::t_1c9233cc557707 25
 packages/core/tests/build/elysia-aot.test.ts
   s_4958c7c47e1061::t_015e408a2f417c 66-67,71
 packages/core/src/server/sync/query-context.ts
@@ -87,6 +92,7 @@ packages/core/tests/client/sync/sync.test.ts
   s_4958c7c47e1061::t_73cfcdf5aeca9a 157,567-570
   s_4958c7c47e1061::t_bdbfbdf7acbf1a 314-321
   s_4958c7c47e1061::t_1e2cbb76140002 32
+  s_4958c7c47e1061::t_1c9233cc557707 76,120,137-138,179-180,213,277-280,304-305,383,530,550-553,651,702,740,788
 packages/core/src/client/query.tsx
   s_4958c7c47e1061::t_79d6d1653bd7bf 9
   s_4958c7c47e1061::t_a492771bcc0ae8 20,22-26,29-31
@@ -98,6 +104,7 @@ packages/core/src/build/elysia-aot-worker.ts
   s_4958c7c47e1061::t_f479b80b4c340e 39
 CHANGELOG.md
   s_4958c7c47e1061::t_a01d741c983fb1 10-11,15,19,22
+  s_4958c7c47e1061::t_1c9233cc557707 12-14,18
 packages/core/tests/client/sync/mutation-client.test.tsx
   s_4958c7c47e1061::t_45aa882bdf8f4b 539-594
   s_4958c7c47e1061::t_020210d38a1770 317
@@ -107,6 +114,7 @@ packages/core/tests/client/sync/mutation-client.test.tsx
   s_4958c7c47e1061::t_f9ebafb29ec022 7,94,96,132,135,315
 packages/core/src/server/sync/atomic.ts
   s_abd17bfa3cc916::t_e7f56526501c8f 20
+  s_4958c7c47e1061::t_1c9233cc557707 131
 packages/core/src/client/sync.ts
   s_4958c7c47e1061::t_3a661848b6ecc0 309-310
   s_4958c7c47e1061::t_c0eed13d724c9c 56-57
@@ -159,6 +167,7 @@ apps/docs/src/content/docs/sync.mdx
   s_4958c7c47e1061::t_ee3386079a2e02 211
   s_4958c7c47e1061::t_e82e9fe93ade30 283
   s_4958c7c47e1061::t_0023a727c76b2b 390-393
+  s_4958c7c47e1061::t_1c9233cc557707 88-92,96,127,130,133,151,165,176-187,572
 examples/task-manager/src/components/board-card.tsx
   s_4958c7c47e1061::t_151e718122ed84 21
 packages/core/src/server/sync/plugin.ts
@@ -169,6 +178,7 @@ packages/core/src/server/sync/plugin.ts
   s_4958c7c47e1061::t_726b1381eade02 396
   s_4958c7c47e1061::t_5b833bdd04363d 409
   s_4958c7c47e1061::t_859dcd9ac8fea7 192-193
+  s_4958c7c47e1061::t_1c9233cc557707 2,16,35-36,38,47,67,133-134,137,179,204,255-256,258,260-263,265-266,268,280-293,302-303,310-322,367,373,380-387,433,437-439
 packages/core/tests/client/sync/query-client.test.tsx
   s_4958c7c47e1061::t_57de0ada38e619 31
   s_4958c7c47e1061::t_3107d005a77b2d 11,82,84,90-91,113,134,139,141,177,179,182,201,203,261,264,268,298,300,303,336,338,359-361
@@ -197,6 +207,7 @@ packages/core/tests/client/sync/router-provider-sync.test.tsx
   s_4958c7c47e1061::t_079af4e26f53b7 1118-1137,1139-1150
 packages/core/tests/client/sync/atomic-sync.test.ts
   s_4958c7c47e1061::t_9b45ab303cfe72 679,681-683
+  s_4958c7c47e1061::t_1c9233cc557707 16-28,508-513,563,565,600,602,634,636,678,680,776,778,806-811,836,838
 examples/task-manager/src/api/modules/cards/index.ts
   s_4958c7c47e1061::t_3c08e12e5379df 10-13,15-16,25,30-31,36-37,58-59,83-84,98-99
 examples/task-manager/tests/kanban-sync.test.tsx
@@ -230,6 +241,7 @@ packages/core/src/routes.ts
   s_4958c7c47e1061::t_d41b576910d2e2 19-22,24
 packages/core/tests/client/sync/principal-secret.test.ts
   s_4958c7c47e1061::t_126ca4c4778982 45
+  s_4958c7c47e1061::t_1c9233cc557707 16,46-49
 packages/core/src/server/sync/stream.ts
   s_4958c7c47e1061::t_1150d3cbe72334 7
   s_4958c7c47e1061::t_488e98cc412340 188
@@ -266,6 +278,55 @@ examples/task-manager/tests/cards-invalidation.test.ts
   s_4958c7c47e1061::t_26b6723f043a99 4,22-29,35-36,45-46
 packages/core/src/furin.ts
   s_abd17bfa3cc916::t_32707746bc4fa4 369
+  s_4958c7c47e1061::t_1c9233cc557707 378
+packages/core/tests/runtime/browser-events/browser-events-plugin.test.ts
+  s_4958c7c47e1061::t_1c9233cc557707 16
+packages/core/tests/client/sync/sync-broadcast.test.ts
+  s_4958c7c47e1061::t_1c9233cc557707 13
+packages/core/tests/runtime/production-server.test.ts
+  s_4958c7c47e1061::t_1c9233cc557707 455,546
+packages/core/src/server/sync/sqlite/index.ts
+  s_4958c7c47e1061::t_1c9233cc557707 200-204,206,231-287
+packages/core/src/server/sync/adapter.ts
+  s_4958c7c47e1061::t_1c9233cc557707 58-62
+packages/core/tests/client/sync/invalidate-sync.test.ts
+  s_4958c7c47e1061::t_1c9233cc557707 1-80
+packages/core/src/server/auto-invalidate/plugin.ts
+  s_4958c7c47e1061::t_1c9233cc557707 3-9,16-19,21-24,26,32-45,47-52
+packages/core/src/server/sync/runtime.ts
+  s_4958c7c47e1061::t_1c9233cc557707 15-25
+packages/core/src/server/sync/response.ts
+  s_4958c7c47e1061::t_1c9233cc557707 21
+packages/core/tests/helpers/sync-adapter-conformance.ts
+  s_4958c7c47e1061::t_1c9233cc557707 111-122
+apps/docs/src/content/docs/api-routes.mdx
+  s_4958c7c47e1061::t_1c9233cc557707 180-183,186
+packages/core/src/server/sync/invalidate-sync.ts
+  s_4958c7c47e1061::t_1c9233cc557707 1-21
+packages/core/tests/client/sync/atomic-postgres-sync.test.ts
+  s_4958c7c47e1061::t_1c9233cc557707 104,106,186,188,204-230,252-256,283,285
+apps/docs/src/content/docs/caching.mdx
+  s_4958c7c47e1061::t_1c9233cc557707 177,206,214-217
+packages/core/tests/runtime/sync/sync-response.test.ts
+  s_4958c7c47e1061::t_1c9233cc557707 24,44
+packages/core/tests/client/sync/sync-runtime.test.ts
+  s_4958c7c47e1061::t_1c9233cc557707 17
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_4958c7c47e1061::t_1c9233cc557707 1335
+packages/core/README.md
+  s_4958c7c47e1061::t_1c9233cc557707 36
+packages/core/tests/runtime/invalidation/auto-invalidate.test.ts
+  s_4958c7c47e1061::t_1c9233cc557707 39,60-65,283-314,318-325,346-349,370-373,438-445,447-450,470-473,505-512,534-537,556-559
+packages/core/src/server/sync/index.ts
+  s_4958c7c47e1061::t_1c9233cc557707 3,10
+packages/core/src/server/sync/postgres/index.ts
+  s_4958c7c47e1061::t_1c9233cc557707 210-217,238-286
+packages/core/src/server/sync/redis/index.ts
+  s_4958c7c47e1061::t_1c9233cc557707 20,246-257
+packages/core/src/server/sync/redis/scripts.ts
+  s_4958c7c47e1061::t_1c9233cc557707 75-83
+packages/core/tests/client/sync/sync-notifier.test.ts
+  s_4958c7c47e1061::t_1c9233cc557707 8
 ---
 {
   "schema_version": "authorship/3.0.0",
