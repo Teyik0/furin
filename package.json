@@ -24,7 +24,7 @@
     "postcss-selector-parser": "7.1.6"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.14",
+    "@biomejs/biome": "2.5.15",
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
     "@happy-dom/global-registrator": "^20.14.5",
