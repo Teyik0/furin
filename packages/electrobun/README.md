@@ -175,6 +175,12 @@ imports; type-only imports and frontend-only TS helpers do not restart the backe
 The graph uses a non-writing Bun build before each worker launch, so renaming an
 extensionless import target refreshes ownership without runtime resolver caches.
 Modules loaded through computed paths are outside this source graph.
+A backend compilation error prints Bun's diagnostics and leaves the supervisor
+waiting for another source save, including when an imported file is invalid at
+startup. It retains the last valid dependency graph and temporarily observes all
+eligible source changes so newly imported files can be repaired. A successful
+scan restores graph-based watching and starts a fresh host through the normal
+application lifecycle. Ctrl-C cancels the wait; SDK and cleanup failures remain fatal.
 A real macOS WKWebView test
 verified both kinds of update while preserving a React-controlled draft,
 document identity and native-host PID.

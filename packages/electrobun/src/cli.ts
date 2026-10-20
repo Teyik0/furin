@@ -10,7 +10,10 @@ import { resolveDesktopDataDir } from "./storage";
 
 const MODULE_PATH = /.*/;
 
-async function backendDependencies(root: string, entries: string[]): Promise<Set<string>> {
+async function backendDependencies(
+  root: string,
+  entries: string[]
+): Promise<Set<string> | undefined> {
   const files = new Set(entries);
   // Each build gets fresh resolution state; Bun.resolveSync caches renamed
   // extensionless targets for the supervisor's entire process lifetime.
@@ -21,6 +24,7 @@ async function backendDependencies(root: string, entries: string[]): Promise<Set
     target: "bun",
     packages: "external",
     metafile: true,
+    throw: false,
     plugins: [
       {
         name: "desktop-backend-ownership",
@@ -34,6 +38,13 @@ async function backendDependencies(root: string, entries: string[]): Promise<Set
       },
     ],
   });
+  if (!result.success) {
+    for (const diagnostic of result.logs) {
+      console.error(diagnostic);
+    }
+    console.error("[furin-electrobun] Backend compilation failed; waiting for source changes.");
+    return;
+  }
   if (result.metafile === undefined) {
     throw new Error("Desktop dependency scan did not produce the requested metafile.");
   }
@@ -250,6 +261,8 @@ function watchBackend(
   let dependencies = new Set(entries);
   const changed = new Set<string>();
   let scanning = false;
+  let compilationFailed = false;
+  let sourceChanged = Promise.withResolvers<void>();
   const resolvedData = dataDir ? resolve(dataDir) : undefined;
   const canonicalData = resolvedData?.startsWith(`${root}${sep}`)
     ? resolve(canonicalRoot, relative(root, resolvedData))
@@ -273,22 +286,47 @@ function watchBackend(
     }
     if (scanning) {
       changed.add(path);
+    } else if (compilationFailed) {
+      sourceChanged.resolve();
     } else if (dependencies.has(path)) {
       onChange();
     }
   });
   return {
     close: () => watcher.close(),
-    async refresh() {
-      scanning = true;
+    async refresh(stopped: Promise<void>) {
+      let canceled = false;
+      const cancellation = stopped.then(() => {
+        canceled = true;
+      });
       try {
         let retry: boolean;
         do {
+          sourceChanged = Promise.withResolvers<void>();
           changed.clear();
+          scanning = true;
           const next = await backendDependencies(canonicalRoot, entries);
+          scanning = false;
+          if (canceled) {
+            return false;
+          }
+          compilationFailed = next === undefined;
+          if (!next) {
+            // A failed build has no complete graph. Retain the last good graph
+            // and observe all eligible source changes until a scan succeeds.
+            if (changed.size === 0) {
+              await Promise.race([sourceChanged.promise, cancellation]);
+              if (canceled) {
+                return false;
+              }
+            }
+            retry = true;
+            continue;
+          }
           retry = [...changed].some((path) => dependencies.has(path) || next.has(path));
           dependencies = next;
         } while (retry);
+        return true;
       } finally {
         scanning = false;
       }
@@ -422,7 +460,7 @@ async function runDesktopDev(
       await rm(ready, { force: true });
       await rm(join(generated, "failure.json"), { force: true });
       await rm(join(generated, "restart"), { force: true });
-      if (stopping) {
+      if (!(await watcher.refresh(stopped))) {
         return;
       }
       if (customHost) {
@@ -431,7 +469,6 @@ async function runDesktopDev(
           continue;
         }
       }
-      await watcher.refresh();
       backend = await launchDevBackend(root, generated, sdk, env, !!customHost);
       try {
         if (!(await waitForDevReady(backend, ready, () => stopping || restart))) {
