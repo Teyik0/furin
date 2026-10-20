@@ -8,7 +8,7 @@ import {
   startDesktopBackend,
   withShutdownDeadline,
 } from "./runtime";
-import { resolveDesktopDataDir } from "./storage";
+import { defaultDesktopDataDir, resolveDesktopDataDir } from "./storage";
 
 interface NativeQuitEvent {
   response?: { allow: boolean };
@@ -30,6 +30,34 @@ export interface DesktopHostContext<Sdk extends NativeHostSdk> {
   }>;
 }
 
+async function hostDataDir(
+  policy: DesktopConfig["dataDir"],
+  config: DesktopConfig,
+  appData: string,
+  identity: { channel: string } | undefined,
+  development: Awaited<ReturnType<typeof getDesktopDevelopment>>
+): Promise<string> {
+  if (typeof policy === "object" && !identity) {
+    throw new Error("Runtime dataDir policy requires the SDK Updater metadata.");
+  }
+  const dataDir =
+    policy === undefined
+      ? defaultDesktopDataDir(
+          appData,
+          config.app.identifier,
+          identity?.channel ?? (development ? "dev" : "")
+        )
+      : await resolveDesktopDataDir(policy, {
+          channel: identity?.channel ?? "",
+          root: development?.root ?? dirname(Bun.main),
+          mode: development ? "dev" : "build",
+        });
+  if (!isAbsolute(dataDir)) {
+    throw new Error("Native host dataDir must be absolute.");
+  }
+  return dataDir;
+}
+
 /** The caller supplies its canonical SDK; this module never imports a second SDK graph. */
 export async function runDesktopHost<Sdk extends NativeHostSdk>(
   sdk: Sdk,
@@ -37,6 +65,12 @@ export async function runDesktopHost<Sdk extends NativeHostSdk>(
 ): Promise<void> {
   let pending: Promise<{ backend: DesktopBackend; module: DesktopAppModule }> | undefined;
   let closing: Promise<void> | undefined;
+  // Native quits stay vetoed until the backend has drained; only the final quit passes.
+  let drained = false;
+  const quit = (code: number) => {
+    drained = true;
+    sdk.Utils.quit(code);
+  };
   const shutdown = (): Promise<void> => {
     closing ??= (async () => {
       let code = 0;
@@ -52,11 +86,18 @@ export async function runDesktopHost<Sdk extends NativeHostSdk>(
         code = 1;
         throw error;
       } finally {
-        sdk.Utils.quit(code);
+        quit(code);
       }
     })();
     return closing;
   };
+  sdk.default.events.on("before-quit", (event) => {
+    if (drained || (!closing && event.response?.allow === false)) {
+      return;
+    }
+    event.response = { allow: false };
+    shutdown().catch(console.error);
+  });
   try {
     const identity = await sdk.Updater?.getLocalInfo();
     const development = await getDesktopDevelopment();
@@ -70,21 +111,13 @@ export async function runDesktopHost<Sdk extends NativeHostSdk>(
         }
         const entry = development?.serverEntry ?? join(dirname(Bun.main), "../furin/app.js");
         pending = (async () => {
-          const policy = options?.dataDir ?? config.dataDir;
-          if (typeof policy === "object" && !identity) {
-            throw new Error("Runtime dataDir policy requires the SDK Updater metadata.");
-          }
-          const dataDir =
-            policy === undefined
-              ? join(sdk.Utils.paths.appData, config.app.identifier)
-              : await resolveDesktopDataDir(policy, {
-                  channel: identity?.channel ?? "",
-                  root: development?.root ?? dirname(Bun.main),
-                  mode: development ? "dev" : "build",
-                });
-          if (!isAbsolute(dataDir)) {
-            throw new Error("Native host dataDir must be absolute.");
-          }
+          const dataDir = await hostDataDir(
+            options?.dataDir ?? config.dataDir,
+            config,
+            sdk.Utils.paths.appData,
+            identity,
+            development
+          );
           let loaded: Promise<DesktopAppModule> | undefined;
           const load = () => {
             loaded ??= import(pathToFileURL(entry).href);
@@ -100,13 +133,6 @@ export async function runDesktopHost<Sdk extends NativeHostSdk>(
       throw new Error("The native host must call startBackend().");
     }
     const { backend } = await pending;
-    sdk.default.events.on("before-quit", (event) => {
-      if (closing || event.response?.allow === false) {
-        return;
-      }
-      event.response = { allow: false };
-      shutdown().catch(console.error);
-    });
     if (development) {
       await development.ready(backend, shutdown);
     } else {
@@ -136,7 +162,7 @@ export async function runDesktopHost<Sdk extends NativeHostSdk>(
         cause: error,
       });
     } finally {
-      sdk.Utils.quit(1);
+      quit(1);
     }
     throw error;
   }

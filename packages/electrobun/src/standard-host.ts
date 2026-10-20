@@ -7,12 +7,13 @@ import type {
   DesktopSnapshot,
   NativeActionContext,
   NativeMenuItem,
+  NativeOperation,
   NativeUpdateStatus,
   OpenEvent,
 } from "./capabilities";
 import type { DesktopConfig } from "./config";
 import { getDesktopDevelopment } from "./development";
-import { forwardNativeOpen, openNativeInstance } from "./native-instance";
+import { deliverToNativeOwner, openNativeInstance } from "./native-instance";
 import { armNativeRestart, nativeLauncherPath } from "./native-restart";
 import type { DesktopSdk, NativeTray, NativeWindow, SdkMenuItem } from "./native-sdk";
 import { nativeLaunchEvents } from "./open-events";
@@ -24,7 +25,7 @@ import {
   startDesktopBackend,
   withShutdownDeadline,
 } from "./runtime";
-import { resolveDesktopDataDir } from "./storage";
+import { defaultDesktopDataDir, resolveDesktopDataDir } from "./storage";
 
 export interface StandardHostOptions {
   config: DesktopConfig;
@@ -65,7 +66,7 @@ async function resolveOptions(
     dataDir:
       restartDirectory ??
       (config.dataDir === undefined
-        ? join(sdk.Utils.paths.appData, config.app.identifier)
+        ? defaultDesktopDataDir(sdk.Utils.paths.appData, config.app.identifier, identity.channel)
         : await resolveDesktopDataDir(config.dataDir, { root, mode, channel: identity.channel })),
     load: () =>
       import(
@@ -82,14 +83,14 @@ async function resolveOptions(
 
 async function forwardQueued(dataDir: string, identity: DesktopIdentity, queued: OpenEvent[]) {
   if (!queued.length) {
-    if (!(await forwardNativeOpen(dataDir, identity))) {
+    if (!(await deliverToNativeOwner(dataDir, identity))) {
       throw new Error("The native instance is unavailable.");
     }
     return;
   }
   for (const event of queued) {
     // biome-ignore lint/performance/noAwaitInLoops: Preserve ordering of OS-delivered native events.
-    if (!(await forwardNativeOpen(dataDir, identity, event))) {
+    if (!(await deliverToNativeOwner(dataDir, identity, event))) {
       throw new Error("The native instance is unavailable.");
     }
   }
@@ -124,7 +125,7 @@ export async function runStandardDesktopHost(
           ? { type: "file", path: fileURLToPath(url) }
           : { type: "url", url: url.href }
       );
-      flush().catch(report);
+      flush().catch(report("open"));
     } catch {
       console.error("[furin-electrobun] Invalid native open event.");
     }
@@ -157,7 +158,15 @@ export async function runStandardDesktopHost(
     }
     return backend;
   };
-  const report = () => console.error("[furin-electrobun] Native action failed.");
+  // The console never prints error details: native events can carry OAuth URLs.
+  const report = (operation: NativeOperation) => (error: unknown) => {
+    console.error(`[furin-electrobun] Native ${operation} failed.`);
+    try {
+      state?.hooks?.onError?.({ operation, error });
+    } catch {
+      console.error("[furin-electrobun] Native error reporting failed.");
+    }
+  };
   const context = (): NativeActionContext => ({ identity, desktop });
   const menus = (items: NativeMenuItem[]): SdkMenuItem[] =>
     items.map((item) => {
@@ -187,7 +196,7 @@ export async function runStandardDesktopHost(
       if (action) {
         Promise.resolve()
           .then(() => action(context()))
-          .catch(report);
+          .catch(report("action"));
       }
     }
   };
@@ -218,7 +227,7 @@ export async function runStandardDesktopHost(
       }
       window = undefined;
       if (phase === "ready" && !(state?.hooks?.background?.() && tray?.visible)) {
-        desktop.quit().catch(report);
+        desktop.quit().catch(report("quit"));
       }
     });
     const external = (event: unknown) => {
@@ -298,7 +307,7 @@ export async function runStandardDesktopHost(
         if (installing) {
           return installing;
         }
-        requireBackend();
+        const active = requireBackend();
         if (!sdk.Updater.updateInfo().updateReady) {
           return Promise.reject(new Error("Download an update first."));
         }
@@ -308,7 +317,8 @@ export async function runStandardDesktopHost(
         }
         installing = (async () => {
           try {
-            await withShutdownDeadline(state?.stop() ?? Promise.resolve());
+            // The SDK may exit right after the handoff: drain the whole backend first.
+            await active.stop();
             allowUpdateQuit = true;
             await sdk.Updater.applyUpdate();
             const info = sdk.Updater.updateInfo();
@@ -473,13 +483,13 @@ export async function runStandardDesktopHost(
     }
     event.response = { allow: false };
     if (!installing) {
-      desktop.quit().catch(report);
+      desktop.quit().catch(report("quit"));
     }
   };
   sdk.default.events.on("reopen", reopen);
   sdk.default.events.on("before-quit", beforeQuit);
   const stop = () => {
-    desktop.quit().catch(report);
+    desktop.quit().catch(report("quit"));
   };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
@@ -492,8 +502,8 @@ export async function runStandardDesktopHost(
           try {
             // biome-ignore lint/performance/noAwaitInLoops: Deliver the next native event only after its predecessor settles.
             await state?.hooks?.onOpen?.({ ...context(), event });
-          } catch {
-            report();
+          } catch (error) {
+            report("open")(error);
           }
         }
       }
@@ -553,7 +563,7 @@ export async function runStandardDesktopHost(
         ) ?? [],
       onOpen(event) {
         queued.push(event);
-        flush().catch(report);
+        flush().catch(report("open"));
       },
       onActivate: reopen,
     });
@@ -568,13 +578,21 @@ export async function runStandardDesktopHost(
       sdk.Utils.quit(0);
       return;
     }
-    await association.registerProtocols(config.protocols ?? []);
+    await association.registerHandlers({
+      protocols: config.protocols ?? [],
+      schemes: config.sdk?.app?.urlSchemes ?? [],
+      files: (config.sdk?.app?.fileAssociations ?? []).map((item) => ({
+        name: item.name,
+        extensions: item.ext,
+        mimeType: item.mimeType,
+      })),
+    });
     sdk.Updater.onStatusChange((status) => {
       for (const listener of listeners) {
         try {
           listener(status);
-        } catch {
-          report();
+        } catch (error) {
+          report("updates")(error);
         }
       }
     });

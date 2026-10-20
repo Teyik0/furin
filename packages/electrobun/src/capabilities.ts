@@ -125,9 +125,17 @@ export type NativeMenuItem =
       onSelect?: (context: NativeActionContext) => unknown | Promise<unknown>;
     };
 
+/** Native work that failed outside a request: open events, menu actions, update listeners, quit. */
+export type NativeOperation = "open" | "action" | "updates" | "quit";
+
 export interface DesktopAppOptions {
   background?: () => boolean;
   menus?: (context: NativeActionContext) => NativeMenuItem[];
+  /**
+   * Receives native failures that have no HTTP response to carry them. The error
+   * is unredacted: it may contain open-event URLs, so sanitize before persisting.
+   */
+  onError?: (context: { operation: NativeOperation; error: unknown }) => void;
   onOpen?: (context: NativeActionContext & { event: OpenEvent }) => void | Promise<void>;
   onReady?: (context: ReadyContext) => void | Promise<void>;
   onShutdown?: (context: StartupContext) => void | Promise<void>;

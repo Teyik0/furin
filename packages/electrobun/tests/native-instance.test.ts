@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { OpenEvent } from "../src/capabilities";
-import { forwardNativeOpen, openNativeInstance } from "../src/native-instance";
+import {
+  deliverToNativeOwner,
+  forwardNativeOpen,
+  openNativeInstance,
+} from "../src/native-instance";
 
 test("native handoff is isolated, authenticated and limited to registered open events", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "furin-native-instance-"));
@@ -73,6 +77,41 @@ test("native handoff is isolated, authenticated and limited to registered open e
     await primary?.stop();
     primary = undefined;
     expect(await forwardNativeOpen(dataDir, identity)).toBe(false);
+  } finally {
+    await primary?.stop();
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("a secondary launch waits for the owner to publish its descriptor", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "furin-native-race-"));
+  const identity = {
+    identifier: "local.furin.race",
+    channel: "dev",
+    version: "1.0.0",
+    name: "Race",
+  };
+  const received: OpenEvent[] = [];
+  let primary: Awaited<ReturnType<typeof openNativeInstance>>;
+  try {
+    // The secondary starts forwarding before the owner has published anything.
+    const delivered = deliverToNativeOwner(dataDir, identity, {
+      type: "url",
+      url: "fixture://late",
+    });
+    await Bun.sleep(100);
+    primary = await openNativeInstance({
+      dataDir,
+      identity,
+      schemes: ["fixture"],
+      extensions: [],
+      onOpen: (event) => {
+        received.push(event);
+      },
+      onActivate: () => undefined,
+    });
+    expect(await delivered).toBe(true);
+    expect(received).toEqual([{ type: "url", url: "fixture://late" }]);
   } finally {
     await primary?.stop();
     await rm(dataDir, { recursive: true, force: true });

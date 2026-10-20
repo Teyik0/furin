@@ -39,8 +39,10 @@ async function backendDependencies(root: string, entries: string[]): Promise<Set
   }
   // Observe Bun's resolved inputs, including file assets, without an onLoad
   // hook: passing file-loader imports through that hook can panic Bun.
+  // Bun reports them relative to the canonical working directory, not `root`.
+  const base = realpathSync(process.cwd());
   for (const path of Object.keys(result.metafile.inputs)) {
-    files.add(resolve(root, path));
+    files.add(resolve(base, path));
   }
   return files;
 }

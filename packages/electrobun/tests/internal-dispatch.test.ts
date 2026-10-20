@@ -203,7 +203,8 @@ test("both desktop transports are blocked during startup, update pause and shutd
     await applying.promise;
     const count = bodies;
     expect((await eden.value.get()).status).toBe(503);
-    expect((await fetch(`${origin}/api/value`, { headers: { cookie, origin } })).status).toBe(503);
+    // The update handoff drains the whole backend, listener included.
+    await expect(fetch(`${origin}/api/value`, { headers: { cookie, origin } })).rejects.toThrow();
     expect(bodies).toBe(count);
     releaseUpdate.resolve();
     await installing;

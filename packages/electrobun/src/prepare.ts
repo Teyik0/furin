@@ -3,6 +3,9 @@ import { join, posix, resolve, win32 } from "node:path";
 import type { DesktopConfig } from "./config";
 import { copyExternalPackages } from "./external";
 
+// Shipped sources the generated host runs, also when this module is bundled into dist/.
+const SOURCES = resolve(import.meta.dir, "../src");
+
 export interface DesktopPreparation {
   mode: "dev" | "build";
   root: string;
@@ -11,7 +14,7 @@ export interface DesktopPreparation {
 
 export function renderRuntime(): string {
   return `import * as sdk from "./.hutch/devkit/api/sdks/main/index.ts";
-import { runStandardDesktopHost } from ${JSON.stringify(join(import.meta.dir, "standard-host.ts"))};
+import { runStandardDesktopHost } from ${JSON.stringify(join(SOURCES, "standard-host.ts"))};
 
 await runStandardDesktopHost(sdk);
 `;
@@ -38,20 +41,20 @@ export async function prepareDesktop(
   }
   await writeFile(
     join(generated, "runtime.ts"),
-    await Bun.file(join(import.meta.dir, "runtime.ts")).text()
+    await Bun.file(join(SOURCES, "runtime.ts")).text()
   );
   await writeFile(
     join(generated, "registry.ts"),
-    await Bun.file(join(import.meta.dir, "registry.ts")).text()
+    await Bun.file(join(SOURCES, "registry.ts")).text()
   );
   await writeFile(
     join(generated, "storage.ts"),
-    await Bun.file(join(import.meta.dir, "storage.ts")).text()
+    await Bun.file(join(SOURCES, "storage.ts")).text()
   );
   if (options.mode === "dev") {
     await writeFile(
       join(generated, "dev-server.ts"),
-      await Bun.file(join(import.meta.dir, "dev-server.ts")).text()
+      await Bun.file(join(SOURCES, "dev-server.ts")).text()
     );
     await writeFile(
       join(generated, "dev.json"),
@@ -60,7 +63,7 @@ export async function prepareDesktop(
   }
   await writeFile(join(generated, "main.ts"), renderRuntime());
   const helper = await Bun.build({
-    entrypoints: [join(import.meta.dir, "native-open.ts")],
+    entrypoints: [join(SOURCES, "native-open.ts")],
     target: "bun",
   });
   if (!(helper.success && helper.outputs[0])) {
@@ -68,7 +71,7 @@ export async function prepareDesktop(
   }
   await writeFile(join(generated, "native-open.js"), await helper.outputs[0].text());
   const restart = await Bun.build({
-    entrypoints: [join(import.meta.dir, "native-restart.ts")],
+    entrypoints: [join(SOURCES, "native-restart.ts")],
     target: "bun",
   });
   if (!(restart.success && restart.outputs[0])) {
@@ -112,10 +115,13 @@ export async function prepareDesktop(
     app: {
       ...config.app,
       urlSchemes: additions?.app?.urlSchemes,
-      fileAssociations: additions?.app?.fileAssociations?.map((association) => ({
-        ...association,
-        ...(association.icon ? { icon: resolve(options.root, association.icon) } : {}),
-      })),
+      // The SDK packages macOS document types; mimeType is Furin's Linux registration input.
+      fileAssociations: additions?.app?.fileAssociations?.map(
+        ({ mimeType: _, ...association }) => ({
+          ...association,
+          ...(association.icon ? { icon: resolve(options.root, association.icon) } : {}),
+        })
+      ),
     },
     build: {
       mainProcess: "bun",

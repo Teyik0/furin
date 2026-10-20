@@ -4,7 +4,7 @@ import type { ElysiaConfig, EventScope } from "elysia/types";
 import type { DesktopAppOptions } from "./capabilities";
 import { type DesktopMode, type DesktopState, registerDesktopApp } from "./registry";
 
-export type { DesktopAppOptions } from "./capabilities";
+export type { DesktopAppOptions, NativeOperation } from "./capabilities";
 
 const HMR_ENTRY = /(?:^|\/)_bun_hmr_entry(?:\/index\.html)?$/;
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);

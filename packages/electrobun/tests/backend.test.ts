@@ -247,3 +247,34 @@ test("one startup budget bounds async plugin activation and never listens after 
     await rm(data, { recursive: true, force: true });
   }
 }, 40_000);
+
+test("the startup budget includes importing the application module", async () => {
+  const data = await mkdtemp(join(tmpdir(), "furin-import-timeout-"));
+  const previousData = process.env.FURIN_APP_DATA_DIR;
+  const startup = startDesktopBackend(
+    () =>
+      new Promise<never>(() => {
+        /* A module whose top-level initialization never settles. */
+      }),
+    data,
+    "build"
+  );
+  const observed = startup.then(
+    () => "unexpected readiness",
+    (error: Error) => error.message
+  );
+  try {
+    const outcome = await Promise.race([
+      observed,
+      Bun.sleep(31_000).then(() => "startup never settled"),
+    ]);
+    expect(outcome).toContain("30 seconds");
+  } finally {
+    if (previousData === undefined) {
+      delete process.env.FURIN_APP_DATA_DIR;
+    } else {
+      process.env.FURIN_APP_DATA_DIR = previousData;
+    }
+    await rm(data, { recursive: true, force: true });
+  }
+}, 40_000);

@@ -4,6 +4,13 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AssociationResult, AssociationTarget, DesktopIdentity } from "./capabilities";
 
+/** A document type the application can open; Linux needs its MIME type to list it. */
+export interface FileHandler {
+  extensions: string[];
+  mimeType?: string;
+  name: string;
+}
+
 interface AssociationOptions {
   dataDir: string;
   helper: string;
@@ -65,26 +72,81 @@ async function readWindows(target: AssociationTarget): Promise<AssociationResult
   };
 }
 
-async function registerWindows(args: string[], schemes: string[], name: string) {
+function windowsInvocation(args: string[]) {
   if (args.some((value) => UNSAFE_PATH.test(value))) {
     throw new Error("Invalid native helper path.");
   }
-  const invocation = `${args.map((value) => `"${value}"`).join(" ")} "%1"`;
-  for (const scheme of schemes) {
-    validate({ scheme });
-    const key = `HKCU\\Software\\Classes\\${scheme}`;
-    for (const values of [
-      [key, "/ve", "/d", `URL:${name}`],
-      [key, "/v", "URL Protocol", "/d", ""],
-      [`${key}\\shell\\open\\command`, "/ve", "/d", invocation],
-    ]) {
-      // biome-ignore lint/performance/noAwaitInLoops: Registry commands build each handler in a defined order.
-      await requireCommand(
-        ["reg.exe", "add", ...values, "/f"],
-        "Unable to register the native protocol."
+  return `${args.map((value) => `"${value}"`).join(" ")} "%1"`;
+}
+
+async function addWindowsValues(entries: string[][]) {
+  for (const values of entries) {
+    // biome-ignore lint/performance/noAwaitInLoops: Registry commands build each handler in a defined order.
+    await requireCommand(
+      ["reg.exe", "add", ...values, "/f"],
+      "Unable to register the native handler."
+    );
+  }
+}
+
+/**
+ * Lists the application in "Open with" and Default Apps through per-user ProgIDs
+ * and registered capabilities. Windows reserves the default choice for the user.
+ */
+async function registerWindowsHandlers(
+  invocation: string,
+  identity: DesktopIdentity,
+  schemes: string[],
+  files: FileHandler[]
+) {
+  const classes = "HKCU\\Software\\Classes";
+  const capabilities = `Software\\${identity.identifier}\\Capabilities`;
+  const entries: string[][] = [];
+  for (const file of files) {
+    for (const extension of file.extensions) {
+      validate({ extension });
+      const progId = `${identity.identifier}.${extension.toLowerCase()}`;
+      entries.push(
+        [`${classes}\\${progId}`, "/ve", "/d", file.name],
+        [`${classes}\\${progId}\\shell\\open\\command`, "/ve", "/d", invocation],
+        [`${classes}\\.${extension}\\OpenWithProgids`, "/v", progId, "/d", ""],
+        [`HKCU\\${capabilities}\\FileAssociations`, "/v", `.${extension}`, "/d", progId]
       );
     }
   }
+  for (const scheme of schemes) {
+    validate({ scheme });
+    const progId = `${identity.identifier}.url.${scheme}`;
+    entries.push(
+      [`${classes}\\${progId}`, "/ve", "/d", `URL:${identity.name}`],
+      [`${classes}\\${progId}`, "/v", "URL Protocol", "/d", ""],
+      [`${classes}\\${progId}\\shell\\open\\command`, "/ve", "/d", invocation],
+      [`HKCU\\${capabilities}\\URLAssociations`, "/v", scheme, "/d", progId]
+    );
+  }
+  if (entries.length === 0) {
+    return;
+  }
+  await addWindowsValues([
+    ...entries,
+    [`HKCU\\${capabilities}`, "/v", "ApplicationName", "/d", identity.name],
+    [`HKCU\\${capabilities}`, "/v", "ApplicationDescription", "/d", identity.name],
+    ["HKCU\\Software\\RegisteredApplications", "/v", identity.identifier, "/d", capabilities],
+  ]);
+}
+
+async function registerWindows(invocation: string, schemes: string[], name: string) {
+  await addWindowsValues(
+    schemes.flatMap((scheme) => {
+      validate({ scheme });
+      const key = `HKCU\\Software\\Classes\\${scheme}`;
+      return [
+        [key, "/ve", "/d", `URL:${name}`],
+        [key, "/v", "URL Protocol", "/d", ""],
+        [`${key}\\shell\\open\\command`, "/ve", "/d", invocation],
+      ];
+    })
+  );
 }
 
 async function macAssociation(
@@ -212,6 +274,8 @@ export function createAssociations(options: AssociationOptions) {
       file,
       `[Desktop Entry]\nType=Application\nName=${options.identity.name}\nNoDisplay=true\nExec=${args.map(desktopArgument).join(" ")} %u\nMimeType=${supported.join(";")};\n`
     );
+    // Best effort: "Open with" menus read the cache; a missing tool only delays listing.
+    await command(["update-desktop-database", directory]).catch(() => undefined);
   };
   const read = async (target: AssociationTarget): Promise<AssociationResult> => {
     validate(target);
@@ -250,7 +314,9 @@ export function createAssociations(options: AssociationOptions) {
         return macAssociation(target, options.identity.identifier);
       }
       if (process.platform === "win32") {
-        if (!options.openExternal("ms-settings:defaultapps")) {
+        // Opens this app's page, listed through its registered capabilities.
+        const page = `ms-settings:defaultapps?registeredAppUser=${encodeURIComponent(options.identity.identifier)}`;
+        if (!options.openExternal(page)) {
           throw new Error("Windows default application settings are unavailable.");
         }
         return { status: "user-action-required" };
@@ -277,27 +343,56 @@ export function createAssociations(options: AssociationOptions) {
         throw error;
       }
     },
-    async registerProtocols(schemes: string[]) {
-      if (process.platform === "darwin" || schemes.length === 0) {
+    /**
+     * Owned `protocols` become this app's handlers. Shared `schemes` and `files`
+     * only list the app as a choice: the user's defaults are never changed.
+     */
+    async registerHandlers(handlers: {
+      files: FileHandler[];
+      protocols: string[];
+      schemes: string[];
+    }) {
+      const shared = handlers.schemes.filter((scheme) => !handlers.protocols.includes(scheme));
+      if (
+        process.platform === "darwin" ||
+        handlers.protocols.length + shared.length + handlers.files.length === 0
+      ) {
         return;
       }
       if (!(await Bun.file(options.helper).exists())) {
         throw new Error("The native open helper is missing.");
       }
       if (process.platform === "win32") {
-        await registerWindows(args, schemes, options.identity.name);
-      } else {
-        const types = schemes.map((scheme) => {
+        const invocation = windowsInvocation(args);
+        await registerWindows(invocation, handlers.protocols, options.identity.name);
+        await registerWindowsHandlers(invocation, options.identity, shared, handlers.files);
+        return;
+      }
+      const owned = handlers.protocols.map((scheme) => {
+        validate({ scheme });
+        return `x-scheme-handler/${scheme}`;
+      });
+      const listed = [
+        ...shared.map((scheme) => {
           validate({ scheme });
           return `x-scheme-handler/${scheme}`;
-        });
-        await installLinuxEntry(types);
-        for (const type of types) {
-          // biome-ignore lint/performance/noAwaitInLoops: Preserve registration order; report a failed command immediately.
-          const result = await command(["xdg-mime", "default", leaf, type]);
-          if (result.code !== 0) {
-            throw new Error("Unable to register the native protocol.");
+        }),
+        ...handlers.files.flatMap((file) => {
+          if (file.mimeType === undefined) {
+            return [];
           }
+          if (!MIME.test(file.mimeType)) {
+            throw new Error("Invalid native association target.");
+          }
+          return [file.mimeType];
+        }),
+      ];
+      await installLinuxEntry([...owned, ...listed]);
+      for (const type of owned) {
+        // biome-ignore lint/performance/noAwaitInLoops: Preserve registration order; report a failed command immediately.
+        const result = await command(["xdg-mime", "default", leaf, type]);
+        if (result.code !== 0) {
+          throw new Error("Unable to register the native protocol.");
         }
       }
     },

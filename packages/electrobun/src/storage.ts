@@ -1,6 +1,6 @@
 import { realpath } from "node:fs/promises";
 import { homedir } from "node:os";
-import { posix, win32 } from "node:path";
+import { join, posix, win32 } from "node:path";
 import type { RuntimeDataDirectory } from "./config";
 import type { DesktopMode } from "./registry";
 
@@ -29,6 +29,11 @@ function within(path: string, root: string, api: typeof posix): boolean {
     relative === "" ||
     (!api.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${api.sep}`))
   );
+}
+
+/** Without a policy, development builds never share the release data directory. */
+export function defaultDesktopDataDir(appData: string, identifier: string, channel: string) {
+  return join(appData, channel === "dev" ? `${identifier}.dev` : identifier);
 }
 
 /** Read-only resolution: no mkdir, migration, data deletion or environment mutation. */

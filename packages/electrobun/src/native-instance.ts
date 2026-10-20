@@ -266,3 +266,23 @@ export async function forwardNativeOpen(
   }
   return true;
 }
+
+/**
+ * Delivery from a secondary launch: the owner holds the lock before it publishes
+ * its descriptor, so keep forwarding until it accepts or the deadline passes.
+ */
+export async function deliverToNativeOwner(
+  dataDir: string,
+  identity: Pick<DesktopIdentity, "identifier" | "channel">,
+  event?: OpenEvent
+): Promise<boolean> {
+  const deadline = Date.now() + 5000;
+  // biome-ignore lint/performance/noAwaitInLoops: Poll the owner's descriptor sequentially.
+  while (!(await forwardNativeOpen(dataDir, identity, event))) {
+    if (Date.now() > deadline) {
+      return false;
+    }
+    await Bun.sleep(50);
+  }
+  return true;
+}

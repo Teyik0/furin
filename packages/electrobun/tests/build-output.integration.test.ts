@@ -2,6 +2,8 @@ import { expect, test } from "bun:test";
 import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+const HOST_IMPORT = /from ("[^"]+standard-host\.ts")/;
+
 test("package build removes stale outputs and emits config and server exports", async () => {
   const packageRoot = join(import.meta.dir, "..");
   const root = await mkdtemp(join(packageRoot, ".build-output-"));
@@ -44,6 +46,28 @@ test("package build removes stale outputs and emits config and server exports", 
       // biome-ignore lint/performance/noAwaitInLoops: Verify each public output exists.
       expect(await Bun.file(join(root, "dist", name)).exists()).toBe(true);
     }
+    // Built entrypoints bundle the generator: it must still find its shipped assets.
+    const probe = await Bun.build({
+      entrypoints: [join(root, "src/prepare.ts")],
+      external: ["elysia", "elysia/*"],
+      naming: "prepare-probe.js",
+      outdir: join(root, "dist"),
+      target: "bun",
+    });
+    expect(probe.success).toBe(true);
+    const { prepareDesktop } = await import(join(root, "dist/prepare-probe.js"));
+    const project = join(root, "project");
+    await mkdir(project);
+    const generated: string = await prepareDesktop(
+      project,
+      { app: { name: "Probe", identifier: "local.furin.probe", version: "1.0.0" } },
+      { mode: "dev", root: project, serverEntry: join(project, "src/server.ts") }
+    );
+    expect(await Bun.file(join(generated, "runtime.ts")).exists()).toBe(true);
+    const main = await Bun.file(join(generated, "main.ts")).text();
+    // Throws when main.ts no longer imports the standard host.
+    const [, host] = HOST_IMPORT.exec(main) as RegExpExecArray;
+    expect(await Bun.file(JSON.parse(host as string)).exists()).toBe(true);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

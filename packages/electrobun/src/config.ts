@@ -5,6 +5,7 @@ import { isPackageName } from "./package-name";
 const IDENTIFIER = /^[a-zA-Z][a-zA-Z0-9-]*(?:\.[a-zA-Z0-9-]+)+$/;
 const VERSION = /^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/;
 const SCHEME = /^[a-z][a-z0-9+.-]*$/i;
+const MIME = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i;
 const DIRECTORY_NAME = /^[^/\\\0]+$/;
 const ENVIRONMENT_NAME = /^[a-z_][a-z0-9_]*$/i;
 
@@ -24,6 +25,8 @@ export interface DesktopSdkConfig {
       name: string;
       role?: "Editor" | "Viewer" | "Shell" | "None";
       icon?: string;
+      /** Lists the app for this type on Linux, which matches files by MIME type. */
+      mimeType?: string;
     }[];
   };
   build?: {
@@ -200,13 +203,15 @@ function validateSdkApp(app: unknown) {
           !association.name.trim() ||
           (association.icon !== undefined &&
             (typeof association.icon !== "string" || !association.icon.trim())) ||
+          (association.mimeType !== undefined &&
+            (typeof association.mimeType !== "string" || !MIME.test(association.mimeType))) ||
           (association.role !== undefined &&
             (typeof association.role !== "string" ||
               !["Editor", "Viewer", "Shell", "None"].includes(association.role)))
       ))
   ) {
     throw new Error(
-      "sdk.app.fileAssociations must contain valid extensions, names, roles and icons."
+      "sdk.app.fileAssociations must contain valid extensions, names, roles, icons and MIME types."
     );
   }
 }

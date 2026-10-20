@@ -67,12 +67,21 @@ test("standard dev bootstrap loads SDK metadata before changing CWD and owns rea
   }
 }, 20_000);
 
-test.each(["default", "legacy", "override", "relative", "absolute", "packaged-dev"] as const)(
+test.each([
+  "default",
+  "default-dev",
+  "legacy",
+  "override",
+  "relative",
+  "absolute",
+  "packaged-dev",
+] as const)(
   "packaged standard storage preserves %s paths for the launching user",
   async (policy) => {
     const absolute = join(tmpdir(), `furin-absolute-${crypto.randomUUID()}`);
     let dataDir: DesktopConfig["dataDir"];
-    if (policy !== "default") {
+    const defaultPolicy = policy === "default" || policy === "default-dev";
+    if (!defaultPolicy) {
       dataDir = { name: "Example", developmentName: "Example-dev", env: "EXAMPLE_DATA_DIR" };
     }
     if (policy === "absolute") {
@@ -80,12 +89,17 @@ test.each(["default", "legacy", "override", "relative", "absolute", "packaged-de
     }
     const fixture = await standardLaunchFixture({
       mode: "build",
-      channel: policy === "packaged-dev" ? "dev" : "stable",
+      channel: policy === "packaged-dev" || policy === "default-dev" ? "dev" : "stable",
       dataDir,
     });
     const overridden = join(fixture.launchHome, "chosen-state");
-    let expected = join(fixture.launchHome, "sdk-data", "local.furin.launch");
-    if (policy !== "default") {
+    // The default keeps development data out of the release directory.
+    let expected = join(
+      fixture.launchHome,
+      "sdk-data",
+      policy === "default-dev" ? "local.furin.launch.dev" : "local.furin.launch"
+    );
+    if (!defaultPolicy) {
       const base =
         process.platform === "win32"
           ? join(fixture.launchHome, "AppData/Roaming")

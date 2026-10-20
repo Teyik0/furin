@@ -246,7 +246,13 @@ export async function startDesktopBackend(
   await mkdir(dataDir, { recursive: true });
   nativeSignal?.throwIfAborted();
   process.env.FURIN_APP_DATA_DIR = dataDir;
-  const module = await withCancellation(load(), nativeSignal);
+  // One startup budget, starting before the application import evaluates.
+  const deadline = Date.now() + 30_000;
+  const module = await withDeadline(
+    withCancellation(load(), nativeSignal),
+    30_000,
+    "Desktop startup exceeded 30 seconds while importing the application."
+  );
   const app = module.default;
   const state = app ? getDesktopState(app) : undefined;
   if (state) {
@@ -369,7 +375,7 @@ export async function startDesktopBackend(
         })(),
         nativeSignal
       ),
-      30_000,
+      deadline - Date.now(),
       "Desktop startup exceeded 30 seconds while waiting for Elysia setup."
     );
   } catch (error) {

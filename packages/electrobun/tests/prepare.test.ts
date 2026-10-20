@@ -52,7 +52,12 @@ test("a custom native host preserves packaging ownership and platform integratio
         window: { width: 1400, height: 940 },
         hostEntry: "src/desktop.ts",
         sdk: {
-          app: { urlSchemes: ["tofu-dev"], fileAssociations: [] },
+          app: {
+            urlSchemes: ["tofu-dev"],
+            fileAssociations: [
+              { ext: ["torrent"], name: "Torrent", mimeType: "application/x-bittorrent" },
+            ],
+          },
           build: {
             mac: { icons: "assets/tofu.iconset", codesign: false },
             copy: { "runtime/helper.js": "bun/helper.js" },
@@ -72,6 +77,8 @@ test("a custom native host preserves packaging ownership and platform integratio
       [join(root, "runtime/helper.js")]: "bun/helper.js",
     });
     expect(sdk.app.urlSchemes).toEqual(["tofu-dev"]);
+    // mimeType registers Linux handlers at runtime; the SDK config never receives it.
+    expect(sdk.app.fileAssociations).toEqual([{ ext: ["torrent"], name: "Torrent" }]);
     expect(sdk.build.mac.icons).toBe(join(root, "assets/tofu.iconset"));
     expect(sdk.build.mac.defaultRenderer).toBe("native");
     expect(sdk.release.baseUrl).toBe("https://example.com/releases");

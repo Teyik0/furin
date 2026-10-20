@@ -22,6 +22,7 @@ test("standard host lifecycle and successful update handoff", async () => {
   const scripts: string[] = [];
   const documents: (() => void)[] = [];
   const browserUrls: string[] = [];
+  const errors: { operation: string; message: string }[] = [];
   let background = true;
   let quit: number | undefined;
   let authenticated: { origin: string; cookie: string } | undefined;
@@ -134,9 +135,10 @@ test("standard host lifecycle and successful update handoff", async () => {
         if (!authenticated) {
           throw new Error("Missing session");
         }
-        expect(
-          (await fetch(authenticated.origin, { headers: { cookie: authenticated.cookie } })).status
-        ).toBe(503);
+        // The backend has fully drained before the SDK hands off to the new version.
+        await expect(
+          fetch(authenticated.origin, { headers: { cookie: authenticated.cookie } })
+        ).rejects.toThrow();
       },
       updateInfo: () => info,
       getStatusHistory: () => [
@@ -163,11 +165,20 @@ test("standard host lifecycle and successful update handoff", async () => {
         },
         background: () => background,
         onOpen({ event }) {
+          if (event.type === "url" && event.url === "fixture://broken") {
+            throw new Error("broken open");
+          }
           phases.push(event.type === "url" ? event.url : event.path);
+        },
+        onError({ operation, error }) {
+          errors.push({ operation, message: error instanceof Error ? error.message : "" });
         },
       })
     )
-    .get("/", () => "private");
+    .get("/", () => "private")
+    .onStop(() => {
+      phases.push("elysia-stop");
+    });
   let desktop: Awaited<ReturnType<typeof runStandardDesktopHost>> | undefined;
   try {
     desktop = await runStandardDesktopHost(sdk, {
@@ -183,7 +194,12 @@ test("standard host lifecycle and successful update handoff", async () => {
       root,
       dataDir: root,
       mode: "build",
-      load: async () => ({ default: app }),
+      load: async () => ({
+        default: app,
+        onShutdown() {
+          phases.push("module-stop");
+        },
+      }),
       testScript: "explicit native test",
       openBrowser: true,
     });
@@ -192,6 +208,9 @@ test("standard host lifecycle and successful update handoff", async () => {
     }
     expect(typeof desktop.restart).toBe("function");
     expect(phases).toEqual(["start", "ready", "fixture://early"]);
+    emit("open-url", { data: { url: "fixture://broken" } });
+    await Bun.sleep(10);
+    expect(errors).toEqual([{ operation: "open", message: "broken open" }]);
     documents[0]?.();
     expect(scripts).toEqual(["explicit native test"]);
     const [first] = windows;
@@ -234,6 +253,9 @@ test("standard host lifecycle and successful update handoff", async () => {
     await expect(desktop.window.background()).rejects.toThrow("background");
     await desktop.updates.install();
     expect(desktop.snapshot().phase).toBe("quitting");
+    // The handoff itself drains the whole backend; the SDK may exit without another quit.
+    expect(phases.slice(-3).toSorted()).toEqual(["elysia-stop", "module-stop", "stop"]);
+    await expect(fetch(authenticated.origin)).rejects.toThrow();
     await desktop.quit();
     expect(quit).toBe(0);
     expect(phases.filter((phase) => phase === "stop")).toHaveLength(1);

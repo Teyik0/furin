@@ -123,11 +123,16 @@ and route inference. Installing it after a wrapper or after listening is rejecte
 Application routes remain ordinary Elysia plugins.
 
 `onStartup` and `onShutdown` run once per process in web and desktop modes.
+Installing an update drains the whole backend (Elysia `onStop`, `onShutdown`,
+listener) before handing off to the new version.
+`onError({ operation, error })` receives native failures that no HTTP response
+can carry: open-event delivery, menu actions, update listeners and quit. The
+error is unredacted (open events can carry OAuth URLs); sanitize before persisting.
 `onReady({ runtime, backend, signal })` is awaited after listening and bootstrap
 creation, before windows/dev readiness. An update failure shows a native error
 dialog and restarts through the native launcher in a fresh process. Services
 are never reopened in the old process; the replacement obtains new HTTP sessions.
-Web uses Elysia setup/cleanup; the desktop host initializes resources before its
+Web uses Elysia onStart/onStop; the desktop host initializes resources before its
 listener opens. Callbacks are options, not required named module exports.
 They must tolerate partial initialization and honor startup cancellation.
 
@@ -198,7 +203,8 @@ Output is in `.furin/electrobun/build` and distribution artifacts in
 
 The host sets `FURIN_APP_DATA_DIR` **before importing server code**, creates
 the directory, and leaves production CWD unchanged. By default it is the OS
-app-data directory joined with `app.identifier`. Your ordinary server-side
+app-data directory joined with `app.identifier`, or `<identifier>.dev` for the
+SDK `dev` channel, so development never opens release data. Your ordinary server-side
 database factory can read that environment variable:
 
 ```ts
@@ -207,8 +213,8 @@ const databasePath = process.env.FURIN_APP_DATA_DIR
   : ".furin/todos.sqlite";
 ```
 
-No existing user data is moved. Omitting `dataDir` preserves the SDK app-data
-directory joined with `app.identifier`. An absolute string remains compatible;
+No existing user data is moved. Omitting `dataDir` uses the SDK app-data
+directory joined with `app.identifier` (`<identifier>.dev` on the `dev` channel). An absolute string remains compatible;
 a runtime policy preserves named legacy locations without embedding a build
 machine home path. Resolution happens before native instance ownership, and
 one resolved path is used for forwarding, startup and `FURIN_APP_DATA_DIR`.
@@ -229,8 +235,8 @@ Cleanup has a fixed five-second grace period. On timeout, the host reports the
 failure and quits unsuccessfully; the dev supervisor kills and reaps its owned
 helper rather than leaving it running indefinitely.
 
-Desktop startup waits up to thirty seconds for Elysia's async plugins and setup
-to complete. Timeout closes the owned backend and runs `onShutdown`; a plugin
+Desktop startup waits up to thirty seconds, from importing the application
+module through Elysia's async plugins and setup. Timeout closes the owned backend and runs `onShutdown`; a plugin
 that finishes after cancellation cannot open a late listener.
 
 ## External packages and native addons
@@ -344,6 +350,14 @@ export default defineConfig({
 });
 ```
 
+On macOS the SDK declares schemes and file types in the bundle. On Windows and
+Linux, the standard host lists the app at startup as a handler for
+`sdk.app.fileAssociations` and shared `sdk.app.urlSchemes` (per-user ProgIDs and
+registered capabilities on Windows, the `.desktop` entry on Linux, where each
+file association needs a `mimeType`). This never changes a default:
+`associations.requestDefault()` confirms the change on macOS and Linux, and
+opens the app's Default Apps page on Windows, which reserves that choice for the user.
+
 `sdk` accepts typed additions for schemes, file associations, platform icons,
 macOS signing, helper-file copies, Bun externals and the update feed. Source
 paths are resolved from the application's root. Copy destinations cannot replace
@@ -368,7 +382,8 @@ await runDesktopHost(sdk, async ({ startBackend }) => {
 The wrapper chooses source or packaged `app.js`, resolves data storage, handles
 supervisor readiness and drains the backend on setup failure, process signals
 and non-vetoed SDK quit events. It never constructs a window. Existing native
-quit vetoes are respected; closing a window does not itself stop the backend.
+quit vetoes are respected; once draining starts, every further quit request is
+vetoed until the backend has stopped. Closing a window does not itself stop the backend.
 `startBackend({ dataDir })` accepts an application-owned absolute storage path.
 Only one backend may be started. Await startup inside the callback.
 

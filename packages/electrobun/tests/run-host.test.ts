@@ -83,3 +83,62 @@ for (const failure of [true, false]) {
     }
   });
 }
+
+test("the managed host vetoes every native quit until its backend has drained", async () => {
+  const root = await mkdtemp(join(tmpdir(), "furin-run-host-quit-"));
+  try {
+    await mkdir(join(root, "bun"));
+    await mkdir(join(root, "furin"));
+    await writeFile(
+      join(root, "bun/furin-host.json"),
+      JSON.stringify({ app: { identifier: "local.furin.host" } })
+    );
+    await writeFile(
+      join(root, "furin/app.js"),
+      `
+      import { Elysia } from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
+      import { desktopApp } from ${JSON.stringify(join(import.meta.dir, "../src/server.ts"))};
+      export default new Elysia().use(desktopApp({
+        async onShutdown() { await Bun.sleep(200); }
+      })).get("/", () => "ready");`
+    );
+    const runner = join(root, "bun/main.ts");
+    await writeFile(
+      runner,
+      `
+      import { runDesktopHost } from ${JSON.stringify(join(import.meta.dir, "../src/host.ts"))};
+      const codes = [];
+      const stopped = Promise.withResolvers();
+      let beforeQuit;
+      const sdk = {
+        Utils: { paths: { appData: ${JSON.stringify(root)} }, quit(code) { codes.push(code); stopped.resolve(); } },
+        default: { events: { on(name, handler) { beforeQuit = handler; } } }
+      };
+      await runDesktopHost(sdk, (context) => context.startBackend());
+      const first = {};
+      beforeQuit(first);
+      const repeated = {};
+      beforeQuit(repeated);
+      if (first.response?.allow !== false) throw new Error("First quit not vetoed");
+      if (repeated.response?.allow !== false) throw new Error("Repeated quit bypassed cleanup");
+      await stopped.promise;
+      if (JSON.stringify(codes) !== "[0]") throw new Error("Wrong quit codes " + JSON.stringify(codes));
+      const final = {};
+      beforeQuit(final);
+      if (final.response?.allow === false) throw new Error("Final quit vetoed after drain");`
+    );
+    const child = Bun.spawn([process.execPath, runner], {
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout: 5000,
+      env: { ...process.env, FURIN_DESKTOP_DEV: "" },
+    });
+    const [status, diagnostic] = await Promise.all([
+      child.exited,
+      new Response(child.stderr).text(),
+    ]);
+    expect(status, diagnostic).toBe(0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

@@ -2,6 +2,27 @@
 
 This is a migration guide, not a modification of the Tofu checkout.
 
+## Prerequisite: upgrade to Furin 0.8
+
+This package peers on `@teyik0/furin >=0.8.0-alpha.0 <0.9.0`. Tofu still pins
+Elysia `2.0.0-beta.21` and vendored pre-0.8 snapshots, so migrate the
+application to the merged core before switching hosts:
+
+- Elysia `2.0.0-beta.32` (the workspace catalog) renames lifecycle methods:
+  `.setup()` → `.onStart()`, `.cleanup()` → `.onStop()`, `.request()` →
+  `.onRequest()` (for example `src/api/index.ts` and `updates/plugin.ts`).
+- `createClient(app)` is removed. Use `treaty(app).use(furinSync).api` from
+  `@elysia/eden` and `@teyik0/furin/client`; retries move to `useMutation({ retry })`.
+- Pages name their route: `defineRoute("/path")`. The parent layout is inferred
+  from the file tree, so drop `config({ layout })`.
+- Sync identifies GET reads by URL: remove `sync: { id, scope }` from GET routes.
+  A mutation invalidates the GET at its own URL; replace
+  `sync: { invalidate: ... }` with `invalidate(pattern, params)` or
+  `invalidate({ path, type })` called from the handler, before a `mutation()`
+  callback returns.
+- A mutation without `Idempotency-Key` now commits with a server-generated key
+  instead of returning 428.
+
 ## Preserve historical storage
 
 Keep Tofu's existing build-time identity, packaging, protocols and icons, remove
@@ -54,6 +75,10 @@ marker, legacy-instance checks and download-directory policy.
    Register `@teyik0/furin-electrobun/preload` in the top-level Bun preload array,
    preserving existing `[serve.static]` plugins. No launch function is added to
    the server. Keep setup under `predev`, including addon/worker preparation.
+   The supervisor restarts the backend when `runtime/engine-worker.worker`
+   changes, but it cannot see the worker's sources behind that prebuilt asset:
+   run an application-owned watcher that rebuilds it (for example `Bun.build`
+   with `watch` over `src/api/modules/torrents/worker.ts`) next to `bun run dev`.
 4. Replace `onStartup(signal)` with `onStartup({ signal, runtime })`.
    Pass that runtime into `openCoreApplication` instead of reading a global
    `tofuNativeSdk`. Resolve profile from SDK channel/identity in desktop mode;
@@ -76,11 +101,17 @@ marker, legacy-instance checks and download-directory policy.
     forwarding helper and generic macOS FFI adapter after native parity tests pass.
     Keep the Tofu-only default-association action and its release restriction.
 11. Add private `protocols: ["tofu"]` or `["tofu-dev"]` alongside SDK declarations.
-    `magnet` remains a user-requested default, not automatic registration.
+    Add `mimeType: "application/x-bittorrent"` to the `.torrent` file association.
+    At startup Windows and Linux list Tofu as a handler for `.torrent` and
+    `magnet` without changing defaults; becoming the default stays a
+    user-requested action (on Windows, through the app's Default Apps page).
 12. Remove the old protocol helper from resource generation and SDK copy entries.
     Keep worker/addon preparation, public icons, license, AniList client metadata
     and release artifact policy.
-13. Switch opt-in smoke injection to `FURIN_NATIVE_TEST_SCRIPT`. Adapt test helper
+13. Forward native failures (open events, menu actions, update listeners, quit)
+    from `desktopApp({ onError })` to Tofu's sanitized `recordLog`. The error is
+    unredacted and can contain OAuth URLs.
+14. Switch opt-in smoke injection to `FURIN_NATIVE_TEST_SCRIPT`. Adapt test helper
     access to the standard instance transport; retain any app-specific diagnostic
     descriptor in `onReady` if needed, without exposing it to browser loaders.
 
