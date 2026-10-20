@@ -40,7 +40,17 @@ export function flightLoaderPlugin(): Bun.BunPlugin {
       // lexical: Flight IDs resolve only through Furin's generated registry.
       // Replacing its CommonJS exports also lets Bun load it as native ESM.
       build.onLoad({ filter: CLIENT_CODEC }, ({ path }) => {
-        const source = readFileSync(path, "utf8");
+        let source = readFileSync(path, "utf8");
+        if (path.endsWith(".development.js")) {
+          // Bun's CSS observer parses every added link's href, even image
+          // preloads with only imagesrcset (oven-sh/bun#46164). Skip that hint
+          // in dev browsers; SSR and the production codec keep the preload.
+          source = source.replace(
+            /case "L":(\s+)id = response\[0\];/,
+            `case "L":$1if (typeof window !== "undefined" && response[1] === "image" && response[2]?.imageSrcSet) break;
+              id = response[0];`
+          );
+        }
         // Production assignments are at module scope, so real ESM exports
         // let Bun remove the codec's unused encoding/Server Action APIs.
         const exports = path.endsWith(".production.js")
