@@ -58,30 +58,33 @@ export type { FurinLoggerOptions } from "./server/logging/ingest-plugin.ts";
 export { isFurinPageRequest } from "./server/router/dispatch.ts";
 export { type FurinCspOptions, furinCsp } from "./server/security/csp.ts";
 
+// Read the parent's generics through Elysia's `~` carriers: inferring them from
+// the invariant class collapses function-valued macros to `never`. Scope has
+// no carrier, so it alone is inferred.
 type FurinApplication<App extends AnyElysia> =
   App extends Elysia<
-    infer Prefix,
+    App["~Prefix"],
     infer Scope,
-    infer Singleton,
-    infer Definitions,
-    infer Metadata,
-    infer Routes,
-    infer Ephemeral,
-    infer Volatile
+    App["~Singleton"],
+    App["~Definitions"],
+    App["~Metadata"],
+    App["~Routes"],
+    App["~Ephemeral"],
+    App["~Volatile"]
   >
     ? Elysia<
-        Prefix,
+        App["~Prefix"],
         Scope,
         {
-          decorator: Singleton["decorator"];
-          derive: Singleton["derive"] & { log: RequestLogger };
-          store: Singleton["store"];
+          decorator: App["~Singleton"]["decorator"];
+          derive: App["~Singleton"]["derive"] & { log: RequestLogger };
+          store: App["~Singleton"]["store"];
         },
-        Definitions,
-        Metadata,
-        Routes,
-        Ephemeral,
-        Volatile
+        App["~Definitions"],
+        App["~Metadata"],
+        App["~Routes"],
+        App["~Ephemeral"],
+        App["~Volatile"]
       >
     : never;
 

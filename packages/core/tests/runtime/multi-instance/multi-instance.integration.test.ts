@@ -210,6 +210,24 @@ try {
   });
 
   await runScenario(async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    process.chdir(app.path);
+    const adminPagesDir = writeAdminPages(app.path);
+    setProductionTemplateContent(TEST_TEMPLATE);
+    const parent = new Elysia()
+      .macro({ adminOnly: { beforeHandle: ({ status }) => status(401) } })
+      .use(await furin({ pagesDir: join(app.path, "src/pages") }))
+      .guard({ adminOnly: true })
+      .use(await furin({ pagesDir: adminPagesDir, prefix: "/admin" }));
+    const front = await parent.handle(new Request("http://furin/"));
+    expect(front.status).toBe(200);
+    expect(await front.text()).toContain("Home page");
+    const admin = await parent.handle(new Request("http://furin/admin/users"));
+    expect(admin.status).toBe(401);
+    await admin.text();
+  });
+
+  await runScenario(async () => {
     const { parent } = await mountBothApps();
 
     const frontHome = await parent.handle(new Request("http://furin/"));

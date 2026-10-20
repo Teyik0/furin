@@ -44,6 +44,37 @@ async function composePublicApplication(options: SyncRuntimeOptions) {
   return app;
 }
 
+async function composeGuardedApplications() {
+  const auth = new Elysia({ name: "auth" })
+    .macro({
+      session: {
+        derive: () => ({ user: { role: "admin" as const } }),
+      },
+    })
+    .macro({
+      admin: {
+        session: true,
+        beforeHandle({ user }) {
+          expectTypeOf(user.role).toEqualTypeOf<"admin">();
+        },
+      },
+    });
+  return new Elysia()
+    .use(auth)
+    .use(await furin({ pagesDir: "./src/pages" }))
+    .guard({})
+    .guard({ admin: true })
+    .use(await furin({ pagesDir: "./src/admin", prefix: "/admin" }))
+    .get("/guarded", ({ log, user }) => {
+      expectTypeOf(log).toEqualTypeOf<RequestLogger>();
+      return user.role;
+    })
+    .guard({
+      // @ts-expect-error macros unknown to the parent stay rejected
+      unknownMacro: true,
+    });
+}
+
 function definePublicPage() {
   return defineRoute("/")
     .config({ mode: "ssr", query: t.Object({ page: t.Number() }) })
@@ -60,5 +91,6 @@ function definePublicPage() {
 
 test("Furin composition preserves native routes, logger, sync and page configuration types", () => {
   expectTypeOf(composePublicApplication).toBeFunction();
+  expectTypeOf(composeGuardedApplications).toBeFunction();
   expectTypeOf(definePublicPage).toBeFunction();
 });
