@@ -5,6 +5,7 @@ import { parseSource } from "../../shared/parser.ts";
 import { walkAST } from "../../shared/utils/ast-walk.ts";
 import { detectLangFromPath, SCRIPT_FILE_FILTER } from "../lang-detect.ts";
 import { routeModuleSourceVersion } from "../router/source-version.ts";
+import { isServerOnlyModule } from "./server-only-module.ts";
 
 interface RewriteModuleSpecifiersInput {
   code: string;
@@ -41,7 +42,7 @@ function relativeSpecifier(node: Node): StringLiteral | undefined {
 function resolvedSpecifier(specifier: string, directory: string, versioned: boolean): string {
   const path = versioned ? Bun.resolveSync(specifier, directory) : resolve(directory, specifier);
   const normalized = path.replaceAll("\\", "/");
-  return versioned && SCRIPT_FILE_FILTER.test(normalized)
+  return versioned && SCRIPT_FILE_FILTER.test(normalized) && !isServerOnlyModule(path)
     ? `${normalized}?furin-server&t=${routeModuleSourceVersion(normalized)}`
     : normalized;
 }
