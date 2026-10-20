@@ -1,0 +1,19 @@
+packages/electrobun/tests/fixtures/standard-launch.ts
+  s_18ef16e874533c::t_ce18ae363ccabd 136-137,197-198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1b6486141b6625e1ea8d1f203999ec6749774fde",
+  "prompts": {},
+  "sessions": {
+    "s_18ef16e874533c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6a6b58ad-a2bb-486b-a6b6-62aaa9d3e19c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
