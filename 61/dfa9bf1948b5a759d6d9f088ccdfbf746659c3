@@ -1,0 +1,23 @@
+apps/scaffolder/tests/git.test.ts
+  s_4958c7c47e1061::t_6504f1784292be 2-4,53,57-61,71-75
+  s_4958c7c47e1061::t_2ee0b315dde88e 54-56,62-70
+  s_4958c7c47e1061::t_23a7e0595d6b22 76
+apps/scaffolder/src/utils/git.ts
+  s_4958c7c47e1061::t_259dfaeadda8e5 1-20,28-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "61dfa9bf1948b5a759d6d9f088ccdfbf746659c3",
+  "prompts": {},
+  "sessions": {
+    "s_4958c7c47e1061": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "46a75c91-5cde-47b4-ae28-4d003fc2f1fd",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
