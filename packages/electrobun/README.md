@@ -327,6 +327,32 @@ This guards application HTTP and WebSocket dispatch, not hostile code running
 inside the application's own Bun process. Do not replace native server handlers
 to bypass the factory. Loopback is not a substitute for application authorization.
 
+### Network admission and listener configuration
+
+Applications that share their desktop backend beyond the native window pass an
+`admission(request, context)` hook to `desktopApp()`. It runs for every request
+received by the application's own listener, after the listener identity check and
+before availability gating and routing. `context.desktopSession` is `true` only when
+the native window session cookie, origin checks and a loopback TCP peer all passed;
+`context.peerAddress` comes from Bun, never from headers. Return a `Response` to
+reject the request. Without `admission`, a missing desktop session is rejected as
+before. `restrictWebToLoopback` rejections remain final.
+
+`dispatchKind(request)` reports `"network"` for requests received by the listener
+and `"in-process"` for Eden/`app.handle()` dispatch and framework-created requests,
+such as Furin's synthetic navigation data request. Use it to keep privileged or
+mutating endpoints unreachable from in-process rendering.
+
+`listen()` lets the application choose the desktop listener before it opens:
+`hostname` (`127.0.0.1`, `0.0.0.0` or `::`), a stable `port`, and `tls` PEM
+material. The native window always uses `127.0.0.1`. With TLS, the HTTP bootstrap
+listener is not started, because its cross-scheme redirect is cross-site; the
+backend exposes `session`, and the standard host installs it with
+`Session.fromPartition("persist:default").cookies.set(...)` as a host-only, Secure,
+HttpOnly, SameSite=Strict cookie before creating the window. A system browser cannot
+receive that session, so `desktop.browser.open()` returns `false` in TLS mode. The
+operating system must trust the certificate for the native WebView.
+
 ## Application-owned native hosts
 
 Applications that already manage trays, menus, background windows or updates can

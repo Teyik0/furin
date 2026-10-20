@@ -4,10 +4,25 @@ import type { ElysiaConfig, EventScope } from "elysia/types";
 import type { DesktopAppOptions } from "./capabilities";
 import { type DesktopMode, type DesktopState, registerDesktopApp } from "./registry";
 
-export type { DesktopAppOptions, NativeOperation } from "./capabilities";
+export type {
+  AdmissionContext,
+  DesktopAppOptions,
+  DesktopListen,
+  NativeOperation,
+} from "./capabilities";
 
 const HMR_ENTRY = /(?:^|\/)_bun_hmr_entry(?:\/index\.html)?$/;
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
+const LOOPBACK_PEERS =
+  /^(?:127\.\d{1,3}\.\d{1,3}\.\d{1,3}|::1|::ffff:127\.\d{1,3}\.\d{1,3}\.\d{1,3})$/;
+const networkKey: unique symbol = Symbol.for("@teyik0/furin-electrobun/network-requests/v1");
+const shared = globalThis as typeof globalThis & { [networkKey]?: WeakSet<Request> };
+const networkRequests = (shared[networkKey] ??= new WeakSet<Request>());
+
+/** Requests received by the application's own listener; Eden/app.handle dispatch is in-process. */
+export function dispatchKind(request: Request): "network" | "in-process" {
+  return networkRequests.has(request) ? "network" : "in-process";
+}
 
 function protectLocalWeb(request: Request): Response | undefined {
   const url = new URL(request.url);
@@ -31,13 +46,31 @@ function protectNetworkDispatch(
   if (rest.length === 0) {
     return;
   }
-  if (state.guard && (!app.server || rest[0] !== app.server)) {
+  const admission = state.hooks?.admission;
+  if ((state.guard || admission) && (!app.server || rest[0] !== app.server)) {
     return new Response("Forbidden", { status: 403 });
   }
-  return (
-    state.guard?.(request) ??
-    (state.hooks?.restrictWebToLoopback ? protectLocalWeb(request) : undefined)
-  );
+  networkRequests.add(request);
+  if (state.hooks?.restrictWebToLoopback) {
+    const denied = protectLocalWeb(request);
+    if (denied) {
+      return denied;
+    }
+  }
+  const denied = state.guard?.(request);
+  if (!(admission && app.server)) {
+    return denied;
+  }
+  const peerAddress = app.server.requestIP(request)?.address;
+  return admission(request, {
+    desktopHost: state.guard !== undefined,
+    desktopSession:
+      state.guard !== undefined &&
+      denied === undefined &&
+      peerAddress !== undefined &&
+      LOOPBACK_PEERS.test(peerAddress),
+    peerAddress,
+  });
 }
 
 /** Install on the original root before application wrappers or plugins. */
@@ -147,7 +180,7 @@ export function desktopApp(hooks?: DesktopAppOptions) {
         }
         await state.start();
         if (!state.guard && app.server) {
-          await state.ready?.({ origin: `http://${app.server.hostname}:${app.server.port}` });
+          await state.ready?.({ origin: app.server.url.origin });
         }
       })
       .onStop(() => state.stop());

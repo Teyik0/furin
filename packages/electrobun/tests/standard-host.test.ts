@@ -93,6 +93,9 @@ test("standard host lifecycle and successful update handoff", async () => {
       }
     },
     BrowserView: { getAll: () => [] },
+    Session: {
+      fromPartition: () => ({ cookies: { set: () => true, get: () => [], remove: () => true } }),
+    },
     Tray: class {
       visible = true;
       setMenu() {

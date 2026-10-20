@@ -38,6 +38,15 @@ export interface NativeTray {
   setMenu: (items: SdkMenuItem[]) => void;
   visible: boolean;
 }
+export interface NativeCookie {
+  domain?: string;
+  httpOnly?: boolean;
+  name: string;
+  path?: string;
+  sameSite?: "no_restriction" | "lax" | "strict";
+  secure?: boolean;
+  value: string;
+}
 export interface DesktopSdk {
   ApplicationMenu: {
     setApplicationMenu: (menu: SdkMenuItem[]) => void;
@@ -57,6 +66,15 @@ export interface DesktopSdk {
     events: {
       on: (name: string, callback: (event: unknown) => void) => unknown;
       off?: (name: string, callback: (event: unknown) => void) => unknown;
+    };
+  };
+  Session: {
+    fromPartition: (partition: string) => {
+      cookies: {
+        set: (cookie: NativeCookie) => boolean;
+        get: (filter: { name: string }) => NativeCookie[];
+        remove: (url: string, name: string) => boolean;
+      };
     };
   };
   Tray: new (options: {

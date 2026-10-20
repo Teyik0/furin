@@ -128,8 +128,33 @@ export type NativeMenuItem =
 /** Native work that failed outside a request: open events, menu actions, update listeners, quit. */
 export type NativeOperation = "open" | "action" | "updates" | "quit";
 
+/** Facts the listener establishes before an application authenticates a network request. */
+export interface AdmissionContext {
+  /** A managed native host installed its private window guard. */
+  desktopHost: boolean;
+  /** The native window session cookie, origin and loopback peer were all verified. */
+  desktopSession: boolean;
+  /** TCP peer address reported by Bun; never derived from request headers. */
+  peerAddress: string | undefined;
+}
+
+/** Desktop listener chosen by the application; omitted fields keep the private loopback default. */
+export interface DesktopListen {
+  /** Loopback or wildcard address; the native window always connects through 127.0.0.1. */
+  hostname?: "127.0.0.1" | "0.0.0.0" | "::";
+  port?: number;
+  tls?: { cert: string; key: string };
+}
+
 export interface DesktopAppOptions {
+  /**
+   * Authenticates every listener request before routing, including requests without the
+   * native window session. Return a Response to reject it. In-process dispatch never calls it.
+   */
+  admission?: (request: Request, context: AdmissionContext) => Response | undefined;
   background?: () => boolean;
+  /** Read once by the desktop host after startup hooks and before it listens. */
+  listen?: () => DesktopListen;
   menus?: (context: NativeActionContext) => NativeMenuItem[];
   /**
    * Receives native failures that have no HTTP response to carry them. The error

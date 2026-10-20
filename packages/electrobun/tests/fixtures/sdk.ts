@@ -64,6 +64,16 @@ export async function installSdk(
       requestClose() { this.close(); }
     }
     export const BrowserView = { getAll: () => [...views] };
+    const cookies = new Map();
+    export const Session = {
+      fromPartition(partition) {
+        return { cookies: { set(cookie) {
+          require("node:fs").appendFileSync(${JSON.stringify(join(root, "native-cookies"))}, JSON.stringify({ partition, ...cookie })+"\\n", {mode:0o600});
+          cookies.set(cookie.name, {...cookie, httpOnly: process.env.FURIN_FIXTURE_INSECURE_COOKIE ? false : cookie.httpOnly});
+          return true;
+        }, get(filter) { return [...cookies.values()].filter(cookie => cookie.name === filter.name); }, remove(url,name) { cookies.delete(name); return true; } } };
+      }
+    };
     export class Tray {
       visible = true; setMenu() {} on() {} remove() { this.visible = false; }
     }

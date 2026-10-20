@@ -29,7 +29,7 @@ export async function getDesktopDevelopment() {
       // Publish before the SDK exits; the supervisor reads this only after reaping.
       writeFileSync(join(directory, "failure.json"), JSON.stringify({ kind }), { mode: 0o600 });
     },
-    async ready(backend: DesktopBackend, shutdown: () => Promise<void>) {
+    async ready(backend: DesktopBackend | undefined, shutdown: () => Promise<void>) {
       let closing: Promise<void> | undefined;
       const stop = () => {
         closing ??= withShutdownDeadline(shutdown()).finally(() => clearInterval(timer));
@@ -51,9 +51,9 @@ export async function getDesktopDevelopment() {
       process.on("SIGINT", stop);
       process.on("SIGTERM", stop);
       await publishDevReady(join(directory, "ready.json"), {
-        origin: backend.origin,
-        bootstrapOrigin: backend.bootstrapOrigin,
-        url: backend.url,
+        origin: backend?.origin ?? "views://manager",
+        bootstrapOrigin: backend?.bootstrapOrigin ?? "",
+        url: backend?.url ?? "views://manager",
       });
     },
   };

@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import type { ApplicationRuntime } from "./capabilities";
+import type { ApplicationRuntime, DesktopListen } from "./capabilities";
 import { activateDesktopApp, type DesktopMode, getDesktopState } from "./registry";
 
 export function getExternalUrl(
@@ -30,6 +30,8 @@ export interface DesktopSession {
   name: string;
   value: string;
 }
+
+const LISTEN_HOSTS = new Set(["127.0.0.1", "0.0.0.0", "::"]);
 
 export function createSessionGuard(
   session: DesktopSession,
@@ -168,7 +170,12 @@ function startSessionBootstrap(session: DesktopSession, appOrigin: string) {
 
 export interface DesktopApp {
   listen: (
-    options: { hostname: string; port: number; development: boolean },
+    options: {
+      hostname: string;
+      port: number;
+      development: boolean;
+      tls?: { cert: string; key: string };
+    },
     callback: (server: { port?: number; stop: (force: boolean) => void | Promise<void> }) => void
   ) => DesktopApp;
   onStop: (handler: () => void) => unknown;
@@ -184,10 +191,13 @@ export interface DesktopAppModule {
 
 /** In-process host capabilities. Never expose the cookie to browser scripts or logs. */
 export interface DesktopBackend {
+  /** Empty when the window receives its session natively instead of through the bootstrap. */
   bootstrapOrigin: string;
   cookie: string;
   createWindowUrl: (destination?: string) => string;
   origin: string;
+  /** Present only for a TLS listener: install it in the window's cookie store before navigation. */
+  session?: DesktopSession & { secure: true };
   stop: () => Promise<void>;
   url: string;
 }
@@ -233,6 +243,87 @@ export function withShutdownDeadline<T>(pending: Promise<T>): Promise<T> {
     5000,
     "Desktop shutdown exceeded 5 seconds; forced termination is required."
   );
+}
+
+function createBackend(
+  origin: string,
+  session: DesktopSession,
+  bootstrap: ReturnType<typeof startSessionBootstrap> | undefined,
+  stop: () => Promise<void>,
+  isStopped: () => boolean
+): DesktopBackend {
+  const cookie = `${session.name}=${session.value}`;
+  const createWindowUrl = (destination?: string) => {
+    if (isStopped()) {
+      throw new Error("Desktop backend is stopped.");
+    }
+    if (bootstrap) {
+      return bootstrap.createWindowUrl(destination);
+    }
+    const next = new URL(destination ?? "/", origin);
+    if (next.origin !== origin || next.username || next.password) {
+      throw new Error("Desktop window destination must use the app origin.");
+    }
+    return next.href;
+  };
+  if (bootstrap) {
+    return {
+      origin,
+      bootstrapOrigin: bootstrap.origin,
+      url: bootstrap.url,
+      cookie,
+      createWindowUrl,
+      stop,
+    };
+  }
+  // A cross-scheme bootstrap redirect is cross-site; the host installs this cookie natively.
+  return {
+    origin,
+    bootstrapOrigin: "",
+    url: `${origin}/`,
+    cookie,
+    session: { ...session, secure: true },
+    createWindowUrl,
+    stop,
+  };
+}
+
+/** Opens the application's own listener; the native window always connects through loopback. */
+function listenDesktop(
+  app: DesktopApp,
+  listen: DesktopListen,
+  mode: DesktopMode,
+  validate: () => void,
+  listeningReady: PromiseWithResolvers<void>
+): string {
+  const hostname = listen.hostname ?? "127.0.0.1";
+  if (!LISTEN_HOSTS.has(hostname)) {
+    throw new Error("The desktop listener must include the loopback interface.");
+  }
+  const scheme = listen.tls ? "https" : "http";
+  const listening = app.listen(
+    {
+      hostname,
+      port: listen.port ?? 0,
+      development: mode === "dev",
+      ...(listen.tls ? { tls: listen.tls } : {}),
+    },
+    (server) => {
+      try {
+        validate();
+        listeningReady.resolve();
+      } catch (error) {
+        // Stop the native listener in this callback, before readiness or
+        // another event-loop turn can expose a late native HTML route.
+        Promise.resolve(server.stop(true)).catch(console.error);
+        listeningReady.reject(error);
+      }
+    }
+  );
+  if (!listening.server?.port) {
+    throw new Error("Elysia did not create a desktop server.");
+  }
+  return `${scheme}://127.0.0.1:${listening.server.port}`;
 }
 
 export async function startDesktopBackend(
@@ -328,42 +419,13 @@ export async function startDesktopBackend(
           if (app.server) {
             throw new Error("onStartup must not open a listener; the desktop host owns listening.");
           }
-          await new Promise<void>((resolve, reject) => {
-            listeningReady.promise.then(resolve, reject);
-            const listening = app.listen(
-              { hostname: "127.0.0.1", port: 0, development: mode === "dev" },
-              (server) => {
-                try {
-                  validate();
-                  listeningReady.resolve();
-                } catch (error) {
-                  // Stop the native listener in this callback, before readiness or
-                  // another event-loop turn can expose a late native HTML route.
-                  Promise.resolve(server.stop(true)).catch(console.error);
-                  listeningReady.reject(error);
-                }
-              }
-            );
-            if (!listening.server?.port) {
-              throw new Error("Elysia did not create a desktop server.");
-            }
-            origin = `http://127.0.0.1:${listening.server.port}`;
-          });
-          bootstrap = startSessionBootstrap(session, origin);
-          const activeBootstrap = bootstrap;
-          const backend: DesktopBackend = {
-            origin,
-            bootstrapOrigin: activeBootstrap.origin,
-            url: activeBootstrap.url,
-            cookie: `${session.name}=${session.value}`,
-            createWindowUrl(destination) {
-              if (stopped) {
-                throw new Error("Desktop backend is stopped.");
-              }
-              return activeBootstrap.createWindowUrl(destination);
-            },
-            stop,
-          };
+          const listen = state?.hooks?.listen?.() ?? {};
+          origin = listenDesktop(app, listen, mode, validate, listeningReady);
+          await listeningReady.promise;
+          if (!listen.tls) {
+            bootstrap = startSessionBootstrap(session, origin);
+          }
+          const backend = createBackend(origin, session, bootstrap, stop, () => !!stopped);
           await state?.ready?.(backend);
           if (canceled) {
             throw new Error("Desktop startup was canceled.");

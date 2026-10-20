@@ -13,6 +13,8 @@ export async function standardLaunchFixture(options: {
   handoff?: "reported" | "throw" | "cancelled";
   nativeLauncher?: boolean;
   applicationLease?: boolean;
+  /** JavaScript expression returning the desktopApp listen option. */
+  listen?: string;
 }) {
   const directory = await mkdtemp(join(tmpdir(), "furin-standard-launch-"));
   const root = join(directory, "project");
@@ -68,6 +70,7 @@ export async function standardLaunchFixture(options: {
           ${options.failure ?? ""}
         },
         background:()=>true,
+        ${options.listen ? `listen:${options.listen},` : ""}
         onOpen({event}) {
           appendFileSync(${JSON.stringify(join(root, "opens"))},JSON.stringify(event)+"\\n");
         }
