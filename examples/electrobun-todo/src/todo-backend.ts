@@ -1,6 +1,5 @@
 import { Database } from "bun:sqlite";
 import { furinSync } from "@teyik0/furin";
-import type { SyncInvalidationInput } from "@teyik0/furin/sync";
 import { drizzleSyncAdapter } from "@teyik0/furin/sync/drizzle";
 import { migrateSqliteSync } from "@teyik0/furin/sync/sqlite";
 import { eq } from "drizzle-orm";
@@ -8,12 +7,6 @@ import { drizzle } from "drizzle-orm/bun-sqlite";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { Elysia, t } from "elysia";
 import type { Todo } from "./todo-types";
-
-declare module "@teyik0/furin/routes" {
-  interface SyncQueryMap {
-    nativeTodos: object;
-  }
-}
 
 const todos = sqliteTable("todo", {
   id: text("id").primaryKey(),
@@ -25,11 +18,6 @@ const todos = sqliteTable("todo", {
 function validTitle(title: string) {
   return title.trim().length > 0 && title.trim().length <= 200;
 }
-
-const invalidations = [
-  { id: "nativeTodos", scope: {} },
-  { path: "/", type: "page" },
-] satisfies SyncInvalidationInput;
 
 export function createTodoBackend(filename: string) {
   const sqlite = new Database(filename);
@@ -48,16 +36,18 @@ export function createTodoBackend(filename: string) {
   const list = (): Todo[] => db.select().from(todos).orderBy(todos.createdAt, todos.id).all();
   const api = new Elysia({ prefix: "/api" })
     .use(furinSync(sync))
-    .get("/todos", { sync: { id: "nativeTodos" } }, list)
+    .get("/todos", list)
     .post(
       "/todos",
-      { body: t.Object({ title: t.String() }), sync: { invalidate: invalidations } },
-      ({ body, mutation, problem }) => {
+      { body: t.Object({ title: t.String() }) },
+      ({ body, mutation, problem, invalidate }) => {
         if (!validTitle(body.title)) {
           return problem(422, { detail: "Title must contain 1–200 characters" });
         }
-        return mutation((tx) =>
-          tx
+        return mutation((tx) => {
+          // The page loader reads the database directly, not GET /api/todos.
+          invalidate({ path: "/", type: "page" });
+          return tx
             .insert(todos)
             .values({
               id: crypto.randomUUID(),
@@ -66,17 +56,16 @@ export function createTodoBackend(filename: string) {
               createdAt: new Date().toISOString(),
             })
             .returning()
-            .get()
-        );
+            .get();
+        });
       }
     )
     .patch(
       "/todos/:id",
       {
         body: t.Object({ title: t.Optional(t.String()), completed: t.Optional(t.Boolean()) }),
-        sync: { invalidate: invalidations },
       },
-      ({ body, params, mutation, problem }) => {
+      ({ body, params, mutation, problem, invalidate }) => {
         if (
           (body.title === undefined && body.completed === undefined) ||
           (body.title !== undefined && !validTitle(body.title))
@@ -84,6 +73,8 @@ export function createTodoBackend(filename: string) {
           return problem(422, { detail: "Provide a valid title or completed flag" });
         }
         return mutation((tx) => {
+          invalidate("/api/todos");
+          invalidate({ path: "/", type: "page" });
           const todo = tx
             .update(todos)
             .set({
@@ -97,14 +88,13 @@ export function createTodoBackend(filename: string) {
         });
       }
     )
-    .delete(
-      "/todos/:id",
-      { sync: { invalidate: invalidations } },
-      ({ params, mutation, problem }) =>
-        mutation((tx) => {
-          const todo = tx.delete(todos).where(eq(todos.id, params.id)).returning().get();
-          return todo ? { ok: true as const } : problem(404, { detail: "Todo not found" });
-        })
+    .delete("/todos/:id", ({ params, mutation, problem, invalidate }) =>
+      mutation((tx) => {
+        invalidate("/api/todos");
+        invalidate({ path: "/", type: "page" });
+        const todo = tx.delete(todos).where(eq(todos.id, params.id)).returning().get();
+        return todo ? { ok: true as const } : problem(404, { detail: "Todo not found" });
+      })
     );
   return { api, sync, list, close: () => sqlite.close() };
 }

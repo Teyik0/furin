@@ -290,7 +290,7 @@ response. No Elysia modification or extra proxy is needed.
 
 ### Internal API calls and SSR
 
-`treaty(app)` and `createClient(app).api` dispatch directly through the same
+`treaty(app)` and `treaty(app).use(furinSync).api` dispatch directly through the same
 listening Elysia application. They do not send HTTP requests and do not require a
 session cookie. SSR loaders can use this client without copying credentials,
 opening another listener or mounting a second router.
@@ -383,7 +383,7 @@ most 128 are retained. Keep navigation sandboxed and restricted to these origins
 The native host owns menus, native events, updates and explicit test-script
 injection. It may use the private `cookie` for authenticated HTTP requests or an
 owner-only native helper descriptor; never log or serialize it into browser data.
-SSR loaders using `createClient(app)` do not need it. Loaders that deliberately
+SSR loaders using `treaty(app)` do not need it. Loaders that deliberately
 call the HTTP API instead must forward the incoming request cookie only to the
 same application origin. The default host never exposes the cookie.
 

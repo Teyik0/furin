@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
+import { isWithinPrefix } from "../shared/prefix.ts";
 
 const LEADING_SLASHES_RE = /^\/+/;
 const TRAILING_SLASHES_RE = /\/+$/;
@@ -47,7 +48,7 @@ export function startStaticPreview({
     } catch {
       return notFound();
     }
-    if (basePath && pathname !== basePath && !pathname.startsWith(`${basePath}/`)) {
+    if (!isWithinPrefix(pathname, basePath)) {
       return notFound();
     }
 

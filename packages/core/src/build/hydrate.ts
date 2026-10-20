@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { generateIndexHtml } from "../server/render/shell.ts";
 import {
   buildRouteRegex,
@@ -8,8 +8,25 @@ import {
 import { mergeRouteSchemas } from "../server/router/schema-merge.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import { collectSearchDefaults } from "../shared/search-params.ts";
+import type { ClientBoundary } from "../rsc/build/discover.ts";
+import { CLIENT_REFERENCE_RUNTIME_PATH } from "../rsc/build/paths.ts";
 import { writeRouteTypes } from "./route-types";
+import { LINK_MODULE_PATH, toPosixPath } from "./shared.ts";
 import type { BuildClientOptions } from "./types";
+
+export function generateClientReferenceEntry(boundaries: readonly ClientBoundary[]): string {
+  if (boundaries.length === 0) {
+    return "";
+  }
+  return `import { registerClientLoader } from ${JSON.stringify(CLIENT_REFERENCE_RUNTIME_PATH)};\n${boundaries.map(({ id, path }) => {
+    // Keep the Flight identity, but let browser exports resolve Link exactly
+    // like RouterProvider and application imports instead of loading its source twice.
+    const specifier = toPosixPath(path) === toPosixPath(LINK_MODULE_PATH)
+      ? "@teyik0/furin/link"
+      : path;
+    return `registerClientLoader(${JSON.stringify(id)}, () => import(${JSON.stringify(specifier)}));`;
+  }).join("\n")}\n`;
+}
 
 /**
  * Generates the client hydration entry.
@@ -30,6 +47,33 @@ export function generateHydrateEntry(
   rootLayout: string,
   basePath: string,
   clientLogging: boolean
+): string {
+  // Dev HMR matches registry keys against each module's absolute path.
+  return hydrateEntry(routes, rootLayout, basePath, clientLogging, (path) => path);
+}
+
+/**
+ * Production variant of {@link generateHydrateEntry}. Without HMR the hot
+ * component keys only have to be distinct, so they are hashed instead of
+ * shipping absolute build paths to browsers.
+ */
+export function generateProductionHydrateEntry(
+  routes: ResolvedRoute[],
+  rootLayout: string,
+  basePath: string,
+  clientLogging: boolean
+): string {
+  return hydrateEntry(routes, rootLayout, basePath, clientLogging, (path) =>
+    Bun.hash(path).toString(16)
+  );
+}
+
+function hydrateEntry(
+  routes: ResolvedRoute[],
+  rootLayout: string,
+  basePath: string,
+  clientLogging: boolean,
+  modulePathKey: (path: string) => string
 ): string {
   const rootDirectory = rootLayout.replaceAll("\\", "/").split("/").slice(0, -1).join("/");
   const getBoundaryIdent = (idents: Map<string, string>, filePath: string | undefined) => {
@@ -63,9 +107,9 @@ export function generateHydrateEntry(
       .slice(1)
       .filter((entry) => entry.layout && entry.sourcePath)
       .map((entry) => entry.sourcePath as string);
-    activeHotComponentKeys.add(`page:${resolvedPage}`);
+    activeHotComponentKeys.add(`page:${modulePathKey(resolvedPage)}`);
     for (const layoutPath of layoutPaths) {
-      activeHotComponentKeys.add(`layout:${layoutPath.replace(/\\/g, "/")}`);
+      activeHotComponentKeys.add(`layout:${modulePathKey(layoutPath.replace(/\\/g, "/"))}`);
     }
     const layoutIdents = layoutPaths.map((_, index) => `__furin_layout_${index}`);
 
@@ -93,15 +137,17 @@ export function generateHydrateEntry(
     }
 
     const lazyImports = [
-      `import("${resolvedPage}")`,
-      ...layoutPaths.map((filePath) => `import("${filePath.replace(/\\/g, "/")}")`),
-      ...[...boundaryIdents.keys()].map((filePath) => `import("${filePath.replace(/\\/g, "/")}")`),
+      `import(${JSON.stringify(resolvedPage)})`,
+      ...layoutPaths.map((filePath) => `import(${JSON.stringify(filePath.replace(/\\/g, "/"))})`),
+      ...[...boundaryIdents.keys()].map((filePath) => `import(${JSON.stringify(filePath.replace(/\\/g, "/"))})`),
     ];
     const importIdents = ["__furin_page", ...layoutIdents, ...boundaryIdents.values()];
     const layoutAssignments = layoutPaths
       .map((filePath, index) => {
         const ident = layoutIdents[index];
-        const componentKey = JSON.stringify(`layout:${filePath.replace(/\\/g, "/")}`);
+        const componentKey = JSON.stringify(
+          `layout:${modulePathKey(filePath.replace(/\\/g, "/"))}`
+        );
         return `const __furin_layout_route_${index} = ${ident}.route; __furin_parent = { __type: "FURIN_ROUTE", layout: hotComponent(${componentKey}, __furin_layout_route_${index}.component), parent: __furin_parent };`;
       })
       .join(" ");
@@ -109,14 +155,14 @@ export function generateHydrateEntry(
       boundaryLiterals.length > 0
         ? `, segmentBoundaries: [${boundaryLiterals.join(", ")}]`
         : "";
-    const pageComponentKey = JSON.stringify(`page:${resolvedPage}`);
+    const pageComponentKey = JSON.stringify(`page:${modulePathKey(resolvedPage)}`);
     const loadBody = `Promise.all([${lazyImports.join(", ")}]).then(([${importIdents.join(", ")}]) => { const __furin_page_route = __furin_page.route; let __furin_parent = root; ${layoutAssignments} return { default: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE", parent: __furin_parent, remountDeps: __furin_page_route.remountDeps }, component: hotComponent(${pageComponentKey}, __furin_page_route.component) }${boundaryResult} }; })`;
 
     const searchDefaultsEntry = searchDefaults
       ? `, searchDefaults: ${JSON.stringify(searchDefaults)}`
       : "";
     routeEntries.push(
-      ` { pattern: "${route.pattern}", regex: new RegExp(${JSON.stringify(regexPattern)}), load: () => ${loadBody}${searchDefaultsEntry} }`
+      ` { pattern: ${JSON.stringify(route.pattern)}, regex: new RegExp(${JSON.stringify(regexPattern)}), load: () => ${loadBody}${searchDefaultsEntry} }`
     );
   }
 
@@ -126,16 +172,12 @@ export function generateHydrateEntry(
   // Strip basePath only when it matches on a path boundary (prevents "/furin" from
   // matching "/furinity/foo"). The boundary holds when the pathname ends exactly
   // at the prefix length OR the next character is "/".
-  // Trailing slashes are also stripped so "/docs/routing/" matches the route
-  // pattern "/docs/routing" — GitHub Pages and many static hosts append them.
-  const pathnameExpr = basePath
-    ? `(() => { const p = window.location.pathname; const b = ${basePathLiteral}; const stripped = (p.startsWith(b) && (p.length === b.length || p[b.length] === "/")) ? p.slice(b.length) || "/" : p; return stripped === "/" ? "/" : stripped.replace(/\\/+$/, ""); })()`
-    : `window.location.pathname.replace(/\\/+$/, "") || "/"`;
+  // Route regexes accept the same trailing slash as native Elysia routes.
+  // Preserve catch-all tails, including the empty tail in "/docs/".
+  const pathnameExpr = `(() => { const p = window.location.pathname; const b = __furinBasePath; return (b && p.startsWith(b) && (p.length === b.length || p[b.length] === "/")) ? p.slice(b.length) || "/" : p; })()`;
 
   // Log drain endpoint: prepend basePath so the request goes to the correct origin path.
-  const logEndpoint = basePath
-    ? `${JSON.stringify(basePath)} + "/_furin/ingest"`
-    : `"/_furin/ingest"`;
+  const logEndpoint = `__furinBasePath + "/_furin/ingest"`;
 
   // Client-side HTTP draining is opt-in (config `clientLogging`). When disabled
   // we emit neither the hydrate-entry evlog imports nor initLogger, and define a
@@ -148,21 +190,22 @@ export function generateHydrateEntry(
     : "const log = { error() {}, info() {} };";
 
   // RouterProvider receives basePath so navigate() / Link push physical paths.
-  const routerProviderDefaults = `\n      autoRefresh: true,\n      basePath: ${basePathLiteral},\n      defaultPreload: "intent",\n      defaultPreloadDelay: 50,\n      defaultPreloadStaleTime: 30000,\n      prefetchCacheSize: 50,\n      syncPath,`;
+  const routerProviderDefaults = `\n      autoRefresh: true,\n      basePath: __furinBasePath,\n      defaultPreload: "intent",\n      defaultPreloadDelay: 50,\n      defaultPreloadStaleTime: 30000,\n      prefetchCacheSize: 50,\n      syncPath,`;
 
   const resolvedRootLayout = rootLayout.replace(/\\/g, "/");
-  const rootComponentKey = JSON.stringify(`root:${resolvedRootLayout}`);
-  activeHotComponentKeys.add(`root:${resolvedRootLayout}`);
+  const rootComponentKey = JSON.stringify(`root:${modulePathKey(resolvedRootLayout)}`);
+  activeHotComponentKeys.add(`root:${modulePathKey(resolvedRootLayout)}`);
   const activeHotComponentKeysLiteral = JSON.stringify([...activeHotComponentKeys]);
 
   return `import { hydrateRoot } from "react-dom/client";
 import { createElement, type ReactNode } from "react";
 ${loggingImports}import { DocumentProvider, type DocumentState, type HotComponentRegistry, reconcileHotComponentRegistry, updateHotComponent } from "@teyik0/furin/client";
 import { RouterProvider } from "@teyik0/furin/link";
-import { fromCrossJSON, parseDeferredNdjson } from "@teyik0/furin/link";
+import { findRouteFailure, fromCrossJSON, parseDeferredNdjson } from "@teyik0/furin/link";
 import type { SerovalNode } from "seroval";
-import { route as __furin_root_route } from "${resolvedRootLayout}";
+import { route as __furin_root_route } from ${JSON.stringify(resolvedRootLayout)};
 
+const __furinBasePath = ${basePathLiteral};
 ${loggerSetup}
 
 if (import.meta.hot) {
@@ -204,11 +247,12 @@ const _match = routes.find((r) => r.regex.test(pathname));
 
 // Parse the server-embedded loader payload up front. It carries:
 //   - normal loader props under arbitrary keys,
-//   - __furinError.digest when SSR caught an error,
-//   - __furinStatus: 404 when the server rendered the catch-all not-found
-//     (direct load to an unknown URL, emitted by renderRootNotFound) OR when
-//     a matched loader threw notFound(). The latter still has a _match; the
-//     former does not — so the two cases fork on _match below.
+//   - __furinMatches, one match per route segment. A failed match carries the
+//     error digest when SSR caught an error, or the not-found payload when the
+//     server rendered the catch-all not-found (direct load to an unknown URL,
+//     emitted by renderRootNotFound) OR a matched loader threw notFound(). The
+//     latter still has a _match; the former does not — so the two cases fork
+//     on _match below.
 const dataEl = document.getElementById("__FURIN_DATA__");
 const frameTemplate = document.getElementById("__FURIN_ROUTE_FRAMES__") as HTMLTemplateElement | null;
 let loaderData = dataEl ? JSON.parse(dataEl.textContent || "{}") : {};
@@ -326,6 +370,7 @@ if (__deferred && __deferred._chunks) {
     loaderData = { ...parsed.syncData, ...parsed.deferredPromises };
   }
   let app;
+  const failure = findRouteFailure(loaderData);
   if (_match) {
     const _mod = await _match.load();
     const match = {
@@ -335,34 +380,26 @@ if (__deferred && __deferred._chunks) {
       segmentBoundaries: _mod.segmentBoundaries ?? _match.segmentBoundaries,
     };
 
-    const isNotFound = loaderData.__furinStatus === 404;
-
     app = createElement(RouterProvider, {
       routes,
       root,
       initialMatch: match,
       initialData: { ...loaderData, ...deferredData },
-      initialDigest: loaderData.__furinError?.digest,
-      initialError: loaderData.__furinError,
-      initialNotFound: isNotFound ? (loaderData.__furinNotFound ?? loaderData) : undefined,${routerProviderDefaults}
+      initialDigest: failure?.status === "error" ? failure.error.digest : undefined,${routerProviderDefaults}
     } as any);
-  } else if (loaderData.__furinStatus === 404) {
+  } else if (failure?.status === "notFound") {
     // Direct load to an unknown URL. The server sent the root not-found UI
     // already rendered into the DOM. Mount RouterProvider with a null match
     // so the provider boots into its not-found branch, hydrating that exact
     // tree INSIDE a live RouterContext. Without this, Links in the 404 UI
     // (e.g. the default screen's "Go Home" button) hit the useRouter()
     // fallback that does a full window.location assignment — a jarring reload.
-    // Strip the server-only signal keys before handing data to components.
-    const { __furinStatus: _s, __furinNotFound: _n, ...cleanData } = loaderData;
     app = createElement(RouterProvider, {
       routes,
       root,
       initialMatch: null,
-      initialData: cleanData,
-      initialDigest: loaderData.__furinError?.digest,
-      initialError: loaderData.__furinError,
-      initialNotFound: loaderData.__furinNotFound ?? {},${routerProviderDefaults}
+      initialData: loaderData,
+      initialDigest: undefined,${routerProviderDefaults}
     } as any);
   } else {
     // A removed active route has no match in the new development manifest.
@@ -448,15 +485,56 @@ if (__deferred && __deferred._chunks) {
 `;
 }
 
+interface DevRouteTypesApp {
+  pagesDir: string;
+  routes: ResolvedRoute[];
+}
+
 /**
- * Writes _hydrate.tsx + index.html to outDir for dev (Bun HMR) mode.
+ * Apps served by this dev process, by project root then prefix: furin-env.d.ts
+ * is one file per project, so every app's write declares them all.
+ */
+const devRouteTypesApps = new Map<string, Map<string, DevRouteTypesApp>>();
+
+/** Forgets a stopped dev app, so the next write no longer declares its routes. */
+export function releaseDevRouteTypes(projectRoot: string, prefix: string): void {
+  devRouteTypesApps.get(projectRoot)?.delete(prefix);
+}
+
+function writeDevRouteTypes(
+  projectRoot: string,
+  prefix: string,
+  app: DevRouteTypesApp
+): boolean {
+  const apps = devRouteTypesApps.get(projectRoot) ?? new Map<string, DevRouteTypesApp>();
+  devRouteTypesApps.set(projectRoot, apps.set(prefix, app));
+  // An app that never started has no stop hook to release it: skip it once
+  // its pages directory is gone.
+  const live = [...apps].filter(([, { pagesDir }]) => existsSync(pagesDir));
+  return writeRouteTypes(
+    live.find(([appPrefix]) => appPrefix === "")?.[1].routes ?? [],
+    projectRoot,
+    live.map(([appPrefix, { pagesDir }]) => ({ pagesDir, prefix: appPrefix }))
+  );
+}
+
+/**
+ * Writes _hydrate.tsx + index.html to outDir for dev (Bun HMR) mode, and the
+ * app's routes into furin-env.d.ts.
  *
  * Only rewrites a file when its content has actually changed so Bun's --hot
  * watcher does not trigger a spurious reload on every server restart.
  */
 export function writeDevFiles(
   routes: ResolvedRoute[],
-  { outDir, rootLayout, basePath, clientLogging, skipRouteTypes }: BuildClientOptions,
+  {
+    outDir,
+    rootLayout,
+    basePath,
+    clientLogging,
+    clientBoundaries,
+    prefix,
+  }: BuildClientOptions & { prefix: string },
   projectRoot: string,
   serverSourceVersion?: string
 ): void {
@@ -471,6 +549,7 @@ export function writeDevFiles(
       ? ""
       : `\nif (import.meta.hot) import.meta.hot.data.furinServerSourceVersion = ${JSON.stringify(serverSourceVersion)};\n`;
   const hydrateCode =
+    generateClientReferenceEntry(clientBoundaries ?? []) +
     generateHydrateEntry(routes, rootLayout, basePath, clientLogging) + serverVersion;
   const hydratePath = join(outDir, "_hydrate.tsx");
   const existingHydrate = existsSync(hydratePath) ? readFileSync(hydratePath, "utf8") : "";
@@ -488,9 +567,8 @@ export function writeDevFiles(
     changed = true;
   }
 
-  if (!skipRouteTypes) {
-    changed = writeRouteTypes(routes, projectRoot) || changed;
-  }
+  changed =
+    writeDevRouteTypes(projectRoot, prefix, { pagesDir: dirname(rootLayout), routes }) || changed;
 
   if (changed) {
     console.log(

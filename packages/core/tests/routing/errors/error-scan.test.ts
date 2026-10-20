@@ -22,13 +22,12 @@ describe("scanPages — error.tsx discovery", () => {
   test("attaches nearest error.tsx to each route", async () => {
     const result = await scanPages(ERROR_FIXTURES_DIR);
 
-    const blogRoute = result.routes.find((r) => r.pattern === "/blog");
-    const homeRoute = result.routes.find((r) => r.pattern === "/");
+    const nearestError = (pattern: string) =>
+      result.routes.find((r) => r.pattern === pattern)?.segmentBoundaries.findLast((b) => b.error)
+        ?.error;
 
-    expect(blogRoute?.error).toBeDefined();
-    expect(homeRoute?.error).toBeDefined();
-
-    expect(blogRoute?.error).not.toBe(result.root.error);
-    expect(homeRoute?.error).toBe(result.root.error);
+    expect(nearestError("/blog")).toBeDefined();
+    expect(nearestError("/blog")).not.toBe(result.root.error);
+    expect(nearestError("/")).toBe(result.root.error);
   });
 });

@@ -1,15 +1,8 @@
 import { defineRoute } from "@teyik0/furin";
-import { t } from "elysia";
-import { route as boardRoute } from "../../_route";
 
-export const route = defineRoute()
+export const route = defineRoute("/board/[boardId]/card/_route")
   .config({
-    layout: boardRoute,
     mode: "ssr",
-    params: t.Object({
-      boardId: t.String(),
-      cardId: t.String(),
-    }),
     tags: ["cards"],
   })
   .layout(({ children }) => children);

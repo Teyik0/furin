@@ -3,12 +3,31 @@ import { t } from "elysia";
 import { defineRoute } from "../../src/furin.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../src/server/router/defined-route.ts";
 
+function runtimeParent() {
+  return { __type: "FURIN_ROUTE" as const };
+}
+
+const categoryLayout = defineRoute("/adapter/[category]/_route")
+  .config({ mode: "ssg", params: t.Object({ category: t.String() }) })
+  .staticParams(() => [{ category: "guides" }])
+  .layout(({ children }) => children);
+
+declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/adapter/[category]/[slug]": {
+      kind: "page";
+      parent: typeof categoryLayout;
+      pathParams: { category: string; slug: string };
+    };
+  }
+}
+
 describe("defineRoute renderer adapter", () => {
   test("forwards the runtime render context without copying it", async () => {
-    const parent = { __type: "FURIN_ROUTE" as const };
+    const parent = runtimeParent();
     let receivedProps: unknown;
-    const route = defineRoute()
-      .config({ layout: parent, mode: "ssr" })
+    const route = defineRoute("/received-props")
+      .config({ mode: "ssr" })
       .page((props) => {
         receivedProps = props;
         return null;
@@ -23,10 +42,10 @@ describe("defineRoute renderer adapter", () => {
   });
 
   test("forwards the runtime layout context without copying it", async () => {
-    const parent = { __type: "FURIN_ROUTE" as const };
+    const parent = runtimeParent();
     let receivedProps: unknown;
-    const route = defineRoute()
-      .config({ layout: parent, mode: "ssr" })
+    const route = defineRoute("/received-props/_route")
+      .config({ mode: "ssr" })
       .layout((props) => {
         receivedProps = props;
         return null;
@@ -41,10 +60,10 @@ describe("defineRoute renderer adapter", () => {
   });
 
   test("forwards the runtime head context without copying it", async () => {
-    const parent = { __type: "FURIN_ROUTE" as const };
+    const parent = runtimeParent();
     let receivedContext: unknown;
-    const route = defineRoute()
-      .config({ layout: parent, mode: "ssr" })
+    const route = defineRoute("/received-context")
+      .config({ mode: "ssr" })
       .loader(() => ({}))
       .head((context) => {
         receivedContext = context;
@@ -61,9 +80,9 @@ describe("defineRoute renderer adapter", () => {
   });
 
   test("passes an empty render path through the runtime context", async () => {
-    const parent = { __type: "FURIN_ROUTE" as const };
-    const route = defineRoute()
-      .config({ layout: parent, mode: "ssr" })
+    const parent = runtimeParent();
+    const route = defineRoute("/")
+      .config({ mode: "ssr" })
       .loader(() => ({}))
       .head(({ path }) => ({ meta: [{ title: path }] }))
       .page(({ path }) => path);
@@ -77,14 +96,14 @@ describe("defineRoute renderer adapter", () => {
   });
 
   test("maps loader, head and structured component props to the runtime contract", async () => {
-    const root = { __type: "FURIN_ROUTE" as const };
-    const layout = defineRoute()
-      .config({ layout: root, mode: "ssr" })
+    const root = runtimeParent();
+    const layout = defineRoute("/layout/_route")
+      .config({ mode: "ssr" })
       .loader(() => ({ organization: "Furin" }))
       .layout(({ children, organization }) => `${organization}:${children}`);
     const runtimeLayout = adaptDefinedLayout(layout, root);
-    const route = defineRoute()
-      .config({ layout: root, mode: "isr", params: t.Object({ id: t.Number() }), revalidate: 60 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", params: t.Object({ id: t.Number() }), revalidate: 60 })
       .loader(({ params }) => ({ board: `Board ${params.id}` }))
       .head(({ board }) => ({ meta: [{ title: board }] }))
       .page(({ board, params }) => `${board}:${params.id}`);
@@ -105,15 +124,10 @@ describe("defineRoute renderer adapter", () => {
   });
 
   test("keeps static params on layout and page runtime entries", async () => {
-    const root = { __type: "FURIN_ROUTE" as const };
-    const layoutRoute = defineRoute()
-      .config({ layout: root, mode: "ssg", params: t.Object({ category: t.String() }) })
-      .staticParams(() => [{ category: "guides" }])
-      .layout(({ children }) => children);
-    const runtimeLayout = adaptDefinedLayout(layoutRoute, root);
-    const pageRoute = defineRoute()
+    const root = runtimeParent();
+    const runtimeLayout = adaptDefinedLayout(categoryLayout, root);
+    const pageRoute = defineRoute("/adapter/[category]/[slug]")
       .config({
-        layout: layoutRoute,
         mode: "ssg",
         params: t.Object({ category: t.String(), slug: t.String() }),
       })
@@ -128,9 +142,9 @@ describe("defineRoute renderer adapter", () => {
   });
 
   test("keeps requestLoader data outside public loader data", async () => {
-    const parent = { __type: "FURIN_ROUTE" as const };
-    const route = defineRoute()
-      .config({ layout: parent, mode: "isr", revalidate: 60 })
+    const parent = runtimeParent();
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60 })
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => ({ public: "catalog" }))
       .page(({ public: catalog, user }) => `${String(catalog)}:${String(user)}`);

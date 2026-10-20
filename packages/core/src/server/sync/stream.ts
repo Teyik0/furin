@@ -3,14 +3,19 @@ import { IS_DEV } from "../runtime-env.ts";
 import type { SyncAdapter, SyncSubscription } from "./adapter.ts";
 import type { FurinSyncOptions } from "./config.ts";
 import { syncRuntimeOptions } from "./config.ts";
+import { readPrincipalChanges } from "./principal-journal.ts";
+import { markInternalRead } from "./queries.ts";
 import { type ResolvedSyncRuntime, resolveSyncRuntime } from "./runtime.ts";
 
 export type { ChangePage as SyncChangePage, SyncChange } from "./adapter.ts";
 
+/** Bursts of commits wake browsers once per window, always with the latest cursor. */
+const BROADCAST_WINDOW_MS = 100;
 const DEFAULT_CHANGE_LIMIT = 100;
 const MAX_CHANGE_LIMIT = 500;
 const MAX_CURSOR_LENGTH = 128;
-const SAFETY_POLL_INTERVAL_MS = IS_DEV ? 250 : 15_000;
+const DEVELOPMENT_SAFETY_POLL_INTERVAL_MS = 250;
+const PRODUCTION_SAFETY_POLL_INTERVAL_MS = 15_000;
 const UNSIGNED_INTEGER_PATTERN = /^\d+$/;
 const defaultSyncPath = "/_furin/sync";
 const noOpSubscription: SyncSubscription = {
@@ -18,7 +23,9 @@ const noOpSubscription: SyncSubscription = {
 };
 
 interface SyncCursorState {
+  broadcast: ReturnType<typeof setTimeout> | undefined;
   cursor: string;
+  latest: string;
   listeners: Set<(cursor: string) => void>;
   safetyPoll: ReturnType<typeof setInterval> | undefined;
   subscription: SyncSubscription;
@@ -41,23 +48,40 @@ function trackUnsubscription(subscription: SyncSubscription): Promise<void> {
   return pending;
 }
 
-function notifyState(state: SyncCursorState, cursor: string): void {
-  if (state.cursor === cursor) {
+function broadcastState(state: SyncCursorState): void {
+  state.broadcast = undefined;
+  if (state.cursor === state.latest) {
     return;
   }
-  state.cursor = cursor;
+  state.cursor = state.latest;
   for (const listener of state.listeners) {
     try {
-      listener(cursor);
+      listener(state.cursor);
     } catch {
       // One disconnected browser must not prevent delivery to other tabs.
     }
   }
 }
 
+function notifyState(state: SyncCursorState, cursor: string): void {
+  state.latest = cursor;
+  if (state.broadcast || state.cursor === cursor) {
+    return;
+  }
+  state.broadcast = setTimeout(() => broadcastState(state), BROADCAST_WINDOW_MS);
+  state.broadcast.unref?.();
+}
+
+function stopState(state: SyncCursorState): void {
+  clearInterval(state.safetyPoll);
+  clearTimeout(state.broadcast);
+}
+
 async function createCursorState(runtime: ResolvedSyncRuntime): Promise<SyncCursorState> {
   const state = {} as SyncCursorState;
   state.cursor = await runtime.adapter.currentCursor();
+  state.latest = state.cursor;
+  state.broadcast = undefined;
   state.listeners = new Set();
   state.safetyPoll = undefined;
   let subscriptionFailed = false;
@@ -68,12 +92,15 @@ async function createCursorState(runtime: ResolvedSyncRuntime): Promise<SyncCurs
       return noOpSubscription;
     });
   if (runtime.notifier.recovery !== "self" || subscriptionFailed) {
+    const interval = runtime.development
+      ? DEVELOPMENT_SAFETY_POLL_INTERVAL_MS
+      : PRODUCTION_SAFETY_POLL_INTERVAL_MS;
     state.safetyPoll = setInterval(() => {
       runtime.adapter
         .currentCursor()
         .then((cursor) => notifyState(state, cursor))
         .catch(() => undefined);
-    }, SAFETY_POLL_INTERVAL_MS);
+    }, interval);
     state.safetyPoll.unref?.();
   }
   resolvedStates.add(state);
@@ -82,9 +109,10 @@ async function createCursorState(runtime: ResolvedSyncRuntime): Promise<SyncCurs
 
 export async function subscribeSyncCursor(
   options: FurinSyncOptions,
+  development: boolean,
   listener: (cursor: string) => void
 ): Promise<{ unsubscribe: () => void }> {
-  const runtime = resolveSyncRuntime(syncRuntimeOptions(options));
+  const runtime = resolveSyncRuntime(syncRuntimeOptions(options), development);
   const statePromise = getCursorState(runtime);
   const state = await statePromise;
   state.listeners.add(listener);
@@ -104,9 +132,7 @@ export async function subscribeSyncCursor(
         cursorStates.delete(runtime.adapter);
       }
       resolvedStates.delete(state);
-      if (state.safetyPoll) {
-        clearInterval(state.safetyPoll);
-      }
+      stopState(state);
       trackUnsubscription(state.subscription);
     },
   };
@@ -146,13 +172,20 @@ function parseChangeQuery(
   return { after, limit };
 }
 
+/** A standalone changes endpoint belongs to no Furin runtime: it follows the default mode. */
 export function createSyncChangesPlugin(options: FurinSyncOptions) {
+  return createRuntimeSyncChangesPlugin(options, IS_DEV);
+}
+
+/** The changes endpoint of a Furin runtime, validated for that runtime's mode. */
+export function createRuntimeSyncChangesPlugin(options: FurinSyncOptions, development: boolean) {
   const syncPath = options.path ?? defaultSyncPath;
-  const runtime = resolveSyncRuntime(syncRuntimeOptions(options));
+  const runtime = resolveSyncRuntime(syncRuntimeOptions(options), development);
   return new Elysia({ name: `furin-sync-changes-${syncPath}` }).get(
     `${syncPath}/changes`,
     async (context) => {
       const { request, set } = context;
+      markInternalRead(request);
       set.headers["cache-control"] = "no-store";
       const query = parseChangeQuery(request);
       if ("error" in query) {
@@ -162,15 +195,7 @@ export function createSyncChangesPlugin(options: FurinSyncOptions) {
       if (principal.length === 0) {
         return new Response("Unauthorized", { status: 401 });
       }
-      const cursor = await runtime.adapter.currentCursor();
-      // The journal is shared across principals. Resource paths and query scopes
-      // are private; clients refresh their authorized reads when its cursor moves.
-      return {
-        changes: [],
-        cursor,
-        hasMore: false,
-        reset: query.after !== undefined && query.after !== cursor,
-      };
+      return readPrincipalChanges(runtime.adapter, query, principal);
     }
   );
 }
@@ -179,9 +204,7 @@ export function createSyncChangesPlugin(options: FurinSyncOptions) {
 export function __resetSyncState(): void {
   for (const state of resolvedStates) {
     trackUnsubscription(state.subscription);
-    if (state.safetyPoll) {
-      clearInterval(state.safetyPoll);
-    }
+    stopState(state);
     state.listeners.clear();
   }
   cursorStates.clear();
@@ -199,9 +222,7 @@ export async function closeSyncCursorStates(): Promise<void> {
         return [];
       }
       const state = result.value;
-      if (state.safetyPoll) {
-        clearInterval(state.safetyPoll);
-      }
+      stopState(state);
       state.listeners.clear();
       resolvedStates.delete(state);
       return [trackUnsubscription(state.subscription)];

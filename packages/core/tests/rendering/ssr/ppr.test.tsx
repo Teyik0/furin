@@ -1,8 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { treaty } from "@elysia/eden";
 import { Elysia, t } from "elysia";
 import { Suspense, use } from "react";
-import { createClient, defer } from "../../../src/client.ts";
-import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
+import { defer, furinSync } from "../../../src/client.ts";
+import { Await, defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { revalidateTag } from "../../../src/server/auto-invalidate";
 import { getAutoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
 import { revalidatePathForInstance } from "../../../src/server/cache/invalidation.ts";
@@ -12,31 +13,18 @@ import {
   type PageCacheIdentity,
 } from "../../../src/server/cache/page-cache.ts";
 import {
-  resetPageCacheAdapter,
-  setPageCacheAdapter,
-} from "../../../src/server/cache/page-cache-state.ts";
-import {
   resetRuntimeCacheProvider,
   setRuntimeCacheProvider,
 } from "../../../src/server/cache/runtime-cache.ts";
 import { markExternalPrerenderRequest } from "../../../src/server/external-prerender.ts";
-import {
-  __clearInstanceRegistry,
-  createInstance,
-  currentInstance,
-  registerInstance,
-  withInstance,
-} from "../../../src/server/instance.ts";
+import { createInstance, registerInstance } from "../../../src/server/instance.ts";
+import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { clearMixedPublicCache } from "../../../src/server/render/mixed-cache.ts";
 import { clearPprRouteCache, invalidatePprRoute } from "../../../src/server/render/ppr-route";
-import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
-import { collectRouteTags } from "../../../src/server/router/discovery.ts";
-import { createDataEndpoint, createRoutePlugin } from "../../../src/server/router/plugin.ts";
-import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { type QuerySeed, queryTag } from "../../../src/shared/sync-query.ts";
-import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
+import { mountProductionApp, type ProductionPage } from "../../support/production-app.ts";
 
 (globalThis as typeof globalThis & { __FURIN_SKIP_DOM_RESET?: boolean }).__FURIN_SKIP_DOM_RESET =
   true;
@@ -45,8 +33,10 @@ afterEach(async () => {
   clearPprRouteCache();
   clearMixedPublicCache();
   resetRuntimeCacheProvider();
+  __resetCompileContext();
   await Promise.resolve();
 });
+const STATE_LENGTH_RE = /state-length=(\d+)/;
 const originalDevMode = IS_DEV;
 const rootTerminal = defineRootRoute()
   .config({ mode: "ssr" })
@@ -61,24 +51,85 @@ const rootTerminal = defineRootRoute()
       </body>
     </html>
   ));
-const root = {
-  path: "/root.tsx",
-  route: adaptDefinedLayout(rootTerminal, undefined),
-} satisfies RootLayout;
 
-function resolveRoute(route: Parameters<typeof adaptDefinedPage>[0]): ResolvedRoute {
-  const page = adaptDefinedPage(route, root.route);
-  const routeChain = collectRouteChainFromRoute(page._route);
-  return {
-    mode: page.mode ?? "ssr",
-    page,
-    path: "/account.tsx",
-    pattern: "/account",
-    requestKeys: routeChain.some((entry) => entry.requestLoader) ? ["user"] : [],
-    routeChain,
-    segmentBoundaries: [],
-    tags: collectRouteTags(routeChain, page),
-  };
+// Layouts of the inheritance tests, wired through FileRoutes as
+// furin-env.d.ts would wire them from the pages tree.
+const createCatalogRoot = (load: () => void) =>
+  defineRootRoute()
+    .config({ mode: "isr", revalidate: 60 })
+    .loader(() => {
+      load();
+      return { catalog: "Coffee" };
+    })
+    .layout(({ children, catalog }) => (
+      <html lang="en">
+        <head>
+          <HeadContent />
+        </head>
+        <body>
+          <aside>{catalog}</aside>
+          {children}
+          <Scripts />
+        </body>
+      </html>
+    ));
+const createAdminRoot = (onRequest: () => void, onLoad: () => void) =>
+  defineRootRoute()
+    .config({ mode: "ssg" })
+    .requestLoader(({ cookies }) => {
+      onRequest();
+      return { adminUser: cookies.get("session") };
+    })
+    .loader(() => {
+      onLoad();
+      return { siteName: "Coffee" };
+    })
+    .layout(({ children }) => (
+      <html lang="en">
+        <head>
+          <HeadContent />
+        </head>
+        <body>
+          {children}
+          <Scripts />
+        </body>
+      </html>
+    ));
+const createVersionRoot = (version: () => number) =>
+  defineRootRoute()
+    .config({ mode: "isr", revalidate: 0 })
+    .loader(() => ({ layoutVersion: version() }))
+    .layout(({ children }) => children);
+
+declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/ppr/admin": {
+      kind: "page";
+      parent: ReturnType<typeof createAdminRoot>;
+      pathParams: NonNullable<unknown>;
+    };
+    "/ppr/catalog": {
+      kind: "page";
+      parent: ReturnType<typeof createCatalogRoot>;
+      pathParams: NonNullable<unknown>;
+    };
+    "/ppr/version": {
+      kind: "page";
+      parent: ReturnType<typeof createVersionRoot>;
+      pathParams: NonNullable<unknown>;
+    };
+  }
+}
+
+/** Mounts `route` at `/account` below the shared root through a production `furin()`. */
+function mountAccount(route: ProductionPage["route"], pageCache: PageCacheAdapter | undefined) {
+  const hasRequestLoader = (route as { requestLoader?: unknown }).requestLoader !== undefined;
+  return mountProductionApp({
+    buildId: "build-1",
+    pageCache,
+    pages: [{ pattern: "/account", requestKeys: hasRequestLoader ? ["user"] : [], route }],
+    root: rootTerminal,
+  });
 }
 
 beforeAll(async () => {
@@ -91,9 +142,9 @@ afterAll(async () => {
 });
 
 test("SSR deferred responses stay private when a loader sets Cache-Control", async () => {
-  const resolved = resolveRoute(
-    defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr" })
+  const { app } = await mountAccount(
+    defineRoute("/")
+      .config({ mode: "ssr" })
       .loader(({ request, set }) => {
         set.headers["Cache-Control"] = "public, s-maxage=60";
         return defer({
@@ -105,12 +156,12 @@ test("SSR deferred responses stay private when a loader sets Cache-Control", asy
         <Suspense fallback="Loading">
           <User data={user} />
         </Suspense>
-      ))
+      )),
+    undefined
   );
   function User({ data }: { data: Promise<unknown> }) {
     return <strong>{String(use(data))}</strong>;
   }
-  const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
   const response = await app.handle(
     new Request("http://localhost/account", { headers: { cookie: "session=Alice" } })
   );
@@ -121,9 +172,9 @@ test("SSR deferred responses stay private when a loader sets Cache-Control", asy
 
 test("SSR exposes deferred fields as individual promises", async () => {
   let optionalWasAbsent = false;
-  const resolved = resolveRoute(
-    defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr" })
+  const { app } = await mountAccount(
+    defineRoute("/")
+      .config({ mode: "ssr" })
       .loader(() => defer({ title: "Account", user: Promise.resolve("Alice") }))
       .page((props) => {
         optionalWasAbsent = (props as typeof props & { optional?: unknown }).optional === undefined;
@@ -135,13 +186,12 @@ test("SSR exposes deferred fields as individual promises", async () => {
             </Suspense>
           </main>
         );
-      })
+      }),
+    undefined
   );
   function PrivateUser({ user }: { user: Promise<string> }) {
     return <strong>{use(user)}</strong>;
   }
-
-  const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
   const response = await app.handle(new Request("http://localhost/account"));
 
   expect(response.status).toBe(200);
@@ -165,14 +215,14 @@ describe.serial("partial prerendering", () => {
           };
         },
       });
-      const resolved = resolveRoute(
-        defineRoute()
-          .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+      const { app } = await mountAccount(
+        defineRoute("/")
+          .config({ mode: "isr", revalidate: 60 })
           .requestLoader(() => ({ user: "alice" }))
           .loader(() => ({ catalog: "Fresh catalog" }))
-          .page(({ catalog }) => <main>{catalog}</main>)
+          .page(({ catalog }) => <main>{catalog}</main>),
+        undefined
       );
-      const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
       const response = await app.handle(new Request("http://localhost/account"));
       expect(response.status).toBe(200);
       expect(await response.text()).toContain("Fresh catalog");
@@ -206,8 +256,8 @@ describe.serial("partial prerendering", () => {
     });
     let publicCalls = 0;
     let privateCalls = 0;
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60, tags: ["catalog"] })
       .requestLoader(() => {
         privateCalls += 1;
         return { user: `private-${privateCalls}` };
@@ -219,7 +269,7 @@ describe.serial("partial prerendering", () => {
     function User({ data }: { data: Promise<string> }) {
       return <strong>{use(data)}</strong>;
     }
-    const resolved = resolveRoute(
+    const { app } = await mountAccount(
       route.page(({ catalog, date, user }) => (
         <main>
           {catalog}:{date.toISOString()}
@@ -227,9 +277,9 @@ describe.serial("partial prerendering", () => {
             <User data={user} />
           </Suspense>
         </main>
-      ))
+      )),
+      undefined
     );
-    const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
     const first = await app.handle(new Request("http://localhost/account")).then((r) => r.text());
     clearPprRouteCache();
     const second = await app.handle(new Request("http://localhost/account")).then((r) => r.text());
@@ -247,35 +297,61 @@ describe.serial("partial prerendering", () => {
     expect(publicCalls).toBe(2);
   });
 
+  test("keeps public artifacts of deployments sharing one provider store apart", async () => {
+    const values = new Map<string, unknown>();
+    const store = {
+      delete: () => Promise.resolve(),
+      expireTag: () => Promise.resolve(),
+      get: (key: string) => Promise.resolve(values.get(key) ?? null),
+      set: (key: string, value: unknown) => {
+        values.set(key, value);
+        return Promise.resolve();
+      },
+    };
+    let publicCalls = 0;
+    const { app } = await mountAccount(
+      defineRoute("/")
+        .config({ mode: "isr", revalidate: 60 })
+        .requestLoader(() => ({ user: "alice" }))
+        .loader(() => ({ catalog: (publicCalls += 1) }))
+        .page(({ catalog }) => <main>{catalog}</main>),
+      undefined
+    );
+    const render = async (scope: string) => {
+      setRuntimeCacheProvider({ getCache: () => store, scope });
+      clearPprRouteCache();
+      await app.handle(new Request("http://localhost/account")).then((r) => r.text());
+    };
+
+    await render("deployment-1");
+    await render("deployment-2");
+    await render("deployment-1");
+
+    expect(publicCalls).toBe(2);
+  });
+
   test("cross-instance invalidation removes tags from the cache-owning app", async () => {
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60, tags: ["catalog"] })
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => ({ catalog: "Shoes" }))
       .page(({ catalog }) => <main>{catalog}</main>);
-    const resolved = resolveRoute(route);
-    const owner = registerInstance(createInstance("/owner", "/owner/pages"));
+    const { app, instance } = await mountAccount(route, undefined);
     registerInstance(createInstance("/other", "/other/pages"));
-    const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
 
-    try {
-      await withInstance(owner, () => app.handle(new Request("http://localhost/account")));
-      expect(getAutoInvalidateRegistry(owner).pathsForTags(["catalog"])).toEqual(["/account"]);
+    await app.handle(new Request("http://localhost/account"));
+    expect(getAutoInvalidateRegistry(instance).pathsForTags(["catalog"])).toEqual(["/account"]);
 
-      expect(invalidatePprRoute("/account", "page")).toBe(true);
+    expect(invalidatePprRoute("/account", "page")).toBe(true);
 
-      expect(getAutoInvalidateRegistry(owner).pathsForTags(["catalog"])).toEqual([]);
-    } finally {
-      clearPprRouteCache(owner);
-      __clearInstanceRegistry();
-    }
+    expect(getAutoInvalidateRegistry(instance).pathsForTags(["catalog"])).toEqual([]);
   });
 
   test("an ISR route caches public data while requestLoader reruns per request", async () => {
     let publicCalls = 0;
     let privateCalls = 0;
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60 })
       .requestLoader(({ cookies }) => {
         privateCalls += 1;
         return { user: cookies.get("session") };
@@ -295,8 +371,7 @@ describe.serial("partial prerendering", () => {
         </Suspense>
       </main>
     ));
-    const resolved = resolveRoute(page);
-    const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+    const { app } = await mountAccount(page, undefined);
 
     const aliceResponse = await app.handle(
       new Request("http://localhost/account", { headers: { cookie: "session=alice" } })
@@ -314,10 +389,35 @@ describe.serial("partial prerendering", () => {
     expect(privateCalls).toBe(2);
   });
 
+  test("a request field read through <Await> resumes into its Suspense boundary", async () => {
+    const { app } = await mountAccount(
+      defineRoute("/")
+        .config({ mode: "ssg" })
+        .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
+        .loader(() => ({ catalog: "Shoes" }))
+        .page(({ catalog, user }) => (
+          <main>
+            <h1>{catalog}</h1>
+            <Suspense fallback={<span>Loading</span>}>
+              <Await resolve={user}>{(value) => <strong>{String(value)}</strong>}</Await>
+            </Suspense>
+          </main>
+        )),
+      undefined
+    );
+
+    const response = await app.handle(
+      new Request("http://localhost/account", { headers: { cookie: "session=alice" } })
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("<strong>alice</strong>");
+  }, 5000);
+
   test("private GET snapshots stay isolated across a cached PPR document and SPA navigation", async () => {
     let publicCalls = 0;
     let privateCalls = 0;
-    const api = createClient(
+    const api = treaty(
       new Elysia().get("/cards", ({ request, set }) => {
         privateCalls += 1;
         const person = request.headers.get("x-person");
@@ -328,15 +428,15 @@ describe.serial("partial prerendering", () => {
         });
         return { cards: [{ title: person }] };
       })
-    );
+    ).use(furinSync);
     function Private({ data }: { data: Promise<{ cards: { title: string | null }[] }> }) {
       return <strong>{use(data).cards[0]?.title}</strong>;
     }
-    const page = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 3600 })
+    const page = defineRoute("/")
+      .config({ mode: "isr", revalidate: 3600 })
       .requestLoader(({ cookies }) => ({
-        user: api.cards
-          .get({ headers: { "x-person": String(cookies.get("session")) } })
+        user: api.cards.get
+          .live({ headers: { "x-person": String(cookies.get("session")) } })
           .then(({ data, error }) => {
             if (error) {
               throw error;
@@ -356,10 +456,7 @@ describe.serial("partial prerendering", () => {
           </Suspense>
         </main>
       ));
-    const resolved = resolveRoute(page);
-    const app = new Elysia()
-      .use(createRoutePlugin(resolved, root, currentInstance().buildId))
-      .use(createDataEndpoint([resolved], root));
+    const { app, instance } = await mountAccount(page, undefined);
     try {
       const alice = await app.handle(
         new Request("http://localhost/account", { headers: { cookie: "session=alice" } })
@@ -367,7 +464,7 @@ describe.serial("partial prerendering", () => {
       expect(alice.headers.get("cache-control")).toBe("private, no-store");
       expect(await alice.text()).toContain("alice");
       const bob = await app.handle(
-        new Request("http://localhost/_furin/data?path=%2Faccount", {
+        new Request("http://localhost/account?_furin=data", {
           headers: { cookie: "session=bob" },
         })
       );
@@ -386,7 +483,9 @@ describe.serial("partial prerendering", () => {
       ]);
       const seeds = parsed.syncData.__furinQueries as QuerySeed[];
       expect(
-        getAutoInvalidateRegistry().pathsForTags(seeds.map((seed) => queryTag(seed.identity)))
+        getAutoInvalidateRegistry(instance).pathsForTags(
+          seeds.map((seed) => queryTag(seed.identity))
+        )
       ).toContain("/account");
       const again = await app.handle(
         new Request("http://localhost/account", { headers: { cookie: "session=alice" } })
@@ -397,7 +496,7 @@ describe.serial("partial prerendering", () => {
       expect(publicCalls).toBe(1);
       expect(privateCalls).toBe(3);
     } finally {
-      getAutoInvalidateRegistry().unregisterPath("/account", "eden-request-queries");
+      getAutoInvalidateRegistry(instance).unregisterPath("/account", "eden-request-queries");
     }
   });
 
@@ -429,27 +528,18 @@ describe.serial("partial prerendering", () => {
           </body>
         </html>
       ));
-    const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
-    const mixedPage = defineRoute()
-      .config({ layout: mixedRoot, mode: "isr", revalidate: 60 })
+    const mixedPage = defineRoute("/mixed")
+      .config({ mode: "isr", revalidate: 60 })
       .loader(() => {
         publicCalls += 1;
         return { catalog: "Coffee" };
       })
       .page(({ catalog }) => <main>{catalog}</main>);
-    const page = adaptDefinedPage(mixedPage, mixedRootRoute);
-    const resolved: ResolvedRoute = {
-      mode: "isr",
-      page,
-      path: "/coffee.tsx",
-      pattern: "/coffee",
-      routeChain: collectRouteChainFromRoute(page._route),
-      segmentBoundaries: [],
-    };
-    const mixedRootRecord = { path: "/root.tsx", route: mixedRootRoute };
-    const app = new Elysia()
-      .use(createRoutePlugin(resolved, mixedRootRecord, "build-1"))
-      .use(createDataEndpoint([resolved], mixedRootRecord));
+    const { app, instance } = await mountProductionApp({
+      buildId: "build-1",
+      pages: [{ pattern: "/coffee", route: mixedPage }],
+      root: mixedRoot,
+    });
 
     const alice = await app.handle(
       new Request("http://localhost/coffee", { headers: { cookie: "session=alice" } })
@@ -468,12 +558,12 @@ describe.serial("partial prerendering", () => {
     expect(privateCalls).toBe(2);
 
     const aliceData = await app.handle(
-      new Request("http://localhost/_furin/data?path=%2Fcoffee", {
+      new Request("http://localhost/coffee?_furin=data", {
         headers: { cookie: "session=alice" },
       })
     );
     const bobData = await app.handle(
-      new Request("http://localhost/_furin/data?path=%2Fcoffee", {
+      new Request("http://localhost/coffee?_furin=data", {
         headers: { cookie: "session=bob" },
       })
     );
@@ -486,7 +576,7 @@ describe.serial("partial prerendering", () => {
     expect(publicCalls).toBe(1);
     expect(privateCalls).toBe(4);
 
-    revalidatePathForInstance(currentInstance(), "/coffee", "page");
+    revalidatePathForInstance(instance, "/coffee", "page");
     await app.handle(new Request("http://localhost/coffee")).then((response) => response.text());
     expect(publicCalls).toBe(2);
   });
@@ -494,27 +584,11 @@ describe.serial("partial prerendering", () => {
   test("an ISR layout stays public around an SSR page", async () => {
     let publicCalls = 0;
     let privateCalls = 0;
-    const mixedRoot = defineRootRoute()
-      .config({ mode: "isr", revalidate: 60 })
-      .loader(() => {
-        publicCalls += 1;
-        return { catalog: "Coffee" };
-      })
-      .layout(({ children, catalog }) => (
-        <html lang="en">
-          <head>
-            <HeadContent />
-          </head>
-          <body>
-            <aside>{catalog}</aside>
-            {children}
-            <Scripts />
-          </body>
-        </html>
-      ));
-    const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
-    const mixedPage = defineRoute()
-      .config({ layout: mixedRoot, mode: "ssr" })
+    const mixedRoot = createCatalogRoot(() => {
+      publicCalls += 1;
+    });
+    const mixedPage = defineRoute("/ppr/catalog")
+      .config({ mode: "ssr" })
       .loader(async ({ request, catalog }) => {
         privateCalls += 1;
         return { session: request.headers.get("cookie"), title: await catalog };
@@ -524,19 +598,11 @@ describe.serial("partial prerendering", () => {
           {title}: {session}
         </main>
       ));
-    const page = adaptDefinedPage(mixedPage, mixedRootRoute);
-    page.mode = undefined;
-    const resolved: ResolvedRoute = {
-      mode: "ssr",
-      page,
-      path: "/private-coffee.tsx",
-      pattern: "/private-coffee",
-      routeChain: collectRouteChainFromRoute(page._route),
-      segmentBoundaries: [],
-    };
-    const app = new Elysia().use(
-      createRoutePlugin(resolved, { path: "/root.tsx", route: mixedRootRoute }, "build-1")
-    );
+    const { app } = await mountProductionApp({
+      buildId: "build-1",
+      pages: [{ pattern: "/private-coffee", route: mixedPage }],
+      root: mixedRoot,
+    });
 
     const alice = await app.handle(
       new Request("http://localhost/private-coffee", { headers: { cookie: "alice" } })
@@ -551,51 +617,140 @@ describe.serial("partial prerendering", () => {
     expect(privateCalls).toBe(2);
   });
 
-  test("an SSR page loader inherits SSG layout request data in documents and navigations", async () => {
-    let publicCalls = 0;
-    let requestCalls = 0;
+  for (const declared of [false, true]) {
+    test(`an ISR layout around an SSR page keys on ${declared ? "declared" : "no"} query params`, async () => {
+      const publicQueries: unknown[] = [];
+      const privateQueries: unknown[] = [];
+      const mixedRoot = defineRootRoute()
+        .config({ mode: "isr", revalidate: 60 })
+        .loader(({ query }) => {
+          publicQueries.push({ ...query });
+          return { catalog: "Coffee" };
+        })
+        .layout(({ children, catalog }) => (
+          <html lang="en">
+            <head>
+              <HeadContent />
+            </head>
+            <body>
+              <aside>{catalog}</aside>
+              {children}
+              <Scripts />
+            </body>
+          </html>
+        ));
+      const recordPrivateQuery = ({ query }: { query: object }) => {
+        privateQueries.push({ ...query });
+        return {};
+      };
+      const mixedPage = declared
+        ? defineRoute("/")
+            .config({
+              mode: "ssr",
+              query: t.Object({ sort: t.Optional(t.String()), view: t.Optional(t.String()) }),
+            })
+            .loader(recordPrivateQuery)
+            .page(() => <main>menu</main>)
+        : defineRoute("/")
+            .config({ mode: "ssr" })
+            .loader(recordPrivateQuery)
+            .page(() => <main>menu</main>);
+      const { app } = await mountProductionApp({
+        buildId: "build-1",
+        pages: [{ pattern: "/menu", route: mixedPage }],
+        root: mixedRoot,
+      });
+
+      for (const search of [
+        "?view=alpha&sort=new",
+        "?sort=new&view=alpha&junk=1",
+        "?utm_source=x&view=alpha&sort=new",
+        "?view=beta&sort=new",
+      ]) {
+        // biome-ignore lint/performance/noAwaitInLoops: later requests must observe the first cache fill.
+        const response = await app.handle(new Request(`http://localhost/menu${search}`));
+        expect(response.status).toBe(200);
+      }
+
+      expect(publicQueries).toEqual(
+        declared
+          ? [
+              { sort: "new", view: "alpha" },
+              { sort: "new", view: "beta" },
+            ]
+          : [{}]
+      );
+      expect(privateQueries).toHaveLength(4);
+      if (!declared) {
+        expect(privateQueries[1]).toEqual({ junk: "1", sort: "new", view: "alpha" });
+      }
+    });
+  }
+
+  test("an ISR layout around an SSR page keys on declared query values as the schema decodes them", async () => {
+    const publicQueries: unknown[] = [];
     const mixedRoot = defineRootRoute()
-      .config({ mode: "ssg" })
-      .requestLoader(({ cookies }) => {
-        requestCalls += 1;
-        return { adminUser: cookies.get("session") };
+      .config({ mode: "isr", revalidate: 60 })
+      .loader(({ query }) => {
+        publicQueries.push({ ...query });
+        return { catalog: "Coffee" };
       })
-      .loader(() => {
-        publicCalls += 1;
-        return { siteName: "Coffee" };
-      })
-      .layout(({ children }) => (
+      .layout(({ children, catalog }) => (
         <html lang="en">
           <head>
             <HeadContent />
           </head>
           <body>
+            <aside>{catalog}</aside>
             {children}
             <Scripts />
           </body>
         </html>
       ));
-    const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
-    const mixedPage = defineRoute()
-      .config({ layout: mixedRoot, mode: "ssr" })
+    const mixedPage = defineRoute("/mixed")
+      .config({
+        mode: "ssr",
+        query: t.Object({ page: t.Number({ default: 1 }) }),
+      })
+      .loader(() => ({}))
+      .page(() => <main>menu</main>);
+    const { app } = await mountProductionApp({
+      buildId: "build-1",
+      pages: [{ pattern: "/menu", route: mixedPage }],
+      root: mixedRoot,
+    });
+
+    for (const search of ["?page=02", "?page=2.0", "?page=2", "", "?page=01"]) {
+      // biome-ignore lint/performance/noAwaitInLoops: later requests must observe the first cache fill.
+      const response = await app.handle(new Request(`http://localhost/menu${search}`));
+      expect(response.status).toBe(200);
+    }
+
+    expect(publicQueries).toEqual([{ page: 2 }, { page: 1 }]);
+  });
+
+  test("an SSR page loader inherits SSG layout request data in documents and navigations", async () => {
+    let publicCalls = 0;
+    let requestCalls = 0;
+    const mixedRoot = createAdminRoot(
+      () => {
+        requestCalls += 1;
+      },
+      () => {
+        publicCalls += 1;
+      }
+    );
+    const mixedPage = defineRoute("/ppr/admin")
+      .config({ mode: "ssr" })
       .loader(async ({ adminUser, siteName }) => ({
         greeting: `${await siteName}: ${await adminUser}`,
       }))
       .page(({ greeting }) => <main>{greeting}</main>);
-    const page = adaptDefinedPage(mixedPage, mixedRootRoute);
-    const resolved: ResolvedRoute = {
-      mode: "ssr",
-      page,
-      path: "/private-coffee.tsx",
-      pattern: "/private-coffee",
-      requestKeys: ["adminUser"],
-      routeChain: collectRouteChainFromRoute(page._route),
-      segmentBoundaries: [],
-    };
-    const mixedRootRecord = { path: "/root.tsx", route: mixedRootRoute };
-    const app = new Elysia()
-      .use(createRoutePlugin(resolved, mixedRootRecord, "build-1"))
-      .use(createDataEndpoint([resolved], mixedRootRecord));
+    const { app } = await mountProductionApp({
+      buildId: "build-1",
+      pages: [{ pattern: "/private-coffee", requestKeys: ["adminUser"], route: mixedPage }],
+      root: mixedRoot,
+    });
 
     const checkRequest = async (user: string) => {
       const headers = { cookie: `session=${user}` };
@@ -606,7 +761,7 @@ describe.serial("partial prerendering", () => {
       expect(document.headers.get("cache-control")).toContain("no-store");
 
       const navigation = await app.handle(
-        new Request("http://localhost/_furin/data?path=%2Fprivate-coffee", { headers })
+        new Request("http://localhost/private-coffee?_furin=data", { headers })
       );
       expect(await navigation.text()).toContain(`Coffee: ${user}`);
     };
@@ -634,23 +789,15 @@ describe.serial("partial prerendering", () => {
           </body>
         </html>
       ));
-    const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
-    const mixedPage = defineRoute()
-      .config({ layout: mixedRoot, mode: "ssg" })
+    const mixedPage = defineRoute("/mixed")
+      .config({ mode: "ssg" })
       .loader(() => ({ pageVersion: (pageCalls += 1) }))
       .page(({ pageVersion }) => <main>{pageVersion}</main>);
-    const page = adaptDefinedPage(mixedPage, mixedRootRoute);
-    const resolved: ResolvedRoute = {
-      mode: "ssg",
-      page,
-      path: "/mixed-ssg.tsx",
-      pattern: "/mixed-ssg",
-      routeChain: collectRouteChainFromRoute(page._route),
-      segmentBoundaries: [],
-    };
-    const app = new Elysia().use(
-      createRoutePlugin(resolved, { path: "/root.tsx", route: mixedRootRoute }, "build-1")
-    );
+    const { app } = await mountProductionApp({
+      buildId: "build-1",
+      pages: [{ pattern: "/mixed-ssg", route: mixedPage }],
+      root: mixedRoot,
+    });
 
     const first = await app.handle(new Request("http://localhost/mixed-ssg"));
     expect(first.headers.get("cache-control")).toContain("s-maxage=30");
@@ -678,23 +825,15 @@ describe.serial("partial prerendering", () => {
           </body>
         </html>
       ));
-    const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
-    const mixedPage = defineRoute()
-      .config({ layout: mixedRoot, mode: "isr", revalidate: 15 })
+    const mixedPage = defineRoute("/mixed")
+      .config({ mode: "isr", revalidate: 15 })
       .loader(() => ({ pageVersion: (pageCalls += 1) }))
       .page(({ pageVersion }) => <main>{pageVersion}</main>);
-    const page = adaptDefinedPage(mixedPage, mixedRootRoute);
-    const resolved: ResolvedRoute = {
-      mode: "isr",
-      page,
-      path: "/mixed-isr.tsx",
-      pattern: "/mixed-isr",
-      routeChain: collectRouteChainFromRoute(page._route),
-      segmentBoundaries: [],
-    };
-    const app = new Elysia().use(
-      createRoutePlugin(resolved, { path: "/root.tsx", route: mixedRootRoute }, "build-1")
-    );
+    const { app } = await mountProductionApp({
+      buildId: "build-1",
+      pages: [{ pattern: "/mixed-isr", route: mixedPage }],
+      root: mixedRoot,
+    });
 
     const first = await app.handle(new Request("http://localhost/mixed-isr"));
     expect(first.headers.get("cache-control")).toContain("s-maxage=15");
@@ -707,31 +846,23 @@ describe.serial("partial prerendering", () => {
   test("ISR layout and page keep their own revalidation intervals", async () => {
     let layoutCalls = 0;
     let pageCalls = 0;
-    const mixedRoot = defineRootRoute()
-      .config({ mode: "isr", revalidate: 0 })
-      .loader(() => ({ layoutVersion: (layoutCalls += 1) }))
-      .layout(({ children }) => children);
-    const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
-    const mixedPage = defineRoute()
-      .config({ layout: mixedRoot, mode: "isr", revalidate: 30 })
+    const mixedRoot = createVersionRoot(() => {
+      layoutCalls += 1;
+      return layoutCalls;
+    });
+    const mixedPage = defineRoute("/ppr/version")
+      .config({ mode: "isr", revalidate: 30 })
       .loader(() => ({ pageVersion: (pageCalls += 1) }))
       .page(() => null);
-    const page = adaptDefinedPage(mixedPage, mixedRootRoute);
-    const resolved: ResolvedRoute = {
-      mode: "isr",
-      page,
-      path: "/intervals.tsx",
-      pattern: "/intervals",
-      routeChain: collectRouteChainFromRoute(page._route),
-      segmentBoundaries: [],
-    };
-    const app = new Elysia().use(
-      createDataEndpoint([resolved], { path: "/root.tsx", route: mixedRootRoute })
-    );
+    const { app } = await mountProductionApp({
+      buildId: "build-1",
+      pages: [{ pattern: "/intervals", route: mixedPage }],
+      root: mixedRoot,
+    });
 
-    const first = await app.handle(new Request("http://localhost/_furin/data?path=%2Fintervals"));
+    const first = await app.handle(new Request("http://localhost/intervals?_furin=data"));
     await first.text();
-    const second = await app.handle(new Request("http://localhost/_furin/data?path=%2Fintervals"));
+    const second = await app.handle(new Request("http://localhost/intervals?_furin=data"));
     await second.text();
     expect(first.headers.get("cache-control")).toContain("s-maxage=0");
     expect(layoutCalls).toBe(2);
@@ -741,37 +872,27 @@ describe.serial("partial prerendering", () => {
   test("renews a cached child when its parent data changes", async () => {
     let layoutCalls = 0;
     let pageCalls = 0;
-    const mixedRoot = defineRootRoute()
-      .config({ mode: "isr", revalidate: 0 })
-      .loader(() => ({ layoutVersion: (layoutCalls += 1) }))
-      .layout(({ children }) => children);
-    const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
-    const mixedPage = defineRoute()
-      .config({ layout: mixedRoot, mode: "isr", revalidate: 30 })
+    const mixedRoot = createVersionRoot(() => {
+      layoutCalls += 1;
+      return layoutCalls;
+    });
+    const mixedPage = defineRoute("/ppr/version")
+      .config({ mode: "isr", revalidate: 30 })
       .loader(async ({ layoutVersion }) => {
         pageCalls += 1;
         return { derivedVersion: await layoutVersion };
       })
       .page(() => null);
-    const page = adaptDefinedPage(mixedPage, mixedRootRoute);
-    const resolved: ResolvedRoute = {
-      mode: "isr",
-      page,
-      path: "/dependent-intervals.tsx",
-      pattern: "/dependent-intervals",
-      routeChain: collectRouteChainFromRoute(page._route),
-      segmentBoundaries: [],
-    };
-    const app = new Elysia().use(
-      createDataEndpoint([resolved], { path: "/root.tsx", route: mixedRootRoute })
-    );
+    const { app } = await mountProductionApp({
+      buildId: "build-1",
+      pages: [{ pattern: "/dependent-intervals", route: mixedPage }],
+      root: mixedRoot,
+    });
 
-    const first = await app.handle(
-      new Request("http://localhost/_furin/data?path=%2Fdependent-intervals")
-    );
+    const first = await app.handle(new Request("http://localhost/dependent-intervals?_furin=data"));
     const firstData = await first.text();
     const second = await app.handle(
-      new Request("http://localhost/_furin/data?path=%2Fdependent-intervals")
+      new Request("http://localhost/dependent-intervals?_furin=data")
     );
     const secondData = await second.text();
     expect(firstData).toContain("derivedVersion");
@@ -796,40 +917,27 @@ describe.serial("partial prerendering", () => {
           </body>
         </html>
       ));
-    const rootRoute = adaptDefinedLayout(privateRoot, undefined);
-    const terminal = defineRoute()
-      .config({ layout: privateRoot, mode: "isr", revalidate: 60, tags: ["catalog"] })
+    const terminal = defineRoute("/terminal")
+      .config({ mode: "isr", revalidate: 60, tags: ["catalog"] })
       .loader(() => ({ catalog: (publicCalls += 1) }))
       .page(({ catalog }) => <main>{catalog}</main>);
-    const page = adaptDefinedPage(terminal, rootRoute);
-    const route: ResolvedRoute = {
-      mode: "isr",
-      page,
-      path: "/shared-mixed.tsx",
-      pattern: "/shared-mixed",
-      routeChain: collectRouteChainFromRoute(page._route),
-      segmentBoundaries: [],
-      tags: ["catalog"],
-    };
-    const owner = registerInstance(createInstance("", "/shared-mixed/pages"));
-    owner.buildId = "build-1";
     const cache = createMemoryPageCache();
-    setPageCacheAdapter(owner, cache);
-    const app = new Elysia().use(
-      createRoutePlugin(route, { path: "/root.tsx", route: rootRoute }, owner.buildId)
-    );
+    const { app, instance } = await mountProductionApp({
+      buildId: "build-1",
+      pageCache: cache,
+      pages: [{ pattern: "/shared-mixed", route: terminal }],
+      root: privateRoot,
+    });
 
     try {
-      await withInstance(owner, () => app.handle(new Request("http://localhost/shared-mixed")));
-      await withInstance(owner, () => app.handle(new Request("http://localhost/shared-mixed")));
+      await app.handle(new Request("http://localhost/shared-mixed"));
+      await app.handle(new Request("http://localhost/shared-mixed"));
       expect(publicCalls).toBe(1);
       await cache.invalidate({ kind: "tags", scope: "", tags: ["catalog"] });
-      await withInstance(owner, () => app.handle(new Request("http://localhost/shared-mixed")));
+      await app.handle(new Request("http://localhost/shared-mixed"));
       expect(publicCalls).toBe(2);
     } finally {
-      clearMixedPublicCache(owner);
-      resetPageCacheAdapter(owner);
-      __clearInstanceRegistry();
+      clearMixedPublicCache(instance);
     }
   });
 
@@ -856,38 +964,24 @@ describe.serial("partial prerendering", () => {
           </body>
         </html>
       ));
-    const rootRoute = adaptDefinedLayout(privateRoot, undefined);
-    const terminal = defineRoute()
-      .config({ layout: privateRoot, mode: "isr", revalidate: 60 })
+    const terminal = defineRoute("/terminal")
+      .config({ mode: "isr", revalidate: 60 })
       .loader(() => ({ catalog: "Fresh catalog" }))
       .page(({ catalog }) => <main>{catalog}</main>);
-    const page = adaptDefinedPage(terminal, rootRoute);
-    const route: ResolvedRoute = {
-      mode: "isr",
-      page,
-      path: "/unavailable-mixed.tsx",
-      pattern: "/unavailable-mixed",
-      routeChain: collectRouteChainFromRoute(page._route),
-      segmentBoundaries: [],
-    };
-    const owner = registerInstance(createInstance("", "/unavailable-mixed/pages"));
-    owner.buildId = "build-1";
-    setPageCacheAdapter(owner, cache);
-    const app = new Elysia().use(
-      createRoutePlugin(route, { path: "/root.tsx", route: rootRoute }, owner.buildId)
-    );
+    const { app, instance } = await mountProductionApp({
+      buildId: "build-1",
+      pageCache: cache,
+      pages: [{ pattern: "/unavailable-mixed", route: terminal }],
+      root: privateRoot,
+    });
 
     try {
-      const response = await withInstance(owner, () =>
-        app.handle(new Request("http://localhost/unavailable-mixed"))
-      );
+      const response = await app.handle(new Request("http://localhost/unavailable-mixed"));
       expect(response.status).toBe(200);
       expect(response.headers.get("cache-control")).toContain("no-store");
       expect(await response.text()).toContain("Fresh catalog");
     } finally {
-      clearMixedPublicCache(owner);
-      resetPageCacheAdapter(owner);
-      __clearInstanceRegistry();
+      clearMixedPublicCache(instance);
     }
   });
 
@@ -899,9 +993,8 @@ describe.serial("partial prerendering", () => {
       .config({ mode: "ssr" })
       .loader(() => ({ session: "private" }))
       .layout(({ children }) => children);
-    const rootRoute = adaptDefinedLayout(privateRoot, undefined);
-    const terminal = defineRoute()
-      .config({ layout: privateRoot, mode: "isr", revalidate: 60 })
+    const terminal = defineRoute("/terminal")
+      .config({ mode: "isr", revalidate: 60 })
       .loader(async () => {
         publicCalls += 1;
         if (publicCalls === 1) {
@@ -911,37 +1004,24 @@ describe.serial("partial prerendering", () => {
         return { catalog: publicCalls };
       })
       .page(() => null);
-    const page = adaptDefinedPage(terminal, rootRoute);
-    const route: ResolvedRoute = {
-      mode: "isr",
-      page,
-      path: "/inflight-mixed.tsx",
-      pattern: "/inflight-mixed",
-      routeChain: collectRouteChainFromRoute(page._route),
-      segmentBoundaries: [],
-    };
-    const owner = registerInstance(createInstance("", "/inflight-mixed/pages"));
-    owner.buildId = "build-1";
-    const app = new Elysia().use(
-      createDataEndpoint([route], { path: "/root.tsx", route: rootRoute })
-    );
+    const { app, instance } = await mountProductionApp({
+      buildId: "build-1",
+      pageCache: undefined,
+      pages: [{ pattern: "/inflight-mixed", route: terminal }],
+      root: privateRoot,
+    });
 
     try {
-      const first = withInstance(owner, () =>
-        app.handle(new Request("http://localhost/_furin/data?path=%2Finflight-mixed"))
-      );
+      const first = app.handle(new Request("http://localhost/inflight-mixed?_furin=data"));
       await started.promise;
-      revalidatePathForInstance(owner, "/inflight-mixed", "page");
+      revalidatePathForInstance(instance, "/inflight-mixed", "page");
       release.resolve();
       await first;
-      await withInstance(owner, () =>
-        app.handle(new Request("http://localhost/_furin/data?path=%2Finflight-mixed"))
-      );
+      await app.handle(new Request("http://localhost/inflight-mixed?_furin=data"));
       expect(publicCalls).toBe(2);
     } finally {
       release.resolve();
-      clearMixedPublicCache(owner);
-      __clearInstanceRegistry();
+      clearMixedPublicCache(instance);
     }
   });
 
@@ -953,9 +1033,8 @@ describe.serial("partial prerendering", () => {
       .config({ mode: "ssr" })
       .loader(() => ({ session: "private" }))
       .layout(({ children }) => children);
-    const rootRoute = adaptDefinedLayout(privateRoot, undefined);
-    const terminal = defineRoute()
-      .config({ layout: privateRoot, mode: "isr", revalidate: 60, tags: ["catalog"] })
+    const terminal = defineRoute("/terminal")
+      .config({ mode: "isr", revalidate: 60, tags: ["catalog"] })
       .loader(async () => {
         publicCalls += 1;
         if (publicCalls === 1) {
@@ -965,41 +1044,25 @@ describe.serial("partial prerendering", () => {
         return { catalog: publicCalls };
       })
       .page(() => null);
-    const page = adaptDefinedPage(terminal, rootRoute);
-    const route: ResolvedRoute = {
-      mode: "isr",
-      page,
-      path: "/inflight-shared-mixed.tsx",
-      pattern: "/inflight-shared-mixed",
-      routeChain: collectRouteChainFromRoute(page._route),
-      segmentBoundaries: [],
-      tags: ["catalog"],
-    };
-    const owner = registerInstance(createInstance("", "/inflight-shared-mixed/pages"));
-    owner.buildId = "build-1";
     const cache = createMemoryPageCache();
-    setPageCacheAdapter(owner, cache);
-    const app = new Elysia().use(
-      createDataEndpoint([route], { path: "/root.tsx", route: rootRoute })
-    );
+    const { app, instance } = await mountProductionApp({
+      buildId: "build-1",
+      pageCache: cache,
+      pages: [{ pattern: "/inflight-shared-mixed", route: terminal }],
+      root: privateRoot,
+    });
 
     try {
-      const first = withInstance(owner, () =>
-        app.handle(new Request("http://localhost/_furin/data?path=%2Finflight-shared-mixed"))
-      );
+      const first = app.handle(new Request("http://localhost/inflight-shared-mixed?_furin=data"));
       await started.promise;
       await cache.invalidate({ kind: "tags", scope: "", tags: ["catalog"] });
       release.resolve();
       await first;
-      await withInstance(owner, () =>
-        app.handle(new Request("http://localhost/_furin/data?path=%2Finflight-shared-mixed"))
-      );
+      await app.handle(new Request("http://localhost/inflight-shared-mixed?_furin=data"));
       expect(publicCalls).toBe(2);
     } finally {
       release.resolve();
-      clearMixedPublicCache(owner);
-      resetPageCacheAdapter(owner);
-      __clearInstanceRegistry();
+      clearMixedPublicCache(instance);
     }
   });
 
@@ -1019,51 +1082,35 @@ describe.serial("partial prerendering", () => {
           </body>
         </html>
       ));
-    const rootRoute = adaptDefinedLayout(publicRoot, undefined);
-    const terminal = defineRoute()
-      .config({ layout: publicRoot, mode: "ssg" })
+    const terminal = defineRoute("/terminal")
+      .config({ mode: "ssg" })
       .loader(() => ({ catalog }))
       .page(({ catalog: value }) => <main>{value}</main>);
-    const page = adaptDefinedPage(terminal, rootRoute);
-    const route: ResolvedRoute = {
-      mode: "ssg",
-      page,
-      path: "/tagged-mixed.tsx",
-      pattern: "/tagged-mixed",
-      routeChain: collectRouteChainFromRoute(page._route),
-      segmentBoundaries: [],
-      tags: ["catalog"],
-    };
-    const owner = registerInstance(createInstance("", "/tagged-mixed/pages"));
-    owner.buildId = "build-1";
-    const app = new Elysia().use(
-      createRoutePlugin(route, { path: "/root.tsx", route: rootRoute }, owner.buildId)
-    );
+    const { app, instance } = await mountProductionApp({
+      buildId: "build-1",
+      pageCache: undefined,
+      pages: [{ pattern: "/tagged-mixed", route: terminal }],
+      root: publicRoot,
+    });
 
     try {
-      const first = await withInstance(owner, () =>
-        app.handle(new Request("http://localhost/tagged-mixed"))
-      );
+      const first = await app.handle(new Request("http://localhost/tagged-mixed"));
       expect(await first.text()).toContain("Coffee");
-      clearMixedPublicCache(owner);
+      clearMixedPublicCache(instance);
       catalog = "Tea";
       expect(await revalidateTag("catalog")).toBe(true);
-      const fresh = await withInstance(owner, () =>
-        app.handle(new Request("http://localhost/tagged-mixed"))
-      );
+      const fresh = await app.handle(new Request("http://localhost/tagged-mixed"));
       expect(await fresh.text()).toContain("Tea");
     } finally {
-      clearMixedPublicCache(owner);
-      revalidatePathForInstance(owner, "/tagged-mixed", "page");
-      __clearInstanceRegistry();
+      clearMixedPublicCache(instance);
+      revalidatePathForInstance(instance, "/tagged-mixed", "page");
     }
   });
 
   test("keys PPR public shells by query string", async () => {
     let publicCalls = 0;
-    const route = defineRoute()
+    const route = defineRoute("/")
       .config({
-        layout: rootTerminal,
         mode: "isr",
         query: t.Object({ view: t.Optional(t.String()) }),
         revalidate: 60,
@@ -1084,8 +1131,7 @@ describe.serial("partial prerendering", () => {
         </Suspense>
       </main>
     ));
-    const resolved = resolveRoute(page);
-    const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+    const { app } = await mountAccount(page, undefined);
 
     const alpha = await app
       .handle(new Request("http://localhost/account?view=alpha"))
@@ -1103,11 +1149,124 @@ describe.serial("partial prerendering", () => {
     expect(publicCalls).toBe(3);
   });
 
+  test("keys PPR public shells on declared query params only, in canonical order", async () => {
+    const observed: unknown[] = [];
+    const route = defineRoute("/")
+      .config({
+        mode: "isr",
+        query: t.Object({ sort: t.Optional(t.String()), view: t.Optional(t.String()) }),
+        revalidate: 60,
+      })
+      .requestLoader(() => ({ user: "alice" }))
+      .loader(({ query }) => {
+        observed.push({ ...query });
+        return { view: query.view ?? "" };
+      });
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{use(data)}</strong>;
+    }
+    const page = route.page(({ user, view }) => (
+      <main>
+        <h1>{view}</h1>
+        <Suspense fallback={<span>Loading</span>}>
+          <User data={user} />
+        </Suspense>
+      </main>
+    ));
+    const { app } = await mountAccount(page, undefined);
+
+    for (const search of [
+      "?view=alpha&sort=new",
+      "?sort=new&view=alpha&junk=1",
+      "?utm_source=x&view=alpha&sort=new",
+      "?view=beta&sort=new",
+    ]) {
+      // biome-ignore lint/performance/noAwaitInLoops: later requests must observe the first cache fill.
+      await app.handle(new Request(`http://localhost/account${search}`));
+    }
+
+    expect(observed).toEqual([
+      { sort: "new", view: "alpha" },
+      { sort: "new", view: "beta" },
+    ]);
+  });
+
+  test("keys PPR public shells on declared query values as the schema decodes them", async () => {
+    const observed: unknown[] = [];
+    const route = defineRoute("/")
+      .config({
+        mode: "isr",
+        query: t.Object({ page: t.Number({ default: 1 }) }),
+        revalidate: 60,
+      })
+      .requestLoader(() => ({ user: "alice" }))
+      .loader(({ query }) => {
+        observed.push({ ...query });
+        return { page: query.page };
+      });
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{use(data)}</strong>;
+    }
+    const page = route.page(({ page: current, user }) => (
+      <main>
+        <h1>{current}</h1>
+        <Suspense fallback={<span>Loading</span>}>
+          <User data={user} />
+        </Suspense>
+      </main>
+    ));
+    const { app } = await mountAccount(page, undefined);
+
+    for (const search of ["?page=02", "?page=2.0", "?page=2", "", "?page=01"]) {
+      // biome-ignore lint/performance/noAwaitInLoops: later requests must observe the first cache fill.
+      await app.handle(new Request(`http://localhost/account${search}`));
+    }
+    const invalid = await app.handle(new Request("http://localhost/account?page=abc"));
+
+    expect(invalid.status).toBeGreaterThanOrEqual(400);
+    expect(observed).toEqual([{ page: 2 }, { page: 1 }]);
+  });
+
+  test("PPR routes without a query schema share one shell while requestLoader holes see the raw query", async () => {
+    const observed: unknown[] = [];
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60 })
+      .requestLoader(({ query }) => ({ user: `ref:${Object.values(query).join()}` }))
+      .loader(({ query }) => {
+        observed.push({ ...query });
+        return { catalog: "Shoes" };
+      });
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{use(data)}</strong>;
+    }
+    const page = route.page(({ catalog, user }) => (
+      <main>
+        <h1>{catalog}</h1>
+        <Suspense fallback={<span>Loading</span>}>
+          <User data={user} />
+        </Suspense>
+      </main>
+    ));
+    const { app } = await mountAccount(page, undefined);
+
+    const first = await app
+      .handle(new Request("http://localhost/account?ref=attacker"))
+      .then((response) => response.text());
+    const second = await app
+      .handle(new Request("http://localhost/account?ref=newsletter"))
+      .then((response) => response.text());
+
+    expect(observed).toEqual([{}]);
+    expect(first).toContain("ref:attacker");
+    expect(second).toContain("ref:newsletter");
+    expect(second).not.toContain("attacker");
+  });
+
   test("revalidateTag invalidates a PPR public shell", async () => {
     let catalog = "Shoes";
     let publicCalls = 0;
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60, tags: ["catalog"] })
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => {
         publicCalls += 1;
@@ -1124,8 +1283,7 @@ describe.serial("partial prerendering", () => {
         </Suspense>
       </main>
     ));
-    const resolved = resolveRoute(page);
-    const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+    const { app } = await mountAccount(page, undefined);
 
     const first = await app
       .handle(new Request("http://localhost/account"))
@@ -1150,31 +1308,25 @@ describe.serial("partial prerendering", () => {
 
   test("uses the shared page cache for PPR public artifacts", async () => {
     let publicCalls = 0;
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60, tags: ["catalog"] })
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => {
         publicCalls += 1;
         return { catalog: publicCalls };
       })
       .page(({ catalog }) => <main>{catalog}</main>);
-    const resolved = resolveRoute(route);
-    const owner = registerInstance(createInstance("", "/shared-ppr/pages"));
-    owner.buildId = "build-1";
     const cache = createMemoryPageCache();
-    setPageCacheAdapter(owner, cache);
-    const app = new Elysia().use(createRoutePlugin(resolved, root, owner.buildId));
+    const { app, instance } = await mountAccount(route, cache);
 
     try {
-      await withInstance(owner, () => app.handle(new Request("http://localhost/account")));
-      await withInstance(owner, () => app.handle(new Request("http://localhost/account")));
+      await app.handle(new Request("http://localhost/account"));
+      await app.handle(new Request("http://localhost/account"));
       expect(publicCalls).toBe(1);
       await cache.invalidate({ kind: "tags", scope: "", tags: ["catalog"] });
-      await withInstance(owner, () => app.handle(new Request("http://localhost/account")));
+      await app.handle(new Request("http://localhost/account"));
     } finally {
-      resetPageCacheAdapter(owner);
-      clearPprRouteCache(owner);
-      __clearInstanceRegistry();
+      clearPprRouteCache(instance);
     }
 
     expect(publicCalls).toBe(2);
@@ -1183,26 +1335,21 @@ describe.serial("partial prerendering", () => {
   test("shared PPR query discovery stores an artifact on the next render", async () => {
     let reads = 0;
     const identity = { id: "catalog", scope: {}, session: "public" };
-    const api = createClient(
+    const api = treaty(
       new Elysia().get("/catalog", ({ set }) => {
         reads += 1;
         set.headers["x-furin-query"] = JSON.stringify(identity);
         return { title: "Public" };
       })
-    );
-    const page = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 3600 })
+    ).use(furinSync);
+    const page = defineRoute("/")
+      .config({ mode: "isr", revalidate: 3600 })
       .requestLoader(() => ({ user: "alice" }))
-      .loader(async () => ({ catalog: (await api.catalog.get()).data }))
+      .loader(async () => ({ catalog: (await api.catalog.get.live()).data }))
       .page(({ catalog }) => <main>{catalog?.title}</main>);
-    const resolved = resolveRoute(page);
-    const owner = registerInstance(createInstance("", "/query-ppr/pages"));
-    owner.buildId = "build-1";
     const cache = createMemoryPageCache();
-    setPageCacheAdapter(owner, cache);
-    const app = new Elysia().use(createRoutePlugin(resolved, root, owner.buildId));
-    const request = () =>
-      withInstance(owner, () => app.handle(new Request("http://localhost/account")));
+    const { app, instance } = await mountAccount(page, cache);
+    const request = () => app.handle(new Request("http://localhost/account"));
     try {
       await (await request()).text();
       await (await request()).text();
@@ -1212,47 +1359,155 @@ describe.serial("partial prerendering", () => {
       await (await request()).text();
       expect(reads).toBe(3);
     } finally {
-      resetPageCacheAdapter(owner);
-      clearPprRouteCache(owner);
-      getAutoInvalidateRegistry(owner).unregisterPath("/account");
-      __clearInstanceRegistry();
+      clearPprRouteCache(instance);
+      getAutoInvalidateRegistry(instance).unregisterPath("/account");
     }
+  });
+
+  /** A deployment runtime cache, as the Vercel handler installs, recording public shell writes. */
+  function installDeploymentCache(): string[] {
+    const values = new Map<string, unknown>();
+    const writes: string[] = [];
+    setRuntimeCacheProvider({
+      getCache: () => ({
+        delete: () => Promise.resolve(),
+        expireTag: () => Promise.resolve(),
+        get: (key) => Promise.resolve(values.get(key) ?? null),
+        set: (key, value) => {
+          values.set(key, value);
+          writes.push(key);
+          return Promise.resolve();
+        },
+      }),
+    });
+    return writes;
+  }
+
+  function mountQueryAccount(onPublic: () => void, onPrivate: () => void) {
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{use(data)}</strong>;
+    }
+    return mountAccount(
+      defineRoute("/")
+        .config({
+          mode: "isr",
+          query: t.Object({ view: t.Optional(t.String()) }),
+          revalidate: 60,
+        })
+        .requestLoader(() => {
+          onPrivate();
+          return { user: "alice" };
+        })
+        .loader(({ query }) => {
+          onPublic();
+          return { view: query.view ?? "" };
+        })
+        .page(({ user, view }) => (
+          <main>
+            <h1>{view}</h1>
+            <Suspense fallback={<span>Loading</span>}>
+              <User data={user} />
+            </Suspense>
+          </main>
+        )),
+      undefined
+    );
+  }
+
+  test("PPR navigation data shares one public shell per canonical query and stays private", async () => {
+    const writes = installDeploymentCache();
+    let publicCalls = 0;
+    let privateCalls = 0;
+    const { app } = await mountQueryAccount(
+      () => {
+        publicCalls += 1;
+      },
+      () => {
+        privateCalls += 1;
+      }
+    );
+
+    for (const search of ["?view=alpha&junk=1&_furin=data", "?_furin=data&junk=2&view=alpha"]) {
+      // biome-ignore lint/performance/noAwaitInLoops: later requests must observe the first cache fill.
+      const response = await app.handle(new Request(`http://localhost/account${search}`));
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      await response.text();
+    }
+
+    expect(publicCalls).toBe(1);
+    expect(privateCalls).toBe(2);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toContain('"isr:/account?view=alpha"');
+  });
+
+  test("a platform prerender stores its public shell where navigation data finds it", async () => {
+    installDeploymentCache();
+    let publicCalls = 0;
+    const { app } = await mountQueryAccount(
+      () => {
+        publicCalls += 1;
+      },
+      () => undefined
+    );
+
+    await app
+      .handle(
+        markExternalPrerenderRequest(new Request("http://localhost/account?junk=1&view=alpha"))
+      )
+      .then((response) => response.text());
+    await app
+      .handle(new Request("http://localhost/account?view=alpha&_furin=data"))
+      .then((response) => response.text());
+
+    expect(publicCalls).toBe(1);
+  });
+
+  test("a platform prerender records the canonical query its holes resume with", async () => {
+    const { app } = await mountQueryAccount(
+      () => undefined,
+      () => undefined
+    );
+
+    const response = await app.handle(
+      markExternalPrerenderRequest(new Request("http://localhost/account?view=alpha&utm_source=x"))
+    );
+    const stateLength = Number(response.headers.get("content-type")?.match(STATE_LENGTH_RE)?.[1]);
+    const body = new Uint8Array(await response.arrayBuffer());
+    const state = JSON.parse(new TextDecoder().decode(body.subarray(0, stateLength))) as {
+      path: string;
+    };
+
+    expect(state.path).toBe("/account?view=alpha");
   });
 
   test("external prerender bypasses shared and local PPR artifacts", async () => {
     let publicCalls = 0;
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60 })
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => {
         publicCalls += 1;
         return { catalog: publicCalls };
       })
       .page(({ catalog }) => <main>{catalog}</main>);
-    const resolved = resolveRoute(route);
-    const owner = registerInstance(createInstance("", "/external-ppr/pages"));
-    owner.buildId = "build-1";
     const cache = createMemoryPageCache();
-    setPageCacheAdapter(owner, cache);
-    const app = new Elysia().use(createRoutePlugin(resolved, root, owner.buildId));
+    const { app, instance } = await mountAccount(route, cache);
 
     try {
-      await withInstance(owner, () => app.handle(new Request("http://localhost/account")));
+      await app.handle(new Request("http://localhost/account"));
       const request = markExternalPrerenderRequest(new Request("http://localhost/account"));
-      await withInstance(owner, () => app.handle(request));
+      await app.handle(request);
       expect(publicCalls).toBe(2);
     } finally {
-      resetPageCacheAdapter(owner);
-      clearPprRouteCache(owner);
-      __clearInstanceRegistry();
+      clearPprRouteCache(instance);
     }
   });
 
   test("serves stale shared PPR while regeneration runs in the background", async () => {
     const gate = Promise.withResolvers<void>();
     let publicCalls = 0;
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60 })
       .requestLoader(() => ({ user: "alice" }))
       .loader(async () => {
         publicCalls += 1;
@@ -1262,14 +1517,10 @@ describe.serial("partial prerendering", () => {
         return { catalog: publicCalls };
       })
       .page(({ catalog }) => <main>{catalog}</main>);
-    const resolved = resolveRoute(route);
-    const owner = registerInstance(createInstance("", "/stale-shared-ppr/pages"));
-    owner.buildId = "build-1";
     const cache = createMemoryPageCache();
-    setPageCacheAdapter(owner, cache);
-    const app = new Elysia().use(createRoutePlugin(resolved, root, owner.buildId));
+    const { app, instance } = await mountAccount(route, cache);
     const identity: PageCacheIdentity = {
-      buildId: owner.buildId,
+      buildId: "build-1",
       key: "isr:/account",
       mode: "ppr",
       path: "/account",
@@ -1278,7 +1529,7 @@ describe.serial("partial prerendering", () => {
     };
 
     try {
-      await withInstance(owner, () => app.handle(new Request("http://localhost/account")));
+      await app.handle(new Request("http://localhost/account"));
       const stored = await cache.read(identity);
       if (stored === null) {
         throw new Error("Expected the initial shared PPR artifact");
@@ -1296,9 +1547,7 @@ describe.serial("partial prerendering", () => {
         lease,
       });
 
-      const response = withInstance(owner, () =>
-        app.handle(new Request("http://localhost/account"))
-      );
+      const response = app.handle(new Request("http://localhost/account"));
       const settled = await Promise.race([
         response.then((value) => ({ type: "response" as const, value })),
         Bun.sleep(100).then(() => ({ type: "timeout" as const })),
@@ -1310,9 +1559,7 @@ describe.serial("partial prerendering", () => {
       }
     } finally {
       gate.resolve();
-      resetPageCacheAdapter(owner);
-      clearPprRouteCache(owner);
-      __clearInstanceRegistry();
+      clearPprRouteCache(instance);
     }
   });
 
@@ -1325,34 +1572,26 @@ describe.serial("partial prerendering", () => {
       read: unavailable,
       release: unavailable,
     };
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60 })
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => ({ catalog: "Fresh catalog" }))
       .page(({ catalog }) => <main>{catalog}</main>);
-    const resolved = resolveRoute(route);
-    const owner = registerInstance(createInstance("", "/unavailable-ppr/pages"));
-    owner.buildId = "build-1";
-    setPageCacheAdapter(owner, cache);
-    const app = new Elysia().use(createRoutePlugin(resolved, root, owner.buildId));
+    const { app, instance } = await mountAccount(route, cache);
 
     try {
-      const response = await withInstance(owner, () =>
-        app.handle(new Request("http://localhost/account"))
-      );
+      const response = await app.handle(new Request("http://localhost/account"));
       expect(response.status).toBe(200);
       expect(response.headers.get("cache-control")).toBe("private, no-store");
       expect(await response.text()).toContain("Fresh catalog");
     } finally {
-      resetPageCacheAdapter(owner);
-      clearPprRouteCache(owner);
-      __clearInstanceRegistry();
+      clearPprRouteCache(instance);
     }
   });
 
   test("streams a rejected request field instead of aborting the PPR response", async () => {
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60 })
       .requestLoader((): { user: string } => {
         throw new Error("private boom");
       })
@@ -1368,8 +1607,7 @@ describe.serial("partial prerendering", () => {
         </Suspense>
       </main>
     ));
-    const resolved = resolveRoute(page);
-    const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+    const { app } = await mountAccount(page, undefined);
 
     const html = await app
       .handle(new Request("http://localhost/account"))

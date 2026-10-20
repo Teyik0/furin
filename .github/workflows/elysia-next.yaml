@@ -1,0 +1,43 @@
+name: Workflow - Elysia next
+
+# Furin pins an exact Elysia beta. This runs the core tests against the
+# latest `elysia@next` so upcoming betas break CI before they break users.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core-tests:
+    name: Core tests on elysia@next
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Point the workspace catalog at elysia@next
+        run: |
+          jq '.catalog.elysia = "next"' package.json > package.next.json
+          mv package.next.json package.json
+
+      - name: Install packages
+        run: bun install
+
+      - name: Show resolved Elysia
+        run: bun why elysia
+
+      - name: Build core
+        run: bun run --filter '@teyik0/furin' build
+
+      - name: Test core
+        working-directory: packages/core
+        run: bun run test

@@ -78,7 +78,8 @@ export function buildSearchEntriesForDoc(doc: DocNavItem, markdown: string, orde
   const pageContentParts: string[] = [];
   const sections: SearchIndexSection[] = [];
 
-  let nextOrder = orderOffset;
+  const pageOrder = orderOffset;
+  let nextOrder = orderOffset + 1;
   let activeH2: SearchIndexSection | undefined;
   let activeH3: SearchIndexSection | undefined;
 
@@ -149,8 +150,6 @@ export function buildSearchEntriesForDoc(doc: DocNavItem, markdown: string, orde
     section.content = section.contentParts.join(" ").trim();
   }
 
-  const pageOrder = nextOrder;
-  nextOrder += 1;
   const pageEntry: SearchIndexEntry = {
     content: pageContentParts.join(" ").trim(),
     description: doc.description,

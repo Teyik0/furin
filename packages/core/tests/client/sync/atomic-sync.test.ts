@@ -13,6 +13,19 @@ import { migrateSqliteSync } from "../../../src/server/sync/sqlite/index.ts";
 
 const counter = sqliteTable("counter", { value: integer().notNull() });
 
+test("Drizzle SQLite journals invalidations without a mutation lease", async () => {
+  const sqlite = new Database(":memory:");
+  migrateSqliteSync(sqlite);
+  const adapter = drizzleSyncAdapter({ db: drizzle(sqlite), namespace: "journal-only" });
+  const invalidations = [{ kind: "tags", tags: ["journal-only"] }] as const;
+  const cursor = await adapter.appendInvalidations(invalidations);
+  expect(cursor).toBe("1");
+  expect((await adapter.readChanges({ after: "0", limit: 10 })).changes).toEqual([
+    { cursor, invalidations },
+  ]);
+  sqlite.close();
+});
+
 test("bodyless default Responses honor the explicit HTTP status before committing", async () => {
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
@@ -388,7 +401,7 @@ test("replays short-circuit a generic application error fallback", async () => {
   const adapter = drizzleSyncAdapter({ db, namespace: "error-fallback" });
   let calls = 0;
   const app = new Elysia()
-    .error("global", () => Response.json({ error: "fallback" }, { status: 500 }))
+    .onError("global", () => Response.json({ error: "fallback" }, { status: 500 }))
     .use(furinSync({ adapter, principal: () => "user" }))
     .post("/mutation", ({ mutation }) =>
       mutation(() => {
@@ -492,14 +505,12 @@ test("ALL mutations beside a mount roll back invalid responses and commit retrie
   let count = "invalid" as unknown as number;
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
-    .all(
-      "/mutation",
-      { response: t.Object({ count: t.Number() }), sync: { invalidate: { tags: ["counter"] } } },
-      ({ mutation }) =>
-        mutation((tx) => {
-          tx.insert(counter).values({ value: 1 }).run();
-          return { count };
-        })
+    .all("/mutation", { response: t.Object({ count: t.Number() }) }, ({ invalidate, mutation }) =>
+      mutation((tx) => {
+        invalidate({ tags: ["counter"] });
+        tx.insert(counter).values({ value: 1 }).run();
+        return { count };
+      })
     )
     .mount("/auth", () => Response.json({ session: "mounted" }))
     .get("/counter", () => db.select().from(counter).all());
@@ -549,8 +560,9 @@ test("notifications observe the committed business write from another connection
   try {
     const app = new Elysia()
       .use(furinSync({ adapter, notifier, principal: () => "user" }))
-      .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, ({ mutation }) =>
+      .post("/counter", ({ invalidate, mutation }) =>
         mutation((tx) => {
+          invalidate({ tags: ["counter"] });
           tx.insert(counter).values({ value: 1 }).run();
           return { count: 1 };
         })
@@ -585,8 +597,9 @@ test("losing a lease cannot commit a business write", async () => {
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
     .get("/counter", () => db.select().from(counter).all())
-    .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, ({ mutation }) =>
+    .post("/counter", ({ invalidate, mutation }) =>
       mutation((tx) => {
+        invalidate({ tags: ["counter"] });
         tx.insert(counter).values({ value: 1 }).run();
         return { count: 1 };
       })
@@ -618,8 +631,9 @@ test("serialization failure rolls back business writes and releases the idempote
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
     .get("/counter", () => db.select().from(counter).all())
-    .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, ({ mutation }) =>
+    .post("/counter", ({ invalidate, mutation }) =>
       mutation((tx) => {
+        invalidate({ tags: ["counter"] });
         tx.insert(counter).values({ value: 1 }).run();
         const result: Result = { count: 1 };
         if (circularResults.has("enabled")) {
@@ -661,14 +675,12 @@ test("a journal failure rolls back the business write and publishes no invalidat
   const app = new Elysia()
     .use(furinSync({ adapter, notifier, principal: () => "user" }))
     .get("/counter", () => db.select().from(counter).all())
-    .post(
-      "/counter",
-      { sync: { invalidate: { path: "/counter", type: "page" } } },
-      ({ mutation }) =>
-        mutation((tx) => {
-          tx.insert(counter).values({ value: 1 }).run();
-          return { count: 1 };
-        })
+    .post("/counter", ({ invalidate, mutation }) =>
+      mutation((tx) => {
+        invalidate({ path: "/counter", type: "page" });
+        tx.insert(counter).values({ value: 1 }).run();
+        return { count: 1 };
+      })
     );
   const request = () =>
     new Request("http://localhost/counter", {
@@ -761,8 +773,9 @@ test("an atomic mutation replays its response without repeating the business wri
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
     .get("/counter", () => db.select().from(counter).all())
-    .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, ({ mutation }) =>
+    .post("/counter", ({ invalidate, mutation }) =>
       mutation((tx) => {
+        invalidate({ tags: ["counter"] });
         tx.insert(counter).values({ value: 1 }).run();
         return { count: tx.select().from(counter).all().length };
       })
@@ -790,14 +803,12 @@ test("response schema failure rolls back the business write before commit", asyn
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
     .get("/counter", () => db.select().from(counter).all())
-    .post(
-      "/counter",
-      { response: t.Object({ count: t.Number() }), sync: { invalidate: { tags: ["counter"] } } },
-      ({ mutation }) =>
-        mutation((tx) => {
-          tx.insert(counter).values({ value: 1 }).run();
-          return { count: "invalid" } as unknown as { count: number };
-        })
+    .post("/counter", { response: t.Object({ count: t.Number() }) }, ({ invalidate, mutation }) =>
+      mutation((tx) => {
+        invalidate({ tags: ["counter"] });
+        tx.insert(counter).values({ value: 1 }).run();
+        return { count: "invalid" } as unknown as { count: number };
+      })
     );
   const response = await app.handle(
     new Request("http://localhost/counter", {
@@ -819,11 +830,12 @@ test("a business failure releases its key even with an application error fallbac
   const adapter = drizzleSyncAdapter({ db, namespace: "rollback" });
   const failures = new Set(["business"]);
   const app = new Elysia()
-    .error("global", () => Response.json({ error: "fallback" }, { status: 500 }))
+    .onError("global", () => Response.json({ error: "fallback" }, { status: 500 }))
     .use(furinSync({ adapter, principal: () => "user" }))
     .get("/counter", () => db.select().from(counter).all())
-    .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, ({ mutation }) =>
+    .post("/counter", ({ invalidate, mutation }) =>
       mutation((tx) => {
+        invalidate({ tags: ["counter"] });
         tx.insert(counter).values({ value: 1 }).run();
         if (failures.has("business")) {
           throw new Error("business failure");

@@ -1,36 +1,22 @@
 import type { BunPlugin } from "bun";
 import { t } from "elysia";
 import type { Static } from "typebox";
+import type { FurinAdapter } from "./adapter/types.ts";
+
+export type {
+  AdapterApp,
+  AdapterBuildOutput,
+  AdapterCapabilities,
+  AdapterPrerender,
+  AdapterRoute,
+  AdapterServerBundle,
+  AdapterTargetManifest,
+  FurinAdapter,
+} from "./adapter/types.ts";
 
 export const BUILD_TARGETS = ["bun", "vercel", "static", "package"] as const;
 
 export type BuildTarget = (typeof BUILD_TARGETS)[number];
-
-// https://vercel.com/docs/regions#region-list
-const VERCEL_REGIONS = [
-  "arn1",
-  "bom1",
-  "cdg1",
-  "cle1",
-  "cpt1",
-  "dub1",
-  "dxb1",
-  "fra1",
-  "gru1",
-  "hkg1",
-  "hnd1",
-  "iad1",
-  "icn1",
-  "kix1",
-  "lhr1",
-  "pdx1",
-  "sfo1",
-  "sin1",
-  "syd1",
-  "yul1",
-] as const;
-
-export type VercelRegion = (typeof VERCEL_REGIONS)[number];
 
 /**
  * Configuration for the `static` build target.
@@ -58,18 +44,12 @@ export interface StaticExportConfig {
   outDir?: string;
 }
 
-export interface VercelDeploymentConfig {
-  /** Vercel compute regions, such as "cdg1" or "iad1". */
-  regions?: VercelRegion[];
-}
-
-const buildTargetSchema = t.Union(BUILD_TARGETS.map((v) => t.Literal(v)));
 const compileTargetSchema = t.Union([t.Literal("server"), t.Literal("embed")]);
 
 export const configSchema = t.Object({
   /**
    * Multi-instance builds: one entry per mounted furin app. Overrides
-   * `pagesDir` and server-entry auto-detection. `prefix` must match the
+   * `pagesDir` and the mounts found by evaluating the server entry. `prefix` must match the
    * `furin({ prefix })` the app is mounted with (`""`/absent = root).
    */
   apps: t.Optional(
@@ -122,21 +102,13 @@ export const configSchema = t.Object({
       outDir: t.Optional(t.String()),
     })
   ),
-  targets: t.Optional(t.Array(buildTargetSchema)),
-  vercel: t.Optional(
-    t.Object({
-      regions: t.Optional(
-        t.Array(t.Enum(VERCEL_REGIONS), {
-          minItems: 1,
-          uniqueItems: true,
-        })
-      ),
-    })
-  ),
-  // plugins omitted : TypeBox can't validate Bun.BunPlugin[] (functions)
+  // plugins and targets omitted: TypeBox can't validate functions
 });
 
 export type FurinPlugin = BunPlugin & { buildOnly?: boolean };
+
+/** A built-in target name or a deployment adapter object. */
+export type FurinTarget = BuildTarget | FurinAdapter;
 
 // biome-ignore lint/suspicious/noEmptyInterface: Optional packages augment configuration without core dependencies.
 export interface FurinConfigExtensions {}
@@ -145,6 +117,12 @@ export type FurinConfig = Static<typeof configSchema> &
   FurinConfigExtensions & {
     plugins?: FurinPlugin[];
     static?: StaticExportConfig;
+    /**
+     * Targets `furin build` builds when `--target` is omitted (default: bun).
+     * `--target <name>` picks the entry of that name, else the built-in one —
+     * so `vercel({ regions })` here configures `furin build --target vercel`.
+     */
+    targets?: FurinTarget[];
   };
 
 export function defineConfig(config: FurinConfig): FurinConfig {

@@ -1,21 +1,24 @@
 import type { Context } from "elysia";
 import { fromCrossJSON, toCrossJSONAsync } from "seroval";
-import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
+import type {
+  RuntimeData,
+  RuntimePage,
+  RuntimeRoute,
+} from "../../client/internal/runtime-types.ts";
 import { currentQueryEnvironment } from "../../client/query-store.ts";
 import { toLogical } from "../../client/router/link-utils.ts";
 import { isDeferred } from "../../shared/defer.ts";
 import { bindQueryData, projectQueryData } from "../../shared/query-bindings.ts";
-import { type QuerySeed, queryTag } from "../../shared/sync-query.ts";
+import { type QuerySeed, queryTags } from "../../shared/sync-query.ts";
 import { autoInvalidateRegistry, getAutoInvalidateRegistry } from "../auto-invalidate/registry.ts";
 import type { PageCacheAdapter, PageCacheIdentity, PageCacheLease } from "../cache/page-cache.ts";
 import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
 import { registerCacheInvalidator } from "../cache/registry.ts";
-import { createRouteCache } from "../cache/route-cache.ts";
+import { canonicalCacheRequest, createRouteCache } from "../cache/route-cache.ts";
 import { getLogger } from "../context-logger.ts";
 import { allStateBuckets, currentInstance, type FurinInstance } from "../instance.ts";
 import { routeModuleSourceVersion } from "../router/source-version.ts";
 import type { ResolvedRoute } from "../router/types.ts";
-import { IS_DEV } from "../runtime-env.ts";
 
 interface CachedSegment {
   cachedAt: number;
@@ -37,7 +40,7 @@ function capturedQueryTags(): string[] {
   return (
     currentQueryEnvironment()
       ?.store.dehydrate()
-      .map((seed) => queryTag(seed.identity)) ?? []
+      .flatMap((seed) => queryTags(seed.identity)) ?? []
   );
 }
 
@@ -108,8 +111,8 @@ async function parentSignature(value: unknown): Promise<string> {
 async function readCachedSegment(
   entry: CachedSegment | undefined,
   revalidate: number,
-  parentData: Promise<Record<string, unknown>>
-): Promise<Record<string, unknown> | undefined> {
+  parentData: Promise<RuntimeData>
+): Promise<RuntimeData | undefined> {
   if (entry === undefined || Date.now() - entry.cachedAt >= revalidate * 1000) {
     return;
   }
@@ -130,7 +133,7 @@ async function readCachedSegment(
     const environment = currentQueryEnvironment();
     environment?.store.hydrate(snapshot.queries ?? []);
     environment?.onRead();
-    const data = fromCrossJSON(snapshot.data, {}) as Record<string, unknown>;
+    const data = fromCrossJSON(snapshot.data, {}) as RuntimeData;
     return projectQueryData(data, snapshot.queries ?? [], (seed) => seed.data);
   } catch {
     getLogger().warn("Mixed loader cache entry is invalid; loading fresh data");
@@ -138,8 +141,8 @@ async function readCachedSegment(
 }
 
 async function createSegmentSnapshot(
-  data: Record<string, unknown>,
-  parentData: Promise<Record<string, unknown>>,
+  data: RuntimeData,
+  parentData: Promise<RuntimeData>,
   parentFieldsRead: ReadonlySet<string>
 ): Promise<string> {
   const parent = parentFieldsRead.size > 0 ? await parentData : {};
@@ -186,8 +189,8 @@ async function readSharedSegment(
   shared: PageCacheAdapter,
   identity: PageCacheIdentity,
   revalidate: number,
-  parentData: Promise<Record<string, unknown>>
-): Promise<Record<string, unknown> | undefined> {
+  parentData: Promise<RuntimeData>
+): Promise<RuntimeData | undefined> {
   try {
     const entry = await shared.read(identity);
     return entry === null ? undefined : readCachedSegment(entry, revalidate, parentData);
@@ -227,8 +230,8 @@ async function readLocalSegment(
   generation: number | undefined,
   key: string,
   revalidate: number,
-  parentData: Promise<Record<string, unknown>>
-): Promise<Record<string, unknown> | undefined> {
+  parentData: Promise<RuntimeData>
+): Promise<RuntimeData | undefined> {
   const cached = await readCachedSegment(state?.cache.get(key), revalidate, parentData);
   return state?.generation === generation ? cached : undefined;
 }
@@ -253,20 +256,21 @@ export async function cacheMixedPublicLoader(
   ctx: Context,
   segment: RuntimeRoute | RuntimePage,
   index: number,
-  parentData: Promise<Record<string, unknown>>,
+  parentData: Promise<RuntimeData>,
   parentFieldsRead: ReadonlySet<string>,
-  run: () => Promise<Record<string, unknown>>
-): Promise<Record<string, unknown>> {
+  run: () => Promise<RuntimeData>
+): Promise<RuntimeData> {
   const instance = currentInstance();
   const declaredTags = route.tags ?? [];
   const mode = segment.mode ?? route.mode;
   const revalidate = mode === "isr" ? (segment.revalidate ?? 60) : Number.POSITIVE_INFINITY;
-  const requestUrl = new URL(ctx.request.url);
-  const path = toLogical(new URL(ctx.path, requestUrl).pathname, instance.prefix);
+  const path = toLogical(new URL(ctx.path, ctx.request.url).pathname, instance.prefix);
+  const pathWithSearch = canonicalCacheRequest(route, path, ctx).cacheKey;
   const sourcePath = "sourcePath" in segment ? segment.sourcePath : route.path;
-  const sourceVersion = IS_DEV && sourcePath ? routeModuleSourceVersion(sourcePath) : "";
-  const key = `${route.path}:${instance.buildId}:${index}:${sourceVersion}|${path}${requestUrl.search}`;
-  const shared = IS_DEV ? undefined : getPageCacheAdapter(instance);
+  const sourceVersion =
+    instance.development && sourcePath ? routeModuleSourceVersion(sourcePath) : "";
+  const key = `${route.path}:${instance.buildId}:${index}:${sourceVersion}|${pathWithSearch}`;
+  const shared = instance.development ? undefined : getPageCacheAdapter(instance);
   const localState = shared === undefined ? localCache() : undefined;
   const generation = localState?.generation;
   const local = await readLocalSegment(localState, generation, key, revalidate, parentData);
@@ -281,10 +285,7 @@ export async function cacheMixedPublicLoader(
     path,
     scope: instance.prefix,
     tags: [
-      ...new Set([
-        ...declaredTags,
-        ...getAutoInvalidateRegistry().tagsForPath(`${path}${requestUrl.search}`),
-      ]),
+      ...new Set([...declaredTags, ...getAutoInvalidateRegistry().tagsForPath(pathWithSearch)]),
     ],
   };
   const stored =
@@ -311,7 +312,7 @@ export async function cacheMixedPublicLoader(
       localState,
       generation,
       key,
-      `${path}${requestUrl.search}`,
+      pathWithSearch,
       [...declaredTags, ...capturedQueryTags()],
       cached
     );

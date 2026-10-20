@@ -1,3 +1,3 @@
 import { defineRoute } from "@teyik0/furin";
 
-export const route = defineRoute().page(() => "underscore-components");
+export const route = defineRoute("/").page(() => "underscore-components");

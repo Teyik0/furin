@@ -1,6 +1,5 @@
 import { defineRoute } from "@teyik0/furin";
-import { route as parentRoute } from "./_route";
 
-export const route = defineRoute()
-  .config({ layout: parentRoute, mode: "ssr" })
+export const route = defineRoute("/(outer)/(inner)/detail")
+  .config({ mode: "ssr" })
   .page(() => <p>Detail page</p>);

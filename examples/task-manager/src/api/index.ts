@@ -22,9 +22,9 @@ function mapSqliteProblem(code: string) {
 }
 
 export const dbErrors = new Elysia({ name: "db-errors" })
-  .error("global", DrizzleQueryError, ({ error }) => mapSqliteProblem(sqliteCode(error)))
-  .error("global", DrizzleError, () => problem(500, { detail: "Database operation failed" }))
-  .error("global", ({ error }) => {
+  .onError("global", DrizzleQueryError, ({ error }) => mapSqliteProblem(sqliteCode(error)))
+  .onError("global", DrizzleError, () => problem(500, { detail: "Database operation failed" }))
+  .onError("global", ({ error }) => {
     const code = sqliteCode(error);
     if (!code.startsWith("SQLITE")) {
       return;
@@ -32,7 +32,13 @@ export const dbErrors = new Elysia({ name: "db-errors" })
     return mapSqliteProblem(code);
   });
 
-export const api = new Elysia()
+export const api = new Elysia({ name: "task-manager-api" })
   .use(furinSync(taskManagerSync))
   .use(new Elysia({ prefix: "/api" }).use(dbErrors).use(boardPlugin).use(cardPlugin));
 export type Api = typeof api;
+
+declare module "@teyik0/furin" {
+  interface Register {
+    app: typeof api;
+  }
+}

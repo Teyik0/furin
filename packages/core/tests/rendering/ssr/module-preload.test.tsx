@@ -1,10 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import "../../setup/evlog-mock";
-
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { HeadContent, Scripts } from "../../../src/client/document.tsx";
-import { clientModule, preloadClientModule } from "../../../src/client.ts";
+import { clientModule, type HeadOptions, preloadClientModule } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute } from "../../../src/furin.ts";
 import { renderToHTML } from "../../../src/server/render/index.ts";
 import { generateProdIndexHtml } from "../../../src/server/render/shell.ts";
@@ -34,7 +32,10 @@ function createContext(): Context {
   } as Context;
 }
 
-function createCanvasRoute(preloadScene: boolean): { root: RootLayout; route: ResolvedRoute } {
+function createCanvasRoute(
+  preloadScene: boolean,
+  head?: HeadOptions
+): { root: RootLayout; route: ResolvedRoute } {
   const scene = clientModule(() => Promise.resolve({}), SCENE_KEY);
   const rootTerminal = defineRootRoute()
     .config({ mode: "ssr" })
@@ -50,8 +51,9 @@ function createCanvasRoute(preloadScene: boolean): { root: RootLayout; route: Re
       </html>
     ));
   const rootRoute = adaptDefinedLayout(rootTerminal, undefined);
-  const terminal = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssr" })
+  const terminal = defineRoute("/terminal")
+    .config({ mode: "ssr" })
+    .head(() => head ?? {})
     .page(() => {
       if (preloadScene) {
         preloadClientModule(scene);

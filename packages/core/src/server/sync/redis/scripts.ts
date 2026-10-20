@@ -57,7 +57,7 @@ if ARGV[3] ~= '[]' then
     local oldest = redis.call('XRANGE', KEYS[2], '-', '+', 'COUNT', 1)
     if oldest[1] then redis.call('SET', KEYS[3], oldest[1][1]) end
   end
-  cursor = redis.call('XADD', KEYS[2], 'MAXLEN', '=', ARGV[5], '*', 'data', ARGV[3])
+  cursor = redis.call('XADD', KEYS[2], 'MAXLEN', '=', ARGV[5], '*', 'data', ARGV[3], 'principal', ARGV[6])
 end
 redis.call('SET', KEYS[1], cjson.encode(value), 'PX', ARGV[4])
 return {'committed', cursor}
@@ -71,4 +71,13 @@ if value.state == 'in-progress' and value.id == ARGV[1] then
   return redis.call('DEL', KEYS[1])
 end
 return 0
+`;
+
+export const APPEND_INVALIDATIONS_SCRIPT = `
+local length = redis.call('XLEN', KEYS[1])
+if length >= tonumber(ARGV[2]) then
+  local oldest = redis.call('XRANGE', KEYS[1], '-', '+', 'COUNT', 1)
+  if oldest[1] then redis.call('SET', KEYS[2], oldest[1][1]) end
+end
+return redis.call('XADD', KEYS[1], 'MAXLEN', '=', ARGV[2], '*', 'data', ARGV[1])
 `;

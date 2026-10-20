@@ -17,22 +17,21 @@ Route modules may use `.tsx`, `.ts`, `.jsx`, or `.js`. Furin rejects duplicate r
 
 ## A Page Route
 
-Every page exports a named `route` terminal:
+Every page exports a named `route` terminal, built by `defineRoute(id)` with the file's [id](#route-ids):
 
 ```tsx
 // src/pages/about.tsx
 import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssg" })
+export const route = defineRoute("/about")
+  .config({ mode: "ssg" })
   .page(() => <h1>About</h1>);
 ```
 
 The chain order is fixed:
 
 ```text
-defineRoute()
+defineRoute(id)
   → config()
   → staticParams()? (SSG/ISR only)
   → requestLoader()?
@@ -45,19 +44,37 @@ defineRoute()
 
 An SSR page cannot declare its own `requestLoader()`; use its `loader()` for request data. Shared layouts may still use `requestLoader()` so their private fields reach nested pages.
 
+### Route config checks
+
+Furin never rewrites a route file that has content. When you create an empty route file, or one with only whitespace, the development server writes a starter route into it, with its [id](#route-ids) and the params of its dynamic segments.
+
+The development server and `furin build` check every route file for mistakes that TypeScript can't see because they depend on where the file sits in `pages`:
+
+- `root.tsx` uses `defineRootRoute()`, and other route files use `defineRoute(id)`.
+- `defineRoute(id)` passes the file's own [id](#route-ids), and `config()` has no `layout` option.
+- `defineRoute(id)` is followed by `config()` with a `mode`.
+- A page's own `params` schema declares every dynamic segment of its path, including the segments its layouts also declare.
+
+Each issue names the file, line and column and gives the code to write:
+
+```text
+[furin] src/pages/blog/[slug].tsx:4:34: defineRoute("/posts/[slug]") does not match this file. Its id is "/blog/[slug]":
+  defineRoute("/blog/[slug]")
+```
+
+In development, the first issue is printed in the terminal and shown in the error overlay until you fix it. `furin build` and `furin typegen` fail and list every issue. Files that don't parse are skipped, because the transform already reports syntax errors.
+
 ## Dynamic Parameters
 
-Filename brackets declare a parameter. Add a TypeBox schema to validate it at runtime and infer it everywhere else:
+Filename brackets declare a parameter. Declare it in the page's TypeBox `params` schema to validate it at runtime and infer it everywhere else; the [route config checks](#route-config-checks) report a missing one:
 
 ```tsx
 // src/pages/blog/[slug].tsx
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
-import { route as rootRoute } from "../root";
 
-export const route = defineRoute()
+export const route = defineRoute("/blog/[slug]")
   .config({
-    layout: rootRoute,
     mode: "ssr",
     params: t.Object({ slug: t.String({ minLength: 1 }) }),
   })
@@ -69,9 +86,8 @@ Parameter names must be valid JavaScript-style identifiers. Catch-all routes use
 
 ```tsx
 // src/pages/docs/[...path].tsx
-export const route = defineRoute()
+export const route = defineRoute("/docs/[...path]")
   .config({
-    layout: rootRoute,
     mode: "ssr",
     params: t.Object({ "*": t.String() }),
   })
@@ -83,16 +99,15 @@ export const route = defineRoute()
 The `query` schema controls both request validation and navigation types:
 
 ```tsx
+// src/pages/products.tsx
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
+export const route = defineRoute("/products")
   .config({
-    layout: rootRoute,
     mode: "ssr",
     query: t.Object({
-      page: t.Numeric({ default: 1, minimum: 1 }),
+      page: t.Optional(t.Numeric({ default: 1, minimum: 1 })),
       q: t.Optional(t.String()),
     }),
   })
@@ -101,6 +116,29 @@ export const route = defineRoute()
 ```
 
 Schema defaults are applied before loaders run. Navigation omits values equal to those defaults from the generated URL, keeping canonical links clean.
+
+Furin types the two sides of a query schema separately:
+
+- **Navigation input** (`search` on `<Link>`, `navigate()` and `RouteSearch`): what a caller may send. Required fields are required, optional or defaulted fields are optional, and `search` itself is required as soon as one field is required.
+- **Validated output** (`useSearch()`, loader and page `query`, `RouteSearchOutput`): what the route reads after validation, with defaults applied.
+
+The input side comes from the schema's input type. With Zod or another Standard Schema library, `z.number().default(1)` is optional in navigation input and a `number` in the output. TypeBox doesn't record `default` in its static type, so a TypeBox field with only `{ default }` stays required for navigation. Wrap it in `t.Optional(...)` so links can omit it. The default still applies at runtime, but the validated type then includes `undefined`.
+
+### Inherited params and query
+
+A child route inherits the `params` and `query` schemas of every layout above it. The runtime merges the schemas from root to leaf, and the types follow the same rule: if a child declares a field that a parent also declares, the child's version wins. A layout at `/orgs/:org` with `query: t.Object({ lang: t.String() })` gives its children `query.lang` in their loaders, heads and pages. `<Link>` and `navigate()` then require `org` and `lang` for those children too.
+
+Path params are the exception: a page still declares every dynamic segment of its path in its own `params` schema, including `org`. The page's schema validates the matched URL, and a segment it omits is rejected by the [route config checks](#route-config-checks) and when the route module loads:
+
+```tsx
+// src/pages/orgs/[org]/projects/[project].tsx
+export const route = defineRoute("/orgs/[org]/projects/[project]")
+  .config({
+    mode: "ssr",
+    params: t.Object({ org: t.String(), project: t.String() }),
+  })
+  .page(({ params, query }) => <Project org={params.org} id={params.project} lang={query.lang} />);
+```
 
 By default, changing path parameters remounts the page, while query and hash changes preserve its state. Use `remountDeps` to customize this [page lifecycle](/docs/layouts#page-state-and-navigation).
 
@@ -126,7 +164,7 @@ pages/root.tsx
     └── pages/dashboard/settings.tsx
 ```
 
-The settings page references the dashboard route in `config({ layout })`, and the dashboard layout references the root route. Development validates this explicit type chain against the filesystem and repairs stale imports after route moves. See [Nested Layouts](/docs/layouts).
+The settings page's parent is the dashboard layout, whose parent is the root route. Each route's [id](#route-ids) gives TypeScript that chain from the generated route types, so a route never imports its layout. See [Nested Layouts](/docs/layouts).
 
 **Route groups**
 
@@ -147,15 +185,47 @@ src/pages/
 
 Groups may appear at any directory level and may be nested. For example, `pages/(admin)/(settings)/users/[id].tsx` still resolves to `/users/:id`.
 
-A group's `_route.tsx` wraps only pages inside that group. Layout loaders, `error.tsx`, and `not-found.tsx` keep their normal filesystem scope. Reference the nearest layout through `config({ layout })`, just as for an ordinary directory. The shared `pages/root.tsx` remains required.
+A group's `_route.tsx` wraps only pages inside that group. Layout loaders, `error.tsx`, and `not-found.tsx` keep their normal filesystem scope. Route ids keep the group, such as `"/(admin)/users/[id]"`. The shared `pages/root.tsx` remains required.
 
 Groups do not create routes or access controls by themselves. Two pages cannot resolve to the same URL: `(admin)/about.tsx` and `(marketing)/about.tsx` conflict, as do `(admin)/users/[id].tsx` and `(marketing)/users/[slug].tsx`. Furin reports both source paths when rejecting a conflict.
 
 Links and navigation APIs use the public URL, such as `/users/:id`, while generated types retain the grouped source path for imports. Only directories are groups; a file named `(admin).tsx` creates the literal route `/(admin)`.
 
+## Route Ids
+
+`defineRoute(id)` takes the route file's id. The parent layout comes from the pages tree, not from an import, so `config()` has no `layout` option:
+
+```tsx
+// src/pages/board/[boardId]/card/_route.tsx
+import { defineRoute } from "@teyik0/furin";
+
+export const route = defineRoute("/board/[boardId]/card/_route")
+  .config({ mode: "ssr" })
+  .layout(({ children, params }) => <section data-board={params.boardId}>{children}</section>);
+```
+
+The id is the file's path under `pages`, without the extension: brackets and route groups stay, a trailing `/index` is dropped, and layouts end in `/_route`. For example, `board/[boardId]/index.tsx` is `"/board/[boardId]"` and `(marketing)/about.tsx` is `"/(marketing)/about"`.
+
+In an app mounted with a `prefix`, the id starts with that prefix. In `furin({ pagesDir: "./src/admin", prefix: "/admin" })`, `users.tsx` is `"/admin/users"`, `index.tsx` is `"/admin"` and `settings/_route.tsx` is `"/admin/settings/_route"`. Ids are therefore unique across the apps of a project, and a pages directory serves one mount: mounting it under two prefixes fails at startup and in `furin build`. Give each mount its own pages directory.
+
+The id is type-only. It looks the file up in the `FileRoutes` interface of [`furin-env.d.ts`](#generated-route-types), which gives the route:
+
+- its parent layout's loader data, `params` and `query`;
+- its path params as strings, so `params` only needs to refine them. A layout doesn't declare a segment it doesn't have;
+- its terminal: a `_route` id only accepts `layout()`, any other id only `page()`.
+
+A page still declares every dynamic segment in its own `params` schema, because that schema validates the URL at runtime. The [route config checks](#route-config-checks) report a missing segment.
+
+You don't type the id of a new file: create the file empty and the development server writes a starter route with its id. Furin never rewrites a file that has content. After you move or rename a route file, TypeScript reports the stale id once `furin-env.d.ts` is regenerated, and the [route config checks](#route-config-checks) report it with the call to write:
+
+```text
+[furin] src/pages/posts/index.tsx:3:34: defineRoute("/blog") does not match this file. Its id is "/posts":
+  defineRoute("/posts")
+```
+
 ## Generated Route Types
 
-Furin writes `furin-env.d.ts` during development and builds. It augments the route map used by `<Link>`, `useNavigate()`, and `useSearch()`:
+Furin writes `furin-env.d.ts` when the development server starts, on every `furin build`, and on `furin typegen`. It declares one `FileRoutes` entry per route file for [route ids](#route-ids), read from the pages tree without loading the modules, and one `RouteMap` entry per route pattern, such as `"/blog/:slug"`. `RouteMap` types `<Link>`, `useNavigate()`, and `useSearch()`:
 
 ```tsx
 import { Link } from "@teyik0/furin/link";
@@ -194,4 +264,8 @@ TypeScript therefore reads schema and loader changes directly from the route
 module, while config changes that affect generated declarations, such as cache
 tags, trigger an atomic rewrite of `furin-env.d.ts`.
 
-Do not edit `furin-env.d.ts`. Commit it if your team wants route types available before the dev server runs; otherwise generate it in the local or CI workflow before type-checking.
+Do not edit `furin-env.d.ts`, and exclude it from formatters such as Biome or Prettier: Furin rewrites it whenever routes change. Commit it if your team wants route types available before the dev server runs. Otherwise, run `furin typegen` before type-checking in local or CI workflows.
+
+The output is sorted by file id and route pattern, so regenerating it with the same routes gives a byte-identical file.
+
+`furin-env.d.ts` is one project-wide declaration. Every mounted `furin()` instance adds its route files to `FileRoutes`, under ids that start with its prefix, such as `furin({ pagesDir: "./src/admin", prefix: "/admin" })`. `RouteMap` only lists the root-mounted instance's patterns: the pages of a prefixed instance work at runtime, but `<Link>` doesn't type their URLs.

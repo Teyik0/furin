@@ -1,3 +1,5 @@
+import { decodeInvalidationEntry, isInvalidatedPath } from "../../shared/invalidation-header.ts";
+import { isWithinPrefix } from "../../shared/prefix.ts";
 import {
   buildSearchParams,
   findSearchDefaultsForRouteTarget,
@@ -168,15 +170,11 @@ export function applyRevalidateEntries(
   invalidate: (path: string, type: "page" | "layout" | undefined) => void
 ): void {
   for (const entry of entries) {
-    const trimmed = entry.trim();
-    if (!trimmed) {
+    const { path, type } = decodeInvalidationEntry(entry);
+    if (!path) {
       continue;
     }
-    if (trimmed.endsWith(":layout")) {
-      invalidate(trimmed.slice(0, -":layout".length), "layout");
-    } else {
-      invalidate(trimmed, "page");
-    }
+    invalidate(path, type);
   }
 }
 
@@ -189,14 +187,15 @@ export function shouldAutoRefreshPath(
   currentPath: string,
   invalidations: ReadonlyArray<{ path: string; type: "page" | "layout" }>
 ): boolean {
-  const normalizedCurrent = currentPath.split("?")[0] ?? currentPath;
-  return invalidations.some(({ path, type }) => {
-    if (type === "page") {
-      return path === normalizedCurrent;
-    }
-    const prefix = path === "/" || path.endsWith("/") ? path : `${path}/`;
-    return normalizedCurrent === path || normalizedCurrent.startsWith(prefix);
-  });
+  const normalize = (path: string) =>
+    path
+      .split("/")
+      .map((segment) => encodeURIComponent(decodeHashFragment(segment).toWellFormed()))
+      .join("/");
+  const normalizedCurrent = normalize(currentPath.split("?")[0] ?? currentPath);
+  return invalidations.some(({ path, type }) =>
+    isInvalidatedPath(normalizedCurrent, normalize(path), type)
+  );
 }
 
 export function stripHashFromHref(href: string): string {
@@ -215,7 +214,7 @@ export function normalizeHref(href: string): string {
 }
 
 /** Strips a single trailing slash from a pathname. Root `/` and empty string are preserved. */
-export function normalizePath(path: string): string {
+function normalizePath(path: string): string {
   if (path === "/" || path === "") {
     return path;
   }
@@ -274,27 +273,16 @@ export function shouldInterceptClick(
     return null;
   }
 
-  const logicalPath = normalizeHref(toLogical(url.pathname, basePath));
-  const normalizedBase = normalizePath(basePath);
-  const normalizedPathname = normalizePath(url.pathname);
-  if (
-    normalizedBase &&
-    normalizedPathname !== normalizedBase &&
-    !normalizedPathname.startsWith(`${normalizedBase}/`)
-  ) {
+  if (!isWithinPrefix(normalizePath(url.pathname), normalizePath(basePath))) {
     return null;
   }
-  return logicalPath + url.search + url.hash;
+  return normalizeHref(toLogical(url.pathname, basePath)) + url.search + url.hash;
 }
 
 /** Strips basePath prefix from a physical pathname, returning the logical path. */
 export function toLogical(physicalPathname: string, basePath: string): string {
-  if (
-    basePath &&
-    physicalPathname.startsWith(basePath) &&
-    // Require a path boundary after the prefix so "/furin" doesn't match "/furinity/foo"
-    (physicalPathname.length === basePath.length || physicalPathname[basePath.length] === "/")
-  ) {
+  // The path boundary check keeps "/furin" from matching "/furinity/foo".
+  if (basePath && isWithinPrefix(physicalPathname, basePath)) {
     return physicalPathname.slice(basePath.length) || "/";
   }
   return physicalPathname;

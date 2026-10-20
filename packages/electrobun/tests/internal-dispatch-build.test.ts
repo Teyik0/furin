@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { mkdir, symlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { createTmpApp, writeAppFile } from "../../core/tests/support/app-fixtures";
+import { createTmpApp, writeAppFile } from "./support/core";
 
 test("one AOT production app serves SSR loaders and Eden mutations without internal network requests", async () => {
   const fixture = createTmpApp("cli-app");
@@ -46,12 +46,12 @@ test("one AOT production app serves SSR loaders and Eden mutations without inter
       "src/pages/index.tsx",
       `
       import {defineRoute} from "@teyik0/furin";
-      import {createClient} from "@teyik0/furin/client";
-      import {route as rootRoute} from "./root";
-      export const route=defineRoute().config({layout:rootRoute,mode:"ssr"})
+      import {treaty} from "@elysia/eden";
+      import {furinSync} from "@teyik0/furin/client";
+      export const route=defineRoute("/").config({mode:"ssr"})
         .loader(async()=>{
           const {default:app}=await import("../server");
-          const result=await createClient(app).api.values.get();
+          const result=await treaty(app).use(furinSync).api.values.get();
           if(result.error) throw new Error("Internal loader API rejected: "+result.status);
           return {values:result.data};
         }).page(({values})=><main>{values.join(",")}</main>);`

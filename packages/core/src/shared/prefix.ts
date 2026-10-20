@@ -2,6 +2,8 @@
 // pipeline (adapter/bun.ts) — both must agree on where a mounted app's
 // client assets live on disk.
 
+const FILESYSTEM_DISTINCTIONS_RE = /%[\dA-F]{2}|[-.*A-Z]/g;
+
 /**
  * On-disk client dir name for a mounted app: the root instance keeps the
  * historical `client/`, prefixed instances get `client-<slug>/` next to it.
@@ -18,17 +20,51 @@ export function physicalPath(prefix: string, path: string): string {
   return path === "/" ? prefix : `${prefix}${path}`;
 }
 
+/** Whether `pathname` lies under `prefix` on a path-segment boundary. */
+export function isWithinPrefix(pathname: string, prefix: string): boolean {
+  return (
+    prefix === "" ||
+    pathname === prefix ||
+    (pathname.startsWith(prefix) && pathname.charCodeAt(prefix.length) === 47)
+  );
+}
+
 /** Filesystem-safe slug for a mount prefix (`/admin/v2` → `admin-v2`). */
 export function prefixSlug(prefix: string): string {
-  return prefix.slice(1).replaceAll("/", "-");
+  return prefix
+    .slice(1)
+    .split("/")
+    .map((segment) =>
+      encodeURIComponent(segment).replace(FILESYSTEM_DISTINCTIONS_RE, (character) =>
+        character.startsWith("%")
+          ? character
+          : `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+      )
+    )
+    .join("-");
 }
 
 /**
- * `prefixSlug` is NOT injective: `/a-b` and `/a/b` both slug to `a-b`, so two
- * distinct prefixes can claim the same client dir and silently overwrite each
- * other's build output. A readable injective encoding is ambiguous anyway
- * (escaping `-` as `--` still confuses `/a-/b` with `/a/-b`), so we detect the
- * collision and fail fast instead.
+ * Route ids carry their mount's prefix (`defineRoute("/admin/users")`), so a
+ * pages directory validates for one mount only.
+ */
+export function assertOnePagesDirPerMount(
+  mounts: readonly { pagesDir: string; prefix: string }[]
+): void {
+  const byPagesDir = new Map<string, string>();
+  for (const { pagesDir, prefix } of mounts) {
+    const existing = byPagesDir.get(pagesDir);
+    if (existing !== undefined && existing !== prefix) {
+      throw new Error(
+        `[furin] pagesDir "${pagesDir}" is mounted under both prefix "${existing || "/"}" and prefix "${prefix || "/"}". Route ids carry their mount's prefix, so one pages directory serves one mount: give each mount its own pages directory.`
+      );
+    }
+    byPagesDir.set(pagesDir, prefix);
+  }
+}
+
+/**
+ * Validate generated directory identities before writing any artifacts.
  */
 export function assertNoPrefixSlugCollisions(prefixes: string[]): void {
   const byDirName = new Map<string, string>();

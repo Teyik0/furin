@@ -7,8 +7,13 @@ import type { PageCacheAdapter, PageCacheIdentity, PageCacheLease } from "../cac
 import { waitForPageCacheEntry } from "../cache/page-cache.ts";
 import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
 import { registerCacheInvalidator } from "../cache/registry.ts";
-import { type Cache, createRouteCache, type RevalidateType } from "../cache/route-cache.ts";
-import { getCache, hasExternalRuntimeCache } from "../cache/runtime-cache.ts";
+import {
+  type Cache,
+  canonicalCacheRequest,
+  createRouteCache,
+  type RevalidateType,
+} from "../cache/route-cache.ts";
+import { getCache, hasExternalRuntimeCache, runtimeCacheScope } from "../cache/runtime-cache.ts";
 import { getLogger } from "../context-logger.ts";
 import { isExternalPrerenderRequest } from "../external-prerender.ts";
 import { allStateBuckets, currentInstance, type FurinInstance } from "../instance.ts";
@@ -109,11 +114,10 @@ async function readPprArtifact(key: string, buildId: string): Promise<PprArtifac
     if (typeof stored !== "string") {
       return;
     }
-    const artifact: unknown = JSON.parse(stored);
-    if (!isPprArtifact(artifact) || artifact.state.buildId !== buildId) {
+    const artifact = await parseSharedPprArtifact(stored, buildId);
+    if (artifact === undefined) {
       throw new Error("Invalid PPR artifact");
     }
-    await pprPublicResult(artifact.state);
     return artifact;
   } catch {
     getLogger().warn("PPR runtime cache read failed; rendering fresh public data");
@@ -199,6 +203,7 @@ async function renderSharedPpr(
       input.root,
       input.buildId,
       input.searchRoutes,
+      undefined,
       undefined
     );
     if (lease === null || !isPprArtifact(result)) {
@@ -279,6 +284,7 @@ function renderFreshPpr(input: SharedPprInput): Promise<PprResult> {
     input.root,
     input.buildId,
     input.searchRoutes,
+    undefined,
     undefined
   );
 }
@@ -348,16 +354,20 @@ async function getSharedPprArtifact(input: SharedPprInput): Promise<PprResult> {
 
 async function getPprArtifact(
   route: ResolvedRoute,
-  ctx: Context,
+  requestCtx: Context,
   root: RootLayout,
   buildId: string,
   searchRoutes: SearchRouteMetadata[] | undefined
 ): Promise<PprResult> {
-  const requestUrl = new URL(ctx.request.url);
-  const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
+  const resolvedPath = resolvePath(route.pattern, requestCtx.params ?? {});
   const documentMode = resolveDocumentMode(route);
-  const cacheKey = `${documentMode}:${resolvedPath}${requestUrl.search}`;
-  const externalPrerender = isExternalPrerenderRequest(ctx.request);
+  // Every shell, a platform prerender's included, renders the canonical query:
+  // its holes resume with what the shell recorded, so it must not carry query
+  // values another URL sharing the key did not send.
+  const shell = canonicalCacheRequest(route, resolvedPath, requestCtx);
+  const { ctx } = shell;
+  const cacheKey = `${documentMode}:${shell.cacheKey}`;
+  const externalPrerender = isExternalPrerenderRequest(requestCtx.request);
   const pageCache = externalPrerender ? undefined : getPageCacheAdapter();
   if (pageCache !== undefined) {
     return getSharedPprArtifact({
@@ -373,12 +383,20 @@ async function getPprArtifact(
   }
   if (hasExternalRuntimeCache()) {
     const { prefix } = currentInstance();
-    const key = JSON.stringify([process.env.VERCEL_DEPLOYMENT_ID, buildId, prefix, cacheKey]);
+    const key = JSON.stringify([runtimeCacheScope(), buildId, prefix, cacheKey]);
     const stored = externalPrerender ? undefined : await readPprArtifact(key, buildId);
     if (stored !== undefined) {
       return stored;
     }
-    const result = await prerenderPprDocument(route, ctx, root, buildId, searchRoutes, undefined);
+    const result = await prerenderPprDocument(
+      route,
+      ctx,
+      root,
+      buildId,
+      searchRoutes,
+      undefined,
+      undefined
+    );
     await writePprArtifact(
       key,
       result,
@@ -392,7 +410,15 @@ async function getPprArtifact(
   if (cached?.artifact.state.buildId !== buildId) {
     const generation = pprRoutes.captureGeneration(cacheKey);
     try {
-      const result = await prerenderPprDocument(route, ctx, root, buildId, searchRoutes, undefined);
+      const result = await prerenderPprDocument(
+        route,
+        ctx,
+        root,
+        buildId,
+        searchRoutes,
+        undefined,
+        undefined
+      );
       if (!(isPprArtifact(result) && generation.valid)) {
         return result;
       }
@@ -415,9 +441,42 @@ async function getPprArtifact(
     return cached.artifact;
   }
   revalidatePprArtifact(pprRoutes, cacheKey, cached, () =>
-    prerenderPprDocument(route, ctx, root, buildId, searchRoutes, undefined)
+    prerenderPprDocument(route, ctx, root, buildId, searchRoutes, undefined, undefined)
   );
   return cached.artifact;
+}
+
+/**
+ * Where a PPR request's public shell comes from: the page cache, or a
+ * prerender on every request (development) from the public loader result the
+ * runtime supplies, `undefined` letting the prerender run the public loaders.
+ */
+export type PprShell =
+  | { type: "cached" }
+  | { publicResult: LoaderResult | undefined; type: "fresh" };
+
+function getPprShell(
+  route: ResolvedRoute,
+  requestCtx: Context,
+  root: RootLayout,
+  buildId: string,
+  searchRoutes: SearchRouteMetadata[] | undefined,
+  source: PprShell
+): Promise<PprResult> {
+  if (source.type === "cached") {
+    return getPprArtifact(route, requestCtx, root, buildId, searchRoutes);
+  }
+  const resolvedPath = resolvePath(route.pattern, requestCtx.params ?? {});
+  const { ctx } = canonicalCacheRequest(route, resolvedPath, requestCtx);
+  return prerenderPprDocument(
+    route,
+    ctx,
+    root,
+    buildId,
+    searchRoutes,
+    undefined,
+    source.publicResult
+  );
 }
 
 export async function runPprPublicLoaders(
@@ -425,14 +484,15 @@ export async function runPprPublicLoaders(
   ctx: Context,
   buildId: string,
   root: RootLayout | undefined,
-  searchRoutes: SearchRouteMetadata[] | undefined
+  searchRoutes: SearchRouteMetadata[] | undefined,
+  source: PprShell
 ): Promise<LoaderResult> {
   if (root === undefined) {
     return hasMixedLoaderModes(route)
       ? runSegmentPublicLoaders(route, ctx)
       : runPublicLoaders(route, ctx);
   }
-  const result = await getPprArtifact(route, ctx, root, buildId, searchRoutes);
+  const result = await getPprShell(route, ctx, root, buildId, searchRoutes, source);
   return isPprArtifact(result) ? pprPublicResult(result.state) : result;
 }
 
@@ -441,7 +501,8 @@ export async function renderPprRoute(
   ctx: Context,
   root: RootLayout,
   buildId: string,
-  searchRoutes: SearchRouteMetadata[] | undefined
+  searchRoutes: SearchRouteMetadata[] | undefined,
+  source: PprShell
 ): Promise<Response> {
   const state = getPprResumeState(ctx.request);
   if (state !== undefined) {
@@ -451,7 +512,7 @@ export async function renderPprRoute(
   if (!isExternalPrerenderRequest(ctx.request) && useRequestCspNonce(ctx.request) !== undefined) {
     return renderSSR(route, ctx, root, undefined, searchRoutes);
   }
-  const result = await getPprArtifact(route, ctx, root, buildId, searchRoutes);
+  const result = await getPprShell(route, ctx, root, buildId, searchRoutes, source);
   if (!isPprArtifact(result)) {
     return renderSSR(route, ctx, root, result, searchRoutes);
   }

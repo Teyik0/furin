@@ -49,7 +49,7 @@ const timer = setTimeout(() => {
   stop(1).catch(console.error);
 }, 30_000);
 await new Promise<void>((resolve, reject) => {
-  app.cleanup(() => reject(new Error("Web development startup failed.")));
+  app.onStop(() => reject(new Error("Web development startup failed.")));
   app.listen({ hostname: "127.0.0.1", port: Number(port) }, () => {
     clearTimeout(timer);
     console.log(`[furin] Web development: http://127.0.0.1:${app.server?.port}`);

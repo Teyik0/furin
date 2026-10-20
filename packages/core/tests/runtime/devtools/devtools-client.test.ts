@@ -218,7 +218,7 @@ test.serial(
   }
 );
 
-test.serial("native DevTools only correlates the exact same-origin data endpoint", async () => {
+test.serial("native DevTools only correlates same-origin navigation data requests", async () => {
   installDom();
   installBrowserEventRuntime();
   const calls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
@@ -243,9 +243,9 @@ test.serial("native DevTools only correlates the exact same-origin data endpoint
     await import(`../../../src/devtools/devtools-element.js?origin=${Date.now()}`);
     await waitForDom(() => document.querySelector("furin-devtools") !== null, undefined);
 
-    await window.fetch("https://api.example/_furin/data");
-    await window.fetch("/other/_furin/data");
-    await window.fetch("/_furin/data?path=/dashboard");
+    await window.fetch("https://api.example/dashboard?_furin=data");
+    await window.fetch("/dashboard");
+    await window.fetch("/dashboard?tab=1&_furin=data");
 
     const observed = calls.slice(-3);
     expect(new Headers(observed[0]?.init?.headers).has("x-furin-devtools-operation-id")).toBe(

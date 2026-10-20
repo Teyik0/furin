@@ -1,894 +1,24 @@
 import type { Context } from "elysia";
-import { createElement, type ReactNode } from "react";
-import { toCrossJSON, toCrossJSONAsync } from "seroval";
-import { type DocumentAssets, FurinDocumentFallback } from "../../client/document.tsx";
-import { RouterContext } from "../../client/router/context.ts";
-import { normalizeHref, toLogical } from "../../client/router/link-utils.ts";
-import {
-  createSearchStore,
-  SearchStoreContext,
-  searchSnapshotFromRouterContext,
-} from "../../client/router/search-store.ts";
-import type { RouterContextValue } from "../../client/router/types.ts";
-import type { HeadOptions } from "../../client.ts";
-import { serializeCompactJsonLine } from "../../shared/compact-json.ts";
-import { computeErrorDigest } from "../../shared/digest.ts";
-import { isProductionBuild } from "../../shared/production-build.ts";
-import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
-import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
-import { queryTagsFromData } from "../../shared/sync-query.ts";
-import { getLogger, runInSyntheticRenderScope } from "../context-logger.ts";
-import { currentInstance } from "../instance.ts";
-import { mergeRouteSchemas } from "../router/schema-merge.ts";
-import { parseRouteParams, parseRouteQuery } from "../router/schemas.ts";
-// FurinNotFoundError is used indirectly via buildNotFoundElement in element.tsx
+import { createElement } from "react";
+import { FurinDocumentFallback } from "../../client/document.tsx";
+import { isJsonObject } from "../../shared/compact-json.ts";
+import type { SearchRouteMetadata } from "../../shared/search-params.ts";
+import { getLogger } from "../context-logger.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
-import { IS_DEV } from "../runtime-env.ts";
 import { useRequestCspNonce } from "../security/csp.ts";
-import {
-  buildDeferredResolution,
-  buildDeferredScript,
-  buildRouteFrameCloseScript,
-  buildRouteFramePushScript,
-  buildRouteFrameStreamScript,
-  buildRouteFrameTemplate,
-  resolvePath,
-  streamToString,
-} from "./assemble.ts";
 import { withDocumentState } from "./document.tsx";
 import {
-  buildElement,
-  buildErrorElement,
-  buildNotFoundElement,
-  errorMessageForRender,
-  wrapRootLayout,
-} from "./element.tsx";
+  renderElementWithShellFallback,
+  renderPayload,
+  shellErrorPayload,
+} from "./document-stream.ts";
+import type { LoaderResult } from "./loaders.ts";
+import { prepareRender } from "./prepare-render.ts";
 import {
-  hasMixedLoaderModes,
-  hasSsrLoaderAncestor,
-  type LoaderResult,
-  runPublicLoaders,
-  runRouteLoaders,
-  runSegmentPublicLoaders,
-  serializeDeferredRejection,
-} from "./loaders.ts";
-import { renderToReadableStream } from "./react-stream.ts";
-import { serializeDeferredRouteFrame } from "./route-frame-transport.ts";
-import { generateIndexHtml, safeJson } from "./shell.ts";
-import {
-  documentAssetsFromTemplate,
-  getDevDocumentAssets,
-  getProductionDocumentAssets,
-  getProductionPreloadManifest,
-} from "./template.ts";
-
-// Re-export types consumed by sibling render modules (not a public barrel).
-export type { LoaderContext } from "./assemble.ts";
-export type { LoaderResult } from "./loaders.ts";
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-export interface RenderResult {
-  headers: Record<string, string>;
-  html: string;
-  /**
-   * NDJSON payload (one CrossJSON-serialised line) carrying the loader's
-   * resolved sync + deferred data. Identical in shape to the body the live
-   * `/_furin/data` endpoint emits, so the SPA client can consume both
-   * interchangeably.
-   */
-  ndjson: string;
-  queryTags?: string[];
-  status: number;
-}
-
-export interface PreparedRender {
-  assets: DocumentAssets;
-  /**
-   * All props passed to the React component tree. For deferred renders this
-   * includes the Promise objects (for `<Await resolve={promise}>`) alongside
-   * the scalar sync fields. Never serialise this directly — use `syncData`.
-   */
-  componentProps: Record<string, unknown>;
-  /**
-   * Promise-valued fields from a `defer()` loader return. Undefined for normal
-   * (non-deferred) loaders. These are streamed as late `<script>` chunks after
-   * the React stream finishes.
-   */
-  deferredPromises: Record<string, Promise<unknown>> | undefined;
-  element: ReactNode;
-  /** Set when the prepared element is an error UI. */
-  errorDigest?: string;
-  /** Public message rendered by the server error UI and serialized for hydration. */
-  errorMessage?: string;
-  headData: HeadOptions | undefined;
-  headers: Record<string, string>;
-  loader_ms: number;
-  /**
-   * Populated only when the loader threw `notFound()`. Mirrored into
-   * `__FURIN_DATA__.__furinNotFound` so the client-side can render the
-   * not-found UI inline on SPA navigation.
-   */
-  notFoundError?: { data?: unknown; message?: string };
-  ssrContext: RouterContextValue;
-  status: number;
-  /**
-   * JSON-serialisable subset of `componentProps`. For deferred renders this
-   * excludes the Promise fields (those are streamed separately).
-   */
-  syncData: Record<string, unknown>;
-}
-
-// ── Shared helpers ───────────────────────────────────────────────────────────
-
-export function withSSRRouterContext(
-  element: ReactNode,
-  contextValue: RouterContextValue
-): ReactNode {
-  return createElement(
-    SearchStoreContext.Provider,
-    { value: createSearchStore(searchSnapshotFromRouterContext(contextValue)) },
-    createElement(RouterContext.Provider, { value: contextValue }, element)
-  );
-}
-
-interface ShellFallbackResult {
-  /**
-   * Set when the primary element threw synchronously during render and a
-   * fallback error UI was streamed instead. Carries the digest so the caller
-   * can surface it in logs and the `__furinError` payload.
-   */
-  shellError: { digest: string; message: string } | undefined;
-  stream: Awaited<ReturnType<typeof renderToReadableStream>>;
-}
-
-function serializedErrorPayload(
-  digest: string | undefined,
-  message: string | undefined,
-  status: number
-): { digest: string; message: string; status: number } | undefined {
-  return digest !== undefined && message !== undefined ? { digest, message, status } : undefined;
-}
-
-function hasDocumentMarkers(html: string): boolean {
-  return html.includes('data-furin-head=""') && html.includes('data-furin-scripts=""');
-}
-
-async function requireDocumentStream(
-  stream: Awaited<ReturnType<typeof renderToReadableStream>>
-): Promise<Awaited<ReturnType<typeof renderToReadableStream>>> {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  const buffered: Uint8Array[] = [];
-  let prefix = "";
-  let done = false;
-  while (!(done || hasDocumentMarkers(prefix))) {
-    // biome-ignore lint/performance/noAwaitInLoops: stream chunks must be inspected in order.
-    const { done: streamDone, value } = await reader.read();
-    done = streamDone;
-    if (value !== undefined) {
-      buffered.push(value);
-      prefix += decoder.decode(value, { stream: !done });
-    }
-  }
-  if (!(prefix.startsWith("<!DOCTYPE html><html") && hasDocumentMarkers(prefix))) {
-    await reader.cancel();
-    throw new Error(
-      "[furin] The root layout must render an <html> document containing <HeadContent /> and <Scripts />."
-    );
-  }
-
-  const validated = new ReadableStream<Uint8Array>({
-    async cancel(reason) {
-      await reader.cancel(reason);
-    },
-    async pull(controller) {
-      const next = await reader.read();
-      if (next.done) {
-        controller.close();
-      } else {
-        controller.enqueue(next.value);
-      }
-    },
-    start(controller) {
-      for (const chunk of buffered) {
-        controller.enqueue(chunk);
-      }
-      if (done) {
-        controller.close();
-      }
-    },
-  }) as Awaited<ReturnType<typeof renderToReadableStream>>;
-  Object.defineProperty(validated, "allReady", { value: stream.allReady });
-  return validated;
-}
-
-/**
- * Renders `element` to a React stream. Development propagates synchronous shell
- * failures to its diagnostic overlay. Production recovers with a 500 error UI:
- * the supplied error component (route-level, else root-level) is tried first;
- * if it ALSO throws, the built-in error element is used.
- *
- * Shared by SSR (which pipes the stream) and ISR/SSG non-200 (which drains it
- * to a string) — both start from this same React stream and only diverge in how
- * they consume it and which fields they log.
- */
-export async function renderElementWithShellFallback(
-  element: ReactNode,
-  errorComponent: Parameters<typeof buildErrorElement>[0],
-  ssrContext: RouterContextValue,
-  wrapFallbackDocument: (element: ReactNode, digest: string, message: string) => ReactNode,
-  nonce?: string
-): Promise<ShellFallbackResult> {
-  const options = nonce === undefined ? undefined : { nonce };
-  try {
-    const stream = await renderToReadableStream(element, options);
-    return { shellError: undefined, stream: await requireDocumentStream(stream) };
-  } catch (error) {
-    if (IS_DEV) {
-      throw error;
-    }
-    const digest = computeErrorDigest(error);
-    try {
-      const message = errorMessageForRender(errorComponent, error, undefined);
-      const stream = await renderToReadableStream(
-        wrapFallbackDocument(
-          withSSRRouterContext(
-            buildErrorElement(errorComponent, error, digest, message, 500),
-            ssrContext
-          ),
-          digest,
-          message
-        ),
-        options
-      );
-      return { shellError: { digest, message }, stream: await requireDocumentStream(stream) };
-    } catch {
-      const message = errorMessageForRender(undefined, error, undefined);
-      const stream = await renderToReadableStream(
-        wrapFallbackDocument(
-          withSSRRouterContext(
-            buildErrorElement(undefined, error, digest, message, 500),
-            ssrContext
-          ),
-          digest,
-          message
-        ),
-        options
-      );
-      return { shellError: { digest, message }, stream: await requireDocumentStream(stream) };
-    }
-  }
-}
-
-/**
- * defer() streams data progressively — it only makes sense in SSR. In SSG/ISR
- * the HTML is pre-rendered and cached, so the deferred fields would be absent
- * from the embedded `__FURIN_DATA__` and the client `<Await>` would hydrate
- * with `undefined`. Fail fast at the loader boundary.
- */
-export function assertDeferredModeAllowed(
-  route: ResolvedRoute,
-  deferredPromises: Record<string, Promise<unknown>> | undefined
-): void {
-  const requestKeys = new Set(route.requestKeys);
-  const deferredKeys = Object.keys(deferredPromises ?? {}).filter((key) => !requestKeys.has(key));
-  if (deferredKeys.length > 0 && route.mode !== "ssr" && !hasSsrLoaderAncestor(route)) {
-    throw new Error(
-      `[furin] page "${route.pattern}" returned defer() but the route is rendered in "${route.mode}" mode. ` +
-        "defer() streams data progressively and is only supported in SSR. " +
-        "Return the data directly (await it inside the loader) or switch the route to SSR mode."
-    );
-  }
-}
-
-function currentHrefFromContext(ctx: Context, basePath: string): string {
-  const pathUrl = new URL(ctx.path, "http://furin.local");
-  const requestUrl = new URL(ctx.request.url);
-  // For a prefixed Elysia plugin `ctx.path` is PHYSICAL (includes the mount
-  // prefix). `RouterContextValue.currentHref` must be LOGICAL — the client
-  // provider strips basePath the same way — or Link active-state and SSR/CSR
-  // markup diverge. Synthetic renders pass logical paths; toLogical no-ops.
-  return (
-    normalizeHref(toLogical(pathUrl.pathname, basePath)) + (pathUrl.search || requestUrl.search)
-  );
-}
-
-/**
- * Builds the success-path element and head injection. `head()` is user code
- * that runs synchronously, outside the render pipeline's shell-error handling,
- * so a throw is converted into a 500 error render that surfaces through the
- * framework error UI instead of escaping `prepareRender` and crashing the
- * request. Re-throws when `throwOnFailure` is set (build-time SSG) so CI fails
- * loudly.
- */
-function buildSuccessRender(
-  route: ResolvedRoute,
-  root: RootLayout,
-  componentProps: Record<string, unknown>,
-  headContext: Record<string, unknown>,
-  throwOnFailure: boolean
-): {
-  element: ReactNode;
-  errorDigest: string | undefined;
-  errorMessage: string | undefined;
-  headData: HeadOptions | undefined;
-  status: number;
-} {
-  try {
-    const headData = route.page.head?.({ ...headContext });
-    const element = buildElement(route, componentProps, root.route);
-    return { element, errorDigest: undefined, errorMessage: undefined, headData, status: 200 };
-  } catch (headError) {
-    if (throwOnFailure) {
-      throw headError;
-    }
-    const errorDigest = computeErrorDigest(headError);
-    const errorMessage = errorMessageForRender(route.error ?? root.error, headError, undefined);
-    const element = buildErrorElement(
-      route.error ?? root.error,
-      headError,
-      errorDigest,
-      errorMessage,
-      500
-    );
-    return { element, errorDigest, errorMessage, headData: undefined, status: 500 };
-  }
-}
-
-function resolveDocumentAssets(ctx: Context): DocumentAssets | Promise<DocumentAssets> {
-  const productionAssets = getProductionDocumentAssets();
-  if (productionAssets !== null) {
-    return productionAssets;
-  }
-  if (IS_DEV && ctx.server) {
-    return getDevDocumentAssets(ctx.server.url.origin);
-  }
-  return documentAssetsFromTemplate(generateIndexHtml());
-}
-
-function withRouteModulePreloads(assets: DocumentAssets, pattern: string): DocumentAssets {
-  const modulePreloads = getProductionPreloadManifest()?.routes[pattern];
-  return modulePreloads ? { ...assets, modulePreloads } : assets;
-}
-
-/**
- * Shared pipeline steps used by both `renderToHTML` (buffered) and `renderSSR`
- * (streaming). Runs loaders, builds props, head data, resolves assets,
- * and creates the React element.
- *
- * Returns the redirect Response directly when a loader redirects, so callers
- * never need try/catch for redirect handling.
- */
-export async function prepareRender(
-  route: ResolvedRoute,
-  ctx: Context,
-  root: RootLayout,
-  basePath: string | undefined,
-  throwOnFailure: boolean,
-  precomputedLoaderResult: LoaderResult | undefined,
-  searchRoutes?: SearchRouteMetadata[]
-): Promise<PreparedRender | Response> {
-  const loaderStart = Date.now();
-  const loaderResult = precomputedLoaderResult ?? (await runRouteLoaders(route, ctx));
-  const loader_ms = Date.now() - loaderStart;
-
-  if (loaderResult.type === "redirect") {
-    return loaderResult.response;
-  }
-
-  // Build-time paths (SSG) rethrow loader failures; authored notFound results
-  // still render their 404 document for static export.
-  if (throwOnFailure && loaderResult.type === "error") {
-    throw loaderResult.error;
-  }
-
-  const isNotFound = loaderResult.type === "not-found";
-  const isError = loaderResult.type === "error";
-  const isFallback = isNotFound || isError;
-  const syncData = isFallback
-    ? { params: ctx.params, path: ctx.path, query: ctx.query }
-    : loaderResult.syncData;
-  const deferredPromises =
-    !isFallback && loaderResult.type === "data" ? loaderResult.deferredPromises : undefined;
-  assertDeferredModeAllowed(route, deferredPromises);
-
-  const { headers } = loaderResult;
-  const componentProps =
-    deferredPromises === undefined ? syncData : { ...syncData, ...deferredPromises };
-
-  const assets = withRouteModulePreloads(await resolveDocumentAssets(ctx), route.pattern);
-  const errorComponent = route.error ?? root.error;
-
-  let element: ReactNode;
-  let headData: HeadOptions | undefined;
-  let status = 200;
-  let errorDigest: string | undefined;
-  let errorMessage: string | undefined;
-  let notFoundError: { data?: unknown; message?: string } | undefined;
-  if (loaderResult.type === "not-found") {
-    element = buildNotFoundElement(route.notFound ?? root.notFound, loaderResult.error);
-    status = 404;
-    notFoundError = { data: loaderResult.error.data, message: loaderResult.error.message };
-  } else if (loaderResult.type === "error") {
-    const { status: errorStatus } = loaderResult;
-    errorDigest = computeErrorDigest(loaderResult.error);
-    errorMessage = errorMessageForRender(errorComponent, loaderResult.error, loaderResult.message);
-    element = buildErrorElement(
-      errorComponent,
-      loaderResult.error,
-      errorDigest,
-      errorMessage,
-      errorStatus
-    );
-    status = errorStatus;
-  } else {
-    ({ element, errorDigest, errorMessage, headData, status } = buildSuccessRender(
-      route,
-      root,
-      componentProps,
-      syncData,
-      throwOnFailure
-    ));
-  }
-  if (isFallback || status !== 200) {
-    element = wrapRootLayout(element, componentProps, root.route);
-  }
-
-  // Explicit basePath (static export) wins; otherwise resolve the mount
-  // prefix of the instance serving this render so SSR'd <Link> hrefs match
-  // the prefix-aware client hydration entry (built with `basePath: prefix`).
-  const resolvedBasePath = basePath ?? currentInstance().prefix;
-  const ssrContext: RouterContextValue = {
-    basePath: resolvedBasePath,
-    currentHref: currentHrefFromContext(ctx, resolvedBasePath),
-    currentPattern: route.pattern,
-    defaultPreload: "intent",
-    defaultPreloadDelay: 50,
-    defaultPreloadStaleTime: 30_000,
-    invalidatePrefetch: (_path, _type) => {
-      /* noop */
-    },
-    isNavigating: false,
-    navigate: (_href, _opts) => Promise.resolve(),
-    prefetch: (_href, _opts) => {
-      /* noop */
-    },
-    refresh: (_opts) => Promise.resolve(),
-    search: (ctx.query as SearchParamsInput | undefined) ?? {},
-    searchRoutes: searchRoutes ?? [],
-  };
-  element = withSSRRouterContext(element, ssrContext);
-
-  return {
-    assets,
-    componentProps,
-    deferredPromises,
-    element,
-    errorDigest,
-    errorMessage,
-    headData,
-    headers,
-    loader_ms,
-    notFoundError,
-    ssrContext,
-    status,
-    syncData,
-  };
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-async function renderBufferedResult(
-  prepared: PreparedRender,
-  route: ResolvedRoute,
-  root: RootLayout
-): Promise<RenderResult> {
-  const { assets, deferredPromises, element, headData, headers, syncData } = prepared;
-  const { shellError, stream } = await renderElementWithShellFallback(
-    withDocumentState(element, assets, headData, syncData),
-    route.error ?? root.error,
-    prepared.ssrContext,
-    (fallback, digest, message) =>
-      withDocumentState(createElement(FurinDocumentFallback, null, fallback), assets, headData, {
-        __furinError: { digest, message, status: 500 },
-        __furinStatus: 500,
-      })
-  );
-  await stream.allReady;
-  const html = await streamToString(stream);
-  if (shellError) {
-    return {
-      headers,
-      html,
-      ndjson: await serializeLoaderDataNdjson(
-        {
-          __furinError: {
-            digest: shellError.digest,
-            message: shellError.message,
-            status: 500,
-          },
-          __furinStatus: 500,
-        },
-        undefined
-      ),
-      status: 500,
-    };
-  }
-  return {
-    headers,
-    html,
-    ndjson: await serializeLoaderDataNdjson(syncData, deferredPromises),
-    queryTags: queryTagsFromData(syncData),
-    status: prepared.status,
-  };
-}
-
-async function normalizePrerenderContext(
-  route: ResolvedRoute,
-  ctx: Omit<Context, "params" | "query"> & {
-    params: { [key: string]: unknown };
-    query: SearchParamsInput;
-  }
-): Promise<void> {
-  const parsedParams = await parseRouteParams(
-    ctx.params,
-    mergeRouteSchemas(route.routeChain, "params")
-  );
-  if (!parsedParams.ok) {
-    throw new Error(`[furin] Invalid prerender params for "${route.pattern}".`, {
-      cause: parsedParams.errors,
-    });
-  }
-  ctx.params = parsedParams.params;
-  const querySchema = mergeRouteSchemas(route.routeChain, "query");
-  if (querySchema === undefined) {
-    return;
-  }
-  const parsedQuery = await parseRouteQuery(new URL(ctx.request.url), querySchema);
-  if (!parsedQuery.ok) {
-    throw new Error(`[furin] Invalid prerender query for "${route.pattern}".`, {
-      cause: parsedQuery.errors,
-    });
-  }
-  ctx.query = parsedQuery.query;
-}
-
-export function renderForPath(
-  route: ResolvedRoute,
-  params: Record<string, string>,
-  root: RootLayout,
-  origin: string,
-  mode: "ssg" | "isr",
-  basePath?: string,
-  searchRoutes?: SearchRouteMetadata[],
-  search?: string,
-  requestContext?: Context
-): Promise<RenderResult | Response> {
-  return runInSyntheticRenderScope(
-    async () => {
-      const resolvedPath = resolvePath(route.pattern, params);
-      const requestUrl = new URL(`${resolvedPath}${search ?? ""}`, origin);
-      const query: { [key: string]: string | string[] } = Object.create(null);
-      for (const [key, value] of requestUrl.searchParams) {
-        const previous = query[key];
-        if (previous === undefined) {
-          query[key] = value;
-        } else if (Array.isArray(previous)) {
-          previous.push(value);
-        } else {
-          query[key] = [previous, value];
-        }
-      }
-      const ctx: Context =
-        requestContext ??
-        ({
-          cookie: {},
-          headers: {},
-          params,
-          path: resolvedPath,
-          query,
-          redirect: (url: string, redirectStatus: number | undefined) =>
-            new Response(null, { headers: { Location: url }, status: redirectStatus ?? 302 }),
-          request: new Request(requestUrl),
-          set: { headers: {} },
-        } as Context);
-
-      if (requestContext === undefined) {
-        await normalizePrerenderContext(route, ctx);
-      }
-
-      const loaderResult = await (hasMixedLoaderModes(route)
-        ? runSegmentPublicLoaders(route, ctx)
-        : runPublicLoaders(route, ctx));
-      const prepared = await prepareRender(
-        route,
-        ctx,
-        root,
-        basePath,
-        true,
-        loaderResult,
-        searchRoutes
-      );
-      if (prepared instanceof Response) {
-        return prepared;
-      }
-
-      getLogger().set({
-        furin: {
-          cache: mode === "isr" ? "revalidated" : "miss",
-          loader_ms: prepared.loader_ms,
-          render: mode,
-          route: route.pattern,
-          ...(prepared.errorDigest ? { digest: prepared.errorDigest } : {}),
-        },
-      });
-
-      return renderBufferedResult(prepared, route, root);
-    },
-    { render: mode, route: route.pattern }
-  );
-}
-
-interface SsrTransportScripts {
-  deferredSetupScript: string;
-  runtimeScripts: string;
-  usesRouteFrames: boolean;
-}
-
-export function injectAfterEntry(
-  html: string,
-  injection: string,
-  fallbackIndex: number,
-  hasEntryModule: boolean
-): string | undefined {
-  const entryMarkerIndex = html.indexOf('data-furin-entry=""');
-  if (entryMarkerIndex === -1) {
-    if (hasEntryModule) {
-      return;
-    }
-    return html.slice(0, fallbackIndex) + injection + html.slice(fallbackIndex);
-  }
-  const entryEndIndex = html.indexOf("</script>", entryMarkerIndex);
-  if (entryEndIndex === -1) {
-    return;
-  }
-  const insertionIndex = entryEndIndex + "</script>".length;
-  return html.slice(0, insertionIndex) + injection + html.slice(insertionIndex);
-}
-
-function scriptsMarkerEnd(html: string): number | undefined {
-  const markerIndex = html.indexOf('data-furin-scripts=""');
-  if (markerIndex === -1) {
-    return;
-  }
-  const closeIndex = html.indexOf("</script>", markerIndex);
-  return closeIndex === -1 ? undefined : closeIndex + "</script>".length;
-}
-
-function orderDocumentTail(documentTail: string, beforeBodyClose: string): string {
-  const htmlCloseEnd = documentTail.toLowerCase().lastIndexOf("</html>");
-  if (htmlCloseEnd === -1) {
-    return beforeBodyClose + documentTail;
-  }
-  const closingEnd = htmlCloseEnd + "</html>".length;
-  const closingDocument = documentTail.slice(0, closingEnd);
-  const postDocumentChunks = documentTail.slice(closingEnd);
-  return postDocumentChunks + beforeBodyClose + closingDocument;
-}
-
-function documentBodyCloseIndex(
-  html: string,
-  scriptsEndIndex: number | undefined,
-  entryHandled: boolean
-): number {
-  if (!(entryHandled || scriptsEndIndex !== undefined)) {
-    return -1;
-  }
-  const candidate = html.toLowerCase().lastIndexOf("</body>");
-  return scriptsEndIndex === undefined || candidate > scriptsEndIndex ? candidate : -1;
-}
-
-async function flushDocumentPrefix(
-  pending: string,
-  writer: WritableStreamDefaultWriter<Uint8Array>,
-  encoder: TextEncoder,
-  enabled: boolean
-): Promise<string> {
-  if (!enabled || pending.length <= "</body>".length) {
-    return pending;
-  }
-  let flushEnd = pending.length - "</body>".length;
-  const preceding = pending.charCodeAt(flushEnd - 1);
-  if (preceding >= 0xd8_00 && preceding <= 0xdb_ff) {
-    flushEnd -= 1;
-  }
-  await writer.write(encoder.encode(pending.slice(0, flushEnd)));
-  return pending.slice(flushEnd);
-}
-
-async function pipeDocumentStream(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  writer: WritableStreamDefaultWriter<Uint8Array>,
-  enc: TextEncoder,
-  beforeEntry: string,
-  hasEntryModule: boolean,
-  beforeBodyClose: () => Promise<string>
-): Promise<void> {
-  const decoder = new TextDecoder();
-  let pending = "";
-  let documentTail: string | undefined;
-  let entryHandled = false;
-  for (;;) {
-    // biome-ignore lint/performance/noAwaitInLoops: ReadableStream chunks must be consumed in order.
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-    const chunk = decoder.decode(value, { stream: true });
-    if (documentTail !== undefined) {
-      documentTail += chunk;
-      continue;
-    }
-
-    pending += chunk;
-    const scriptsEndIndex = scriptsMarkerEnd(pending);
-    const bodyCloseIndex = documentBodyCloseIndex(pending, scriptsEndIndex, entryHandled);
-    if (bodyCloseIndex !== -1) {
-      const beforeBody = pending.slice(0, bodyCloseIndex);
-      const shell = entryHandled
-        ? beforeBody
-        : (injectAfterEntry(beforeBody, beforeEntry, beforeBody.length, hasEntryModule) ??
-          beforeBody + beforeEntry);
-      await writer.write(enc.encode(shell));
-      documentTail = pending.slice(bodyCloseIndex);
-      pending = "";
-      continue;
-    }
-
-    if (scriptsEndIndex !== undefined) {
-      const shell = injectAfterEntry(pending, beforeEntry, scriptsEndIndex, hasEntryModule);
-      if (shell === undefined) {
-        continue;
-      }
-      await writer.write(enc.encode(shell));
-      entryHandled = true;
-      pending = "";
-      continue;
-    }
-    pending = await flushDocumentPrefix(pending, writer, enc, entryHandled);
-  }
-  const finalChunk = decoder.decode();
-  if (documentTail === undefined) {
-    await writer.write(
-      enc.encode(
-        pending + finalChunk + (entryHandled ? "" : beforeEntry) + (await beforeBodyClose())
-      )
-    );
-    return;
-  }
-
-  documentTail += finalChunk;
-  await writer.write(enc.encode(orderDocumentTail(documentTail, await beforeBodyClose())));
-}
-
-export function buildSsrTransportScripts(
-  dataPayload: Record<string, unknown>,
-  deferredKeys: string[],
-  hasDeferred: boolean,
-  shellErrored: boolean,
-  nonce?: string
-): SsrTransportScripts {
-  const usesRouteFrames = !shellErrored && (containsRscSource(dataPayload) || hasDeferred);
-  const deferredSetupScript =
-    hasDeferred && !usesRouteFrames ? buildDeferredScript(deferredKeys, nonce) : "";
-  const dataScript = usesRouteFrames
-    ? buildRouteFrameTemplate(
-        serializeRouteFrames(dataPayload, hasDeferred ? deferredKeys : undefined)
-      )
-    : `<script id="__FURIN_DATA__" type="application/json">${safeJson(dataPayload)}</script>`;
-  const routeFrameStreamScript =
-    hasDeferred && usesRouteFrames ? buildRouteFrameStreamScript(nonce) : "";
-
-  return {
-    deferredSetupScript,
-    runtimeScripts: `${routeFrameStreamScript}${dataScript}`,
-    usesRouteFrames,
-  };
-}
-
-async function writeDeferredSsrChunk(
-  writer: WritableStreamDefaultWriter<Uint8Array>,
-  enc: TextEncoder,
-  key: string,
-  promise: Promise<unknown>,
-  index: number,
-  usesRouteFrames: boolean,
-  nonce?: string
-): Promise<void> {
-  if (usesRouteFrames) {
-    const frames = await serializeDeferredRouteFrame(key, promise, `defer-${index}`);
-    await writer.write(enc.encode(buildRouteFramePushScript(frames, nonce)));
-    return;
-  }
-
-  try {
-    const resolvedValue = await promise;
-    const chunk = toCrossJSON(resolvedValue);
-    await writer.write(enc.encode(buildDeferredResolution(key, chunk, "resolve", nonce)));
-  } catch (err) {
-    const normalized = await serializeDeferredRejection(err);
-    const chunk = toCrossJSON(normalized);
-    await writer.write(enc.encode(buildDeferredResolution(key, chunk, "reject", nonce)));
-  }
-}
-
-export async function writeDeferredSsrChunks(
-  writer: WritableStreamDefaultWriter<Uint8Array>,
-  enc: TextEncoder,
-  deferredPromises: Record<string, Promise<unknown>>,
-  usesRouteFrames: boolean,
-  nonce?: string
-): Promise<void> {
-  await Promise.all(
-    Object.entries(deferredPromises).map(([key, promise], index) =>
-      writeDeferredSsrChunk(writer, enc, key, promise, index, usesRouteFrames, nonce)
-    )
-  );
-  if (usesRouteFrames) {
-    await writer.write(enc.encode(buildRouteFrameCloseScript(nonce)));
-  }
-}
-
-/**
- * Serialises a loader's `syncData` + `deferredPromises` into the same one-line
- * NDJSON shape the live `/_furin/data` endpoint emits.
- */
-export async function serializeLoaderDataNdjson(
-  syncData: Record<string, unknown>,
-  deferredPromises: Record<string, Promise<unknown>> | undefined
-): Promise<string> {
-  const payload: Record<string, unknown> = {
-    ...syncData,
-    ...(deferredPromises ?? {}),
-  };
-  const deferredEntries = Object.entries(deferredPromises ?? {});
-  if (containsRscSource(payload) || deferredEntries.length > 0) {
-    let ndjson = serializeRouteFrames(
-      syncData,
-      deferredEntries.map(([key]) => key)
-    );
-    await Promise.all(
-      deferredEntries.map(async ([key, promise], index) => {
-        ndjson += await serializeDeferredRouteFrame(key, promise, `defer-${index}`);
-      })
-    );
-    return ndjson;
-  }
-  const compactJson = serializeCompactJsonLine(payload);
-  if (compactJson !== undefined) {
-    return compactJson;
-  }
-  const serialized = await toCrossJSONAsync(payload);
-  return `${JSON.stringify(serialized)}\n`;
-}
-
-// ── Core pipeline ────────────────────────────────────────────────────────────
-
-export async function renderToHTML(
-  route: ResolvedRoute,
-  ctx: Context,
-  root: RootLayout,
-  searchRoutes?: SearchRouteMetadata[]
-): Promise<RenderResult> {
-  const prepared = await prepareRender(route, ctx, root, undefined, false, undefined, searchRoutes);
-
-  if (prepared instanceof Response) {
-    throw prepared;
-  }
-
-  return renderBufferedResult(prepared, route, root);
-}
+  buildSsrTransportScripts,
+  pipeDocumentStream,
+  writeDeferredSsrChunks,
+} from "./ssr-transport.ts";
 
 export async function renderSSR(
   route: ResolvedRoute,
@@ -921,22 +51,18 @@ export async function renderSSR(
     },
   });
 
-  const { assets, deferredPromises, element, headData, headers, syncData } = prepared;
+  const { assets, deferredPromises, element, headData, headers } = prepared;
 
-  const initialDataPayload: Record<string, unknown> = { ...syncData };
-  const initialError = serializedErrorPayload(
-    prepared.errorDigest,
-    prepared.errorMessage,
-    prepared.status
-  );
-  if (initialError) {
-    initialDataPayload.__furinError = initialError;
+  const initialDataPayload = renderPayload(prepared, undefined);
+  const jsonCompatible = deferredPromises === undefined && isJsonObject(initialDataPayload);
+  const requiresTransport = !jsonCompatible;
+  const renderAbort = new AbortController();
+  const abortRequest = () => renderAbort.abort(ctx.request.signal.reason);
+  if (ctx.request.signal.aborted) {
+    abortRequest();
+  } else {
+    ctx.request.signal.addEventListener("abort", abortRequest, { once: true });
   }
-  if (prepared.status === 404 && prepared.notFoundError) {
-    initialDataPayload.__furinNotFound = prepared.notFoundError;
-    initialDataPayload.__furinStatus = 404;
-  }
-  const requiresTransport = deferredPromises !== undefined || containsRscSource(initialDataPayload);
 
   const { stream: reactStream, shellError } = await renderElementWithShellFallback(
     withDocumentState(
@@ -944,56 +70,37 @@ export async function renderSSR(
       assets,
       headData,
       requiresTransport ? undefined : initialDataPayload,
-      nonce
+      nonce,
+      jsonCompatible
     ),
-    route.error ?? root.error,
+    root.error,
     prepared.ssrContext,
     (fallback, digest, message) =>
       withDocumentState(
         createElement(FurinDocumentFallback, null, fallback),
         assets,
         headData,
-        {
-          __furinError: { digest, message, status: 500 },
-          __furinStatus: 500,
-        },
-        nonce
+        shellErrorPayload(digest, message),
+        nonce,
+        true
       ),
-    nonce
-  );
+    nonce,
+    renderAbort.signal
+  ).catch((error: unknown) => {
+    ctx.request.signal.removeEventListener("abort", abortRequest);
+    throw error;
+  });
   const shellErrored = shellError !== undefined;
   let { errorDigest: finalDigest, status } = prepared;
-  let finalMessage = prepared.errorMessage;
   if (shellError) {
     status = 500;
     finalDigest = shellError.digest;
-    finalMessage = shellError.message;
     getLogger().set({
       furin: { digest: finalDigest, phase: "shell", render: route.mode, route: route.pattern },
     });
   }
 
-  const dataPayload: Record<string, unknown> = shellErrored ? {} : { ...syncData };
-  const finalError = serializedErrorPayload(finalDigest, finalMessage, status);
-  if (finalError) {
-    dataPayload.__furinError = finalError;
-  }
-  if (status === 404 && !shellErrored) {
-    dataPayload.__furinStatus = 404;
-    if (prepared.notFoundError) {
-      dataPayload.__furinNotFound = prepared.notFoundError;
-    }
-  }
-  if (
-    !isProductionBuild() &&
-    dataPayload.__furinError !== undefined &&
-    dataPayload.__furinNotFound !== undefined
-  ) {
-    throw new Error(
-      "[furin] internal invariant violated: __furinError and __furinNotFound were both set on the same SSR payload."
-    );
-  }
-
+  const dataPayload = renderPayload(prepared, shellError);
   const hasDeferred = !shellErrored && deferredPromises !== undefined;
 
   const deferredKeys = hasDeferred ? Object.keys(deferredPromises) : [];
@@ -1002,38 +109,70 @@ export async function renderSSR(
     deferredKeys,
     hasDeferred,
     shellErrored,
-    nonce
+    nonce,
+    jsonCompatible
   );
 
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const writer = writable.getWriter();
   const enc = new TextEncoder();
+  let documentFooter = "";
+  // biome-ignore lint/correctness/noUndeclaredVariables: HTMLRewriter is a Bun runtime global declared by bun-types.
+  const framedDocument = new HTMLRewriter()
+    .on("body,html", {
+      element(documentElement) {
+        documentElement.onEndTag((tag) => {
+          documentFooter += `</${tag.name}>`;
+          tag.remove();
+        });
+      },
+    })
+    .transform(new Response(reactStream));
+  const reader = (framedDocument.body as ReadableStream<Uint8Array>).getReader();
+  const abortOutput = () => {
+    writer.abort(renderAbort.signal.reason).catch(() => undefined);
+  };
+  renderAbort.signal.addEventListener("abort", abortOutput, { once: true });
+  if (renderAbort.signal.aborted) {
+    abortOutput();
+  }
+  writer.closed.catch((error: unknown) => {
+    renderAbort.abort(error);
+  });
 
   (async () => {
-    const reader = reactStream.getReader();
-    await pipeDocumentStream(
-      reader,
-      writer,
-      enc,
-      hasDeferred || usesRouteFrames ? deferredSetupScript + runtimeScripts : "",
-      assets.entryModule !== undefined,
-      async () => {
-        if (!hasDeferred) {
-          return "";
-        }
-        const { readable: chunkReadable, writable: chunkWritable } = new TransformStream<
-          Uint8Array,
-          Uint8Array
-        >();
-        const chunkWriter = chunkWritable.getWriter();
-        const chunkText = streamToString(chunkReadable);
-        await writeDeferredSsrChunks(chunkWriter, enc, deferredPromises, usesRouteFrames, nonce);
-        await chunkWriter.close();
-        return chunkText;
-      }
-    );
-    await writer.close();
-  })().catch((err) => writer.abort(err));
+    try {
+      await pipeDocumentStream(
+        reader,
+        writer,
+        enc,
+        hasDeferred || usesRouteFrames ? deferredSetupScript + runtimeScripts : "",
+        assets.entryModule !== undefined,
+        async () => {
+          if (!hasDeferred) {
+            return;
+          }
+          await writeDeferredSsrChunks(
+            writer,
+            enc,
+            deferredPromises,
+            usesRouteFrames,
+            nonce,
+            renderAbort.signal
+          );
+        },
+        () => documentFooter
+      );
+      await writer.close();
+    } catch (error) {
+      renderAbort.abort(error);
+      await Promise.allSettled([reader.cancel(error), writer.abort(error)]);
+    } finally {
+      ctx.request.signal.removeEventListener("abort", abortRequest);
+      renderAbort.signal.removeEventListener("abort", abortOutput);
+      reader.releaseLock();
+    }
+  })().catch(() => undefined);
 
   const responseHeaders = new Headers(headers);
   responseHeaders.set("Cache-Control", "no-store, no-cache, must-revalidate");

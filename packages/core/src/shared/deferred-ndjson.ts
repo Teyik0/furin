@@ -1,6 +1,7 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: NDJSON stream chunks must be read sequentially
 import type { SerovalNode } from "seroval";
 import { fromCrossJSON } from "seroval";
+import type { RuntimeData } from "../client/internal/runtime-types.ts";
 import { parseCompactJsonLine } from "./compact-json.ts";
 import { isRouteFrameLine, parseRouteFrameLines } from "./route-frame.ts";
 
@@ -17,7 +18,7 @@ export interface DeferredNdjsonResult {
    */
   deferredPromises: Record<string, Promise<unknown>>;
   /** Scalar/sync values from the loader — available immediately. */
-  syncData: Record<string, unknown>;
+  syncData: RuntimeData;
 }
 
 function makeAbortError(reason: unknown): Error {
@@ -29,7 +30,7 @@ function makeAbortError(reason: unknown): Error {
 }
 
 /**
- * Parses an NDJSON stream produced by `/_furin/data`.
+ * Parses an NDJSON stream produced for `?_furin=data` navigation requests.
  *
  * Single-line, all-resolved payloads use either a compact JSON envelope for
  * ordinary JSON data or CrossJSON when richer JavaScript semantics must be
@@ -110,35 +111,153 @@ export async function parseDeferredNdjson(
     }
   }
 
-  const firstLine = await readLine();
-  if (!firstLine) {
-    cleanupAbortHandler();
-    try {
-      reader.releaseLock();
-    } catch {
-      /* already released */
-    }
-    return { deferredPromises: {}, syncData: {} };
-  }
-
-  if (isRouteFrameLine(firstLine)) {
-    const result = await parseRouteFrameLines(firstLine, readLine);
-    if (signal !== undefined) {
+  try {
+    const firstLine = await readLine();
+    if (!firstLine) {
       cleanupAbortHandler();
-      abortHandler = () => {
-        const error = makeAbortError(signal.reason);
-        result.abort(error);
-        cancelReader(error);
+      try {
+        reader.releaseLock();
+      } catch {
+        /* already released */
+      }
+      return { deferredPromises: {}, syncData: {} };
+    }
+
+    if (isRouteFrameLine(firstLine)) {
+      const result = await parseRouteFrameLines(firstLine, readLine);
+      if (signal !== undefined) {
+        cleanupAbortHandler();
+        abortHandler = () => {
+          const error = makeAbortError(signal.reason);
+          result.abort(error);
+          cancelReader(error);
+        };
+        if (signal.aborted) {
+          abortHandler();
+        } else {
+          signal.addEventListener("abort", abortHandler, { once: true });
+        }
+      }
+      const finish = () => {
+        cleanupAbortHandler();
+        try {
+          reader.releaseLock();
+        } catch {
+          /* already released via reader.cancel() in the abort path */
+        }
       };
-      if (signal.aborted) {
-        abortHandler();
+      result.completion.then(finish, (error: unknown) => {
+        cancelReader(error);
+        finish();
+      });
+      return { deferredPromises: result.deferredPromises, syncData: result.syncData };
+    }
+
+    const parsed = JSON.parse(firstLine) as unknown;
+    const compactJson = parseCompactJsonLine(parsed);
+    if (compactJson !== undefined) {
+      cleanupAbortHandler();
+      try {
+        reader.releaseLock();
+      } catch {
+        /* already released */
+      }
+      return { deferredPromises: {}, syncData: compactJson };
+    }
+
+    const node = parsed as SerovalNode;
+    const deserialized = fromCrossJSON(node, {}) as RuntimeData;
+
+    const syncData: RuntimeData = {};
+    const deferredPromises: Record<string, Promise<unknown>> = {};
+    const resolvers: Record<
+      string,
+      { reject: (reason: unknown) => void; resolve: (value: unknown) => void }
+    > = {};
+    const deferredKeys = Array.isArray(deserialized.__furinDeferredKeys)
+      ? (deserialized.__furinDeferredKeys.filter((key) => typeof key === "string") as string[])
+      : [];
+
+    for (const [key, value] of Object.entries(deserialized)) {
+      if (key === "__furinDeferredKeys") {
+        continue;
+      }
+      if (value instanceof Promise) {
+        deferredPromises[key] = value;
       } else {
-        signal.addEventListener("abort", abortHandler, { once: true });
+        syncData[key] = value;
       }
     }
-    // Deferred consumers receive stream failures through their promises; the
-    // background reader's cleanup must not create another unhandled rejection.
-    result.completion
+
+    for (const key of deferredKeys) {
+      if (!(key in deferredPromises)) {
+        deferredPromises[key] = new Promise((resolve, reject) => {
+          resolvers[key] = { reject, resolve };
+        });
+      }
+    }
+
+    // A superseded navigation may discard deferred values before React observes
+    // them. Mark each rejection as handled without changing the original
+    // promise, so consumers that do await it still receive the same error.
+    for (const promise of Object.values(deferredPromises)) {
+      promise.catch(() => undefined);
+    }
+
+    if (deferredKeys.length === 0) {
+      cleanupAbortHandler();
+      try {
+        reader.releaseLock();
+      } catch {
+        /* already released */
+      }
+      return { deferredPromises, syncData };
+    }
+
+    // Reject every still-pending resolver and cancel the underlying reader. Used
+    // both by the AbortSignal listener and by the readDeferredLines error path.
+    const rejectAllPending = (reason: unknown): void => {
+      for (const key of Object.keys(resolvers)) {
+        resolvers[key]?.reject(reason);
+        delete resolvers[key];
+      }
+      cancelReader(reason);
+    };
+
+    if (signal !== undefined) {
+      if (signal.aborted) {
+        rejectAllPending(makeAbortError(signal.reason));
+        cleanupAbortHandler();
+        try {
+          reader.releaseLock();
+        } catch {
+          /* already released */
+        }
+        return { deferredPromises, syncData };
+      }
+      cleanupAbortHandler();
+      abortHandler = () => {
+        rejectAllPending(makeAbortError(signal.reason));
+      };
+      signal.addEventListener("abort", abortHandler, { once: true });
+    }
+
+    readDeferredLines(readLine, resolvers)
+      .then(() => {
+        // Stream ended normally. Any resolver that never received its chunk is
+        // dropped without a settle event — surface a rejection so consumers
+        // (e.g. <Await>) don't hang forever.
+        for (const key of Object.keys(resolvers)) {
+          const err = new Error(`[furin] deferred stream closed before "${key}" was resolved`);
+          resolvers[key]?.reject(err);
+          delete resolvers[key];
+        }
+      })
+      .catch((err) => {
+        for (const resolver of Object.values(resolvers)) {
+          resolver.reject(err);
+        }
+      })
       .finally(() => {
         cleanupAbortHandler();
         try {
@@ -146,120 +265,19 @@ export async function parseDeferredNdjson(
         } catch {
           /* already released via reader.cancel() in the abort path */
         }
-      })
-      .catch(() => undefined);
-    return { deferredPromises: result.deferredPromises, syncData: result.syncData };
-  }
-
-  const parsed = JSON.parse(firstLine) as unknown;
-  const compactJson = parseCompactJsonLine(parsed);
-  if (compactJson !== undefined) {
-    cleanupAbortHandler();
-    try {
-      reader.releaseLock();
-    } catch {
-      /* already released */
-    }
-    return { deferredPromises: {}, syncData: compactJson };
-  }
-
-  const node = parsed as SerovalNode;
-  const deserialized = fromCrossJSON(node, {}) as Record<string, unknown>;
-
-  const syncData: Record<string, unknown> = {};
-  const deferredPromises: Record<string, Promise<unknown>> = {};
-  const resolvers: Record<
-    string,
-    { reject: (reason: unknown) => void; resolve: (value: unknown) => void }
-  > = {};
-  const deferredKeys = Array.isArray(deserialized.__furinDeferredKeys)
-    ? (deserialized.__furinDeferredKeys.filter((key) => typeof key === "string") as string[])
-    : [];
-
-  for (const [key, value] of Object.entries(deserialized)) {
-    if (key === "__furinDeferredKeys") {
-      continue;
-    }
-    if (value instanceof Promise) {
-      deferredPromises[key] = value;
-    } else {
-      syncData[key] = value;
-    }
-  }
-
-  for (const key of deferredKeys) {
-    if (!(key in deferredPromises)) {
-      deferredPromises[key] = new Promise((resolve, reject) => {
-        resolvers[key] = { reject, resolve };
       });
-    }
-  }
 
-  // A superseded navigation may discard deferred values before React observes
-  // them. Mark each rejection as handled without changing the original
-  // promise, so consumers that do await it still receive the same error.
-  for (const promise of Object.values(deferredPromises)) {
-    promise.catch(() => undefined);
-  }
-
-  if (deferredKeys.length === 0) {
+    return { deferredPromises, syncData };
+  } catch (error) {
     cleanupAbortHandler();
+    await reader.cancel(error).catch(() => undefined);
     try {
       reader.releaseLock();
     } catch {
       /* already released */
     }
-    return { deferredPromises, syncData };
+    throw error;
   }
-
-  // Reject every still-pending resolver and cancel the underlying reader. Used
-  // both by the AbortSignal listener and by the readDeferredLines error path.
-  const rejectAllPending = (reason: unknown): void => {
-    for (const key of Object.keys(resolvers)) {
-      resolvers[key]?.reject(reason);
-      delete resolvers[key];
-    }
-    cancelReader(reason);
-  };
-
-  if (signal !== undefined) {
-    if (signal.aborted) {
-      rejectAllPending(makeAbortError(signal.reason));
-      return { deferredPromises, syncData };
-    }
-    cleanupAbortHandler();
-    abortHandler = () => {
-      rejectAllPending(makeAbortError(signal.reason));
-    };
-    signal.addEventListener("abort", abortHandler, { once: true });
-  }
-
-  readDeferredLines(readLine, resolvers)
-    .then(() => {
-      // Stream ended normally. Any resolver that never received its chunk is
-      // dropped without a settle event — surface a rejection so consumers
-      // (e.g. <Await>) don't hang forever.
-      for (const key of Object.keys(resolvers)) {
-        const err = new Error(`[furin] deferred stream closed before "${key}" was resolved`);
-        resolvers[key]?.reject(err);
-        delete resolvers[key];
-      }
-    })
-    .catch((err) => {
-      for (const resolver of Object.values(resolvers)) {
-        resolver.reject(err);
-      }
-    })
-    .finally(() => {
-      cleanupAbortHandler();
-      try {
-        reader.releaseLock();
-      } catch {
-        /* already released via reader.cancel() in the abort path */
-      }
-    });
-
-  return { deferredPromises, syncData };
 }
 
 async function readDeferredLines(

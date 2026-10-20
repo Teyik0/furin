@@ -14,7 +14,7 @@ test("CLI app output is inert, relocatable and serves the composed application i
   try {
     const sourcePath = join(fixture.path, "src/server.ts");
     writeFileSync(sourcePath, readFileSync(sourcePath, "utf8")
-      .replace("const app = new Elysia().use(", 'const app = new Elysia().request(({ set }) => { set.headers["x-source-hook"] = "preserved"; }).get("/api/host", () => ({ host: true })).use(')
+      .replace("const app = new Elysia().use(", 'const app = new Elysia().onRequest(({ set }) => { set.headers["x-source-hook"] = "preserved"; }).get("/api/host", () => ({ host: true })).use(')
       .replace("export default app;", 'export const onStartup = () => "startup";\nexport const onShutdown = () => "shutdown";\nexport const startServer = () => { throw new Error("must not start"); };\nexport default app;'));
     writeFileSync(join(fixture.path, "public/portable.txt"), "portable asset");
     const pagePath = join(fixture.path, "src/pages/index.tsx");
@@ -40,7 +40,7 @@ test("CLI app output is inert, relocatable and serves the composed application i
     expect(imported.onShutdown()).toBe("shutdown");
     expect(imported.onStartup()).toBe("startup");
     expect(app.server).toBeUndefined();
-    app.request(({ request }) => {
+    app.onRequest(({ request }) => {
       if (new URL(request.url).pathname === "/host-denied") {
         return new Response("Host guard", { status: 403 });
       }

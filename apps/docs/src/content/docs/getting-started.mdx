@@ -40,6 +40,7 @@ my-app/
 ├── bunfig.toml
 ├── furin.config.ts
 ├── furin-env.d.ts
+├── README.md
 └── tsconfig.json
 ```
 
@@ -48,7 +49,7 @@ my-app/
 - `src/pages/index.tsx` maps to `/`.
 - `furin.config.ts` controls production builds.
 - `bunfig.toml` registers the client-side Bun plugins used by development.
-- `furin-env.d.ts` is generated from the route tree and should not be edited manually.
+- `furin-env.d.ts` is generated from the route tree and should not be edited manually. Despite its name, it does not type environment variables: it registers every page's `route` export so `<Link to>`, `navigate()`, route params, and `getRouteApi()` are type-checked, and references Furin's ambient types for CSS and image imports. The dev server rewrites it when it starts and when pages change; `furin build` and `furin typegen` write it too.
 
 ## The Server
 
@@ -104,20 +105,19 @@ export const route = defineRootRoute()
 
 ## Your First Page
 
-Every non-root route references its parent layout explicitly:
+Every non-root route passes its file's id to `defineRoute(id)`. The id gives the route its parent layout's types; see [Route Ids](/docs/routing#route-ids):
 
 ```tsx
 // src/pages/index.tsx
 import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssg" })
+export const route = defineRoute("/")
+  .config({ mode: "ssg" })
   .head(() => ({ meta: [{ title: "Home" }] }))
   .page(() => <h1>Hello, Furin</h1>);
 ```
 
-During development, Furin verifies that `layout` matches the filesystem hierarchy and can repair missing or misplaced imports. Treat the generated correction as the canonical shape rather than fighting the route tree.
+Create a route file empty and the development server writes a starter route with its id. Furin never rewrites a file that has content: a missing or stale id is reported in the terminal and the error overlay, with the exact `defineRoute(...)` call to write.
 
 ## Development And Production
 

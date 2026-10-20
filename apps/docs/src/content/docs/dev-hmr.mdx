@@ -124,6 +124,13 @@ Directories without `_route` files do not consume a chain position. The root is
 loaded separately, then its current layout and loader references replace the
 root entry captured by the nested chain.
 
+Route discovery, the per-request renderer, and the pages' rewritten relative
+imports all load `root.tsx` through the same versioned specifier, so its top
+level runs once per revision. A root edit is not a `bun --hot` server reload: the
+route watcher rescans and the next page or 404 render uses the new root. Like
+page modules, the Elysia route tree is composed at startup, so a change to a
+route module's Elysia hooks (including `root.tsx`) takes effect after a restart.
+
 Furin finally rebuilds the `ResolvedRoute` from the current page and route chain.
 Changing `mode`, adding or removing a loader, changing `revalidate`, or changing
 cache tags therefore takes effect without a manual restart. Structural fields
@@ -221,28 +228,45 @@ This makes hot addition and removal work for pages, `error` files, and
 Elysia not-found fallback; a removed active page resolves to the current
 not-found boundary.
 
-Route config auto-fix runs before each snapshot refresh. Because generated files
-are content-diffed and watcher signatures are resynchronized after a rewrite,
-the fix cannot create its own update loop.
+Furin never rewrites a route file that has content. Before each snapshot
+refresh, an empty or whitespace-only route file receives a starter route. After
+the refresh, the [route config checks](/docs/routing#route-config-checks) run;
+the first issue is printed in the terminal and shown in the error overlay, and
+it clears on the save that fixes it.
 
 ## Loader and render-mode coherence
 
-Development SSR treats each render mode deliberately:
+Development and production pages go through the same dispatcher and render
+pipeline (`src/server/router/dispatch.ts`). Each runtime only supplies its
+ports: the route source (a live snapshot whose shell has no schemas, so edited
+schemas take effect, or the built manifest), the module loader (current source
+versions with the diagnostic overlay, or bundled modules) and the cache policy.
+Production serves SSG, ISR and PPR documents from the page cache. Development
+has no page cache and treats each render mode deliberately:
 
 | Mode | Loader behavior | HTML behavior |
 | --- | --- | --- |
 | SSR | Run the current loader chain for every request | Render from current source |
 | SSG | Cache synchronous loader data until a tracked source changes | Re-render HTML for every request |
-| ISR | Cache synchronous loader data for `revalidate`, unless a tracked source changes first | Re-render HTML for every request |
+| ISR | Cache synchronous loader data for `revalidate`, unless a tracked source changes first, keyed on the declared query params like production | Re-render HTML for every request |
+| PPR (a `requestLoader` under an SSG or ISR document) | Cache the public loader data like its SSG or ISR mode; run `requestLoader` for every request | Prerender the public shell and resume the request fields for every request |
 
 Only loader output is cached in development. HTML is always assembled again so
 the response can carry current code, document assets, and framework scripts.
-Deferred promises are not reused from an SSG or ISR cache hit.
+Deferred promises are not reused from an SSG or ISR cache hit. Navigation data
+(`?_furin=data`) reads and fills the same loader cache as documents, so an SSG
+loader runs once whether the page was first loaded or navigated to.
+
+PPR documents go through the production prerender and resume, without its
+shell cache, so a page that breaks a PPR rule (for example a `requestLoader`
+field read outside a `<Suspense>` boundary) fails in development with the
+error overlay instead of only in production.
 
 Each cache entry records the page, root, and existing intermediate layouts that
 can affect it. A source re-evaluation invalidates only entries indexed by that
-file. The validity check also compares dependency modification times, so a
-rename or deletion fails conservatively instead of serving stale data.
+file, and so does the route table refresh that applies its edited schemas. The
+validity check also compares dependency modification times, so a rename or
+deletion fails conservatively instead of serving stale data.
 
 Changing the route mode is safe because the mode is recomputed from the freshly
 adapted route before selecting the SSR, SSG, or ISR path.
@@ -396,6 +420,27 @@ Furin does not hide these cases behind a global reload because that would make
 the passing Fast Refresh cases lose state and would conceal graph invalidation
 regressions.
 
+### Parent application hooks
+
+When a parent Elysia application registers a hook that reaches Furin's routes
+(for example `onBeforeHandle("global", ...)` from a CORS, auth, or logging
+plugin), Elysia prints this warning at startup:
+
+```text
+[Elysia] GET /_bun_hmr_entry is an HTML bundle served natively, hooks do not run for it
+```
+
+It is expected and harmless. `/_bun_hmr_entry` only serves Bun's development
+HTML entry, which needs no hooks, and the route does not exist in production.
+Elysia has no per-route opt-out for this warning yet.
+
+A page added while the dev server runs is served through the root instance's
+`NotFound` handler until a restart mounts it, and a parent's `beforeHandle`,
+`derive`, and `resolve` hooks do not run on that path. Furin prints one warning
+per such page when the parent adds hooks to its routes. Restart the server
+before relying on a parent guard for a newly added page; production always runs
+it.
+
 Large-project cold start, warm start, memory, and edit-to-paint performance need
 published reproducible benchmarks before making comparative speed claims.
 
@@ -425,11 +470,13 @@ edit-to-paint, and memory behavior.
 | `src/plugin/transform-client.ts` | Remove server-only route stages, derive hook signatures, and inject route accept boundaries |
 | `src/client/hmr.ts` | Preserve component identities and remount boundaries when hook signatures change |
 | `src/client/router/provider.tsx` | Perform HMR data refreshes and reject stale navigations |
-| `src/server/dev-page-plugin.ts` | Load versioned SSR modules, transform source, rewrite imports, and preserve React singletons |
+| `src/server/dev-page-plugin.ts` | Load versioned SSR modules and transform their source |
+| `src/server/dev-page-imports.ts` | Rewrite imports of those modules and preserve React singletons |
 | `src/server/router/source-version.ts` | Compute source revisions and advance the explicit generation |
-| `src/server/router/hmr.ts` | Rebuild routes, refresh layout chains, run render modes, and publish server diagnostics |
+| `src/server/router/dispatch.ts` | Dispatch pages for both runtimes through their route source, module loader, and cache policy ports |
+| `src/server/router/hmr.ts` | Rebuild routes, refresh layout chains, and provide the development ports: current modules, the loader cache, and server diagnostics |
 | `src/server/cache/dev-loader.ts` | Cache loader output and invalidate it by route dependencies |
-| `src/plugin/routes.ts` | Generate Elysia route trees and watch route topology |
+| `src/plugin/dev-routes.ts` | Generate Elysia route trees and watch route topology |
 | `src/server/render/template.ts` | Read current Bun document assets and inject framework clients |
 | `src/server/dev/graph.ts` | Own route snapshots, module revisions, dependency chains, and development cache state |
 | `src/server/dev/diagnostics.ts` | Classify, store, replay, and symbolicate diagnostics |

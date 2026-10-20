@@ -5,16 +5,14 @@ import { Suspense } from "react";
 import { StatsBar, StatsBarSkeleton, StatsBarUnavailable } from "@/components/board-page-content";
 import { Kanban } from "@/components/ui/kanban";
 import { api } from "@/lib/api";
-import { route as parentRoute } from "../_route";
 
-export const route = defineRoute()
+export const route = defineRoute("/board/[boardId]")
   .config({
-    layout: parentRoute,
     mode: "ssr",
     params: t.Object({ boardId: t.String() }),
   })
   .loader(async ({ params: { boardId } }) => {
-    const { data, error } = await api.boards({ boardId }).get();
+    const { data, error } = await api.boards({ boardId }).get.live();
     if (error) {
       if (error.status === 404) {
         notFound({ message: error.value.detail });
@@ -23,7 +21,7 @@ export const route = defineRoute()
     }
 
     const initialStats = (async () => {
-      const { data: stats, error: statsError } = await api.boards({ boardId }).stats.get();
+      const { data: stats, error: statsError } = await api.boards({ boardId }).stats.get.live();
       if (statsError) {
         throw statsError;
       }

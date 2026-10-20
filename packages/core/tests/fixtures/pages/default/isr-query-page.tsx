@@ -1,10 +1,8 @@
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
+export const route = defineRoute("/isr-query-page")
   .config({
-    layout: rootRoute,
     mode: "isr",
     query: t.Object({ tenant: t.Optional(t.String()) }),
     revalidate: 60,

@@ -3,9 +3,9 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { defineConfig } from "@teyik0/furin/config";
-import { loadCliConfig } from "../../core/src/cli/config";
 import { defineDesktopConfig } from "../src/config";
 import { loadDesktopConfig, loadFurinProject } from "../src/project";
+import { loadCliConfig } from "./support/core";
 
 test("one Furin configuration preserves typed desktop settings for both CLIs", async () => {
   const desktop = defineDesktopConfig({

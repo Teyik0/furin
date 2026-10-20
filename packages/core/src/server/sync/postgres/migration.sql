@@ -64,3 +64,5 @@ CREATE TABLE IF NOT EXISTS furin_sync.changes (
 
 CREATE INDEX IF NOT EXISTS furin_sync_mutations_expiry_idx
   ON furin_sync.mutations (expires_at);
+
+ALTER TABLE furin_sync.changes ADD COLUMN IF NOT EXISTS principal_hash text;

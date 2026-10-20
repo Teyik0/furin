@@ -1,6 +1,5 @@
 // biome-ignore-all lint/performance/noBarrelFile: intentional barrel for public API
 
-export type { DevLoaderCacheEntry, InvalidateOutcome } from "./dev-loader";
 export {
   __resetDevLoaderCacheState,
   getAllDevISRLoaderEntries,
@@ -13,26 +12,14 @@ export {
   isDevLoaderCacheValid,
   setDevISRLoaderCache,
   setDevSSGLoaderCache,
-  urlPathFromCacheKey,
 } from "./dev-loader";
 export {
   __resetCacheState,
   _runWithRequestInvalidationScope,
-  callCachePurger,
   consumePendingInvalidations,
   revalidatePath,
   setCachePurger,
 } from "./invalidation";
-export {
-  deleteISRCache,
-  getISRCache,
-  isrCache,
-  setISRCache,
-  waitForPendingISRRevalidations,
-} from "./isr";
-export type { ISRCacheEntry, SsgCacheEntry } from "./isr-ssg";
-export type { CacheInvalidator } from "./registry";
-export { registerCacheInvalidator } from "./registry";
-export type { Cache, CacheInvalidationResult, RevalidateType } from "./route-cache";
-export { createRouteCache } from "./route-cache";
+export { isrCache, setISRCache, waitForPendingISRRevalidations } from "./isr";
+export type { SsgCacheEntry } from "./isr-ssg";
 export { getSSGCache, setSSGCache, ssgCache } from "./ssg";

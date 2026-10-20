@@ -30,10 +30,8 @@ export interface SegmentBoundary {
 }
 
 export interface ResolvedRoute {
-  error?: ErrorComponent;
   isrCache?: { html: string; generatedAt: number; revalidate: number };
   mode: "ssr" | "ssg" | "isr";
-  notFound?: NotFoundComponent;
   page: RuntimePage;
   path: string;
   pattern: string;

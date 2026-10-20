@@ -108,6 +108,18 @@ export function testSyncAdapterConformance(getAdapter: () => SyncAdapter): void 
     ]);
   });
 
+  test("conforms to journal-only invalidations", async () => {
+    const adapter = getAdapter();
+    const initial = await adapter.currentCursor();
+    const invalidations = [{ kind: "tags", tags: ["journal-only"] }] as const;
+
+    const cursor = await adapter.appendInvalidations(invalidations);
+
+    expect(await adapter.currentCursor()).toBe(cursor);
+    const page = await adapter.readChanges({ after: initial, limit: 10 });
+    expect(page.changes).toEqual([{ cursor, invalidations }]);
+  });
+
   test("conforms to reset semantics for a future cursor", async () => {
     const adapter = getAdapter();
     const current = await adapter.currentCursor();

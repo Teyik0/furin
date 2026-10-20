@@ -5,6 +5,7 @@ import { PollingSyncNotifier } from "../../../src/server/sync/notifier.ts";
 function adapterWithCursor(currentCursor: () => Promise<string>): SyncAdapter {
   return {
     abortMutation: () => Promise.resolve(),
+    appendInvalidations: () => Promise.resolve("0"),
     beginMutation: () => Promise.resolve({ kind: "conflict", reason: "in-progress" }),
     completeMutation: () => Promise.resolve({ kind: "lost" }),
     currentCursor,

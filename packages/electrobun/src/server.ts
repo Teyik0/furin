@@ -137,7 +137,7 @@ export function desktopApp(hooks?: DesktopAppOptions) {
       return next(request, ...rest);
     });
     app
-      .setup(async () => {
+      .onStart(async () => {
         if (
           hooks?.restrictWebToLoopback &&
           app.server &&
@@ -150,7 +150,7 @@ export function desktopApp(hooks?: DesktopAppOptions) {
           await state.ready?.({ origin: `http://${app.server.hostname}:${app.server.port}` });
         }
       })
-      .cleanup(() => state.stop());
+      .onStop(() => state.stop());
     registerDesktopApp(app, state);
     return app;
   };

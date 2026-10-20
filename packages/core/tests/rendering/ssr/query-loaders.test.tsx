@@ -1,10 +1,9 @@
-import "../../setup/evlog-mock";
 import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
 import { treaty } from "@elysia/eden";
 import { type Context, Elysia } from "elysia";
 import { renderToString } from "react-dom/server";
-import { createClient, useQuery, withSync } from "../../../src/client.ts";
+import { furinSync as furinSyncClient, useQuery } from "../../../src/client.ts";
 import { autoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
 import { createMemoryPageCache } from "../../../src/server/cache/page-cache.ts";
 import {
@@ -13,12 +12,9 @@ import {
 } from "../../../src/server/cache/page-cache-state.ts";
 import { currentInstance } from "../../../src/server/instance.ts";
 import { withDocumentState } from "../../../src/server/render/document.tsx";
-import {
-  runLoaders,
-  runMixedLoaders,
-  withRequestLoaderData,
-} from "../../../src/server/render/loaders.ts";
+import { runLoaders, runMixedLoaders } from "../../../src/server/render/loaders.ts";
 import { clearMixedPublicCache } from "../../../src/server/render/mixed-cache.ts";
+import { withRequestLoaderData } from "../../../src/server/render/request-loaders.ts";
 import { createDeferredRouteFrameStream } from "../../../src/server/render/route-frame-transport.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
@@ -27,7 +23,7 @@ import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/s
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { queryTag } from "../../../src/shared/sync-query.ts";
 
-test("loader Eden reads hydrate useQuery on the server and register scoped dependencies", async () => {
+test("loader live reads hydrate useQuery on the server and register URL dependencies", async () => {
   __setDevMode(true);
   const database = new Database(":memory:");
   migrateSqliteSync(database);
@@ -39,23 +35,17 @@ test("loader Eden reads hydrate useQuery on the server and register scoped depen
         principal: () => "alice",
       })
     )
-    .get(
-      "/boards/:boardId/cards",
-      {
-        sync: { id: "board.cards", scope: ({ params }) => ({ boardId: params.boardId }) },
-      },
-      () => {
-        reads += 1;
-        return [{ title: "From the loader" }];
-      }
-    );
-  const api = withSync(treaty(app));
+    .get("/boards/:boardId/cards", () => {
+      reads += 1;
+      return [{ title: "From the loader" }];
+    });
+  const api = treaty(app).use(furinSyncClient);
   const route = {
     mode: "ssr",
     pattern: "/board/:boardId",
     page: {
       loader: async () => ({
-        initialCards: (await api.boards({ boardId: "alpha" }).cards.get()).data,
+        initialCards: (await api.boards({ boardId: "alpha" }).cards.get.live()).data,
       }),
     },
     routeChain: [],
@@ -78,7 +68,7 @@ test("loader Eden reads hydrate useQuery on the server and register scoped depen
       { bindings: [{ target: ["initialCards"], source: [] }] },
     ]);
     function View() {
-      const { data } = useQuery(api.boards({ boardId: "alpha" }).cards.get);
+      const { data } = useQuery(api.boards({ boardId: "alpha" }).cards.get.live());
       return <span>{data?.[0]?.title}</span>;
     }
     const html = renderToString(
@@ -91,13 +81,63 @@ test("loader Eden reads hydrate useQuery on the server and register scoped depen
     );
     expect(html).toContain("From the loader");
     expect(reads).toBe(1);
-    expect(
-      autoInvalidateRegistry.pathsForTags([
-        queryTag({ id: "board.cards", scope: { boardId: "alpha" } }),
-      ])
-    ).toContain("/board/alpha");
+    for (const scope of [{ boardId: "alpha" }, {}]) {
+      expect(
+        autoInvalidateRegistry.pathsForTags([queryTag({ id: "/boards/:boardId/cards", scope })])
+      ).toContain("/board/alpha");
+    }
   } finally {
     autoInvalidateRegistry.unregisterPath("/board/alpha");
+    database.close();
+  }
+});
+
+test("only live GETs register loader dependencies; plain Eden GETs stay untracked", async () => {
+  __setDevMode(true);
+  const database = new Database(":memory:");
+  migrateSqliteSync(database);
+  const app = new Elysia()
+    .use(
+      furinSync({
+        adapter: sqliteSyncAdapter({ database, namespace: "live-loader" }),
+        principal: () => "alice",
+      })
+    )
+    .get("/boards/:boardId/cards", () => [{ id: "1" }])
+    .get("/boards/:boardId/count", () => ({ total: 1 }));
+  const api = treaty(app).use(furinSyncClient);
+  const route = {
+    mode: "ssr",
+    pattern: "/live-board/:boardId",
+    page: {
+      loader: async () => ({
+        cards: (await api.boards({ boardId: "alpha" }).cards.get.live()).data,
+        count: (await api.boards({ boardId: "alpha" }).count.get()).data,
+      }),
+    },
+    routeChain: [],
+  } as unknown as ResolvedRoute;
+  const context = {
+    request: new Request("http://localhost/live-board/alpha"),
+    path: "/live-board/alpha",
+    params: { boardId: "alpha" },
+    query: {},
+    set: { headers: {} },
+  } as unknown as Context;
+  try {
+    const result = await runLoaders(route, context);
+    if (result.type !== "data") {
+      throw new Error("Loader failed");
+    }
+    expect(result.syncData.count).toEqual({ total: 1 });
+    expect(result.syncData.__furinQueries).toMatchObject([
+      { identity: { id: "/boards/:boardId/cards" }, bindings: [{ target: ["cards"], source: [] }] },
+    ]);
+    const tag = (path: string) => queryTag({ id: `/boards/:boardId/${path}`, scope: {} });
+    expect(autoInvalidateRegistry.pathsForTags([tag("cards")])).toContain("/live-board/alpha");
+    expect(autoInvalidateRegistry.pathsForTags([tag("count")])).not.toContain("/live-board/alpha");
+  } finally {
+    autoInvalidateRegistry.unregisterPath("/live-board/alpha");
     database.close();
   }
 });
@@ -105,7 +145,7 @@ test("loader Eden reads hydrate useQuery on the server and register scoped depen
 test("a cached public loader preserves nested GET bindings without another API read", async () => {
   __setDevMode(true);
   let reads = 0;
-  const api = createClient(
+  const api = treaty(
     new Elysia().get("/boards", ({ set }) => {
       reads += 1;
       set.headers["x-furin-query"] = JSON.stringify({
@@ -115,7 +155,7 @@ test("a cached public loader preserves nested GET bindings without another API r
       });
       return { cards: [{ title: "Cached" }] };
     })
-  );
+  ).use(furinSyncClient);
   const route = {
     mode: "ssr",
     path: "/cached-query-test.tsx",
@@ -125,7 +165,7 @@ test("a cached public loader preserves nested GET bindings without another API r
       mode: "isr",
       revalidate: 60,
       loader: async () => {
-        const { data } = await api.boards.get();
+        const { data } = await api.boards.get.live();
         return { cards: data?.cards, nested: { cards: data?.cards }, count: data?.cards.length };
       },
     },
@@ -168,7 +208,7 @@ test("a public segment cache does not retain concurrent request GET data", async
   let publicReads = 0;
   let privateReads = 0;
   let privateReady = Promise.withResolvers<void>();
-  const api = createClient(
+  const api = treaty(
     new Elysia()
       .get("/public", ({ set }) => {
         publicReads += 1;
@@ -184,7 +224,7 @@ test("a public segment cache does not retain concurrent request GET data", async
         });
         return { title: `Secret ${privateReads}` };
       })
-  );
+  ).use(furinSyncClient);
   const route = {
     mode: "ssr",
     path: "/isolated-query-cache.tsx",
@@ -194,7 +234,7 @@ test("a public segment cache does not retain concurrent request GET data", async
     routeChain: [
       {
         requestLoader: () => ({
-          privateData: api.private.get().then(({ data }) => {
+          privateData: api.private.get.live().then(({ data }) => {
             privateReady.resolve();
             return data;
           }),
@@ -206,7 +246,7 @@ test("a public segment cache does not retain concurrent request GET data", async
       revalidate: 3600,
       loader: async () => {
         await privateReady.promise;
-        return { publicData: (await api.public.get()).data };
+        return { publicData: (await api.public.get.live()).data };
       },
     },
   } as unknown as ResolvedRoute;
@@ -250,13 +290,13 @@ test("PPR request GET dependencies and prop bindings stream before unrelated pri
   const fast = Promise.withResolvers<void>();
   const slow = Promise.withResolvers<string>();
   const identity = { id: "board.cards", scope: { boardId: "alpha" }, session: "alice" };
-  const api = createClient(
+  const api = treaty(
     new Elysia().get("/cards", async ({ set }) => {
       await fast.promise;
       set.headers["x-furin-query"] = JSON.stringify(identity);
       return [{ title: "Private" }];
     })
-  );
+  ).use(furinSyncClient);
   const route = {
     mode: "isr",
     pattern: "/private-query-test",
@@ -264,7 +304,7 @@ test("PPR request GET dependencies and prop bindings stream before unrelated pri
     routeChain: [
       {
         requestLoader: () => {
-          const read = api.cards.get();
+          const read = api.cards.get.live();
           return {
             privateCards: read.then(({ data }) => data),
             alias: read.then(({ data }) => data),
@@ -326,12 +366,12 @@ test("request GET sessions preserve independent public query seeds", async () =>
     identity: { id: "catalog", scope: {}, session: "anonymous" },
     bindings: [{ source: [], target: ["catalog"] }],
   };
-  const api = createClient(
+  const api = treaty(
     new Elysia().get("/private", ({ set }) => {
       set.headers["x-furin-query"] = JSON.stringify({ id: "private", scope: {}, session: "alice" });
       return { title: "Private" };
     })
-  );
+  ).use(furinSyncClient);
   const route = {
     pattern: "/query-sessions",
     requestKeys: [],
@@ -339,7 +379,7 @@ test("request GET sessions preserve independent public query seeds", async () =>
     routeChain: [
       {
         requestLoader: async () => {
-          await api.private.get();
+          await api.private.get.live();
           return {};
         },
       },

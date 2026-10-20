@@ -30,3 +30,7 @@ export function developmentGraphs(): readonly never[] {
 export function injectDevDiagnosticClient(html: string, _basePath: string): string {
   return html;
 }
+
+export function createDevRuntime(): never {
+  throw new Error("[furin] The development runtime is unavailable in production bundles.");
+}

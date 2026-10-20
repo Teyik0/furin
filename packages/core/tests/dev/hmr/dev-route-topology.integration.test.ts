@@ -60,24 +60,21 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     "src/pages/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssg" })',
+      'export const route = defineRoute("/")',
+      '  .config({ mode: "ssg" })',
       "  .page(() => <main>Home</main>);",
     ].join("\n")
   );
 
-  const schemaRouteSource = (viewExpression: string): string =>
+  const schemaRouteSource = (id: string, viewExpression: string): string =>
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { t } from "elysia";',
       'import { schemaView } from "../schema-view";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
+      `export const route = defineRoute("${id}")`,
       "  .config({",
-      "    layout: rootRoute,",
       '    mode: "ssr",',
       `    query: t.Object({ view: t.Literal(${viewExpression}) }),`,
       "  })",
@@ -86,8 +83,12 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     ].join("\n");
 
   writeAppFile(app.path, "src/schema-view.ts", 'export const schemaView = "before" as const;');
-  writeAppFile(app.path, "src/pages/schema.tsx", schemaRouteSource("schemaView"));
-  writeAppFile(app.path, "src/pages/schema-dependency.tsx", schemaRouteSource("schemaView"));
+  writeAppFile(app.path, "src/pages/schema.tsx", schemaRouteSource("/schema", "schemaView"));
+  writeAppFile(
+    app.path,
+    "src/pages/schema-dependency.tsx",
+    schemaRouteSource("/schema-dependency", "schemaView")
+  );
 
   beforeAll(async () => {
     port = await getFreePort();
@@ -141,10 +142,9 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       "src/pages/about.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssg" })',
+        'export const route = defineRoute("/about")',
+        '  .config({ mode: "ssg" })',
         '  .loader(() => ({ title: "About page" }))',
         '  .page(({ title }) => <main data-about="v1">{title}</main>);',
       ].join("\n")
@@ -171,9 +171,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     expect(status).toBe(200);
     expect(html).toContain('data-about="v1"');
 
-    const dataResponse = await fetch(
-      `http://localhost:${port}/_furin/data?path=${encodeURIComponent("/about")}`
-    );
+    const dataResponse = await fetch(`http://localhost:${port}/about?_furin=data`);
     expect(dataResponse.status).toBe(200);
     const { syncData } = await parseDeferredNdjson(
       dataResponse.body ??
@@ -185,6 +183,9 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     const snapshotResponse = await fetch(`http://localhost:${port}/_furin/devtools/snapshot`);
     const snapshot = (await snapshotResponse.json()) as { routes: Array<{ pattern: string }> };
     expect(snapshot.routes.some((route) => route.pattern === "/about")).toBe(true);
+
+    // Without parent hooks the not-found fallback serves it like a mounted route.
+    expect(server.getStderr()).not.toContain("was added while the dev server was running");
 
     // No server restart must have occurred.
     const logsAfter = server.getStdout() + server.getStderr();
@@ -215,9 +216,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     expect(gone).toBe(true);
     expect(status).toBe(404);
 
-    const dataResponse = await fetch(
-      `http://localhost:${port}/_furin/data?path=${encodeURIComponent("/about")}`
-    );
+    const dataResponse = await fetch(`http://localhost:${port}/about?_furin=data`);
     expect(dataResponse.status).toBe(404);
 
     const removedFromSnapshot = await pollUntil(
@@ -245,11 +244,9 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
-        'import { route as rootRoute } from "../root";',
         "",
-        "export const route = defineRoute()",
+        'export const route = defineRoute("/items/[id]")',
         "  .config({",
-        "    layout: rootRoute,",
         '    mode: "ssr",',
         "    params: t.Object({ id: t.Number() }),",
         "    query: t.Object({ page: t.Optional(t.Number({ default: 7 })) }),",
@@ -306,7 +303,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       expect(await initialResponse.text()).toContain('data-schema="before"');
 
       if (page === "schema") {
-        writeAppFile(app.path, "src/pages/schema.tsx", schemaRouteSource('"after"'));
+        writeAppFile(app.path, "src/pages/schema.tsx", schemaRouteSource("/schema", '"after"'));
       } else {
         writeAppFile(app.path, "src/schema-view.ts", 'export const schemaView = "after" as const;');
       }
@@ -322,9 +319,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       expect(refreshed, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
       expect((await fetch(`http://localhost:${port}/${page}?view=before`)).status).toBe(422);
 
-      const dataResponse = await fetch(
-        `http://localhost:${port}/_furin/data?path=${encodeURIComponent(`/${page}?view=after`)}`
-      );
+      const dataResponse = await fetch(`http://localhost:${port}/${page}?view=after&_furin=data`);
       expect(dataResponse.status).toBe(200);
       const { syncData } = await parseDeferredNdjson(
         dataResponse.body ??
@@ -387,8 +382,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       "src/pages/private-isr.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
-        'export const route = defineRoute().config({ layout: rootRoute, mode: "isr", revalidate: 60 }).page(() => <main>Private ISR</main>);',
+        'export const route = defineRoute("/private-isr").config({ mode: "isr", revalidate: 60 }).page(() => <main>Private ISR</main>);',
       ].join("\n")
     );
 
@@ -430,46 +424,108 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     expect(removed, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
   }, 30_000);
 
-  test("hot-editing a legacy root layout applies the document layout autofix", async () => {
-    const rootPath = join(app.path, "src/pages/root.tsx");
+  test("hot-adding an empty page writes a starter route and serves it", async () => {
+    const starterPath = join(app.path, "src/pages/starter.tsx");
+    writeAppFile(app.path, "src/pages/starter.tsx", "");
+    try {
+      const scaffolded = await pollUntil(
+        async () => readFileSync(starterPath, "utf8").length > 0,
+        40,
+        250
+      );
+      expect(scaffolded, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
+      expect(readFileSync(starterPath, "utf8")).toBe(`import { defineRoute } from "@teyik0/furin";
+
+export const route = defineRoute("/starter")
+  .config({ mode: "ssg" })
+  .page(() => null);
+`);
+      const served = await pollUntil(
+        async () => (await fetch(`http://localhost:${port}/starter`)).status === 200,
+        40,
+        250
+      );
+      expect(served, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
+    } finally {
+      removeAppPath(app.path, "src/pages/starter.tsx");
+    }
+  }, 20_000);
+});
+
+describe.serial("dev route topology — hot-added routes under a hooked parent", () => {
+  const app = createTmpApp("cli-app");
+  let port: number;
+  let server: ReturnType<typeof startProcess>;
+
+  writeAppFile(
+    app.path,
+    "src/server.ts",
+    [
+      'import { furin } from "@teyik0/furin";',
+      'import Elysia from "elysia";',
+      "",
+      "new Elysia()",
+      '  .onBeforeHandle("global", ({ set }) => {',
+      '    set.headers["x-parent-hook"] = "ran";',
+      "  })",
+      '  .use(await furin({ pagesDir: import.meta.dir + "/pages" }))',
+      "  .listen(Number(process.env.PORT));",
+    ].join("\n")
+  );
+
+  beforeAll(async () => {
+    port = await getFreePort();
+    server = startProcess(["bun", "--hot", join(app.path, "src/server.ts")], {
+      cwd: app.path,
+      env: { PORT: String(port) },
+    });
+    const ready = await pollUntil(
+      async () => {
+        try {
+          return (await fetch(`http://localhost:${port}/`)).ok;
+        } catch {
+          return false;
+        }
+      },
+      80,
+      250
+    );
+    if (!ready) {
+      throw new Error(`Server failed to start on port ${port}. stderr:\n${server.getStderr()}`);
+    }
+  }, 30_000);
+
+  afterAll(async () => {
+    server?.kill();
+    await server?.exitCode;
+    app.cleanup();
+  });
+
+  test("warns once that parent hooks skip a hot-added route until restart", async () => {
+    expect((await fetch(`http://localhost:${port}/`)).headers.get("x-parent-hook")).toBe("ran");
+
     writeAppFile(
       app.path,
-      "src/pages/root.tsx",
+      "src/pages/added.tsx",
       [
-        'import { defineRootRoute } from "@teyik0/furin";',
+        'import { defineRoute } from "@teyik0/furin";',
         "",
-        "export const route = defineRootRoute()",
+        'export const route = defineRoute("/added")',
         '  .config({ mode: "ssr" })',
-        "  .layout(({ children }) => children);",
+        "  .page(() => <main data-added>added</main>);",
       ].join("\n")
     );
-
-    const fixed = await pollUntil(
-      async () =>
-        readFileSync(rootPath, "utf8").includes("<HeadContent />") &&
-        readFileSync(rootPath, "utf8").includes("<Scripts />"),
-      40,
-      250
-    );
-
-    expect(fixed).toBe(true);
-    let lastDocument = "";
     const served = await pollUntil(
-      async () => {
-        const response = await fetch(`http://localhost:${port}/`);
-        const html = await response.text();
-        lastDocument = `${response.status}: ${html}`;
-        return (
-          response.status === 200 &&
-          html.startsWith("<!DOCTYPE html><html") &&
-          html.includes('data-furin-head=""') &&
-          html.includes('data-furin-scripts=""')
-        );
-      },
+      async () => (await fetch(`http://localhost:${port}/added`)).status === 200,
       40,
       250
     );
-    expect(served, `${lastDocument}\n${server.getStdout()}\n${server.getStderr()}`).toBe(true);
-    expect(server.getStderr()).not.toContain("ENOENT");
+    expect(served, server.getStderr()).toBe(true);
+    // The warning's premise: the parent hook does not run for the hot-added page.
+    const added = await fetch(`http://localhost:${port}/added`);
+    expect(added.headers.get("x-parent-hook")).toBeNull();
+
+    const warning = "[furin] /added was added while the dev server was running";
+    expect(server.getStderr().split(warning)).toHaveLength(2);
   }, 20_000);
 });

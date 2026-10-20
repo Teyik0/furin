@@ -3,32 +3,150 @@
 import "@teyik0/furin/routes";
 
 declare module "@teyik0/furin/routes" {
-  interface RouteMap {
-    "/": typeof import("./src/pages/index").route;
-    "/docs": typeof import("./src/pages/docs/index").route;
-    "/docs/api-routes": typeof import("./src/pages/docs/api-routes").route;
-    "/docs/caching": typeof import("./src/pages/docs/caching").route;
-    "/docs/cli": typeof import("./src/pages/docs/cli").route;
-    "/docs/comparison": typeof import("./src/pages/docs/comparison").route;
-    "/docs/configuration": typeof import("./src/pages/docs/configuration").route;
-    "/docs/data-loading": typeof import("./src/pages/docs/data-loading").route;
-    "/docs/defer": typeof import("./src/pages/docs/defer").route;
-    "/docs/deployment": typeof import("./src/pages/docs/deployment").route;
-    "/docs/dev-hmr": typeof import("./src/pages/docs/dev-hmr").route;
-    "/docs/error-handling": typeof import("./src/pages/docs/error-handling").route;
-    "/docs/getting-started": typeof import("./src/pages/docs/getting-started").route;
-    "/docs/head-seo": typeof import("./src/pages/docs/head-seo").route;
-    "/docs/layouts": typeof import("./src/pages/docs/layouts").route;
-    "/docs/link-navigation": typeof import("./src/pages/docs/link-navigation").route;
-    "/docs/logging": typeof import("./src/pages/docs/logging").route;
-    "/docs/multi-instance": typeof import("./src/pages/docs/multi-instance").route;
-    "/docs/plugins": typeof import("./src/pages/docs/plugins").route;
-    "/docs/rendering": typeof import("./src/pages/docs/rendering").route;
-    "/docs/routing": typeof import("./src/pages/docs/routing").route;
-    "/docs/sync": typeof import("./src/pages/docs/sync").route;
+  interface FileRoutes {
+    "/": {
+      kind: "page";
+      pattern: "/";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: {};
+    };
+    "/docs": {
+      kind: "page";
+      pattern: "/docs";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/_route": {
+      kind: "layout";
+      pattern: "/docs";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: {};
+    };
+    "/docs/api-routes": {
+      kind: "page";
+      pattern: "/docs/api-routes";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/caching": {
+      kind: "page";
+      pattern: "/docs/caching";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/cli": {
+      kind: "page";
+      pattern: "/docs/cli";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/comparison": {
+      kind: "page";
+      pattern: "/docs/comparison";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/configuration": {
+      kind: "page";
+      pattern: "/docs/configuration";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/data-loading": {
+      kind: "page";
+      pattern: "/docs/data-loading";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/defer": {
+      kind: "page";
+      pattern: "/docs/defer";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/deployment": {
+      kind: "page";
+      pattern: "/docs/deployment";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/dev-hmr": {
+      kind: "page";
+      pattern: "/docs/dev-hmr";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/error-handling": {
+      kind: "page";
+      pattern: "/docs/error-handling";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/getting-started": {
+      kind: "page";
+      pattern: "/docs/getting-started";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/head-seo": {
+      kind: "page";
+      pattern: "/docs/head-seo";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/layouts": {
+      kind: "page";
+      pattern: "/docs/layouts";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/link-navigation": {
+      kind: "page";
+      pattern: "/docs/link-navigation";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/logging": {
+      kind: "page";
+      pattern: "/docs/logging";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/multi-instance": {
+      kind: "page";
+      pattern: "/docs/multi-instance";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/plugins": {
+      kind: "page";
+      pattern: "/docs/plugins";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/rendering": {
+      kind: "page";
+      pattern: "/docs/rendering";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/routing": {
+      kind: "page";
+      pattern: "/docs/routing";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/sync": {
+      kind: "page";
+      pattern: "/docs/sync";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
   }
+}
 
-  interface RoutePatternMap {
+declare module "@teyik0/furin/routes" {
+  interface RouteMap {
     "/": typeof import("./src/pages/index").route;
     "/docs": typeof import("./src/pages/docs/index").route;
     "/docs/api-routes": typeof import("./src/pages/docs/api-routes").route;

@@ -1,7 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { dirname, join } from "node:path";
+import { buildRouteTree, collectRouteFiles, fileRouteId } from "../../../src/plugin/route-tree.ts";
 import { scanPages } from "../../../src/server/router/discovery.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 
@@ -13,19 +14,12 @@ import { defineRootRoute } from ${JSON.stringify(FURIN_ENTRY)};
 export const route = defineRootRoute().config({ mode: "ssr" }).layout(({ children }) => children);
 `;
 
-// page module that inherits from root — import path is computed per page so
-// nested files (subdirs) still resolve to the same root module instance,
-// guaranteeing object identity for validateRouteChain.
+// page module keyed by its place under the root's directory.
 function pageModule(pageAbsPath: string, rootAbsPath: string): string {
-  let rel = relative(dirname(pageAbsPath), rootAbsPath).replaceAll("\\", "/");
-  if (!rel.startsWith(".")) {
-    rel = `./${rel}`;
-  }
   return `
 import { defineRoute } from ${JSON.stringify(FURIN_ENTRY)};
-import { route as rootRoute } from ${JSON.stringify(rel)};
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute(${JSON.stringify(fileRouteId({ pagesDir: dirname(rootAbsPath), prefix: "" }, pageAbsPath))})
+  .config({ mode: "ssr" })
   .page(() => null);
 `;
 }
@@ -52,6 +46,18 @@ describe("scanPages: route order is deterministic", () => {
   function writePage(absPath: string) {
     writeFileSync(absPath, pageModule(absPath, join(tempDir, "root.tsx")));
   }
+
+  test("ignores private directories and declaration files when discovering public pages", async () => {
+    mkdirSync(join(tempDir, "_private"));
+    writeFileSync(
+      join(tempDir, "_private", "component.tsx"),
+      'throw new Error("private module must not execute");'
+    );
+    writeFileSync(join(tempDir, "global.d.ts"), "declare const clientName: string;");
+    writePage(join(tempDir, "index.tsx"));
+    const { routes } = await scanPages(tempDir);
+    expect(routes.map((route) => route.pattern)).toEqual(["/"]);
+  });
 
   test("flat pages are returned in alphabetical pattern order", async () => {
     // Write pages in reverse-alphabetical order to surface non-sorted readdir
@@ -144,5 +150,54 @@ describe("scanPages: route order is deterministic", () => {
     const { routes } = await scanPages(tempDir);
 
     expect(routes.map((route) => route.pattern)).toEqual(["/foo/bar", "/foo"]);
+  });
+});
+
+describe("scanPages and the route tree share one file manifest", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "furin-scan-manifest-"));
+    writeFileSync(join(tempDir, "root.tsx"), ROOT_MODULE);
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { force: true, recursive: true });
+  });
+
+  function routeTreePatterns(): string[] {
+    return collectRouteFiles(buildRouteTree(tempDir, "test"))
+      .filter((file) => file.path !== "")
+      .map((file) => file.path)
+      .toSorted();
+  }
+
+  for (const devMode of [false, true]) {
+    test(`a symlinked page file is a route for both (${devMode ? "dev" : "build"})`, async () => {
+      mkdirSync(join(tempDir, "_shared"));
+      const target = join(tempDir, "_shared", "about.tsx");
+      writeFileSync(target, pageModule(target, join(tempDir, "root.tsx")));
+      symlinkSync(target, join(tempDir, "about.tsx"));
+      writeFileSync(
+        join(tempDir, "index.tsx"),
+        pageModule(join(tempDir, "index.tsx"), join(tempDir, "root.tsx"))
+      );
+
+      __setDevMode(devMode);
+      try {
+        const { routes } = await scanPages(tempDir);
+        expect(routes.map((route) => route.pattern).toSorted()).toEqual(routeTreePatterns());
+      } finally {
+        __setDevMode(false);
+      }
+    });
+  }
+
+  test("an invalid dynamic segment above a convention file is rejected by both", async () => {
+    mkdirSync(join(tempDir, "[bad-name]"));
+    writeFileSync(join(tempDir, "[bad-name]", "error.tsx"), "export default () => null;");
+
+    expect(() => buildRouteTree(tempDir, "test")).toThrow("Invalid dynamic parameter");
+    await expect(scanPages(tempDir)).rejects.toThrow("Invalid dynamic parameter");
   });
 });

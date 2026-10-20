@@ -3,13 +3,15 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { toCrossJSON } from "seroval";
+import type { RuntimeData } from "../../../src/client/internal/runtime-types.ts";
 import { Link, RouterProvider } from "../../../src/client/link.tsx";
 import type { ClientRoute } from "../../../src/client/router/index.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
+import { navigationDataPath } from "../../support/navigation-data.ts";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function makePage(linkTo: string): React.ComponentType<Record<string, unknown>> {
+function makePage(linkTo: string): React.ComponentType<RuntimeData> {
   return () =>
     createElement(
       "div",
@@ -45,8 +47,8 @@ async function flushReactUpdates(): Promise<void> {
   });
 }
 
-/** Returns a single-line NDJSON response (CrossJSON-serialised) for the /_furin/data endpoint. */
-function makeNdjsonResponse(data: Record<string, unknown>): Response {
+/** Returns a single-line NDJSON response (CrossJSON-serialised) for `?_furin=data` navigation requests. */
+function makeNdjsonResponse(data: RuntimeData): Response {
   const ndjson = JSON.stringify(toCrossJSON(data));
   return new Response(ndjson, { headers: { "Content-Type": "application/x-ndjson" }, status: 200 });
 }
@@ -72,7 +74,7 @@ async function renderRouterWithLink(
 
   let initialMatch:
     | (ClientRoute & {
-        component: React.ComponentType<Record<string, unknown>>;
+        component: React.ComponentType<RuntimeData>;
         pageRoute: unknown;
       })
     | null = null;
@@ -97,7 +99,6 @@ async function renderRouterWithLink(
         initialData: {},
         initialDigest: undefined,
         initialMatch,
-        initialNotFound: undefined,
         prefetchCacheSize: 50,
         root: null,
         routes,
@@ -154,8 +155,7 @@ describe("RouterProvider server-side redirect follow", () => {
 
     globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(input.toString(), window.location.origin);
-      const logicalPath =
-        url.pathname === "/_furin/data" ? (url.searchParams.get("path") ?? "") : url.pathname;
+      const logicalPath = navigationDataPath(url, window.location.origin) ?? url.pathname;
       const logicalPathname = new URL(logicalPath, window.location.origin).pathname;
 
       if (logicalPathname === "/page-b") {

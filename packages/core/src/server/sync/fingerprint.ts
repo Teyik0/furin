@@ -24,7 +24,7 @@ function canonicalize(value: unknown): unknown {
   return value;
 }
 
-export function sha256Hex(source: string): string {
+function sha256Hex(source: string): string {
   const hasher = new Bun.CryptoHasher("sha256");
   hasher.update(source);
   return hasher.digest("hex");

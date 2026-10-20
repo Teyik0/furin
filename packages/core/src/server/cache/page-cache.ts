@@ -128,11 +128,13 @@ function invalidateMatchingEntries(
   return { invalidated: affectedPaths.size > 0, paths: [...affectedPaths] };
 }
 
-function identityKey(identity: PageCacheIdentity): string {
+/** Storage key shared by every page cache adapter for one cached page identity. */
+export function pageCacheIdentityKey(identity: PageCacheIdentity): string {
   return JSON.stringify([identity.scope, identity.buildId, identity.mode, identity.key]);
 }
 
-function layoutPaths(path: string): string[] {
+/** Every layout path whose invalidation must reach `path`, root first. */
+export function pageCacheLayoutPaths(path: string): string[] {
   if (path === "/") {
     return ["/"];
   }
@@ -150,7 +152,7 @@ function selectorKey(scope: string, selector: "layout" | "page" | "tag", value: 
   return JSON.stringify([scope, selector, value]);
 }
 
-function normalizeInvalidationPath(path: string): string {
+export function normalizePageCacheInvalidationPath(path: string): string {
   return path.length > 1 ? path.replace(TRAILING_SLASHES, "") : path;
 }
 
@@ -163,7 +165,9 @@ export function createMemoryPageCache(): PageCacheAdapter {
 
   const selectorsFor = (identity: PageCacheIdentity): string[] => [
     selectorKey(identity.scope, "page", identity.path),
-    ...layoutPaths(identity.path).map((path) => selectorKey(identity.scope, "layout", path)),
+    ...pageCacheLayoutPaths(identity.path).map((path) =>
+      selectorKey(identity.scope, "layout", path)
+    ),
     ...identity.tags.map((tag) => selectorKey(identity.scope, "tag", tag)),
   ];
 
@@ -213,7 +217,7 @@ export function createMemoryPageCache(): PageCacheAdapter {
 
   return {
     acquire({ identity, leaseMs }) {
-      const key = identityKey(identity);
+      const key = pageCacheIdentityKey(identity);
       const now = Date.now();
       cleanupMetadata(now);
       const active = leases.get(key);
@@ -234,7 +238,7 @@ export function createMemoryPageCache(): PageCacheAdapter {
       return Promise.resolve(lease);
     },
     commit({ entry, identity, lease }) {
-      const key = identityKey(identity);
+      const key = pageCacheIdentityKey(identity);
       cleanupMetadata(Date.now());
       const active = leases.get(key);
       if (active?.lease.id !== lease.id || active.lease.fence !== lease.fence) {
@@ -258,7 +262,7 @@ export function createMemoryPageCache(): PageCacheAdapter {
     invalidate(input) {
       cleanupMetadata(Date.now());
       if (input.kind === "path") {
-        const normalizedInput = { ...input, path: normalizeInvalidationPath(input.path) };
+        const normalizedInput = { ...input, path: normalizePageCacheInvalidationPath(input.path) };
         const result = invalidateMatchingEntries(entries, leases, (identity) =>
           identityMatchesPath(identity, normalizedInput)
         );
@@ -278,7 +282,7 @@ export function createMemoryPageCache(): PageCacheAdapter {
     },
     read(identity) {
       cleanupMetadata(Date.now());
-      const key = identityKey(identity);
+      const key = pageCacheIdentityKey(identity);
       const stored = entries.get(key);
       if (stored === undefined || stored.revision !== revisionFor(identity)) {
         entries.delete(key);
@@ -289,7 +293,7 @@ export function createMemoryPageCache(): PageCacheAdapter {
       return Promise.resolve(stored.entry);
     },
     release({ identity, lease }) {
-      const key = identityKey(identity);
+      const key = pageCacheIdentityKey(identity);
       if (leases.get(key)?.lease.id === lease.id) {
         leases.delete(key);
       }

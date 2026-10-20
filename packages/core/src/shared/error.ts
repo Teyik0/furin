@@ -39,10 +39,7 @@ export type ErrorComponent = FC<ErrorProps>;
 
 export function getPublicErrorMessage(error: Error | unknown): string {
   const branded = error as { __furinBrand?: string } | undefined;
-  if (
-    branded?.__furinBrand === "FURIN_NOT_FOUND" ||
-    branded?.__furinBrand === "FURIN_SERVER_ERROR"
-  ) {
+  if (branded?.__furinBrand === "FURIN_NOT_FOUND") {
     return (error as Error).message;
   }
   return "Something went wrong";

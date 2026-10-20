@@ -22,6 +22,7 @@ export async function run(args: ParsedArgs): Promise<void> {
       "",
       pc.dim("Next steps:"),
       `  ${pc.cyan(`cd ${ctx.projectNameKebab}`)}`,
+      ...(ctx.installRan ? [] : [`  ${pc.cyan("bun install")}`]),
       `  ${pc.cyan("bun dev")}`,
     ].join("\n")
   );

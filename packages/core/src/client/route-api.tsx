@@ -1,4 +1,4 @@
-import type { RoutePatternMap } from "@teyik0/furin/routes";
+import type { RouteMap } from "@teyik0/furin/routes";
 import { type Context, createContext, createElement, type ReactNode, useContext } from "react";
 import type { RouteLoaderData, RouteParams } from "../define-route.ts";
 
@@ -65,11 +65,11 @@ function useRouteSnapshot(pattern: string): RouteSnapshot {
   return snapshot;
 }
 
-export function getRouteApi<Pattern extends keyof RoutePatternMap & string>(pattern: Pattern) {
+export function getRouteApi<Pattern extends keyof RouteMap & string>(pattern: Pattern) {
   return {
-    useLoaderData: (): RouteLoaderData<RoutePatternMap[Pattern]> =>
-      useRouteSnapshot(pattern).data as RouteLoaderData<RoutePatternMap[Pattern]>,
-    useParams: (): ResolvedRouteParams<RoutePatternMap[Pattern]> =>
-      useRouteSnapshot(pattern).params as ResolvedRouteParams<RoutePatternMap[Pattern]>,
+    useLoaderData: (): RouteLoaderData<RouteMap[Pattern]> =>
+      useRouteSnapshot(pattern).data as RouteLoaderData<RouteMap[Pattern]>,
+    useParams: (): ResolvedRouteParams<RouteMap[Pattern]> =>
+      useRouteSnapshot(pattern).params as ResolvedRouteParams<RouteMap[Pattern]>,
   };
 }

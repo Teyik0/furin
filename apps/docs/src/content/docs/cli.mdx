@@ -1,11 +1,12 @@
 # CLI Reference
 
-The Furin CLI builds production artifacts and previews static exports. Development runs the application entry directly with Bun.
+The Furin CLI builds production artifacts, previews static exports and generates route types. Development runs the application entry directly with Bun.
 
 ```sh
 furin help
 furin build
 furin preview
+furin typegen
 ```
 
 The generated project already exposes these through `bun run build`, `bun run start`, and `bun run dev`.
@@ -18,7 +19,7 @@ furin build [options]
 
 | Flag | Value | Default | Meaning |
 |---|---|---|---|
-| `--target` | `bun`, `vercel`, `static`, `package`, or `all` | `bun` | Select output |
+| `--target` | `bun`, `vercel`, `static`, `package`, `all`, or a configured adapter name | Every config `targets` entry, else `bun` | Select output |
 | `--pagesDir` | Path | Config or auto-detected | Build one explicit app |
 | `--prefix` | URL prefix | `""` | Prefix paired with the explicit pages directory |
 | `--config` | Path | Auto-discovered | Use another config file |
@@ -47,7 +48,7 @@ furin build --target package --pagesDir ./src/admin --prefix /admin
 furin build --target all
 ```
 
-`all` means the deploy targets `bun`, `vercel`, and `static`; it deliberately excludes `package`, which is an alternative packaging of one app.
+`all` means the deploy targets `bun`, `vercel`, and `static`; it deliberately excludes `package`, which is an alternative packaging of one app. A `--target` name that matches an entry of the config `targets` builds that entry, with its adapter options.
 
 ### Target Status
 
@@ -63,6 +64,21 @@ Every successful build writes `.furin/build/manifest.json`. It records route mod
 ### Analyze Output
 
 `--analyze` writes Bun metafiles for client builds. They describe emitted byte sizes and import contributions, but do not measure startup latency, request throughput, memory, or edit-to-paint time.
+
+## `furin typegen`
+
+Write `furin-env.d.ts` without starting or building the app, for example before `tsc` in CI:
+
+```sh
+furin typegen [options]
+```
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--pagesDir` | Config, `furin()` calls detected in `src/server.ts`, then `src/pages` | Pages directory of the root-mounted app |
+| `--config` | Auto-discovered | Alternate config file |
+
+It writes the same file as the development server and `furin build`: `FileRoutes` covers the route files of every mounted app, and `RouteMap` the patterns of the root-mounted app (prefix `""`).
 
 ## `furin preview`
 

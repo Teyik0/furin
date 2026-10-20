@@ -59,7 +59,7 @@ test("factory guard precedes a source request short circuit", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-factory-"));
   const previousData = process.env.FURIN_APP_DATA_DIR;
   const app = createDesktopApp()
-    .request(({ request }) =>
+    .onRequest(({ request }) =>
       new URL(request.url).pathname === "/early"
         ? new Response("source", { status: 201 })
         : undefined
@@ -176,12 +176,12 @@ test("guard is already active for requests queued during async setup", async () 
   const release = Promise.withResolvers<void>();
   let cleaned = false;
   const app = createDesktopApp()
-    .request(() => new Response("source", { status: 201 }))
-    .setup(async () => {
+    .onRequest(() => new Response("source", { status: 201 }))
+    .onStart(async () => {
       entered.resolve();
       await release.promise;
     })
-    .cleanup(() => {
+    .onStop(() => {
       cleaned = true;
     });
   let ready = false;

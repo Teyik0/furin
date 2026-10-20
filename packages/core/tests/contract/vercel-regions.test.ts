@@ -1,25 +1,18 @@
 import { expect, expectTypeOf, test } from "bun:test";
-import {
-  defineConfig,
-  type FurinConfig,
-  type VercelDeploymentConfig,
-  type VercelRegion,
-} from "../../src/config";
+import { type VercelAdapterOptions, type VercelRegion, vercel } from "../../src/adapter/vercel";
 
-test("Vercel config suggests supported region codes", () => {
+test("the Vercel adapter suggests supported region codes", () => {
   expectTypeOf<
-    NonNullable<NonNullable<FurinConfig["vercel"]>["regions"]>[number]
-  >().toEqualTypeOf<VercelRegion>();
-  expectTypeOf<
-    NonNullable<VercelDeploymentConfig["regions"]>[number]
+    NonNullable<VercelAdapterOptions["regions"]>[number]
   >().toEqualTypeOf<VercelRegion>();
 
-  expect(defineConfig({ vercel: { regions: ["cdg1", "fra1"] } }).vercel?.regions).toEqual([
-    "cdg1",
-    "fra1",
-  ]);
-  expect(defineConfig({ vercel: { regions: ["dxb1"] } }).vercel?.regions).toEqual(["dxb1"]);
+  expect(vercel({ regions: ["cdg1", "fra1"] }).name).toBe("vercel");
+  expect(vercel({ regions: ["dxb1"] }).name).toBe("vercel");
 
   // @ts-expect-error — abc1 has the right shape but is not a Vercel region.
-  defineConfig({ vercel: { regions: ["abc1"] } });
+  expect(() => vercel({ regions: ["abc1"] })).toThrow('(got "abc1")');
+  expect(() => vercel({ regions: [] })).toThrow("non-empty list of distinct Vercel regions");
+  expect(() => vercel({ regions: ["cdg1", "cdg1"] })).toThrow(
+    "non-empty list of distinct Vercel regions"
+  );
 });

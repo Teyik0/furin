@@ -1,14 +1,31 @@
 import { expect, test } from "bun:test";
 import { splitDevPage } from "../../../src/plugin/transform-dev-page.ts";
 
+test("a constant route factory alias keeps render-only imports outside the server contract", () => {
+  const result = splitDevPage(
+    `import { defineRoute } from "furin";
+    import { View } from "./view";
+    const create = defineRoute;
+    export const route = create().config({ mode: "ssr" }).page(() => <View />);`,
+    "page.tsx",
+    "page.tsx?furin-render&t=1"
+  );
+  expect(result).toBeDefined();
+  if (!result) {
+    throw new Error("Expected an eligible route to split");
+  }
+  expect(result.contract).not.toContain('"./view"');
+  expect(result.render).toContain('"./view"');
+});
+
 test.each([
-  'const label = "local state"; export const route = defineRoute().page(() => <Heavy>{label}</Heavy>);',
-  "export const route = defineRoute().page(Heavy);",
+  'const label = "local state"; export const route = defineRoute("/page").page(() => <Heavy>{label}</Heavy>);',
+  'export const route = defineRoute("/page").page(Heavy);',
   "export const route = anotherBuilder().page(() => <Heavy />);",
-  "export const route = defineRoute().page(() => <Heavy value={import.meta.url} />);",
-  "const Object = {}; export const route = defineRoute().page(() => <Heavy />);",
-  'if (true) { var label = "hoisted state"; } export const route = defineRoute().page(() => <Heavy>{label}</Heavy>);',
-  "export const route = defineRoute().page(() => <Heavy />); export const Page = route.component;",
+  'export const route = defineRoute("/page").page(() => <Heavy value={import.meta.url} />);',
+  'const Object = {}; export const route = defineRoute("/page").page(() => <Heavy />);',
+  'if (true) { var label = "hoisted state"; } export const route = defineRoute("/page").page(() => <Heavy>{label}</Heavy>);',
+  'export const route = defineRoute("/page").page(() => <Heavy />); export const Page = route.component;',
 ])("keeps unsupported route closures eager: %s", (body) => {
   const source = `import { defineRoute } from "furin"; import Heavy from "./heavy"; ${body}`;
   expect(splitDevPage(source, "/app/page.tsx", "/app/page.tsx?furin-render&t=1")).toBeUndefined();
@@ -34,11 +51,32 @@ test("recognizes aliased Furin imports and preserves explicit startup effects", 
   expect(renderImports).not.toContain("./startup");
 });
 
+test("splits a page whose defineRoute comes from @teyik0/furin/client", () => {
+  const source = `
+    import { defineRoute } from "@teyik0/furin/client";
+    import Heavy from "./heavy";
+    export const route = defineRoute("/page").page(() => <Heavy />);
+  `;
+  const split = splitDevPage(source, "/app/page.tsx", "/app/page.tsx?furin-render&t=1");
+  expect(split?.contract).not.toContain('"./heavy"');
+  expect(split?.render).toContain('"./heavy"');
+});
+
+test("keeps a route that is not exported as `export const route` eager", () => {
+  const source = `
+    import { defineRoute } from "furin";
+    import Heavy from "./heavy";
+    const route = defineRoute("/page").page(() => <Heavy />);
+    export { route };
+  `;
+  expect(splitDevPage(source, "/app/page.tsx", "/app/page.tsx?furin-render&t=1")).toBeUndefined();
+});
+
 test("keeps an import eager when a page parameter shadows its name", () => {
   const source = `
     import { defineRoute } from "furin";
     import { Foo } from "./startup";
-    export const route = defineRoute().page(({ Foo }) => <Foo />);
+    export const route = defineRoute("/page").page(({ Foo }) => <Foo />);
   `;
   expect(splitDevPage(source, "/app/page.tsx", "/app/page.tsx?furin-render&t=1")).toBeUndefined();
 });

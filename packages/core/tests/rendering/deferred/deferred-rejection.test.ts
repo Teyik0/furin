@@ -1,11 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { fromCrossJSON, toCrossJSON } from "seroval";
-import "../../setup/evlog-mock";
-
 import { FurinErrorBoundary } from "../../../src/client/boundaries.tsx";
-import { serializeDeferredRejection } from "../../../src/server/render/loaders.ts";
+import { serializeDeferredRejection } from "../../../src/server/render/loader-errors.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { computeErrorDigest } from "../../../src/shared/digest.ts";
 import { isNotFoundError, notFound } from "../../../src/shared/not-found.ts";
@@ -17,6 +15,12 @@ async function roundtrip(value: unknown): Promise<unknown> {
 }
 
 describe("serializeDeferredRejection — preserves rejection semantics over CrossJSON", () => {
+  let previousDevMode: boolean;
+  beforeEach(() => {
+    previousDevMode = IS_DEV;
+    __setDevMode(true);
+  });
+  afterEach(() => __setDevMode(previousDevMode));
   test("notFound(): brand preserved so isNotFoundError() is true on the client", async () => {
     let thrown: unknown;
     try {

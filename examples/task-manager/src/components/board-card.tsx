@@ -18,7 +18,7 @@ function avatarColor(id: string): string {
 }
 
 export function BoardCard({ board }: { board: Board & { formattedCreatedAt: string } }) {
-  const remove = useMutation(api.boards({ boardId: board.id }).delete);
+  const remove = useMutation(api.boards({ boardId: board.id }).delete, { retry: 2 });
   const errorMessage = remove.error?.value.detail ?? null;
 
   return (

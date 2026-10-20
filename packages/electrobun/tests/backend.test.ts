@@ -146,7 +146,7 @@ test("callback readiness times out after thirty seconds and closes the listener 
   const handle = setInterval(() => {
     /* Resource owned by the imported module. */
   }, 1000);
-  const app = createDesktopApp().setup(() => {
+  const app = createDesktopApp().onStart(() => {
     entered.resolve();
     return new Promise<void>(() => {
       /* Never reaches the listen callback. */

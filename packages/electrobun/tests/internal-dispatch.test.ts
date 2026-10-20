@@ -32,7 +32,7 @@ test("Bun HTTP dispatch supplies its server while Eden handle dispatch has no ad
   }
 });
 
-test("desktop Eden and createClient read/mutate the listening application without HTTP credentials", async () => {
+test("desktop Eden and the furinSync Eden plugin read/mutate the listening application without HTTP credentials", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-eden-"));
   const previous = process.env.FURIN_APP_DATA_DIR;
   const values: string[] = [];
@@ -48,8 +48,8 @@ test("desktop Eden and createClient read/mutate the listening application withou
       values.push(body.value);
       return values;
     });
-  const { createClient } = await import(Bun.resolveSync("@teyik0/furin/client", import.meta.dir));
-  const client = createClient(app).api;
+  const { furinSync } = await import(Bun.resolveSync("@teyik0/furin/client", import.meta.dir));
+  const client = treaty(app).use(furinSync).api;
   const eden = treaty(app).api;
   app.get("/ssr", async () => {
     const result = await client.values.get();

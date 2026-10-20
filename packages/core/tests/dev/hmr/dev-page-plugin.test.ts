@@ -3,17 +3,63 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
-  loadDevPageContents,
-  registerDevPagePlugin,
+  pinJsxRuntime,
   rewriteRelativeImports,
   rewriteSingletonImports,
   toImportSpecifier,
-  transformDevSource,
   WORKSPACE_SOURCE_FILTER,
+} from "../../../src/server/dev-page-imports.ts";
+import {
+  loadDevPageContents,
+  registerDevPagePlugin,
+  transformDevSource,
 } from "../../../src/server/dev-page-plugin.ts";
 import { createTmpApp } from "../../support/app-fixtures.ts";
 
 const MDX_FILTER = /\.mdx$/;
+
+test.each(["cjs", "cts"])(
+  "virtual development loads real CommonJS .%s exports",
+  async (extension) => {
+    const directory = mkdtempSync(resolve(tmpdir(), "furin-dev-commonjs-"));
+    try {
+      const page = resolve(directory, "page.ts");
+      writeFileSync(
+        page,
+        `import helper from "./helper.${extension}"; export const value = helper.value;`
+      );
+      writeFileSync(resolve(directory, "data.cjs"), 'module.exports = "CommonJS";');
+      writeFileSync(
+        resolve(directory, `helper.${extension}`),
+        'module.exports = { value: require("./data.cjs") };'
+      );
+      registerDevPagePlugin();
+      expect((await import(`${page}?furin-server&t=1`)).value).toBe("CommonJS");
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  }
+);
+
+test.each(["mjs", "cjs", "mts", "cts"])(
+  "virtual development reloads an edited .%s helper",
+  async (extension) => {
+    const directory = mkdtempSync(resolve(tmpdir(), "furin-dev-extension-"));
+    const page = resolve(directory, "page.ts");
+    const helper = resolve(directory, `helper.${extension}`);
+    const annotation = extension.endsWith("ts") ? ": string" : "";
+    try {
+      writeFileSync(page, `export { value } from "./helper.${extension}";`);
+      writeFileSync(helper, `export const value${annotation} = "original";`);
+      registerDevPagePlugin();
+      expect((await import(`${page}?furin-server&t=1`)).value).toBe("original");
+      writeFileSync(helper, `export const value${annotation} = "updated";`);
+      expect((await import(`${page}?furin-server&t=2`)).value).toBe("updated");
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  }
+);
 
 test("a virtual page can load its deferred render module", async () => {
   const app = createTmpApp("cli-app");
@@ -25,7 +71,7 @@ test("a virtual page can load its deferred render module", async () => {
       filePath,
       `import { defineRoute } from "@teyik0/furin";
       import { label } from "./label";
-      export const route = defineRoute().config({ mode: "ssr" }).page(() => <p>{label}</p>);`
+      export const route = defineRoute("/label").config({ mode: "ssr" }).page(() => <p>{label}</p>);`
     );
     registerDevPagePlugin();
     const { route } = await import(`${filePath}?furin-server&t=1`);
@@ -71,7 +117,7 @@ test("a virtual development loader resolves a dynamically imported MDX alias", a
   }
 });
 
-test("virtual modules resolve static imports and re-exports while preserving import examples", async () => {
+test("virtual modules refresh aliased imports and re-exports while preserving import examples", async () => {
   const directory = mkdtempSync(resolve(tmpdir(), "furin-dev-alias-"));
   const filePath = resolve(directory, "page.ts");
   const example = 'import "@/value.ts"';
@@ -90,18 +136,27 @@ test("virtual modules resolve static imports and re-exports while preserving imp
         'import { value } from "@/value.ts";',
         'export { value } from "@/value.ts";',
         'export const label = "café " + value;',
+        'export async function loadValue() { return (await import("@/value.ts")).value; }',
       ].join("\n")
     );
     registerDevPagePlugin();
     const imported = (await import(`${filePath}?furin-server&t=1`)) as {
       example: string;
       label: string;
+      loadValue: () => Promise<string>;
       value: string;
     };
 
     expect(imported.example).toBe(example);
     expect(imported.value).toBe("loaded");
     expect(imported.label).toBe("café loaded");
+    expect(await imported.loadValue()).toBe("loaded");
+
+    writeFileSync(resolve(directory, "value.ts"), 'export const value = "updated";');
+    const refreshed = await import(`${filePath}?furin-server&t=2`);
+    expect(refreshed.value).toBe("updated");
+    expect(refreshed.label).toBe("café updated");
+    expect(await refreshed.loadValue()).toBe("updated");
   } finally {
     rmSync(directory, { force: true, recursive: true });
   }
@@ -209,6 +264,17 @@ test("development transform errors preserve their original stack", () => {
   }
 });
 
+describe("pinJsxRuntime", () => {
+  test("keeps a shebang first and every source line in place", () => {
+    const source = "#!/usr/bin/env bun\nexport const view = <p>line 2</p>;\n";
+    const pinned = pinJsxRuntime(source, "tsx");
+
+    expect(pinned.startsWith("#!/usr/bin/env bun\n")).toBe(true);
+    expect(pinned.split("\n")[1]).toContain("export const view");
+    expect(() => new Bun.Transpiler({ loader: "tsx" }).transformSync(pinned)).not.toThrow();
+  });
+});
+
 describe("toImportSpecifier", () => {
   test("normalizes a native absolute path for cross-platform imports", () => {
     const specifier = toImportSpecifier("C:\\project\\src\\page.tsx");
@@ -306,11 +372,18 @@ describe("rewriteRelativeImports", () => {
 // ── rewriteSingletonImports ───────────────────────────────────────────────────
 
 describe("rewriteSingletonImports", () => {
+  test("keeps import-like text inside strings, templates, and comments intact", () => {
+    const input = `export const example = "import React from 'react';";
+      export const template = \`export { useState } from "react";\`;
+      // import React from "react";
+      /* import "react/jsx-runtime"; */`;
+    expect(rewriteSingletonImports(input, "tsx")).toBe(input);
+  });
   // Helper: check that the output is different from the input (i.e. a rewrite
   // actually happened) and that the absolute path no longer contains the bare
   // specifier wrapped in quotes.
   function wasRewritten(input: string, pkg: string): boolean {
-    const output = rewriteSingletonImports(input);
+    const output = rewriteSingletonImports(input, "tsx");
     return output !== input && !output.includes(`"${pkg}"`);
   }
 
@@ -360,17 +433,17 @@ describe("rewriteSingletonImports", () => {
 
   test("does NOT rewrite non-singleton packages", () => {
     const input = 'import { clsx } from "clsx";';
-    expect(rewriteSingletonImports(input)).toBe(input);
+    expect(rewriteSingletonImports(input, "tsx")).toBe(input);
   });
 
   test("does NOT rewrite react-adjacent packages like 'react-query'", () => {
     const input = 'import { useQuery } from "react-query";';
-    expect(rewriteSingletonImports(input)).toBe(input);
+    expect(rewriteSingletonImports(input, "tsx")).toBe(input);
   });
 
   test("does NOT rewrite relative imports", () => {
     const input = 'import { foo } from "./react";';
-    expect(rewriteSingletonImports(input)).toBe(input);
+    expect(rewriteSingletonImports(input, "tsx")).toBe(input);
   });
 
   test("rewrites multiple react imports in one source", () => {
@@ -379,7 +452,7 @@ describe("rewriteSingletonImports", () => {
       'import { jsx } from "react/jsx-runtime";',
       'import { clsx } from "clsx";',
     ].join("\n");
-    const output = rewriteSingletonImports(input);
+    const output = rewriteSingletonImports(input, "tsx");
     expect(output).not.toContain('"react"');
     expect(output).not.toContain('"react/jsx-runtime"');
     // Non-singleton unchanged
@@ -388,7 +461,7 @@ describe("rewriteSingletonImports", () => {
 
   test("output contains a normalized absolute path", () => {
     const input = 'import { useState } from "react";';
-    const output = rewriteSingletonImports(input);
+    const output = rewriteSingletonImports(input, "tsx");
     expect(output).not.toContain("\\");
     expect(output).not.toContain('from "react"');
   });

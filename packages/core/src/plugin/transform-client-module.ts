@@ -1,12 +1,10 @@
 import { realpathSync } from "node:fs";
 import { dirname } from "node:path";
-import MagicString from "magic-string";
 import { walk } from "yuku-ast";
-import type { CallExpression, ImportDeclaration, Program } from "yuku-parser";
-import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts";
-import { parseSource } from "../shared/parser.ts";
-import type { AstNode } from "../shared/utils/ast-walk.ts";
+import type { Node, Program } from "yuku-parser";
+import { unwrapTSExpression } from "../server/lang-detect.ts";
 import { hasShadowingDeclaration } from "./binding-scope.ts";
+import { type ModuleTransform, parseModule, replaceRange } from "./module-transform.ts";
 import type { IsomorphicEnvironment } from "./transform-isomorphic.ts";
 
 const FURIN_CLIENT_MODULES = new Set(["@teyik0/furin/client", "furin/client"]);
@@ -29,23 +27,20 @@ function collectClientModuleBindings(program: Program): Set<string> {
     if (statement.type !== "ImportDeclaration") {
       continue;
     }
-    const declaration = statement as unknown as ImportDeclaration;
     if (
-      declaration.importKind === "type" ||
-      !FURIN_CLIENT_MODULES.has(String(declaration.source.value))
+      statement.importKind === "type" ||
+      !FURIN_CLIENT_MODULES.has(String(statement.source.value))
     ) {
       continue;
     }
-    for (const specifier of declaration.specifiers as unknown as AstNode[]) {
-      const imported = specifier.imported as AstNode | undefined;
-      const local = specifier.local as AstNode | undefined;
+    for (const specifier of statement.specifiers) {
       if (
         specifier.type === "ImportSpecifier" &&
         specifier.importKind !== "type" &&
-        imported?.name === "clientModule" &&
-        typeof local?.name === "string"
+        specifier.imported.type === "Identifier" &&
+        specifier.imported.name === "clientModule"
       ) {
-        bindings.add(local.name);
+        bindings.add(specifier.local.name);
       }
     }
   }
@@ -53,12 +48,12 @@ function collectClientModuleBindings(program: Program): Set<string> {
 }
 
 /** Returns the `import("…")` specifier of a `() => import("…")` loader. */
-function dynamicImportSpecifier(loader: AstNode): string | null {
-  if (loader.type !== "ArrowFunctionExpression" || (loader.params as unknown[]).length > 0) {
+function dynamicImportSpecifier(loader: Node): string | null {
+  if (loader.type !== "ArrowFunctionExpression" || loader.params.length > 0) {
     return null;
   }
-  const body = loader.body as unknown as AstNode;
-  const source = body.type === "ImportExpression" ? (body.source as AstNode) : null;
+  const { body } = loader;
+  const source = body.type === "ImportExpression" ? body.source : null;
   return source?.type === "Literal" && typeof source.value === "string" ? source.value : null;
 }
 
@@ -75,30 +70,39 @@ export function transformClientModules(
   filename: string,
   environment: IsomorphicEnvironment
 ): string {
-  if (!source.includes("clientModule")) {
-    return source;
+  const module = parseModule(source, filename);
+  rewriteClientModules(module, environment);
+  return module.source.toString();
+}
+
+/** Applies the `clientModule()` rewrite to a parsed module; reports whether it edited it. */
+export function rewriteClientModules(
+  module: ModuleTransform,
+  environment: IsomorphicEnvironment
+): boolean {
+  const { filename, program, source } = module;
+  if (!module.code.includes("clientModule")) {
+    return false;
   }
-  const { program } = parseSource(source, detectLangFromPath(filename));
   const bindings = collectClientModuleBindings(program);
   if (bindings.size === 0) {
-    return source;
+    return false;
   }
 
-  const transformed = new MagicString(source);
+  let rewritten = false;
   walk(program, {
-    CallExpression(node, context) {
-      const call = node as unknown as CallExpression;
-      const [loader, ...rest] = call.arguments as unknown as AstNode[];
+    CallExpression(call, context) {
+      const [loader, ...rest] = call.arguments;
       if (
         call.callee.type !== "Identifier" ||
         !bindings.has(call.callee.name) ||
-        hasShadowingDeclaration(call.callee.name, context.ancestors() as AstNode[]) ||
+        hasShadowingDeclaration(call.callee.name, context.ancestors()) ||
         !loader ||
         rest.length > 0
       ) {
         return;
       }
-      const unwrapped = unwrapTSExpression(loader) as AstNode;
+      const unwrapped = unwrapTSExpression(loader);
       const specifier = dynamicImportSpecifier(unwrapped);
       if (specifier === null) {
         return;
@@ -113,11 +117,12 @@ export function transformClientModules(
         );
       }
       if (environment === "client") {
-        transformed.appendLeft(loader.end, `, ${key}`);
+        source.appendLeft(loader.end, `, ${key}`);
       } else {
-        transformed.overwrite(loader.start, loader.end, `${SERVER_LOAD}, ${key}`);
+        replaceRange(module, loader.start, loader.end, `${SERVER_LOAD}, ${key}`);
       }
+      rewritten = true;
     },
   });
-  return transformed.toString();
+  return rewritten;
 }

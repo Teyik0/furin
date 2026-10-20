@@ -9,6 +9,7 @@ import {
   RouterProvider,
 } from "../../../src/client/link.tsx";
 import type { ErrorProps } from "../../../src/shared/error.ts";
+import { ROUTE_MATCHES_KEY } from "../../../src/shared/route-matches.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
 
 const ROOT_PATH_RE = /^\/$/;
@@ -135,11 +136,6 @@ describe("buildRouterTree — error boundary fallback navigation", () => {
 
   test.each([
     [
-      "a partial initial server error uses a safe fallback message",
-      { digest: "abc1234567", status: 500 },
-      "Something went wrong",
-    ],
-    [
       "an initial server error preserves its serialized safe message",
       { digest: "abc1234567", message: "Safe serialized message", status: 500 },
       "Safe serialized message",
@@ -171,11 +167,15 @@ describe("buildRouterTree — error boundary fallback navigation", () => {
           defaultPreload: "intent",
           defaultPreloadDelay: 50,
           defaultPreloadStaleTime: 30_000,
-          initialData: {},
+          // The page segment failed: the chain is [pageRoute], so the page is index 1.
+          initialData: {
+            [ROUTE_MATCHES_KEY]: [
+              { fields: {}, status: "success" },
+              { error: initialError, status: "error" },
+            ],
+          },
           initialDigest: "abc1234567",
-          initialError,
           initialMatch,
-          initialNotFound: undefined,
           prefetchCacheSize: 50,
           root: null,
           routes: [route],

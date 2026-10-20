@@ -1,11 +1,51 @@
+import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
 import { Elysia } from "elysia";
 import { createBrowserEventsPlugin } from "../../src/server/browser-events/plugin.ts";
+import {
+  closeBrowserEventConnections,
+  registerBrowserEventConnection,
+  unregisterBrowserEventConnection,
+} from "../../src/server/browser-events/shutdown.ts";
 import { createFurinEvlog } from "../../src/server/evlog.ts";
 import { startProductionServer } from "../../src/server/production-server.ts";
 import type { SyncAdapter } from "../../src/server/sync/adapter.ts";
+import { migrateSqliteSync, sqliteSyncAdapter } from "../../src/server/sync/sqlite/index.ts";
 import { subscribeSyncCursor } from "../../src/server/sync/stream.ts";
+
+test("connections registered during a server drain are closed and awaited", async () => {
+  const server = Bun.serve({ port: 0, fetch: () => new Response("ok") });
+  let firstClosed = false;
+  let lateClosed = false;
+  const first = () => {
+    firstClosed = true;
+  };
+  const late = () => {
+    lateClosed = true;
+  };
+  registerBrowserEventConnection(server, first);
+  const closing = closeBrowserEventConnections(server);
+  try {
+    expect(firstClosed).toBe(true);
+    registerBrowserEventConnection(server, late);
+    expect(lateClosed).toBe(true);
+    unregisterBrowserEventConnection(server, first);
+    let finished = false;
+    closing.then(() => {
+      finished = true;
+    });
+    await Bun.sleep(0);
+    expect(finished).toBe(false);
+    unregisterBrowserEventConnection(server, late);
+    await closing;
+  } finally {
+    unregisterBrowserEventConnection(server, first);
+    unregisterBrowserEventConnection(server, late);
+    await closing;
+    await server.stop(true);
+  }
+});
 
 test.each([
   { code: 7, mode: "success" },
@@ -63,6 +103,31 @@ test.each([
 });
 
 describe("Bun production lifecycle", () => {
+  test("runs Elysia cleanup and releases the server before completing shutdown", async () => {
+    let cleanups = 0;
+    const app = new Elysia()
+      .get("/", () => "ok")
+      .onStop(() => {
+        cleanups += 1;
+      });
+    const lifecycle = startProductionServer({
+      app,
+      port: 0,
+      preStopDelayMs: 0,
+      shutdownTimeoutMs: 1000,
+    });
+    try {
+      expect(await (await fetch(`http://localhost:${lifecycle.server.port}/`)).text()).toBe("ok");
+      await lifecycle.shutdown();
+      expect(cleanups).toBe(1);
+      expect(app.server).toBeUndefined();
+      await lifecycle.shutdown();
+      expect(cleanups).toBe(1);
+    } finally {
+      await app.stop(true);
+    }
+  });
+
   test("separates liveness and readiness while draining in-flight requests", async () => {
     const { promise: entered, resolve: markEntered } = Promise.withResolvers<void>();
     const { promise: release, resolve } = Promise.withResolvers<void>();
@@ -208,6 +273,64 @@ test("a second server does not steal the first server's pending log drains", asy
   }
 });
 
+test("serves no request before the application's async plugins resolve", async () => {
+  const guard = Bun.sleep(50).then(() =>
+    new Elysia({ name: "guard" }).onRequest(({ status }) => status(401, "denied"))
+  );
+  const lifecycle = startProductionServer({
+    app: new Elysia().use(guard).get("/", () => "ok"),
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 2000,
+  });
+
+  try {
+    const response = await fetch(`http://localhost:${lifecycle.server.port}/`);
+    expect(response.status).toBe(401);
+  } finally {
+    await lifecycle.shutdown();
+  }
+});
+
+test("an idle server's shutdown does not wait for another server's pending log drains", async () => {
+  const { promise: releaseDrain, resolve } = Promise.withResolvers<void>();
+  const { promise: drainStarted, resolve: markDrainStarted } = Promise.withResolvers<void>();
+  const busy = startProductionServer({
+    app: new Elysia()
+      .use(
+        createFurinEvlog({
+          drain: async () => {
+            markDrainStarted();
+            await releaseDrain;
+          },
+        })
+      )
+      .get("/", () => "ok"),
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 2000,
+  });
+  const idle = startProductionServer({
+    app: new Elysia().get("/", () => "ok"),
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 2000,
+  });
+
+  try {
+    await fetch(`http://localhost:${busy.server.port}/`);
+    await drainStarted;
+    const outcome = await Promise.race([
+      idle.shutdown().then(() => "stopped"),
+      Bun.sleep(500).then(() => "waiting"),
+    ]);
+    expect(outcome).toBe("stopped");
+  } finally {
+    resolve();
+    await Promise.all([busy.shutdown(), idle.shutdown()]);
+  }
+});
+
 test("waits for deferred log drains before application resource cleanup", async () => {
   const { promise: releaseDrain, resolve: resolveDrain } = Promise.withResolvers<void>();
   const { promise: drainStarted, resolve: markDrainStarted } = Promise.withResolvers<void>();
@@ -222,7 +345,10 @@ test("waits for deferred log drains before application resource cleanup", async 
         },
       })
     )
-    .get("/", () => "ok");
+    .get("/", () => "ok")
+    .onStop(() => {
+      order.push("cleanup");
+    });
   const lifecycle = startProductionServer({
     app,
     onShutdown: () => {
@@ -244,7 +370,7 @@ test("waits for deferred log drains before application resource cleanup", async 
     expect(completed).toBe(false);
     resolveDrain();
     await shutdown;
-    expect(order).toEqual(["drain", "shutdown"]);
+    expect(order).toEqual(["drain", "cleanup", "shutdown"]);
   } finally {
     resolveDrain();
     await lifecycle.shutdown();
@@ -252,7 +378,7 @@ test("waits for deferred log drains before application resource cleanup", async 
 });
 
 test("closes Furin browser-event WebSockets before stopping Bun", async () => {
-  const app = new Elysia().use(createBrowserEventsPlugin({}));
+  const app = new Elysia().use(createBrowserEventsPlugin({ development: true }));
   const lifecycle = startProductionServer({
     app,
     port: 0,
@@ -275,21 +401,58 @@ test("closes Furin browser-event WebSockets before stopping Bun", async () => {
   }
 });
 
+test("the configured shutdown deadline bounds an unacknowledged browser-event close", async () => {
+  const { promise: stopped, resolve: markStopped } = Promise.withResolvers<void>();
+  const app = new Elysia().onStop(() => markStopped());
+  let lateCleanup = false;
+  const lifecycle = startProductionServer({
+    app,
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 50,
+    onShutdown: () => {
+      lateCleanup = true;
+    },
+  });
+  let closeRequested = false;
+  const close = () => {
+    closeRequested = true;
+  };
+  registerBrowserEventConnection(lifecycle.server, close);
+  try {
+    await lifecycle.shutdown();
+    await stopped;
+    expect(closeRequested).toBe(true);
+    expect(lifecycle.server.pendingRequests).toBe(0);
+    expect(
+      await app
+        .handle(new Request("http://localhost/_furin/health/ready"))
+        .then((response) => response.status)
+    ).toBe(503);
+  } finally {
+    unregisterBrowserEventConnection(lifecycle.server, close);
+    await lifecycle.shutdown();
+  }
+  await Bun.sleep(0);
+  expect(lateCleanup).toBe(false);
+});
+
 test("shutting down one server leaves another server's browser-event sockets open", async () => {
   const first = startProductionServer({
-    app: new Elysia().use(createBrowserEventsPlugin({})),
+    app: new Elysia().use(createBrowserEventsPlugin({ development: true })),
     port: 0,
     preStopDelayMs: 0,
     shutdownTimeoutMs: 2000,
   });
   const second = startProductionServer({
-    app: new Elysia().use(createBrowserEventsPlugin({})),
+    app: new Elysia().use(createBrowserEventsPlugin({ development: true })),
     port: 0,
     preStopDelayMs: 0,
     shutdownTimeoutMs: 2000,
   });
   const adapter: SyncAdapter = {
     abortMutation: () => Promise.resolve(),
+    appendInvalidations: () => Promise.resolve("0"),
     beginMutation: () => Promise.reject(new Error("not used")),
     completeMutation: () => Promise.reject(new Error("not used")),
     currentCursor: () => Promise.resolve("7"),
@@ -317,6 +480,7 @@ test("shutting down one server leaves another server's browser-event sockets ope
       },
       principal: () => "test",
     },
+    true,
     (cursor) => cursors.push(cursor)
   );
   const firstSocket = new WebSocket(`ws://localhost:${first.server.port}/_furin/events`);
@@ -339,6 +503,8 @@ test("shutting down one server leaves another server's browser-event sockets ope
     expect(firstSocket.readyState).toBe(WebSocket.CLOSED);
     expect(secondSocket.readyState).toBe(WebSocket.OPEN);
     publish("8");
+    // Cursor broadcasts are coalesced on a trailing 100 ms window.
+    await Bun.sleep(150);
     expect(unsubscribed).toBe(false);
     expect(cursors).toEqual(["7", "8"]);
   } finally {
@@ -377,6 +543,7 @@ test("concurrent server shutdowns close shared Sync cursor subscriptions", async
   let unsubscribed = false;
   const adapter: SyncAdapter = {
     abortMutation: () => Promise.resolve(),
+    appendInvalidations: () => Promise.resolve("0"),
     beginMutation: () => Promise.reject(new Error("not used")),
     completeMutation: () => Promise.reject(new Error("not used")),
     currentCursor: () => Promise.resolve("0"),
@@ -399,6 +566,7 @@ test("concurrent server shutdowns close shared Sync cursor subscriptions", async
       },
       principal: () => "test",
     },
+    true,
     () => undefined
   );
 
@@ -412,5 +580,83 @@ test("concurrent server shutdowns close shared Sync cursor subscriptions", async
     release();
     subscription.unsubscribe();
     await Promise.all([first.shutdown(), second.shutdown()]);
+  }
+});
+
+test("a forced shutdown closes shared Sync state after its peer has stopped", async () => {
+  const first = startProductionServer({
+    app: new Elysia(),
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 50,
+  });
+  const second = startProductionServer({
+    app: new Elysia(),
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 1000,
+  });
+  const close = () => undefined;
+  registerBrowserEventConnection(first.server, close);
+  const database = new Database(":memory:");
+  migrateSqliteSync(database);
+  let unsubscribed = false;
+  const subscription = await subscribeSyncCursor(
+    {
+      adapter: sqliteSyncAdapter({ database, namespace: "forced-shutdown" }),
+      notifier: {
+        publish: () => Promise.resolve(),
+        subscribe: () =>
+          Promise.resolve({
+            unsubscribe: () => {
+              unsubscribed = true;
+              return Promise.resolve();
+            },
+          }),
+      },
+      principal: () => "test",
+    },
+    true,
+    () => undefined
+  );
+  try {
+    await Promise.all([first.shutdown(), second.shutdown()]);
+    expect(unsubscribed).toBe(true);
+    expect(first.server.pendingRequests).toBe(0);
+  } finally {
+    subscription.unsubscribe();
+    unregisterBrowserEventConnection(first.server, close);
+    await Promise.all([first.shutdown(), second.shutdown()]);
+    database.close();
+  }
+});
+
+test("forcing transport shutdown keeps pending Elysia cleanup bounded", async () => {
+  const { promise: release, resolve } = Promise.withResolvers<void>();
+  let cleanupStarted = false;
+  const app = new Elysia().onStop(() => {
+    cleanupStarted = true;
+    return release;
+  });
+  const lifecycle = startProductionServer({
+    app,
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 50,
+  });
+  try {
+    expect(
+      await Promise.race([
+        lifecycle.shutdown().then(() => "stopped"),
+        Bun.sleep(500).then(() => "timeout"),
+      ])
+    ).toBe("stopped");
+    expect(cleanupStarted).toBe(true);
+    expect(app.server).toBeUndefined();
+    expect(lifecycle.server.pendingRequests).toBe(0);
+  } finally {
+    resolve();
+    await app.stop(true);
+    await lifecycle.shutdown();
   }
 });

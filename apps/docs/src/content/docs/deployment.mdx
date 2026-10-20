@@ -21,7 +21,7 @@ Furin pins the Elysia 2 beta line and its matching official packages. Existing a
 
 ```sh
 bunx @elysia/codemod@latest
-bun add elysia@2.0.0-beta.21 @elysia/eden@2.0.0-beta.5 @elysia/static@2.0.0-beta.2 typebox@1.3.34 exact-mirror@1.2.6
+bun add elysia@2.0.0-beta.32 @elysia/eden@2.0.0-beta.5 @elysia/static@2.0.0-beta.3 typebox@1.3.34 exact-mirror@1.2.6
 ```
 
 `typebox` and `exact-mirror` are direct application dependencies because Kiana declares them as peers rather than embedding private copies. This keeps one compatible validator/normalizer graph for Elysia, its plugins, Eden, and Furin; `typebox` is also part of Furin's public schema contract. Exact Mirror itself contributes only a small runtime module—the larger compiled-binary increase in this beta comes primarily from the TypeBox 1 runtime and Bun bytecode amplification.
@@ -37,9 +37,47 @@ The important manual checks are:
 
 See the official [Elysia 2 DayDream release post](https://elysiajs.com/blog/elysia-20) for the complete breaking-change list.
 
-Furin automatically enables `elysia/plugin/aot/bun` for Bun server bundles, compiled executables, and Vercel Bun Functions. Applications using `.mount()` skip AOT because Elysia's AOT plugin cannot compile mounted handlers; beta.19 bundles its runtime TypeBox dependencies without Furin's former setup shim. It generates a real, listener-free application entry for Elysia's dry run and keeps the boot entry separate. Runtime compiler stripping stays on `auto`: Furin completes the export surface of Kiana's no-WebSocket stub while preserving its throwing behavior, so applications without Sync can still remove unused WebSocket code. Applications whose dynamic handlers require the JIT fallback keep it automatically. Compiled applications with and without Sync are exercised end-to-end to cover both paths.
+Furin automatically enables `elysia/plugin/aot/bun` for Bun server bundles, compiled executables, and Vercel Bun Functions. Applications using `.mount()` skip AOT because Elysia's AOT plugin cannot compile mounted handlers; beta.19 bundles its runtime TypeBox dependencies without Furin's former setup shim. It generates a real, listener-free application entry for Elysia's dry run and keeps the boot entry separate. An Elysia instance called in memory through `treaty(app)` (with or without `.use(furinSync)`) compiles its own router. While the application evaluates for the AOT build, Furin records every instance passed to `treaty()` from `@elysia/eden` or `@elysia/eden/treaty2`, exports it from that entry, and Elysia compiles its manifest too; such an instance must be named (`new Elysia({ name: "api" })`), and the build fails otherwise. Runtime compiler stripping stays on `auto`: Furin completes the export surface of Kiana's no-WebSocket stub while preserving its throwing behavior, so applications without Sync can still remove unused WebSocket code. Applications whose dynamic handlers require the JIT fallback keep it automatically. Compiled applications with and without Sync are exercised end-to-end to cover both paths.
 
 No custom Elysia runtime adapter is necessary for the supported targets. Bun uses Elysia's native Bun adapter, Vercel runs the same Bun-targeted bundle through `app.handle(Request)`, static exports have no server runtime, and package builds let the host application own its adapter. A future non-Bun target should be added only with a dedicated Furin deployment adapter and Elysia Adapter v2 integration, not as an unimplemented CLI option.
+
+Both Furin-owned entry points fail closed when the application uses asynchronous plugins, such as `.use(import("./auth"))`. The Bun server serves no request until Elysia's `app.modules` settles, and it stops if `app.modules` rejects. The Vercel handler awaits `app.modules` during cold start, so a rejected plugin fails the Function's initialization. Elysia's `app.handle()` and `app.fetch` don't do this on their own. A request can run before a pending plugin is applied, and after a plugin rejects they keep serving the app without it. If you host the application in your own `fetch` handler, await `app.modules` before you serve requests:
+
+```ts
+await app.modules;
+
+export default { fetch: app.handle };
+```
+
+## Adapters
+
+The `bun` and `vercel` targets are deployment adapters. An adapter is a plain object, in the spirit of the Next.js adapter API, that `targets` in `furin.config.ts` accepts:
+
+```ts
+import type { FurinAdapter } from "@teyik0/furin/config";
+
+const adapter: FurinAdapter = {
+  name: "my-platform",
+  capabilities: { assets: "platform", publicCache: "platform", websocket: false },
+  runtimeModule: new URL("./runtime.ts", import.meta.url).pathname,
+  async onBuildComplete(output) {
+    // Copy output.server.files and each app's clientDir, write platform config.
+    return { buildId: output.buildId, generatedAt: new Date().toISOString() };
+  },
+};
+```
+
+| Field | Meaning |
+|---|---|
+| `capabilities.assets` | Who serves `/_client/*` and `public/`: Furin from disk (`filesystem`), Furin from files embedded in an executable (`embedded`), or the platform (`platform`) |
+| `capabilities.publicCache` | Who caches public SSG, ISR and PPR pages: Furin (`framework`, process memory or `pageCache`) or the platform (`platform`) |
+| `capabilities.websocket` | Whether requests reach `Bun.serve()`, so browser events can use a WebSocket; otherwise they stream over SSE |
+| `runtimeModule` | Typed module bundled as the server entry. It imports the application from `furin:app`; its file name names the emitted entry |
+| `onBuildComplete(output)` | Receives data only: each app's prefix, build ID, client directory, routes (mode, revalidation, tags, PPR, declared query keys) and known prerender paths, plus the server bundle files |
+
+Furin owns the rest of the build: client bundles, the one ordered server plugin chain, Elysia AOT and the prerender pass. Capabilities are baked into the build, so the runtime never checks for a platform name: it picks the browser-event transport, skips asset serving and rejects `furin({ pageCache })` from them.
+
+Prerendering always runs **inside the built server bundle**, in a child process. That pass lists the SSG and ISR URLs known at build time and, when Furin caches public pages, renders the SSG documents into `furin-prerender.json` next to the bundle. The [static export](#static-export) renders from a temporary bundle in the same way. The build never renders pages from source in its own process.
 
 ## Bun Server Bundle
 
@@ -48,7 +86,7 @@ furin build --target bun
 bun .furin/build/bun/server.js
 ```
 
-The target directory contains `server.js`, one client directory per Furin instance, and copied `public/` assets. `.furin/build/manifest.json` records the exact paths and build IDs.
+The target directory contains the `server.js` entry, the listener-free `_furin-app.js` application module and their shared `chunk-*.js` files, `furin-prerender.json` (the SSG documents the bundle rendered during the build), one client directory per Furin instance, and copied `public/` assets. `.furin/build/manifest.json` records the exact paths and build IDs.
 
 Deploy the whole `.furin/build/bun` directory. `server.js` resolves client assets beside itself; `FURIN_CLIENT_DIR` can override the root instance's directory when a platform mounts assets elsewhere.
 
@@ -62,7 +100,7 @@ furin build --target bun --compile server
 furin build --target bun --compile embed
 ```
 
-Both commands write `.furin/build/bun/server` on macOS/Linux and `.furin/build/bun/server.exe` on Windows. In `server` mode, deploy the executable together with its asset directories. In `embed` mode, Furin removes the external client directories after embedding them.
+Both commands write `.furin/build/bun/server` on macOS/Linux and `.furin/build/bun/server.exe` on Windows. The executable is compiled from the finished JavaScript bundle, so it carries the SSG documents that bundle prerendered; the intermediate JavaScript files are removed afterwards. In `server` mode, deploy the executable together with its asset directories. In `embed` mode, Furin removes the external client directories after embedding them.
 
 Use `embed` for the simplest single-artifact rollout. Use disk mode when a CDN, container layer, or packaged child application should serve or replace assets independently.
 
@@ -119,6 +157,8 @@ The build writes a deployable artifact to `.vercel/output`:
 └── functions/
     ├── __server.func/
     │   ├── index.js
+    │   ├── handler.js
+    │   ├── furin-vercel.json
     │   └── .vc-config.json
     ├── index-ssg.func -> __server.func
     └── index-ssg.prerender-config.json
@@ -154,9 +194,13 @@ bunx vercel deploy --prebuilt
 
 Fixed ISR routes are rendered during the build, like Next.js. Dynamic SSG and ISR URLs returned by `staticParams()` receive individual build-time fallbacks. Routes with a declared `query` schema remain on-demand so the fallback cannot ignore query-dependent input. For PPR routes, only the public shell is prerendered: `requestLoader` does not execute during this phase. `revalidatePath()` and `revalidateTag()` invalidate the corresponding `Vercel-Cache-Tag`, while `waitUntil()` keeps background ISR regeneration alive after the response is sent.
 
-The browser data endpoint `/_furin/data` stays behind the Bun Function, but successful SSG/ISR payloads without a `requestLoader` are cached by the CDN with the document's revalidation window. JSON-only results use a compact envelope; rich values, shared references, deferred data, and RSC keep the lossless CrossJSON/Route Frame transports. The document and all query-specific navigation payloads share one cache tag, so `revalidatePath()` and `revalidateTag()` purge them together.
+SPA navigation data requests (`<page>?_furin=data`) are routed to the Bun Function instead of the prerendered document, and successful SSG/ISR payloads without a `requestLoader` are cached by the CDN with the document's revalidation window. JSON-only results use a compact envelope; rich values, shared references, deferred data, and RSC keep the lossless CrossJSON/Route Frame transports. The document and all query-specific navigation payloads share one cache tag, so `revalidatePath()` and `revalidateTag()` purge them together.
 
 Vercel owns the deployed SSG/ISR cache. Prerender Function invocations bypass Furin's process-local cache and return newly rendered HTML; the in-memory stale-while-revalidate implementation is used only in development and Bun deployments.
+
+Every Prerender Function, PPR included, sets `allowQuery` to the keys of the route's TypeBox `query` schema (none without a schema), so the CDN keeps one entry per declared query instead of one per unique URL; Vercel drops every other param before invoking the function. Routes whose query schema cannot be enumerated (Standard Schema) keep Vercel's per-URL caching. A PPR shell records the declared query it rendered with, and `requestLoader` resumes with that query: on Vercel, a request loader sees only declared query params, while on Bun it receives the live request.
+
+`index.js` and `handler.js` are typed runtime modules of the adapter (`adapter/vercel/bootstrap.ts` and `adapter/vercel/handler.ts`). The build only writes data for them: `furin-vercel.json` holds the Prerender Function aliases, cache-tag rules, PPR routes and the chain key.
 
 PPR stores the public HTML shell, React's opaque postponed state, and the public loader snapshot as one coherent artifact. The build generates known PPR shells using the **actual production bundle**, so minification cannot change the component tree between prerender and resume.
 
@@ -172,19 +216,18 @@ SSR payloads, request-specific loaders, deferred streams, redirects, not-found r
 
 ### Function region
 
-Functions use Vercel's project default region (typically `iad1`). Place compute close to the application's data source through `furin.config.ts`:
+Functions use Vercel's project default region (typically `iad1`). Place compute close to the application's data source by configuring the adapter in `furin.config.ts`:
 
 ```ts
+import { vercel } from "@teyik0/furin/adapters/vercel";
 import { defineConfig } from "@teyik0/furin/config";
 
 export default defineConfig({
-  vercel: {
-    regions: ["cdg1"],
-  },
+  targets: ["bun", vercel({ regions: ["cdg1"] })],
 });
 ```
 
-The editor suggests [Vercel's supported compute regions](https://vercel.com/docs/regions#region-list), such as `cdg1`, `fra1`, or `iad1`. An empty list, duplicates, and unsupported identifiers fail config validation.
+`furin build --target vercel` then builds this configured adapter. The editor suggests [Vercel's supported compute regions](https://vercel.com/docs/regions#region-list), such as `cdg1`, `fra1`, or `iad1`. An empty list, duplicates, and unsupported identifiers fail while the configuration loads.
 
 ### Cold-start diagnostics
 
@@ -246,7 +289,13 @@ dist/
 └── 404.html
 ```
 
-Each rendered path also receives a route-data file so SPA navigation works without a runtime `/_furin/data` endpoint. Redirect loaders become portable HTML redirect pages.
+Each rendered path also receives a route-data file so SPA navigation works without the runtime `?_furin=data` requests. Redirect loaders become portable HTML redirect pages.
+
+Like the server targets, the export renders built code. Furin bundles the app into a temporary production bundle under `.furin/build/static/`, with the same plugin chain as a server bundle. It renders every page in a child process, then deletes the bundle. This has three consequences:
+
+- Pages, loaders and `staticParams()` run with `NODE_ENV=production` and React's production renderer.
+- `import.meta.dir` and `import.meta.url` point into the temporary bundle, which is deleted after the build. Read content files relative to `process.cwd()` instead: the export runs from the project root.
+- `dist/` is replaced only after every page has rendered and every output path has been validated. A failed export leaves the previous `dist/` in place.
 
 Static export supports only SSG routes and rejects `requestLoader()`. Dynamic SSG routes require `staticParams()`. Keep `onSSR: "error"` unless another deployment deliberately owns the skipped SSR/ISR URLs.
 
@@ -350,7 +399,7 @@ Furin uses Bun's `external` mode, which does not add a public `sourceMappingURL`
 
 Deploy code and its matching client assets as one immutable release. Build and upload source maps, run compatible database migrations, and ensure shared Redis/PostgreSQL dependencies are reachable before adding the new replica to the load balancer. Wait for readiness, gradually shift traffic, then send `SIGTERM` to old replicas and leave the full drain window before `SIGKILL`. Roll back the code and matching assets together. Keep the page-cache namespace stable across replicas and releases; invalidate incompatible entries explicitly rather than encoding a replica ID in the namespace. CDN caches need their own purge/TTL policy for on-demand invalidation.
 
-At the CDN, honor Furin's `Cache-Control` and include the full URL, including query string, and content encoding in the cache key. Do not cache personalized SSR, `requestLoader` results, errors, or Sync responses. Public SSG/ISR HTML and cacheable `/_furin/data` responses may follow their headers. On self-hosted Bun, `revalidatePath()` and `revalidateTag()` invalidate the origin cache, not an arbitrary external CDN; configure a separate CDN purge or bypass its HTML/data cache when immediate invalidation is required. Keep versioned client assets available while pages from the previous release can still reference them. Vercel's adapter handles its own CDN invalidation.
+At the CDN, honor Furin's `Cache-Control` and include the full URL, including query string, and content encoding in the cache key. Do not cache personalized SSR, `requestLoader` results, errors, or Sync responses. Public SSG/ISR HTML and cacheable navigation data responses (`?_furin=data` on the page URL) may follow their headers; the query string keeps them in separate cache entries. On self-hosted Bun, `revalidatePath()` and `revalidateTag()` invalidate the origin cache, not an arbitrary external CDN; configure a separate CDN purge or bypass its HTML/data cache when immediate invalidation is required. Keep versioned client assets available while pages from the previous release can still reference them. Vercel's adapter handles its own CDN invalidation.
 
 Keep secrets in the deployment secret store; never put them in `FURIN_PUBLIC_*`, client build flags, source maps, or logs. Back up the authoritative PostgreSQL/Redis data, including Sync journals and any durable page-cache state you require, with point-in-time or AOF/snapshot recovery appropriate to the service. Test restoration and schema compatibility before relying on backups. An in-memory cache is disposable and should not be treated as a backup.
 

@@ -31,7 +31,7 @@
  *
  * ## Bare specifier rewriting
  *
- * When `onLoad` returns `loader: "js"`, Bun resolves bare specifiers
+ * In a virtual namespace, Bun resolves bare specifiers
  * (e.g. `@teyik0/furin/link`, `shiki`) from the process CWD — not from the
  * page file's directory.  On a cold start the CWD and the file's directory
  * often agree, but after `bun --hot` re-evaluates the server the module
@@ -40,7 +40,7 @@
  * one already cached by `react-dom/server`.  The result is the classic
  * "two React copies" crash: `dispatcher.useState === null`.
  *
- * Fix: after transpilation, resolve every bare specifier from the page
+ * Fix: before returning the source, resolve every bare specifier from the page
  * file's directory via `Bun.resolveSync` and replace it with the
  * canonical on-disk path.  This pins each import to exactly the same
  * file-system location that Bun's native module resolver would choose,
@@ -52,303 +52,45 @@
  */
 
 import { statSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import MagicString from "magic-string";
+import { dirname, isAbsolute } from "node:path";
 import { splitDevPage } from "../plugin/transform-dev-page.ts";
 import { transformIsomorphicFunctions } from "../plugin/transform-isomorphic.ts";
-import { parseSource } from "../shared/parser.ts";
-import type { AstNode } from "../shared/utils/ast-walk.ts";
-import { walkAST } from "../shared/utils/ast-walk.ts";
 import { invalidateDevLoaderCacheBySource } from "./cache/dev-loader.ts";
 import { publishDevError } from "./dev/error.ts";
 import { developmentGraphs, resolveDevSourceImports } from "./dev/graph.ts";
-import { rewriteModuleSpecifiers } from "./dev/rewrite-module-specifiers.ts";
 import { DevTransformFailure } from "./dev/transform-failure.ts";
+import {
+  pinJsxRuntime,
+  rewriteBareImports,
+  rewriteRelativeImportsWithVersion,
+  rewriteSingletonImports,
+  type SourceLoader,
+  toImportSpecifier,
+  WORKSPACE_SOURCE_FILTER,
+} from "./dev-page-imports.ts";
+import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "./lang-detect.ts";
 import { routeModuleSourceVersion } from "./router/source-version.ts";
 
 // Matches ?furin-server with an optional &t=<ms> cache-buster.
 const FURIN_SERVER_FILTER = /\?furin-server(?:&t=\d+)?$/;
 const FURIN_RENDER_FILTER = /\?furin-render&t=\d+$/;
+const COMMONJS_FILE_RE = /\.c[jt]s$/;
 const ANY_FILTER = /.*/;
-export const WORKSPACE_SOURCE_FILTER =
-  /^(?!.*(?:[\\/]node_modules[\\/]|[\\/]\.bun[\\/]))(?!.*\.(?:test|spec)\.[jt]sx?$).*\.[jt]sx?$/;
 const T_PARAM_RE = /&t=(\d+)/;
 const STRIP_FURIN_SERVER_RE = /\?furin-server.*$/;
 const STRIP_T_PARAM_RE = /\?t=\d+$/;
-const IMPORT_ATTRIBUTES_RE = /\b(?:with|assert)\s*\{/;
 const DELETED_DEV_PAGE_CONTENTS = "export const route = undefined;";
 
 let _pluginRegistered = false;
 const pluginSourceStamps = new Map<string, string>();
-
-type SourceLoader = "js" | "jsx" | "ts" | "tsx";
 
 interface CachedDevPageContents {
   contents: string;
   moduleIdentity: string;
 }
 
-// ── Singleton package resolution ───────────────────────────────────────────────
-//
-// React (and react-dom) must be singletons: every module in the render graph
-// must import the EXACT same object instance so that ReactSharedInternals.H
-// (the hooks dispatcher) is shared between react-dom/server and the page.
-//
-// We resolve the absolute on-disk path once at module-evaluation time and
-// rewrite every explicit import in the transpiled source to use that path.
-// The auto-injected jsx-dev-runtime import (added by Bun.Transpiler AFTER the
-// source is transformed) is handled by injectJsxHelperImports below.
-
-/** React packages that must share a single instance across the module graph. */
-const SINGLETON_PKGS = [
-  "react",
-  "react/jsx-runtime",
-  "react/jsx-dev-runtime",
-  "react-dom",
-  "react-dom/server",
-  "react-dom/client",
-] as const;
-
-/** package specifier → absolute file path, resolved once at plugin registration time. */
-const SINGLETON_PATHS = new Map<string, string>();
-for (const pkg of SINGLETON_PKGS) {
-  try {
-    SINGLETON_PATHS.set(pkg, toImportSpecifier(fileURLToPath(import.meta.resolve(pkg))));
-  } catch {
-    // Package not installed — skip (e.g. react-dom/client in a server-only env)
-  }
-}
-
-/** Converts a native absolute path to Bun's cross-platform import format. */
-export function toImportSpecifier(filePath: string): string {
-  return filePath.replaceAll("\\", "/");
-}
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/**
- * Rewrites bare React/react-dom singleton imports in source text to their
- * absolute resolved paths. Handles explicit static import / re-export forms:
- *
- *   import { useState } from "react"          → import { useState } from "/abs/…"
- *   import type { FC }  from "react"
- *   export { x }        from "react"
- *   import               "react/jsx-dev-runtime"
- *
- * Does NOT touch dynamic `import("react")` or `require("react")`.
- *
- * @internal exported for testing
- */
-export function rewriteSingletonImports(source: string): string {
-  let result = source;
-  for (const [pkg, absPath] of SINGLETON_PATHS) {
-    // react-doctor-disable-next-line react-doctor/js-hoist-regexp
-    const re = new RegExp(`((?:from|import(?:\\s+type)?)\\s+)["']${escapeRegExp(pkg)}["']`, "g");
-    result = result.replace(re, (_, g1: string) => `${g1}${JSON.stringify(absPath)}`);
-  }
-  return result;
-}
-
-/**
- * `Bun.Transpiler.transformSync` converts JSX syntax to function calls using
- * mangled helper names (e.g. `jsxDEV_7x81h0kn`, `Fragment_8vg9x3sq`) but does
- * NOT emit the corresponding import statement — it expects Bun's full bundler
- * pipeline to inject it later.
- *
- * When we return pre-transpiled JS from `onLoad`, that pipeline step never
- * runs, leaving the helpers as undefined free variables.  This function scans
- * the transpiled source, detects which mangled helper names are used, and
- * prepends the correct import statements using absolute on-disk paths from
- * `SINGLETON_PATHS`.
- *
- * Helper → package mapping:
- *   jsxDEV_*   → `{ jsxDEV  as … }` from react/jsx-dev-runtime
- *   Fragment_*  → `{ Fragment as … }` from react/jsx-dev-runtime
- *   jsx_*       → `{ jsx    as … }` from react/jsx-runtime  (prod only)
- *   jsxs_*      → `{ jsxs   as … }` from react/jsx-runtime  (prod only)
- *
- * @internal exported for testing
- */
-export function injectJsxHelperImports(transpiled: string): string {
-  // Match mangled JSX helper names. Alternation order matters: try longer
-  // prefixes first so "jsxDEV_xxx" isn't partially matched as "jsx_xxx".
-  const JSX_HELPER_RE = /\b(jsxDEV|jsxs|jsx|Fragment)_([0-9a-z]{8})\b/g;
-
-  // Package → Map<varName, exportName>
-  const devRuntime = new Map<string, string>(); // react/jsx-dev-runtime
-  const prodRuntime = new Map<string, string>(); // react/jsx-runtime
-
-  for (const [, base, hash] of transpiled.matchAll(JSX_HELPER_RE)) {
-    if (!(base && hash)) {
-      continue;
-    }
-    const varName = `${base}_${hash}`;
-    if (base === "jsxDEV" || base === "Fragment") {
-      devRuntime.set(varName, base);
-    } else {
-      prodRuntime.set(varName, base);
-    }
-  }
-
-  const lines: string[] = [];
-
-  if (devRuntime.size > 0) {
-    const absPath = SINGLETON_PATHS.get("react/jsx-dev-runtime");
-    if (absPath) {
-      const specifiers = [...devRuntime.entries()]
-        .map(([varName, exportName]) => `${exportName} as ${varName}`)
-        .join(", ");
-      lines.push(`import { ${specifiers} } from ${JSON.stringify(absPath)};`);
-    }
-  }
-
-  if (prodRuntime.size > 0) {
-    const absPath = SINGLETON_PATHS.get("react/jsx-runtime");
-    if (absPath) {
-      const specifiers = [...prodRuntime.entries()]
-        .map(([varName, exportName]) => `${exportName} as ${varName}`)
-        .join(", ");
-      lines.push(`import { ${specifiers} } from ${JSON.stringify(absPath)};`);
-    }
-  }
-
-  if (lines.length === 0) {
-    return transpiled;
-  }
-  return `${lines.join("\n")}\n${transpiled}`;
-}
-
-/** @internal exported for testing */
-export function rewriteRelativeImports(source: string, dir: string): string {
-  return rewriteModuleSpecifiers({
-    code: source,
-    filePath: resolve(dir, "__furin_entry.tsx"),
-    versioned: false,
-  });
-}
-
-function rewriteRelativeImportsWithVersion(
-  source: string,
-  filePath: string,
-  versioned: boolean
-): string {
-  return rewriteModuleSpecifiers({
-    code: source,
-    filePath,
-    versioned,
-  });
-}
-
-/**
- * Resolves static imports, re-exports, and literal dynamic imports from the
- * page file's directory, including tsconfig aliases in virtual modules.
- *
- * @internal exported for testing
- */
-export function rewriteBareImports(transpiled: string, dir: string): string {
-  const output = new MagicString(transpiled);
-  walkAST(parseSource(transpiled, "js").program, (node) => {
-    if (
-      node.type !== "ImportDeclaration" &&
-      node.type !== "ExportNamedDeclaration" &&
-      node.type !== "ExportAllDeclaration" &&
-      node.type !== "ImportExpression"
-    ) {
-      return;
-    }
-    const literal = node.source as AstNode | undefined;
-    const specifier = literal?.value;
-    if (
-      literal?.type !== "Literal" ||
-      typeof specifier !== "string" ||
-      specifier.startsWith(".") ||
-      isAbsolute(specifier) ||
-      specifier.startsWith("file:") ||
-      SINGLETON_PATHS.has(specifier)
-    ) {
-      return;
-    }
-
-    let resolved: string;
-    try {
-      resolved = toImportSpecifier(Bun.resolveSync(specifier, dir));
-    } catch {
-      // Leave unresolved imports to Bun's native resolution and diagnostics.
-      return;
-    }
-    output.update(literal.start, literal.end, JSON.stringify(resolved));
-  });
-  return output.toString();
-}
-
 function getSourceLoader(filePath: string): SourceLoader | null {
-  if (filePath.endsWith(".tsx")) {
-    return "tsx";
-  }
-  if (filePath.endsWith(".ts")) {
-    return "ts";
-  }
-  if (filePath.endsWith(".jsx")) {
-    return "jsx";
-  }
-  if (filePath.endsWith(".js")) {
-    return "js";
-  }
-  return null;
-}
-
-// Bun.Transpiler drops static import attributes, turning text imports into file paths.
-function restoreImportAttributes(source: string, transpiled: string, loader: SourceLoader): string {
-  if (!IMPORT_ATTRIBUTES_RE.test(source)) {
-    return transpiled;
-  }
-
-  const declarations = parseSource(source, loader).program.body as AstNode[];
-  const output = new MagicString(transpiled);
-  const emitted = parseSource(transpiled, "js").program.body as AstNode[];
-  const matched = new Set<AstNode>();
-  for (const declaration of declarations) {
-    if (declaration.importKind === "type" || declaration.exportKind === "type") {
-      continue;
-    }
-    const specifiers = declaration.specifiers as AstNode[] | undefined;
-    if (
-      specifiers?.length &&
-      specifiers.every(
-        (specifier) => specifier.importKind === "type" || specifier.exportKind === "type"
-      )
-    ) {
-      continue;
-    }
-    const sourcePath = (declaration.source as { value?: unknown } | undefined)?.value;
-    if (typeof sourcePath !== "string") {
-      continue;
-    }
-    const target = emitted.find(
-      (node) =>
-        !matched.has(node) &&
-        node.type === declaration.type &&
-        (node.source as { value?: unknown } | undefined)?.value === sourcePath
-    );
-    if (!target) {
-      continue;
-    }
-    matched.add(target);
-    const attributes = declaration.attributes as AstNode[] | undefined;
-    if (!attributes?.length || (target.attributes as AstNode[] | undefined)?.length) {
-      continue;
-    }
-    const [first] = attributes;
-    const last = attributes.at(-1);
-    const imported = target.source as AstNode | undefined;
-    if (first && last && imported) {
-      output.appendLeft(imported.end, ` with { ${source.slice(first.start, last.end)} }`);
-    }
-  }
-  return output.toString();
+  return SCRIPT_FILE_FILTER.test(filePath) ? detectLoaderFromPath(filePath) : null;
 }
 
 function shouldSkipWorkspaceTransform(filePath: string): boolean {
@@ -448,23 +190,15 @@ export function transformDevSource(
           `${filePath}?furin-render&t=${routeModuleSourceVersion(filePath)}`
         );
     const serverSource = split?.contract ?? isomorphicSource;
-    const sourceForTranspile = options.rewriteRelativeImports
+    let result = options.rewriteRelativeImports
       ? rewriteRelativeImportsWithVersion(serverSource, filePath, true)
       : serverSource;
-    const transpiler = new Bun.Transpiler({ loader });
-    const transpiled = restoreImportAttributes(
-      sourceForTranspile,
-      transpiler.transformSync(sourceForTranspile, loader),
-      loader
-    );
-
-    let result = transpiled;
     if (options.rewriteBareImports) {
-      result = rewriteBareImports(result, dirname(filePath));
+      result = rewriteBareImports(result, dirname(filePath), loader);
     }
 
-    result = rewriteSingletonImports(result);
-    return injectJsxHelperImports(result);
+    result = rewriteSingletonImports(result, loader);
+    return pinJsxRuntime(result, loader);
   } catch (error) {
     return rethrowWithSourcePath(error, filePath);
   }
@@ -538,7 +272,7 @@ export function registerDevPagePlugin(): void {
             rewriteBareImports: true,
             rewriteRelativeImports: true,
           }),
-          loader: "js",
+          loader: detectLoaderFromPath(filePath),
         };
       });
       // Keep an already-loaded module generation usable if its source is
@@ -555,20 +289,23 @@ export function registerDevPagePlugin(): void {
         const filePath = args.path.replace(STRIP_FURIN_SERVER_RE, "");
         // biome-ignore lint/suspicious/noUnnecessaryConditions: the timestamp query is optional.
         const resolvedPath = tMatch ? `${filePath}?t=${tMatch[1]}` : filePath;
-        return { namespace: "furin-dev-page", path: resolvedPath };
+        return {
+          namespace: COMMONJS_FILE_RE.test(filePath) ? "file" : "furin-dev-page",
+          path: resolvedPath,
+        };
       });
 
       /**
-       * Workspace source files (root.tsx, _route.tsx, local components, core
+       * Workspace source files imported by plain path (local components, core
        * packages, etc.) still load through Bun's normal file namespace in dev.
        *
        * After bun --hot re-evaluates part of that graph, those modules can
        * re-import React through a different logical path than react-dom/server,
        * which recreates the classic "dispatcher is null" invalid hook crash.
        *
-       * Pre-transpile those files and rewrite only the React singleton imports
-       * so every SSR module observes the exact same React instance, while still
-       * keeping the files in Bun's watched graph for root.tsx HMR.
+       * Rewrite only the React singleton imports and the JSX runtime so every
+       * SSR module observes the exact same React instance, while still keeping
+       * the files in Bun's watched graph.
        */
       build.onLoad({ filter: WORKSPACE_SOURCE_FILTER }, async (args) => {
         const raw = await Bun.file(args.path).text();
@@ -602,7 +339,7 @@ export function registerDevPagePlugin(): void {
 
         return {
           contents,
-          loader: "js",
+          loader,
         };
       });
 
@@ -611,7 +348,7 @@ export function registerDevPagePlugin(): void {
        * this handler is called for each edited source version; strip it before
        * file I/O.
        *
-       * ## Why we pre-transpile with Bun.Transpiler
+       * ## Why specifiers are rewritten in the source
        *
        * Bun's runtime plugin system (used by `bun --hot`) does NOT route
        * sub-imports from virtual-namespace modules through `onResolve` hooks —
@@ -622,14 +359,14 @@ export function registerDevPagePlugin(): void {
        *
        *  1. **Relative imports** (`./root`, `../utils`) — no real directory
        *     context in the virtual namespace → Bun fails to resolve them.
-       *  2. **Auto-injected JSX runtime** — `import { jsx } from
+       *  2. **Auto-injected JSX runtime** — `import { jsxDEV } from
        *     "react/jsx-dev-runtime"` added by Bun's TSX transpiler AFTER
-       *     `onLoad` returns → cannot be rewritten in the source text.
+       *     `onLoad` returns, resolved from the process CWD.
        *
-       * Solution: pre-transpile the source with `Bun.Transpiler` ourselves,
-       * then rewrite all specifiers in the resulting JS text before returning
-       * it with `loader: "js"` (which Bun loads as-is, with no further
-       * transpilation or automatic import injection):
+       * Solution: rewrite the specifiers in the TS/TSX source and return it
+       * with its own loader. Bun transpiles it and maps stack frames to the
+       * returned text (it ignores an `onLoad` sourcemap), so every rewrite
+       * stays on its line:
        *
        *  • `rewriteRelativeImports` → converts `./root` to `/abs/path/root`
        *  • `rewriteBareImports` → resolves ALL bare specifiers (including
@@ -638,8 +375,8 @@ export function registerDevPagePlugin(): void {
        *    bun --hot re-evaluation.
        *  • `rewriteSingletonImports` → belt-and-suspenders for react singletons
        *    (covered by rewriteBareImports but kept for safety).
-       *  • `injectJsxHelperImports` → adds the JSX helper imports that
-       *    `Bun.Transpiler` emits as free variables without corresponding imports.
+       *  • `pinJsxRuntime` → points the auto-injected JSX runtime import at the
+       *    same React package with an `@jsxImportSource` pragma.
        */
       build.onLoad({ filter: ANY_FILTER, namespace: "furin-dev-page" }, async (args) => {
         const filePath = args.path.replace(STRIP_T_PARAM_RE, "");
@@ -647,7 +384,7 @@ export function registerDevPagePlugin(): void {
 
         return {
           contents,
-          loader: "js", // Already fully transpiled — skip Bun's own TSX step.
+          loader: detectLoaderFromPath(filePath),
         };
       });
     },

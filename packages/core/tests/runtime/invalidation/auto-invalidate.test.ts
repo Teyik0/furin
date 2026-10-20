@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import "../../setup/evlog-mock";
-
+import { join } from "node:path";
 import { Elysia } from "elysia";
+import { applyRevalidateHeader } from "../../../src/client/router/link-utils.ts";
 import {
   autoInvalidateRegistry,
   furinInvalidate,
   revalidateTag,
 } from "../../../src/server/auto-invalidate/index.ts";
-import { AutoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
+import {
+  AutoInvalidateRegistry,
+  getAutoInvalidateRegistry,
+} from "../../../src/server/auto-invalidate/registry.ts";
 import {
   __resetCacheState,
   __resetDevLoaderCacheState,
@@ -17,23 +20,56 @@ import {
   getDevSSGLoaderCache,
   isrCache,
   revalidatePath,
-  setCachePurger,
   setDevISRLoaderCache,
   setDevSSGLoaderCache,
   setISRCache,
   setSSGCache,
   ssgCache,
 } from "../../../src/server/cache/index.ts";
-import { createInstance, registerInstance, withInstance } from "../../../src/server/instance.ts";
-import { createDataEndpoint } from "../../../src/server/router/plugin.ts";
-import type { ResolvedRoute } from "../../../src/server/router/types.ts";
+import { setInstanceCachePurger } from "../../../src/server/cache/purger.ts";
+import {
+  __clearInstanceRegistry,
+  allInstances,
+  createInstance,
+  registerInstance,
+  withInstance,
+} from "../../../src/server/instance.ts";
+import { __resetCompileContext } from "../../../src/server/internal.ts";
+import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { queryTags } from "../../../src/shared/sync-query.ts";
+import { createTmpApp, writeAppFile } from "../../support/app-fixtures";
 import { flushMicrotasks } from "../../support/microtasks";
+
+const { furin } = await import("../../../src/furin.ts");
 
 afterEach(async () => {
   __resetCacheState();
+  __clearInstanceRegistry();
   __resetDevLoaderCacheState();
   autoInvalidateRegistry.reset();
   await flushMicrotasks();
+});
+
+test("mutation invalidation headers preserve literal suffixes, percent paths and Unicode", async () => {
+  const rules = [
+    { path: "/foo:layout", type: "page" as const },
+    { path: "/東京", type: "layout" as const },
+    { path: "/users/a%name", type: "page" as const },
+    { path: "/bad\ud800", type: "page" as const },
+  ];
+  const app = new Elysia().use(furinInvalidate()).post("/mutate", ({ invalidate }) => {
+    for (const rule of rules) {
+      invalidate(rule);
+    }
+    return { ok: true };
+  });
+  const response = await _runWithRequestInvalidationScope(() =>
+    app.handle(new Request("http://localhost/mutate", { method: "POST" }))
+  );
+  expect(response.status).toBe(200);
+  const received: { path: string; type: "page" | "layout" | undefined }[] = [];
+  applyRevalidateHeader(response.headers, (path, type) => received.push({ path, type }));
+  expect(received).toEqual(rules.map((rule) => ({ ...rule, path: rule.path.toWellFormed() })));
 });
 
 describe("revalidateTag", () => {
@@ -48,9 +84,19 @@ describe("revalidateTag", () => {
   });
 
   test("invalidates every production cache path registered under a tag", async () => {
-    setISRCache("/board/123", { generatedAt: Date.now(), html: "board", revalidate: 60 });
+    setISRCache("/board/123", {
+      generatedAt: Date.now(),
+      html: "board",
+      ndjson: "{}\n",
+      revalidate: 60,
+    });
     setSSGCache("/", { cachedAt: Date.now(), html: "home", ndjson: "{}\n", status: 200 });
-    setISRCache("/untagged", { generatedAt: Date.now(), html: "other", revalidate: 60 });
+    setISRCache("/untagged", {
+      generatedAt: Date.now(),
+      html: "other",
+      ndjson: "{}\n",
+      revalidate: 60,
+    });
 
     autoInvalidateRegistry.registerLoaderTags("/board/123", ["board"]);
     autoInvalidateRegistry.registerLoaderTags("/", ["boards"]);
@@ -88,7 +134,12 @@ describe("revalidateTag", () => {
   });
 
   test("unregisters tag mappings when cached paths are evicted", async () => {
-    setISRCache("/board/123", { generatedAt: Date.now(), html: "board", revalidate: 60 });
+    setISRCache("/board/123", {
+      generatedAt: Date.now(),
+      html: "board",
+      ndjson: "{}\n",
+      revalidate: 60,
+    });
     autoInvalidateRegistry.registerLoaderTags("/board/123", ["board"]);
 
     await revalidateTag("board");
@@ -106,11 +157,11 @@ describe("revalidateTag", () => {
     const b = registerInstance(createInstance("/b", "/apps/b"));
 
     withInstance(a, () => {
-      setISRCache("/x", { generatedAt: Date.now(), html: "a:x", revalidate: 60 });
+      setISRCache("/x", { generatedAt: Date.now(), html: "a:x", ndjson: "{}\n", revalidate: 60 });
       autoInvalidateRegistry.registerLoaderTags("/x", ["shared"]);
     });
     withInstance(b, () => {
-      setISRCache("/x", { generatedAt: Date.now(), html: "b:x", revalidate: 60 });
+      setISRCache("/x", { generatedAt: Date.now(), html: "b:x", ndjson: "{}\n", revalidate: 60 });
     });
 
     const deleted = await revalidateTag("shared");
@@ -126,13 +177,18 @@ describe("revalidateTag", () => {
     // logical "/x" must be purged as "/admin/x".
     const admin = registerInstance(createInstance("/admin", "/apps/admin"));
     const purged: string[][] = [];
-    setCachePurger((paths) => {
+    setInstanceCachePurger(admin, (paths) => {
       purged.push(paths);
       return Promise.resolve();
     });
 
     withInstance(admin, () => {
-      setISRCache("/x", { generatedAt: Date.now(), html: "admin:x", revalidate: 60 });
+      setISRCache("/x", {
+        generatedAt: Date.now(),
+        html: "admin:x",
+        ndjson: "{}\n",
+        revalidate: 60,
+      });
       autoInvalidateRegistry.registerLoaderTags("/x", ["shared"]);
     });
 
@@ -154,7 +210,7 @@ describe("revalidateTag", () => {
     registerInstance(createInstance("/b", "/apps/b"));
 
     withInstance(a, () => {
-      setISRCache("/x", { generatedAt: Date.now(), html: "a:x", revalidate: 60 });
+      setISRCache("/x", { generatedAt: Date.now(), html: "a:x", ndjson: "{}\n", revalidate: 60 });
       setDevISRLoaderCache("/apps/a/src/pages/root.tsx:/y", {
         dependencies: [],
         generatedAt: Date.now(),
@@ -176,9 +232,9 @@ describe("revalidateTag", () => {
 
 describe("revalidatePath", () => {
   test("uses the same mounted root key as the deployment adapter", async () => {
-    registerInstance(createInstance("/admin", "/apps/admin"));
+    const admin = registerInstance(createInstance("/admin", "/apps/admin"));
     const purged: string[] = [];
-    setCachePurger((paths) => {
+    setInstanceCachePurger(admin, (paths) => {
       purged.push(...paths);
       return Promise.resolve();
     });
@@ -189,8 +245,8 @@ describe("revalidatePath", () => {
   });
 
   test("does not propagate a synchronous purge failure", async () => {
-    registerInstance(createInstance("/admin", "/apps/admin"));
-    setCachePurger(() => {
+    const admin = registerInstance(createInstance("/admin", "/apps/admin"));
+    setInstanceCachePurger(admin, () => {
       throw new Error("Purge unavailable");
     });
     await expect(revalidatePath("/x", "page")).resolves.toBe(false);
@@ -200,13 +256,18 @@ describe("revalidatePath", () => {
   test("purges the mounted app's PHYSICAL (prefixed) URL, not the logical path", async () => {
     const admin = registerInstance(createInstance("/admin", "/apps/admin"));
     const purged: string[][] = [];
-    setCachePurger((paths) => {
+    setInstanceCachePurger(admin, (paths) => {
       purged.push(paths);
       return Promise.resolve();
     });
 
     withInstance(admin, () => {
-      setISRCache("/x", { generatedAt: Date.now(), html: "admin:x", revalidate: 60 });
+      setISRCache("/x", {
+        generatedAt: Date.now(),
+        html: "admin:x",
+        ndjson: "{}\n",
+        revalidate: 60,
+      });
     });
 
     const deleted = await revalidatePath("/x", "page");
@@ -219,14 +280,73 @@ describe("revalidatePath", () => {
   });
 });
 
-describe("furinInvalidate macro", () => {
-  test("runs invalidation rules on successful mutation responses", async () => {
-    setISRCache("/board/123", { generatedAt: Date.now(), html: "board", revalidate: 60 });
-    autoInvalidateRegistry.registerLoaderTags("/board/123", ["board"]);
+describe("furinInvalidate()", () => {
+  test("a GET URL target purges the pages built from it and reports it to the caller only", async () => {
+    const board = { id: "/boards/:boardId", scope: { boardId: "alpha" } };
+    setISRCache("/board/alpha", {
+      generatedAt: Date.now(),
+      html: "board",
+      ndjson: "{}\n",
+      revalidate: 60,
+    });
+    autoInvalidateRegistry.registerLoaderTags("/board/alpha", queryTags(board));
 
     const app = new Elysia()
       .use(furinInvalidate())
-      .post("/cards", { invalidate: { tags: ["board"] } }, () => ({ ok: true }));
+      .post("/boards/:boardId/cards", ({ invalidate, params }) => {
+        invalidate("/boards/:boardId", { boardId: params.boardId });
+        return { ok: true };
+      });
+
+    const response = await _runWithRequestInvalidationScope(() =>
+      app.handle(new Request("http://localhost/boards/alpha/cards", { method: "POST" }))
+    );
+
+    expect(response.status).toBe(200);
+    expect(isrCache.has("/board/alpha")).toBe(false);
+    expect(response.headers.get("x-furin-revalidate")).toBe("/board/alpha");
+    expect(JSON.parse(response.headers.get("x-furin-queries") ?? "null")).toEqual([
+      board,
+      { id: "/boards/:boardId/cards", scope: { boardId: "alpha" } },
+    ]);
+    expect(response.headers.has("x-furin-sync")).toBe(false);
+  });
+
+  test("a standalone app reports each request's own invalidations", async () => {
+    const app = new Elysia()
+      .use(furinInvalidate())
+      .post("/a", ({ invalidate }) => {
+        invalidate({ path: "/a", type: "page" });
+        return { ok: true };
+      })
+      .post("/b", ({ invalidate }) => {
+        invalidate({ path: "/b", type: "page" });
+        return { ok: true };
+      });
+
+    const [a, b] = await Promise.all(
+      ["/a", "/b"].map((path) =>
+        app.handle(new Request(`http://localhost${path}`, { method: "POST" }))
+      )
+    );
+
+    expect(a?.headers.get("x-furin-revalidate")).toBe("/a");
+    expect(b?.headers.get("x-furin-revalidate")).toBe("/b");
+  });
+
+  test("runs invalidation rules on successful mutation responses", async () => {
+    setISRCache("/board/123", {
+      generatedAt: Date.now(),
+      html: "board",
+      ndjson: "{}\n",
+      revalidate: 60,
+    });
+    autoInvalidateRegistry.registerLoaderTags("/board/123", ["board"]);
+
+    const app = new Elysia().use(furinInvalidate()).post("/cards", ({ invalidate }) => {
+      invalidate({ tags: ["board"] });
+      return { ok: true };
+    });
 
     const response = await _runWithRequestInvalidationScope(() =>
       app.handle(new Request("http://localhost/cards", { method: "POST" }))
@@ -239,14 +359,18 @@ describe("furinInvalidate macro", () => {
   });
 
   test("does not invalidate failed mutation responses", async () => {
-    setISRCache("/board/123", { generatedAt: Date.now(), html: "board", revalidate: 60 });
+    setISRCache("/board/123", {
+      generatedAt: Date.now(),
+      html: "board",
+      ndjson: "{}\n",
+      revalidate: 60,
+    });
     autoInvalidateRegistry.registerLoaderTags("/board/123", ["board"]);
 
-    const app = new Elysia()
-      .use(furinInvalidate())
-      .post("/cards", { invalidate: { tags: ["board"] } }, ({ status }) =>
-        status("Bad Request", "bad")
-      );
+    const app = new Elysia().use(furinInvalidate()).post("/cards", ({ invalidate, status }) => {
+      invalidate({ tags: ["board"] });
+      return status("Bad Request", "bad");
+    });
 
     const response = await _runWithRequestInvalidationScope(() =>
       app.handle(new Request("http://localhost/cards", { method: "POST" }))
@@ -257,31 +381,48 @@ describe("furinInvalidate macro", () => {
     expect(response.headers.get("x-furin-revalidate")).toBeNull();
   });
 
-  test("data endpoint does not retain uncached dynamic paths", async () => {
-    const route = {
-      mode: "isr",
-      page: {
-        _route: {},
-        loader: () => ({ pageData: "from-page" }),
-      },
-      path: "/items/[id].tsx",
-      pattern: "/items/:id",
-      routeChain: [],
-      segmentBoundaries: [],
-      tags: ["boards"],
-    } as unknown as ResolvedRoute;
-
-    autoInvalidateRegistry.reset();
-    const app = new Elysia().use(createDataEndpoint([route]));
-    for (let index = 0; index < 200; index += 1) {
-      // biome-ignore lint/performance/noAwaitInLoops: requests verify cardinality across paths.
-      const response = await app.handle(
-        new Request(`http://localhost/_furin/data?path=/items/${index}`)
+  test("development navigation data keeps tagged paths only while their loader output is cached", async () => {
+    const tmpApp = createTmpApp("cli-app");
+    writeAppFile(
+      tmpApp.path,
+      "src/pages/items/[id].tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { t } from "elysia";',
+        'export const route = defineRoute("/items/[id]")',
+        '  .config({ mode: "isr", revalidate: 60, tags: ["boards"],',
+        "    params: t.Object({ id: t.String() }) })",
+        '  .loader(() => ({ pageData: "from-page" }))',
+        "  .page(({ pageData }) => <main>{pageData}</main>);",
+      ].join("\n")
+    );
+    const originalCwd = process.cwd();
+    __setDevMode(true);
+    process.chdir(tmpApp.path);
+    try {
+      const pagesDir = join(tmpApp.path, "src/pages");
+      const app = new Elysia().use(await furin({ pagesDir }));
+      const instance = allInstances().find(
+        // Furin stores pagesDir with POSIX separators on every platform.
+        (candidate) => candidate.pagesDir === pagesDir.replaceAll("\\", "/")
       );
-      expect(response.status).toBe(200);
-    }
+      for (let index = 0; index < 200; index += 1) {
+        // biome-ignore lint/performance/noAwaitInLoops: requests verify cardinality across paths.
+        const response = await app.handle(
+          new Request(`http://localhost/items/${index}?_furin=data`)
+        );
+        expect(response.status).toBe(200);
+      }
 
-    expect(autoInvalidateRegistry.pathsForTags(["boards"])).toEqual([]);
+      // Navigation data fills the dev loader cache, whose entries own the tags.
+      expect(getAutoInvalidateRegistry(instance).pathsForTags(["boards"])).toHaveLength(200);
+      __resetDevLoaderCacheState();
+      expect(getAutoInvalidateRegistry(instance).pathsForTags(["boards"])).toEqual([]);
+    } finally {
+      process.chdir(originalCwd);
+      __resetCompileContext();
+      tmpApp.cleanup();
+    }
   });
 
   test("two plugins both calling furinInvalidate() + DELETE → header still set (task-manager replica)", async () => {
@@ -289,17 +430,24 @@ describe("furinInvalidate macro", () => {
     // `.use(furinInvalidate())`. Both Elysia instances share the same plugin
     // name `furin-invalidate`. This test verifies the second plugin still
     // sees the macro applied to its DELETE route.
-    setISRCache("/", { generatedAt: Date.now(), html: "home", revalidate: 10 });
+    setISRCache("/", { generatedAt: Date.now(), html: "home", ndjson: "{}\n", revalidate: 10 });
     autoInvalidateRegistry.registerLoaderTags("/", ["boards"]);
 
     const boardPlugin = new Elysia()
       .use(furinInvalidate())
-      .post("/boards", { invalidate: { tags: ["boards"] } }, () => ({ id: "x" }))
-      .delete("/boards/:id", { invalidate: { tags: ["boards"] } }, () => ({ ok: true }));
+      .post("/boards", ({ invalidate }) => {
+        invalidate({ tags: ["boards"] });
+        return { id: "x" };
+      })
+      .delete("/boards/:id", ({ invalidate }) => {
+        invalidate({ tags: ["boards"] });
+        return { ok: true };
+      });
 
-    const cardPlugin = new Elysia()
-      .use(furinInvalidate())
-      .post("/cards", { invalidate: { tags: ["cards"] } }, () => ({ ok: true }));
+    const cardPlugin = new Elysia().use(furinInvalidate()).post("/cards", ({ invalidate }) => {
+      invalidate({ tags: ["cards"] });
+      return { ok: true };
+    });
 
     const api = new Elysia({ prefix: "/api" }).use(boardPlugin).use(cardPlugin);
 
@@ -316,12 +464,13 @@ describe("furinInvalidate macro", () => {
     // Reproduces the exact AsyncLocalStorage wrapping pattern used by
     // `wrapWithRequestScope` in furin.ts to confirm that `app.wrap` preserves
     // the request-scoped invalidation set across the macro afterHandle.
-    setISRCache("/", { generatedAt: Date.now(), html: "home", revalidate: 10 });
+    setISRCache("/", { generatedAt: Date.now(), html: "home", ndjson: "{}\n", revalidate: 10 });
     autoInvalidateRegistry.registerLoaderTags("/", ["boards"]);
 
-    const inner = new Elysia()
-      .use(furinInvalidate())
-      .delete("/boards/:id", { invalidate: { tags: ["boards"] } }, () => ({ ok: true }));
+    const inner = new Elysia().use(furinInvalidate()).delete("/boards/:id", ({ invalidate }) => {
+      invalidate({ tags: ["boards"] });
+      return { ok: true };
+    });
 
     const api = new Elysia({ prefix: "/api" }).use(inner);
 
@@ -347,14 +496,20 @@ describe("furinInvalidate macro", () => {
     // Mirrors the task-manager structure exactly: a nested plugin that calls
     // furinInvalidate() and is mounted under a prefix, with a DELETE that has
     // a dynamic param. This is the configuration that was reported as broken.
-    setISRCache("/", { generatedAt: Date.now(), html: "home", revalidate: 10 });
+    setISRCache("/", { generatedAt: Date.now(), html: "home", ndjson: "{}\n", revalidate: 10 });
     autoInvalidateRegistry.registerLoaderTags("/", ["boards"]);
 
     const boardPlugin = new Elysia()
       .use(furinInvalidate())
       .get("/boards", () => ({ list: [] }))
-      .post("/boards", { invalidate: { tags: ["boards"] } }, () => ({ id: "new" }))
-      .delete("/boards/:boardId", { invalidate: { tags: ["boards"] } }, () => ({ ok: true }))
+      .post("/boards", ({ invalidate }) => {
+        invalidate({ tags: ["boards"] });
+        return { id: "new" };
+      })
+      .delete("/boards/:boardId", ({ invalidate }) => {
+        invalidate({ tags: ["boards"] });
+        return { ok: true };
+      })
       .get("/boards/:boardId", () => ({ id: "x" }));
 
     const api = new Elysia({ prefix: "/api" }).use(boardPlugin);
@@ -373,12 +528,13 @@ describe("furinInvalidate macro", () => {
     // the home page caches under tag "boards"; deleting a board should bust
     // it and ship x-furin-revalidate: / on the DELETE response so the client
     // refreshes the home page.
-    setISRCache("/", { generatedAt: Date.now(), html: "home", revalidate: 10 });
+    setISRCache("/", { generatedAt: Date.now(), html: "home", ndjson: "{}\n", revalidate: 10 });
     autoInvalidateRegistry.registerLoaderTags("/", ["boards"]);
 
-    const app = new Elysia()
-      .use(furinInvalidate())
-      .delete("/boards/:id", { invalidate: { tags: ["boards"] } }, () => ({ ok: true }));
+    const app = new Elysia().use(furinInvalidate()).delete("/boards/:id", ({ invalidate }) => {
+      invalidate({ tags: ["boards"] });
+      return { ok: true };
+    });
 
     const response = await _runWithRequestInvalidationScope(() =>
       app.handle(new Request("http://localhost/boards/abc", { method: "DELETE" }))
@@ -390,13 +546,17 @@ describe("furinInvalidate macro", () => {
   });
 
   test("supports path-based invalidation rules", async () => {
-    setISRCache("/blog/post", { generatedAt: Date.now(), html: "post", revalidate: 60 });
+    setISRCache("/blog/post", {
+      generatedAt: Date.now(),
+      html: "post",
+      ndjson: "{}\n",
+      revalidate: 60,
+    });
 
-    const app = new Elysia()
-      .use(furinInvalidate())
-      .delete("/posts/1", { invalidate: { path: "/blog/post", type: "page" } }, () => ({
-        ok: true,
-      }));
+    const app = new Elysia().use(furinInvalidate()).delete("/posts/1", ({ invalidate }) => {
+      invalidate({ path: "/blog/post", type: "page" });
+      return { ok: true };
+    });
 
     const response = await _runWithRequestInvalidationScope(() =>
       app.handle(new Request("http://localhost/posts/1", { method: "DELETE" }))

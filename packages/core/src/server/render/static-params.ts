@@ -18,6 +18,12 @@ interface StaticParamsStage {
 }
 
 const STATIC_PARAMS_CONCURRENCY = 4;
+const DYNAMIC_SEGMENT_RE = /\/:[^/]+|\/\*/;
+
+export interface StaticPath {
+  params: RuntimeParams;
+  path: string;
+}
 
 function collectStaticParamsStages(route: ResolvedRoute): StaticParamsStage[] {
   const stages: StaticParamsStage[] = [];
@@ -171,4 +177,30 @@ export async function resolveStaticParams(
     branches = branchValues.flat();
   }
   return branches;
+}
+
+/**
+ * Concrete URLs a route renders at build time: its own path when the pattern
+ * has no dynamic segment, otherwise one path per `staticParams()` entry.
+ * Paths that `matchRoute` resolves to another route (e.g. `/about` returned by
+ * `/:slug` while a static `/about` page exists) are dropped so the owning
+ * route's output is never overwritten. Resolves to `undefined` for a dynamic
+ * route without `staticParams()`.
+ */
+export async function expandStaticPaths(
+  route: ResolvedRoute,
+  matchRoute: (pathname: string) => { route: ResolvedRoute } | null,
+  origin: string
+): Promise<StaticPath[] | undefined> {
+  let paramSets: RuntimeParams[];
+  if (!DYNAMIC_SEGMENT_RE.test(route.pattern)) {
+    paramSets = [{}];
+  } else if (hasStaticParams(route)) {
+    paramSets = (await resolveStaticParams(route, origin)) ?? [];
+  } else {
+    return;
+  }
+  return paramSets
+    .map((params) => ({ params, path: resolvePath(route.pattern, params) }))
+    .filter(({ path }) => matchRoute(path)?.route === route);
 }

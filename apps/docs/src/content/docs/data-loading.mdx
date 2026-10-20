@@ -7,10 +7,9 @@ Furin runs loaders on the server and passes their results into the matched layou
 ```tsx
 // src/pages/blog/index.tsx
 import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "../root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("/blog")
+  .config({ mode: "ssr" })
   .loader(async ({ log }) => {
     const posts = await db.posts.findMany();
     log.set({ postCount: posts.length });
@@ -22,6 +21,19 @@ export const route = defineRoute()
 The return object is serialized into the initial document and route-data response, then exposed as flat props to `page()`, `layout()`, and `head()`. It must therefore contain values supported by Furin's Seroval transport. Keys beginning with `__furin`, plus `children`, `key`, `params`, `path`, `query`, and `ref`, are reserved.
 
 Returning a plain promise inside a plain object does not opt into streaming: it is resolved as normal loader data. Use `defer()` explicitly when a field should stream.
+
+## Keeping Server Modules Out Of The Browser
+
+Route files are also bundled for the browser. Furin removes `loader()`, `requestLoader()`, `head()`, `staticParams()` and `config()` (keeping only `remountDeps`) from that bundle, together with the module-level functions and imports only they use. Code the page or layout still references stays in the browser bundle, including its imports.
+
+Mark modules that must never reach the browser, such as database clients or modules that read secrets, with `furin/server-only`. Any browser build that still imports one then fails instead of shipping it:
+
+```ts
+// src/db.server.ts
+import "@teyik0/furin/server-only";
+
+export const db = createClient(process.env.DATABASE_URL);
+```
 
 ## Reading Data In Descendant Components
 
@@ -52,10 +64,9 @@ Every layout and the page can have a loader. They start without waiting for the 
 ```tsx
 // src/pages/dashboard/settings.tsx
 import { defineRoute } from "@teyik0/furin";
-import { route as dashboardRoute } from "./_route";
 
-export const route = defineRoute()
-  .config({ layout: dashboardRoute, mode: "ssr" })
+export const route = defineRoute("/dashboard/settings")
+  .config({ mode: "ssr" })
   .loader(async ({ organization, user }) => {
     const [resolvedOrganization, resolvedUser] = await Promise.all([
       organization,
@@ -88,13 +99,12 @@ On SSG and ISR segments, `loader()` exposes only public route values (`params`, 
 ## Params And Query
 
 ```tsx
+// src/pages/blog/[slug].tsx
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
-import { route as rootRoute } from "../root";
 
-export const route = defineRoute()
+export const route = defineRoute("/blog/[slug]")
   .config({
-    layout: rootRoute,
     mode: "ssr",
     params: t.Object({ slug: t.String() }),
     query: t.Object({ preview: t.Optional(t.Boolean({ default: false })) }),
@@ -116,12 +126,12 @@ The schemas are both runtime validators and TypeScript sources. Furin checks tha
 Use it on cached SSG/ISR pages or shared layouts. An SSR page can read the request directly in `loader()` and stream fields with `defer()`.
 
 ```tsx
+// src/pages/shop/index.tsx
 import { Await, defineRoute } from "@teyik0/furin";
 import { Suspense } from "react";
-import { route as rootRoute } from "../root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+export const route = defineRoute("/shop")
+  .config({ mode: "isr", revalidate: 60 })
   .requestLoader(async ({ cookies, headers, log, params, query, request }) => ({
     session: await readSession(cookies.get("session"), request.signal),
   }))

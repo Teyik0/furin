@@ -9,7 +9,7 @@ import type {
   Router,
   RouteSearch,
 } from "@teyik0/furin/link";
-import type { useSearch } from "@teyik0/furin/search";
+import { useSearch } from "@teyik0/furin/search";
 import { expectTypeOf } from "expect-type";
 import { Link } from "../../src/client/link.tsx";
 import { getRouteApi } from "../../src/client.ts";
@@ -27,9 +27,8 @@ const createRootLayout = () =>
 declare const rootLayout: ReturnType<typeof createRootLayout>;
 
 const createGeneratedRoute = () =>
-  defineRoute()
+  defineRoute("/")
     .config({
-      layout: rootLayout,
       mode: "ssr",
       query: t.Object({ page: t.Number(), tag: t.Optional(t.String()) }),
     })
@@ -37,9 +36,8 @@ const createGeneratedRoute = () =>
     .page(({ page }) => page);
 
 const createGeneratedBoardRoute = () =>
-  defineRoute()
+  defineRoute("/")
     .config({
-      layout: rootLayout,
       mode: "ssr",
       params: t.Object({ boardId: t.Number() }),
       query: t.Object({ page: t.Number() }),
@@ -49,9 +47,8 @@ const createGeneratedBoardRoute = () =>
 declare const generatedBoardRoute: ReturnType<typeof createGeneratedBoardRoute>;
 
 const createGeneratedOptionalBoardRoute = () =>
-  defineRoute()
+  defineRoute("/")
     .config({
-      layout: rootLayout,
       mode: "ssr",
       params: t.Object({ boardId: t.Optional(t.Number()), locale: t.Optional(t.String()) }),
     })
@@ -60,24 +57,48 @@ const createGeneratedOptionalBoardRoute = () =>
 declare const generatedOptionalBoardRoute: ReturnType<typeof createGeneratedOptionalBoardRoute>;
 
 const createGeneratedSlugRoute = () =>
-  defineRoute()
-    .config({ layout: rootLayout, mode: "ssr", params: t.Object({ slug: t.String() }) })
+  defineRoute("/")
+    .config({ mode: "ssr", params: t.Object({ slug: t.String() }) })
     .page(({ params }) => params.slug);
 
 declare const generatedSlugRoute: ReturnType<typeof createGeneratedSlugRoute>;
 
 declare const generatedRoute: ReturnType<typeof createGeneratedRoute>;
 
+const createOrgLayout = () =>
+  defineRoute("/manifest/[org]/_route")
+    .config({
+      mode: "ssr",
+      params: t.Object({ org: t.String() }),
+      query: t.Object({ lang: t.String() }),
+    })
+    .layout(({ children }) => children);
+declare const orgLayout: ReturnType<typeof createOrgLayout>;
+
+const createInheritedBoardRoute = () =>
+  defineRoute("/manifest/[org]/boards/[boardId]")
+    .config({ mode: "ssr", params: t.Object({ boardId: t.Number() }) })
+    .page(({ params }) => String(params.boardId));
+declare const inheritedBoardRoute: ReturnType<typeof createInheritedBoardRoute>;
+
 declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/manifest/[org]/_route": {
+      kind: "layout";
+      parent: typeof rootLayout;
+      pathParams: { org: string };
+    };
+    "/manifest/[org]/boards/[boardId]": {
+      kind: "page";
+      parent: typeof orgLayout;
+      pathParams: { boardId: string; org: string };
+    };
+  }
   interface RouteMap {
     "/elysia-boards/:boardId": typeof generatedBoardRoute;
+    "/elysia-boards/new": typeof generatedRoute;
     "/elysia-optional-boards/:boardId": typeof generatedOptionalBoardRoute;
-    "/elysia-products": typeof generatedRoute;
-    "/elysia-slugs/:slug": typeof generatedSlugRoute;
-  }
-  interface RoutePatternMap {
-    "/elysia-boards/:boardId": typeof generatedBoardRoute;
-    "/elysia-optional-boards/:boardId": typeof generatedOptionalBoardRoute;
+    "/elysia-orgs/:org/boards/:boardId": typeof inheritedBoardRoute;
     "/elysia-products": typeof generatedRoute;
     "/elysia-slugs/:slug": typeof generatedSlugRoute;
   }
@@ -116,33 +137,94 @@ const assertTypedLinkParams = () => {
   }>();
 };
 
+const assertConcretePathResolution = (navigate: Navigate, slug: string) => {
+  // A concrete path resolves to the pattern it matches.
+  expectTypeOf<RouteSearch<"/elysia-boards/42">>().toEqualTypeOf<{ page: number }>();
+  // A static route wins over a dynamic sibling, as in the runtime router.
+  expectTypeOf<RouteSearch<"/elysia-boards/new">>().toEqualTypeOf<{
+    page: number;
+    tag?: string;
+  }>();
+  expectTypeOf<RouteParamsOf<"/elysia-boards/new">>().toEqualTypeOf<undefined>();
+  // Template paths resolve against `:param` segments.
+  expectTypeOf<RouteSearch<`/elysia-boards/${string}`>>().toEqualTypeOf<{ page: number }>();
+  navigate({ search: { page: 1 }, to: "/elysia-boards/42" });
+  navigate({ to: `/elysia-slugs/${slug}` });
+  // @ts-expect-error a `:param` matches exactly one segment
+  navigate({ to: "/elysia-boards/42/extra" });
+};
+
+const assertInheritedNavigation = (navigate: Navigate) => {
+  expectTypeOf<RouteParamsOf<"/elysia-orgs/:org/boards/:boardId">>().toEqualTypeOf<{
+    org: string;
+    boardId: string | number;
+  }>();
+  expectTypeOf<RouteSearch<"/elysia-orgs/:org/boards/:boardId">>().toEqualTypeOf<{
+    lang: string;
+  }>();
+  navigate({
+    params: { boardId: 1, org: "furin" },
+    search: { lang: "fr" },
+    to: "/elysia-orgs/:org/boards/:boardId",
+  });
+  navigate({
+    // @ts-expect-error the layout's path param is part of the child's params
+    params: { boardId: 1 },
+    search: { lang: "fr" },
+    to: "/elysia-orgs/:org/boards/:boardId",
+  });
+};
+
 const assertLinkDestinations = () => {
-  Link({ params: { boardId: 42 }, to: "/elysia-boards/:boardId" });
+  Link({ params: { boardId: 42 }, search: { page: 1 }, to: "/elysia-boards/:boardId" });
   Link({ params: { boardId: "42" }, to: "/elysia-optional-boards/:boardId" });
   Link({ search: { page: 2 }, to: "/elysia-products" });
-  Link({ to: "/elysia-boards/42" });
+  Link({ search: { page: 1 }, to: "/elysia-boards/42" });
   // @ts-expect-error a named dynamic route requires its URL segment
-  Link({ to: "/elysia-boards/:boardId" });
+  Link({ search: { page: 1 }, to: "/elysia-boards/:boardId" });
   // @ts-expect-error optional schemas do not make path segments optional
   Link({ params: {}, to: "/elysia-optional-boards/:boardId" });
   // @ts-expect-error path params retain their schema types
-  Link({ params: { boardId: false }, to: "/elysia-boards/:boardId" });
+  Link({ params: { boardId: false }, search: { page: 1 }, to: "/elysia-boards/:boardId" });
   // @ts-expect-error named routes retain their query schema
   Link({ search: { page: "two" }, to: "/elysia-products" });
+};
+
+const assertStrictDestinations = (router: Router, href: string) => {
+  // External URLs and values typed as plain `string` stay accepted.
+  Link({ to: "https://example.com/docs" });
+  Link({ to: "mailto:team@example.com" });
+  Link({ to: "//cdn.example.com/file.pdf" });
+  Link({ to: href });
+  router.navigate(href);
+  router.prefetch(href);
+  router.navigate("/elysia-boards/42?page=2");
+  useSearch(href);
+  useSearch("/elysia-boards/42");
+  // @ts-expect-error <Link> rejects unknown internal destinations
+  Link({ to: "/not-a-route" });
+  // @ts-expect-error router.navigate(href) rejects unknown internal destinations
+  router.navigate("/typo");
+  // @ts-expect-error router.prefetch(href) rejects unknown internal destinations
+  router.prefetch("/typo", { staleTime: 1 });
+  // @ts-expect-error useSearch only reads known routes
+  useSearch("/not-a-route");
+  // @ts-expect-error an external URL has no route search
+  useSearch("https://example.com");
 };
 
 const assertTypedNavigate = (
   navigate: Navigate,
   to: "/elysia-boards/:boardId" | "/elysia-slugs/:slug"
 ) => {
-  navigate({ params: { boardId: 42 }, to: "/elysia-boards/:boardId" });
+  navigate({ params: { boardId: 42 }, search: { page: 1 }, to: "/elysia-boards/:boardId" });
   navigate({ params: { boardId: "42" }, to: "/elysia-optional-boards/:boardId" });
   navigate({ params: { boardId: "42", locale: "fr" }, to: "/elysia-optional-boards/:boardId" });
   navigate({ search: { page: 2, tag: "bun" }, to: "/elysia-products" });
   navigate({ to: "https://example.com" });
   navigate(
     to === "/elysia-boards/:boardId"
-      ? { params: { boardId: 42 }, to }
+      ? { params: { boardId: 42 }, search: { page: 1 }, to }
       : { params: { slug: "bun" }, to }
   );
 
@@ -150,9 +232,9 @@ const assertTypedNavigate = (
   navigate({ params: { slug: "bun" }, to });
 
   // @ts-expect-error required path params must be supplied
-  navigate({ to: "/elysia-boards/:boardId" });
+  navigate({ search: { page: 1 }, to: "/elysia-boards/:boardId" });
   // @ts-expect-error path params retain their schema-derived types
-  navigate({ params: { boardId: false }, to: "/elysia-boards/:boardId" });
+  navigate({ params: { boardId: false }, search: { page: 1 }, to: "/elysia-boards/:boardId" });
   // @ts-expect-error a required URL segment cannot be omitted even with an optional schema
   navigate({ params: {}, to: "/elysia-optional-boards/:boardId" });
   // @ts-expect-error undefined cannot fill a required URL segment
@@ -181,15 +263,20 @@ const assertRouteApi = () => {
 };
 
 const assertRouterTargets = (router: Router) => {
-  router.navigate({ to: "/elysia-boards/:boardId", params: { boardId: 42 } });
-  router.prefetch({ to: "/elysia-boards/:boardId", params: { boardId: 42 }, staleTime: 5000 });
+  router.navigate({ params: { boardId: 42 }, search: { page: 1 }, to: "/elysia-boards/:boardId" });
+  router.prefetch({
+    params: { boardId: 42 },
+    search: { page: 1 },
+    staleTime: 5000,
+    to: "/elysia-boards/:boardId",
+  });
   router.prefetch({ to: "/elysia-products", search: { page: 2 } });
   router.navigate("/elysia-boards/42", { replace: true });
   router.prefetch("/elysia-boards/42", { staleTime: 5000 });
   // @ts-expect-error named destinations require their path params
-  router.navigate({ to: "/elysia-boards/:boardId" });
+  router.navigate({ search: { page: 1 }, to: "/elysia-boards/:boardId" });
   // @ts-expect-error prefetch uses the same required params
-  router.prefetch({ to: "/elysia-boards/:boardId" });
+  router.prefetch({ search: { page: 1 }, to: "/elysia-boards/:boardId" });
   // @ts-expect-error search retains its schema types
   router.prefetch({ to: "/elysia-products", search: { page: "two" } });
   // @ts-expect-error structured navigation rejects unknown routes
@@ -203,6 +290,15 @@ describe("Elysia RouteMap bridge", () => {
   });
   test("projects generated route keys and query types into client routing", assertRouteMapBridge);
   test("projects path params into typed Link props", assertTypedLinkParams);
+  test("resolves concrete paths against exact route patterns", () => {
+    expectTypeOf(assertConcretePathResolution).toBeFunction();
+  });
+  test("inherits layout params and query in navigation", () => {
+    expectTypeOf(assertInheritedNavigation).toBeFunction();
+  });
+  test("rejects unknown internal destinations everywhere", () => {
+    expectTypeOf(assertStrictDestinations).toBeFunction();
+  });
   test("requires params for named dynamic links", () => {
     expectTypeOf(assertLinkDestinations).toBeFunction();
   });

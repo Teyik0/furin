@@ -2,22 +2,11 @@ export interface QueryScope {
   readonly [key: string]: string | number | boolean | null | undefined;
 }
 
+/** A GET's URL identity: its route pattern (`/cards/:id`) and params; the query string is ignored. */
 export interface QueryIdentity {
   id: string;
   scope: QueryScope;
 }
-
-type RegisteredScope<Id extends keyof SyncQueryMap> = keyof SyncQueryMap[Id] extends never
-  ? { readonly [key: string]: never }
-  : {
-      readonly [Key in keyof SyncQueryMap[Id]]: Extract<SyncQueryMap[Id][Key], QueryScope[string]>;
-    };
-
-export type SyncQueryIdentity = keyof SyncQueryMap extends never
-  ? QueryIdentity
-  : {
-      [Id in keyof SyncQueryMap & string]: { id: Id; scope: RegisteredScope<Id> };
-    }[keyof SyncQueryMap & string];
 
 export interface QueryReadIdentity extends QueryIdentity {
   session: string;
@@ -48,10 +37,15 @@ export function mergeQuerySeeds(target: QuerySeed[], incoming: readonly QuerySee
     const index = target.findIndex((existing) => existing.url === seed.url);
     const previous = target[index];
     const bindings = [...(seed.bindings ?? [])];
+    let { data } = seed;
     if (
       previous?.identity.session === seed.identity.session &&
       queryTag(previous.identity) === queryTag(seed.identity)
     ) {
+      // A dependency-only copy must not erase a body another loader field exposed whole.
+      if (data === undefined) {
+        ({ data } = previous);
+      }
       for (const binding of previous.bindings ?? []) {
         if (
           !bindings.some((next) => JSON.stringify(next.target) === JSON.stringify(binding.target))
@@ -60,7 +54,7 @@ export function mergeQuerySeeds(target: QuerySeed[], incoming: readonly QuerySee
         }
       }
     }
-    const merged = { ...seed, bindings };
+    const merged = { ...seed, data, bindings };
     if (index < 0) {
       target.push(merged);
     } else {
@@ -70,8 +64,8 @@ export function mergeQuerySeeds(target: QuerySeed[], incoming: readonly QuerySee
 }
 
 export function queryTagsFromData(data: object): string[] {
-  return ((data as { __furinQueries?: QuerySeed[] }).__furinQueries ?? []).map((seed) =>
-    queryTag(seed.identity)
+  return ((data as { __furinQueries?: QuerySeed[] }).__furinQueries ?? []).flatMap((seed) =>
+    queryTags(seed.identity)
   );
 }
 
@@ -87,14 +81,29 @@ export function queryTag(identity: QueryIdentity): string {
     PREFIX +
     JSON.stringify([
       identity.id,
-      Object.entries(identity.scope).sort(([a], [b]) => {
-        if (a === b) {
-          return 0;
-        }
-        return a < b ? -1 : 1;
-      }),
+      Object.entries(identity.scope)
+        // URL params are strings: a numeric param names the same URL.
+        .map(([key, value]) => [key, typeof value === "number" ? String(value) : value] as const)
+        .sort(([a], [b]) => {
+          if (a === b) {
+            return 0;
+          }
+          return a < b ? -1 : 1;
+        }),
     ])
   );
+}
+
+/**
+ * Every tag a read answers to: one per subset of its params, so an invalidation that omits a
+ * param (`invalidate("/boards/:boardId")`) matches every value of it by exact tag.
+ */
+export function queryTags(identity: QueryIdentity): string[] {
+  let scopes: QueryScope[] = [{}];
+  for (const [key, value] of Object.entries(identity.scope)) {
+    scopes = scopes.concat(scopes.map((scope) => ({ ...scope, [key]: value })));
+  }
+  return scopes.map((scope) => queryTag({ id: identity.id, scope }));
 }
 
 export function queryFromTag(tag: string): QueryIdentity | undefined {
@@ -134,5 +143,3 @@ export function queryUrl(url: string, origin: string | undefined): string {
   parsed.searchParams.sort();
   return (parsed.origin === origin ? "" : parsed.origin) + parsed.pathname + parsed.search;
 }
-
-import type { SyncQueryMap } from "@teyik0/furin/routes";

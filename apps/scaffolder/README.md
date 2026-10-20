@@ -38,11 +38,11 @@ Usage:
   bun create furin@latest <dir> --template <simple|full>
 
 Options:
-  --template <simple|full>   Template choice (default: interactive)
-  --yes                      Skip interactive confirmations
-  --no-install               Do not run bun install after scaffolding
-  --version                  Show the create-furin package version
-  --help                     Show help
+  -t, --template <simple|full>   Template choice (default: prompted); --template=<id> also works
+  -y, --yes                      Skip interactive confirmations (requires <dir>)
+  --no-install                   Do not run bun install after scaffolding
+  -v, --version                  Show the create-furin package version
+  -h, --help                     Show help
 ```
 
 ### Examples
@@ -71,6 +71,8 @@ my-app/
 ├── bunfig.toml
 ├── furin.config.ts
 ├── furin-env.d.ts
+├── biome.jsonc
+├── README.md
 ├── .gitignore
 ├── public/
 │   └── favicon.ico
@@ -84,7 +86,9 @@ my-app/
         └── index.tsx
 ```
 
-Dependencies: `@teyik0/furin`, `elysia`, `evlog`, `typebox`, `exact-mirror`, `react`, `react-dom`, `bun-plugin-tailwind`, `tailwindcss`
+Dependencies: `@teyik0/furin`, `elysia`, `evlog`, `typebox`, `exact-mirror`, `react`, `react-dom`, `bun-plugin-tailwind`
+
+Dev dependencies: `tailwindcss`, `typescript`, `@types/bun`, `@types/react`, `@types/react-dom`, `@biomejs/biome`, `ultracite`
 
 ---
 
@@ -97,6 +101,8 @@ my-app/
 ├── bunfig.toml
 ├── furin.config.ts
 ├── furin-env.d.ts
+├── biome.jsonc
+├── README.md
 ├── components.json         ← shadcn/ui config
 ├── .gitignore
 ├── public/
@@ -118,7 +124,7 @@ my-app/
         └── index.tsx
 ```
 
-Dependencies: everything in `simple`, plus `class-variance-authority`, `clsx`, `tailwind-merge`, `@radix-ui/react-slot`, `lucide-react`, `tw-animate-css`
+Dependencies: everything in `simple`, plus `class-variance-authority`, `clsx`, `tailwind-merge`, `@radix-ui/react-slot`, `lucide-react`, `tw-animate-css`. Dev dependencies: same as `simple`.
 
 ---
 
@@ -126,15 +132,17 @@ Dependencies: everything in `simple`, plus `class-variance-authority`, `clsx`, `
 
 The scaffolder automatically runs:
 
-1. **`bun install`** — installs all dependencies
-2. **`git init`** + first commit `chore: initial scaffold`
+1. **`bun install`** — installs all dependencies (skipped with `--no-install`)
+2. **`git init`** + first commit `chore: initial scaffold` (the commit is skipped when git has no `user.name`/`user.email`)
 
 To get started:
 
 ```bash
 cd my-app
-bun dev        # http://localhost:3000
-bun tscheck    # TypeScript check
+bun dev            # http://localhost:3000
+bun run tscheck    # TypeScript check
+bun run build      # self-contained executable in .furin/build/bun/
+bun run start      # run the built executable
 ```
 
 ---
@@ -142,7 +150,7 @@ bun tscheck    # TypeScript check
 ## Scaffolder development
 
 ```bash
-# Tests (53 cases)
+# Tests
 bun run --filter="create-furin" test
 
 # TypeScript check
@@ -169,11 +177,12 @@ Edit `src/generated/package-catalog.json` — templates automatically pick up ne
 
 ```json
 {
-  "@teyik0/furin": "0.1.0-alpha.4",
-  "elysia": "2.0.0-beta.21",
-  "react": "^19.2.4"
+  "elysia": "2.0.0-beta.32",
+  "react": "^19.3.1"
 }
 ```
+
+`@teyik0/furin` is resolved from npm at scaffold time. When the registry is unreachable, the scaffolder falls back to the version in `packages/core/package.json`, which `bun build` inlines into `dist/`.
 
 ### Adding a template
 

@@ -1,6 +1,7 @@
-import { createClient } from "@teyik0/furin/client";
+import { treaty } from "@elysia/eden";
+import { furinSync } from "@teyik0/furin/client";
 import type { TodoApi } from "./todo-backend";
 
-export function createTodoClient(domain: string | TodoApi) {
-  return createClient<TodoApi>(domain, { retry: 2 });
+export function createTodoClient(domain: string) {
+  return treaty<TodoApi>(domain).use(furinSync);
 }

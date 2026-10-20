@@ -1,13 +1,9 @@
+import type { FileRoutes } from "@teyik0/furin/routes";
 import { type Context, Elysia, ValidationError } from "elysia";
 import type { RequestLogger } from "evlog";
 import type { HeadOptions, RenderingMode } from "./client.ts";
 import { applySchemaDefaults, coerceRouteInput } from "./server/router/schemas.ts";
-import type {
-  ElysiaRouteLeaf,
-  ElysiaRouteParams,
-  FurinSchema,
-  FurinUnwrap,
-} from "./shared/elysia-contract.ts";
+import type { FurinSchema, FurinUnwrap, FurinUnwrapInput } from "./shared/elysia-contract.ts";
 import { getSchemaValidator, isTypeBoxObjectSchema } from "./shared/elysia-contract.ts";
 import type { RemountDependency, RemountDeps } from "./shared/page-key.ts";
 
@@ -22,7 +18,17 @@ export interface FurinNativeRouteContext {
   [key: string]: unknown;
 }
 
-export type FurinRouteDispatcher = (context: FurinNativeRouteContext) => unknown;
+/**
+ * Identifies the page a native route handler serves, bound when the handler is
+ * created: the page's route terminal in a production composition, the route
+ * pattern in the development shell.
+ */
+export type FurinRouteKey = object | string;
+
+export type FurinRouteDispatcher = (
+  context: FurinNativeRouteContext,
+  route: FurinRouteKey
+) => unknown;
 
 interface LoaderData {
   [key: string]: unknown;
@@ -52,10 +58,14 @@ interface SchemaValues {
 type ParamsOf<Schema extends FurinSchema | undefined> = Schema extends FurinSchema
   ? FurinUnwrap<Schema>
   : NoFields;
+type SearchInputOf<Schema extends FurinSchema | undefined> = Schema extends FurinSchema
+  ? FurinUnwrapInput<Schema>
+  : NoFields;
 declare const privateFieldBrand: unique symbol;
 declare const ssrFieldBrand: unique symbol;
 declare const inheritedDataBrand: unique symbol;
 declare const loaderDataBrand: unique symbol;
+declare const routeContractBrand: unique symbol;
 declare const noRequestLoader: unique symbol;
 type PrivateField<Value> = Promise<Value> & { readonly [privateFieldBrand]: true };
 interface SsrField<Value> {
@@ -122,13 +132,6 @@ type DataOfRoute<Route> = WithoutParentDataConflicts<
     [Key in keyof RequestDataOfRoute<Route>]: PrivateField<Awaited<RequestDataOfRoute<Route>[Key]>>;
   }
 >;
-type ParamsOfRoute<Route> = Route extends {
-  component: (props: infer Props) => unknown;
-}
-  ? Props extends { params: infer Params }
-    ? Params
-    : NoFields
-  : NoFields;
 type PromisedData<Data extends LoaderData> = {
   [Key in keyof Data]: Promise<Awaited<Data[Key]>>;
 };
@@ -193,10 +196,6 @@ type RouteMetadata = RenderingConfig & {
   staticParams?: (context: ErasedStaticParamsContext) => Awaitable<readonly unknown[]>;
 };
 
-type ConfiguredChain<Mode extends RenderingMode, Chain> = Mode extends "ssr"
-  ? Omit<Chain, "staticParams">
-  : Chain;
-
 type PublicLoaderContext<Params, Query> = {
   params: Params;
   query: Query;
@@ -218,14 +217,20 @@ type LoaderContext<
   : PublicLoaderContext<Params, Query>) &
   PromisedData<Mode extends "ssr" ? SsrLoaderParentData<ParentData> : PublicParentData<ParentData>>;
 
+/** Carries a readable message into a compile error for a forbidden builder transition. */
+interface FurinTypeError<Message extends string> {
+  readonly "~furinError": Message;
+}
+
 type PageRequestLoaderCheck<
   Mode extends RenderingMode,
   RequestData extends LoaderData,
+  ValidComponent,
 > = Mode extends "ssr"
   ? RequestData extends NoRequestLoader
-    ? []
-    : [error: "SSR pages cannot declare requestLoader(); use loader() and defer()"]
-  : [];
+    ? ValidComponent
+    : FurinTypeError<"SSR pages cannot declare requestLoader(); use loader() and defer()">
+  : ValidComponent;
 
 type Loader<
   Params,
@@ -325,82 +330,36 @@ export function getFurinRenderer(context: object): FurinRouteDispatcher | undefi
   return typeof renderer === "function" ? (renderer as FurinRouteDispatcher) : undefined;
 }
 
-function registerPlain<
-  Params,
-  Query,
-  ParentData extends LoaderData,
-  Data extends LoaderData,
-  Mode extends RenderingMode,
->(loader: Loader<Params, Query, ParentData, Data, Mode> | undefined) {
-  return new Elysia().get("", async (context) => {
+const OUTSIDE_FURIN_ERROR =
+  "[furin] route.elysia must be mounted through furin(); it has no renderer outside the Furin plugin.";
+
+/** A page's native handler, bound to the page it renders. */
+function routeHandler(route: FurinRouteKey) {
+  return (context: object): unknown => {
     const renderer = getFurinRenderer(context);
-    if (renderer) {
-      return renderer(context as unknown as FurinNativeRouteContext);
+    if (!renderer) {
+      throw new Error(OUTSIDE_FURIN_ERROR);
     }
-    return Response.json(
-      loader
-        ? await loader({
-            ...context,
-            params: {} as Params,
-            query: {} as Query,
-          } as unknown as LoaderContext<Params, Query, ParentData, Mode>)
-        : {}
-    );
-  });
+    return renderer(context as unknown as FurinNativeRouteContext, route);
+  };
+}
+
+function registerPlain(route: FurinRouteKey) {
+  return new Elysia().get("", routeHandler(route));
 }
 
 function registerSchema<
-  Params,
-  Query,
   ParamsSchema extends FurinSchema,
   QuerySchema extends FurinSchema | undefined,
-  ParentData extends LoaderData,
-  Data extends LoaderData,
-  Mode extends RenderingMode,
->(
-  paramsSchema: ParamsSchema,
-  querySchema: QuerySchema,
-  loader: Loader<Params, Query, ParentData, Data, Mode> | undefined
-) {
-  return new Elysia().get("", { params: paramsSchema, query: querySchema }, async (context) => {
-    const renderer = getFurinRenderer(context);
-    if (renderer) {
-      return renderer(context as unknown as FurinNativeRouteContext);
-    }
-    return Response.json(
-      loader
-        ? await loader({
-            ...context,
-            params: context.params as Params,
-            query: context.query as Query,
-          } as unknown as LoaderContext<Params, Query, ParentData, Mode>)
-        : {}
-    );
-  });
+>(route: FurinRouteKey, paramsSchema: ParamsSchema, querySchema: QuerySchema) {
+  return new Elysia().get("", { params: paramsSchema, query: querySchema }, routeHandler(route));
 }
 
-function registerQuery<
-  Query,
-  QuerySchema extends FurinSchema,
-  ParentData extends LoaderData,
-  Data extends LoaderData,
-  Mode extends RenderingMode,
->(querySchema: QuerySchema, loader: Loader<NoFields, Query, ParentData, Data, Mode> | undefined) {
-  return new Elysia().get("", { query: querySchema }, async (context) => {
-    const renderer = getFurinRenderer(context);
-    if (renderer) {
-      return renderer(context as unknown as FurinNativeRouteContext);
-    }
-    return Response.json(
-      loader
-        ? await loader({
-            ...context,
-            params: {},
-            query: context.query as Query,
-          } as unknown as LoaderContext<NoFields, Query, ParentData, Mode>)
-        : {}
-    );
-  });
+function registerQuery<QuerySchema extends FurinSchema>(
+  route: FurinRouteKey,
+  querySchema: QuerySchema
+) {
+  return new Elysia().get("", { query: querySchema }, routeHandler(route));
 }
 
 function schemaValues(value: unknown): SchemaValues {
@@ -442,63 +401,22 @@ async function validateLayoutSchema(
   return { ...schemaValues(value), ...schemaValues(parsed) };
 }
 
-function registerLayout<
-  Params,
-  Query,
-  ParentData extends LoaderData,
-  Data extends LoaderData,
-  Mode extends RenderingMode,
->(
+function registerLayout(
   paramsSchema: FurinSchema | undefined,
-  querySchema: FurinSchema | undefined,
-  loader: Loader<Params, Query, ParentData, Data, Mode> | undefined
+  querySchema: FurinSchema | undefined
 ) {
   const app = new Elysia();
-  if (paramsSchema || querySchema || loader) {
-    app.derive(async (context) => {
-      const params = paramsSchema
+  if (paramsSchema || querySchema) {
+    app.derive(async (context) => ({
+      params: paramsSchema
         ? await validateLayoutSchema("params", paramsSchema, context.params)
-        : context.params;
-      const query = querySchema
+        : context.params,
+      query: querySchema
         ? await validateLayoutSchema("query", querySchema, context.query)
-        : context.query;
-      if (getFurinRenderer(context)) {
-        return { params, query };
-      }
-      return {
-        ...(loader
-          ? await loader({
-              ...context,
-              params: params as Params,
-              query: query as Query,
-            } as unknown as LoaderContext<Params, Query, ParentData, Mode>)
-          : {}),
-      };
-    });
+        : context.query,
+    }));
   }
   return app;
-}
-
-function withMetadata<
-  Mode extends RenderingMode,
-  ParentData extends LoaderData,
-  Data extends LoaderData = NoFields,
->(metadata: RouteMetadata) {
-  return {
-    mode: metadata.mode as Mode,
-    revalidate: metadata.revalidate,
-    remountDeps: metadata.remountDeps,
-    staticParams: metadata.staticParams,
-    tags: metadata.tags,
-  } as {
-    mode: Mode;
-    revalidate: number | undefined;
-    remountDeps: RouteMetadata["remountDeps"];
-    staticParams: RouteMetadata["staticParams"];
-    tags: readonly string[] | undefined;
-    readonly [inheritedDataBrand]?: ParentData;
-    readonly [loaderDataBrand]?: RenderLoaderData<ParentData, Data>;
-  };
 }
 
 function withStaticParams<Params, ParentParams, ParentData extends LoaderData>(
@@ -532,748 +450,403 @@ function assertPageRequestLoaderMode(metadata: RouteMetadata, requestLoader: unk
   }
 }
 
-class NoSchemaChain<
-  Params = NoFields,
-  Query = NoFields,
-  ParentData extends LoaderData = NoFields,
-  RequestData extends LoaderData = NoRequestLoader,
-  ParentParams = NoFields,
-  Mode extends RenderingMode = RenderingMode,
-> {
-  protected readonly headFunction: Head<Params, Query, ParentData, NoFields, Mode> | undefined;
-  protected readonly metadata: RouteMetadata;
-  protected readonly requestLoaderFunction: RequestLoader<Params, Query, RequestData> | undefined;
-
-  constructor(
-    metadata: RouteMetadata,
-    requestLoader: RequestLoader<Params, Query, RequestData> | undefined,
-    head?: Head<Params, Query, ParentData, NoFields, Mode>
-  ) {
-    this.metadata = metadata;
-    this.requestLoaderFunction = requestLoader;
-    this.headFunction = head;
-  }
-
-  requestLoader<Data extends RequestLoaderData>(
-    requestLoader: RequestLoader<Params, Query, Data>
-  ): Omit<NoSchemaChain<Params, Query, ParentData, Data, ParentParams, Mode>, "staticParams"> {
-    return new NoSchemaChain(this.metadata, requestLoader);
-  }
-
-  staticParams(
-    staticParams: StaticParams<Params, ParentParams, ParentData>
-  ): Omit<
-    NoSchemaChain<Params, Query, ParentData, RequestData, ParentParams, Mode>,
-    "staticParams"
-  > {
-    return new NoSchemaChain(
-      withStaticParams(this.metadata, staticParams, this.requestLoaderFunction !== undefined),
-      this.requestLoaderFunction
-    );
-  }
-
-  loader<Data extends PublicLoaderData>(
-    loader: Loader<Params, Query, ParentData, Data, Mode>
-  ): LoadedNoSchema<Params, Query, ParentData, Data, RequestData, Mode> {
-    return new LoadedNoSchema(this.metadata, loader, undefined, this.requestLoaderFunction);
-  }
-
-  head(
-    head: Head<Params, Query, ParentData, NoFields, Mode>
-  ): Pick<NoSchemaChain<Params, Query, ParentData, RequestData, ParentParams, Mode>, "page"> {
-    return new NoSchemaChain(this.metadata, this.requestLoaderFunction, head);
-  }
-
-  page(
-    component: Component<Params, Query, ParentData, NoFields, RequestData>,
-    ..._requestLoaderCheck: PageRequestLoaderCheck<Mode, RequestData>
-  ) {
-    assertPageRequestLoaderMode(this.metadata, this.requestLoaderFunction);
-    return {
-      __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData>(this.metadata),
-      component,
-      elysia: registerPlain<Params, Query, ParentData, NoFields, Mode>(undefined),
-      head: this.headFunction,
-      page: component,
-      requestLoader: this.requestLoaderFunction,
-    };
-  }
-
-  layout(component: LayoutComponent<Params, Query, ParentData, NoFields, RequestData>) {
-    return {
-      __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData>(this.metadata),
-      component,
-      elysia: registerLayout<Params, Query, ParentData, NoFields, Mode>(
-        undefined,
-        undefined,
-        undefined
-      ),
-      head: this.headFunction,
-      layout: component,
-      requestLoader: this.requestLoaderFunction,
-    };
-  }
+/**
+ * Phantom type state threaded through the single route builder. Each stage
+ * method returns the same `RouteChain` class narrowed with `Pick`/`Omit`, so
+ * the builder has one runtime implementation and one source of inference.
+ */
+interface ChainState {
+  /** Own public loader data (`NoFields` until `loader()`). */
+  data: LoaderData;
+  /** Terminals the route file allows: both for unkeyed routes, its own kind for keyed ones. */
+  kind: RouteKind;
+  loaded: boolean;
+  mode: RenderingMode;
+  params: unknown;
+  parentData: LoaderData;
+  parentParams: unknown;
+  query: unknown;
+  requestData: LoaderData;
+  /** Shape of the runtime `schemas` field exposed on the route terminal. */
+  schemas: RouteSchemas | undefined;
+  /** Navigation input for the resolved query (schema input side). */
+  search: unknown;
 }
 
-class LoadedNoSchema<
+type RouteSchemas =
+  | { query: FurinSchema }
+  | { params: FurinSchema; query: FurinSchema | undefined };
+
+type WithState<State extends ChainState, Patch extends Partial<ChainState>> = {
+  [Key in keyof ChainState]: Key extends keyof Patch ? Patch[Key] : State[Key];
+};
+
+interface InitialState<
   Params,
   Query,
+  Search,
+  Schemas extends RouteSchemas | undefined,
   ParentData extends LoaderData,
-  Data extends LoaderData,
-  RequestData extends LoaderData,
-  Mode extends RenderingMode = RenderingMode,
+  ParentParams,
+  Mode extends RenderingMode,
+  Kind extends RouteKind,
 > {
-  protected readonly headFunction: Head<Params, Query, ParentData, Data, Mode> | undefined;
-  protected readonly loaderFunction: Loader<Params, Query, ParentData, Data, Mode>;
-  protected readonly metadata: RouteMetadata;
-  protected readonly requestLoaderFunction: RequestLoader<Params, Query, RequestData> | undefined;
-
-  constructor(
-    metadata: RouteMetadata,
-    loader: Loader<Params, Query, ParentData, Data, Mode>,
-    head: Head<Params, Query, ParentData, Data, Mode> | undefined,
-    requestLoader: RequestLoader<Params, Query, RequestData> | undefined
-  ) {
-    this.metadata = metadata;
-    this.loaderFunction = loader;
-    this.headFunction = head;
-    this.requestLoaderFunction = requestLoader;
-  }
-
-  head(
-    head: Head<Params, Query, ParentData, Data, Mode>
-  ): HeadedNoSchema<Params, Query, ParentData, Data, RequestData, Mode> {
-    return new HeadedNoSchema(this.metadata, this.loaderFunction, head, this.requestLoaderFunction);
-  }
-
-  page(
-    component: Component<Params, Query, ParentData, Data, RequestData>,
-    ..._requestLoaderCheck: PageRequestLoaderCheck<Mode, RequestData>
-  ) {
-    assertPageRequestLoaderMode(this.metadata, this.requestLoaderFunction);
-    return {
-      __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData, Data>(this.metadata),
-      component,
-      elysia: registerPlain<Params, Query, ParentData, Data, Mode>(this.loaderFunction),
-      head: this.headFunction,
-      loader: this.loaderFunction,
-      page: component,
-      requestLoader: this.requestLoaderFunction,
-    };
-  }
-
-  layout(component: LayoutComponent<Params, Query, ParentData, Data, RequestData>) {
-    return {
-      __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData, Data>(this.metadata),
-      component,
-      elysia: registerLayout<Params, Query, ParentData, Data, Mode>(
-        undefined,
-        undefined,
-        this.loaderFunction
-      ),
-      head: this.headFunction,
-      layout: component,
-      loader: this.loaderFunction,
-      requestLoader: this.requestLoaderFunction,
-    };
-  }
-}
-
-class HeadedNoSchema<
-  Params,
-  Query,
-  ParentData extends LoaderData,
-  Data extends LoaderData,
-  RequestData extends LoaderData,
-  Mode extends RenderingMode = RenderingMode,
-> extends LoadedNoSchema<Params, Query, ParentData, Data, RequestData, Mode> {
-  declare readonly head: never;
-  declare readonly layout: never;
-}
-
-class QuerySchemaChain<
-  Query,
-  QuerySchema extends FurinSchema,
-  ParentData extends LoaderData = NoFields,
-  RequestData extends LoaderData = NoRequestLoader,
-  ParentParams = NoFields,
-  Mode extends RenderingMode = RenderingMode,
-> {
-  protected readonly headFunction: Head<NoFields, Query, ParentData, NoFields, Mode> | undefined;
-  protected readonly metadata: RouteMetadata;
-  protected readonly querySchema: QuerySchema;
-  protected readonly requestLoaderFunction: RequestLoader<NoFields, Query, RequestData> | undefined;
-
-  constructor(
-    metadata: RouteMetadata,
-    querySchema: QuerySchema,
-    requestLoader: RequestLoader<NoFields, Query, RequestData> | undefined,
-    head?: Head<NoFields, Query, ParentData, NoFields, Mode>
-  ) {
-    this.metadata = metadata;
-    this.querySchema = querySchema;
-    this.requestLoaderFunction = requestLoader;
-    this.headFunction = head;
-  }
-
-  requestLoader<Data extends RequestLoaderData>(
-    requestLoader: RequestLoader<NoFields, Query, Data>
-  ): Omit<
-    QuerySchemaChain<Query, QuerySchema, ParentData, Data, ParentParams, Mode>,
-    "staticParams"
-  > {
-    return new QuerySchemaChain(this.metadata, this.querySchema, requestLoader);
-  }
-
-  staticParams(
-    staticParams: StaticParams<NoFields, ParentParams, ParentData>
-  ): Omit<
-    QuerySchemaChain<Query, QuerySchema, ParentData, RequestData, ParentParams, Mode>,
-    "staticParams"
-  > {
-    return new QuerySchemaChain(
-      withStaticParams(this.metadata, staticParams, this.requestLoaderFunction !== undefined),
-      this.querySchema,
-      this.requestLoaderFunction
-    );
-  }
-
-  loader<Data extends PublicLoaderData>(
-    loader: Loader<NoFields, Query, ParentData, Data, Mode>
-  ): LoadedQuerySchema<Query, QuerySchema, ParentData, Data, RequestData, Mode> {
-    return new LoadedQuerySchema(
-      this.metadata,
-      this.querySchema,
-      loader,
-      undefined,
-      this.requestLoaderFunction
-    );
-  }
-
-  head(
-    head: Head<NoFields, Query, ParentData, NoFields, Mode>
-  ): Pick<
-    QuerySchemaChain<Query, QuerySchema, ParentData, RequestData, ParentParams, Mode>,
-    "page"
-  > {
-    return new QuerySchemaChain(this.metadata, this.querySchema, this.requestLoaderFunction, head);
-  }
-
-  page(
-    component: Component<NoFields, Query, ParentData, NoFields, RequestData>,
-    ..._requestLoaderCheck: PageRequestLoaderCheck<Mode, RequestData>
-  ) {
-    assertPageRequestLoaderMode(this.metadata, this.requestLoaderFunction);
-    return {
-      __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData>(this.metadata),
-      component,
-      elysia: registerQuery<Query, QuerySchema, ParentData, NoFields, Mode>(
-        this.querySchema,
-        undefined
-      ),
-      head: this.headFunction,
-      page: component,
-      requestLoader: this.requestLoaderFunction,
-      schemas: { query: this.querySchema },
-    };
-  }
-
-  layout(component: LayoutComponent<NoFields, Query, ParentData, NoFields, RequestData>) {
-    return {
-      __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData>(this.metadata),
-      component,
-      elysia: registerLayout<NoFields, Query, ParentData, NoFields, Mode>(
-        undefined,
-        this.querySchema,
-        undefined
-      ),
-      head: this.headFunction,
-      layout: component,
-      requestLoader: this.requestLoaderFunction,
-      schemas: { query: this.querySchema },
-    };
-  }
-}
-
-class LoadedQuerySchema<
-  Query,
-  QuerySchema extends FurinSchema,
-  ParentData extends LoaderData,
-  Data extends LoaderData,
-  RequestData extends LoaderData,
-  Mode extends RenderingMode = RenderingMode,
-> {
-  protected readonly headFunction: Head<NoFields, Query, ParentData, Data, Mode> | undefined;
-  protected readonly loaderFunction: Loader<NoFields, Query, ParentData, Data, Mode>;
-  protected readonly metadata: RouteMetadata;
-  protected readonly querySchema: QuerySchema;
-  protected readonly requestLoaderFunction: RequestLoader<NoFields, Query, RequestData> | undefined;
-
-  constructor(
-    metadata: RouteMetadata,
-    querySchema: QuerySchema,
-    loader: Loader<NoFields, Query, ParentData, Data, Mode>,
-    head: Head<NoFields, Query, ParentData, Data, Mode> | undefined,
-    requestLoader: RequestLoader<NoFields, Query, RequestData> | undefined
-  ) {
-    this.metadata = metadata;
-    this.querySchema = querySchema;
-    this.loaderFunction = loader;
-    this.headFunction = head;
-    this.requestLoaderFunction = requestLoader;
-  }
-
-  head(
-    head: Head<NoFields, Query, ParentData, Data, Mode>
-  ): HeadedQuerySchema<Query, QuerySchema, ParentData, Data, RequestData, Mode> {
-    return new HeadedQuerySchema(
-      this.metadata,
-      this.querySchema,
-      this.loaderFunction,
-      head,
-      this.requestLoaderFunction
-    );
-  }
-
-  page(
-    component: Component<NoFields, Query, ParentData, Data, RequestData>,
-    ..._requestLoaderCheck: PageRequestLoaderCheck<Mode, RequestData>
-  ) {
-    assertPageRequestLoaderMode(this.metadata, this.requestLoaderFunction);
-    return {
-      __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData, Data>(this.metadata),
-      component,
-      elysia: registerQuery<Query, QuerySchema, ParentData, Data, Mode>(
-        this.querySchema,
-        this.loaderFunction
-      ),
-      head: this.headFunction,
-      loader: this.loaderFunction,
-      page: component,
-      requestLoader: this.requestLoaderFunction,
-      schemas: { query: this.querySchema },
-    };
-  }
-
-  layout(component: LayoutComponent<NoFields, Query, ParentData, Data, RequestData>) {
-    return {
-      __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData, Data>(this.metadata),
-      component,
-      elysia: registerLayout<NoFields, Query, ParentData, Data, Mode>(
-        undefined,
-        this.querySchema,
-        this.loaderFunction
-      ),
-      head: this.headFunction,
-      layout: component,
-      loader: this.loaderFunction,
-      requestLoader: this.requestLoaderFunction,
-      schemas: { query: this.querySchema },
-    };
-  }
-}
-
-class HeadedQuerySchema<
-  Query,
-  QuerySchema extends FurinSchema,
-  ParentData extends LoaderData,
-  Data extends LoaderData,
-  RequestData extends LoaderData,
-  Mode extends RenderingMode = RenderingMode,
-> extends LoadedQuerySchema<Query, QuerySchema, ParentData, Data, RequestData, Mode> {
-  declare readonly head: never;
-  declare readonly layout: never;
-}
-
-class SchemaChain<
-  Params,
-  Query,
-  ParamsSchema extends FurinSchema,
-  QuerySchema extends FurinSchema | undefined,
-  ParentData extends LoaderData = NoFields,
-  RequestData extends LoaderData = NoRequestLoader,
-  ParentParams = NoFields,
-  Mode extends RenderingMode = RenderingMode,
-> {
-  protected readonly headFunction: Head<Params, Query, ParentData, NoFields, Mode> | undefined;
-  protected readonly metadata: RouteMetadata;
-  protected readonly paramsSchema: ParamsSchema;
-  protected readonly querySchema: QuerySchema;
-  protected readonly requestLoaderFunction: RequestLoader<Params, Query, RequestData> | undefined;
-
-  constructor(
-    metadata: RouteMetadata,
-    paramsSchema: ParamsSchema,
-    querySchema: QuerySchema,
-    requestLoader: RequestLoader<Params, Query, RequestData> | undefined,
-    head?: Head<Params, Query, ParentData, NoFields, Mode>
-  ) {
-    this.metadata = metadata;
-    this.paramsSchema = paramsSchema;
-    this.querySchema = querySchema;
-    this.requestLoaderFunction = requestLoader;
-    this.headFunction = head;
-  }
-
-  requestLoader<Data extends RequestLoaderData>(
-    requestLoader: RequestLoader<Params, Query, Data>
-  ): Omit<
-    SchemaChain<Params, Query, ParamsSchema, QuerySchema, ParentData, Data, ParentParams, Mode>,
-    "staticParams"
-  > {
-    return new SchemaChain(this.metadata, this.paramsSchema, this.querySchema, requestLoader);
-  }
-
-  staticParams(
-    staticParams: StaticParams<Params, ParentParams, ParentData>
-  ): Omit<
-    SchemaChain<
-      Params,
-      Query,
-      ParamsSchema,
-      QuerySchema,
-      ParentData,
-      RequestData,
-      ParentParams,
-      Mode
-    >,
-    "staticParams"
-  > {
-    return new SchemaChain(
-      withStaticParams(this.metadata, staticParams, this.requestLoaderFunction !== undefined),
-      this.paramsSchema,
-      this.querySchema,
-      this.requestLoaderFunction
-    );
-  }
-
-  loader<Data extends PublicLoaderData>(
-    loader: Loader<Params, Query, ParentData, Data, Mode>
-  ): LoadedSchema<Params, Query, ParamsSchema, QuerySchema, ParentData, Data, RequestData, Mode> {
-    return new LoadedSchema(
-      this.metadata,
-      this.paramsSchema,
-      this.querySchema,
-      loader,
-      undefined,
-      this.requestLoaderFunction
-    );
-  }
-
-  head(
-    head: Head<Params, Query, ParentData, NoFields, Mode>
-  ): Pick<
-    SchemaChain<
-      Params,
-      Query,
-      ParamsSchema,
-      QuerySchema,
-      ParentData,
-      RequestData,
-      ParentParams,
-      Mode
-    >,
-    "page"
-  > {
-    return new SchemaChain(
-      this.metadata,
-      this.paramsSchema,
-      this.querySchema,
-      this.requestLoaderFunction,
-      head
-    );
-  }
-
-  page(
-    component: Component<Params, Query, ParentData, NoFields, RequestData>,
-    ..._requestLoaderCheck: PageRequestLoaderCheck<Mode, RequestData>
-  ) {
-    assertPageRequestLoaderMode(this.metadata, this.requestLoaderFunction);
-    return {
-      __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData>(this.metadata),
-      component,
-      elysia: registerSchema<Params, Query, ParamsSchema, QuerySchema, ParentData, NoFields, Mode>(
-        this.paramsSchema,
-        this.querySchema,
-        undefined
-      ),
-      head: this.headFunction,
-      page: component,
-      requestLoader: this.requestLoaderFunction,
-      schemas: { params: this.paramsSchema, query: this.querySchema },
-    };
-  }
-
-  layout(component: LayoutComponent<Params, Query, ParentData, NoFields, RequestData>) {
-    return {
-      __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData>(this.metadata),
-      component,
-      elysia: registerLayout<Params, Query, ParentData, NoFields, Mode>(
-        this.paramsSchema,
-        this.querySchema,
-        undefined
-      ),
-      head: this.headFunction,
-      layout: component,
-      requestLoader: this.requestLoaderFunction,
-      schemas: { params: this.paramsSchema, query: this.querySchema },
-    };
-  }
-}
-
-class LoadedSchema<
-  Params,
-  Query,
-  ParamsSchema extends FurinSchema,
-  QuerySchema extends FurinSchema | undefined,
-  ParentData extends LoaderData,
-  Data extends LoaderData,
-  RequestData extends LoaderData,
-  Mode extends RenderingMode = RenderingMode,
-> {
-  protected readonly headFunction: Head<Params, Query, ParentData, Data, Mode> | undefined;
-  protected readonly loaderFunction: Loader<Params, Query, ParentData, Data, Mode>;
-  protected readonly metadata: RouteMetadata;
-  protected readonly paramsSchema: ParamsSchema;
-  protected readonly querySchema: QuerySchema;
-  protected readonly requestLoaderFunction: RequestLoader<Params, Query, RequestData> | undefined;
-
-  constructor(
-    metadata: RouteMetadata,
-    paramsSchema: ParamsSchema,
-    querySchema: QuerySchema,
-    loader: Loader<Params, Query, ParentData, Data, Mode>,
-    head: Head<Params, Query, ParentData, Data, Mode> | undefined,
-    requestLoader: RequestLoader<Params, Query, RequestData> | undefined
-  ) {
-    this.metadata = metadata;
-    this.paramsSchema = paramsSchema;
-    this.querySchema = querySchema;
-    this.loaderFunction = loader;
-    this.headFunction = head;
-    this.requestLoaderFunction = requestLoader;
-  }
-
-  head(
-    head: Head<Params, Query, ParentData, Data, Mode>
-  ): HeadedSchema<Params, Query, ParamsSchema, QuerySchema, ParentData, Data, RequestData, Mode> {
-    return new HeadedSchema(
-      this.metadata,
-      this.paramsSchema,
-      this.querySchema,
-      this.loaderFunction,
-      head,
-      this.requestLoaderFunction
-    );
-  }
-
-  page(
-    component: Component<Params, Query, ParentData, Data, RequestData>,
-    ..._requestLoaderCheck: PageRequestLoaderCheck<Mode, RequestData>
-  ) {
-    assertPageRequestLoaderMode(this.metadata, this.requestLoaderFunction);
-    return {
-      __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData, Data>(this.metadata),
-      component,
-      elysia: registerSchema<Params, Query, ParamsSchema, QuerySchema, ParentData, Data, Mode>(
-        this.paramsSchema,
-        this.querySchema,
-        this.loaderFunction
-      ),
-      head: this.headFunction,
-      loader: this.loaderFunction,
-      page: component,
-      requestLoader: this.requestLoaderFunction,
-      schemas: { params: this.paramsSchema, query: this.querySchema },
-    };
-  }
-
-  layout(component: LayoutComponent<Params, Query, ParentData, Data, RequestData>) {
-    return {
-      __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData, Data>(this.metadata),
-      component,
-      elysia: registerLayout<Params, Query, ParentData, Data, Mode>(
-        this.paramsSchema,
-        this.querySchema,
-        this.loaderFunction
-      ),
-      head: this.headFunction,
-      layout: component,
-      loader: this.loaderFunction,
-      requestLoader: this.requestLoaderFunction,
-      schemas: { params: this.paramsSchema, query: this.querySchema },
-    };
-  }
-}
-
-class HeadedSchema<
-  Params,
-  Query,
-  ParamsSchema extends FurinSchema,
-  QuerySchema extends FurinSchema | undefined,
-  ParentData extends LoaderData,
-  Data extends LoaderData,
-  RequestData extends LoaderData,
-  Mode extends RenderingMode = RenderingMode,
-> extends LoadedSchema<
-  Params,
-  Query,
-  ParamsSchema,
-  QuerySchema,
-  ParentData,
-  Data,
-  RequestData,
-  Mode
-> {
-  declare readonly head: never;
-  declare readonly layout: never;
+  data: NoFields;
+  kind: Kind;
+  loaded: false;
+  mode: Mode;
+  params: Params;
+  parentData: ParentData;
+  parentParams: ParentParams;
+  query: Query;
+  requestData: NoRequestLoader;
+  schemas: Schemas;
+  search: Search;
 }
 
 /**
- * First stage of the builder: `config()` is MANDATORY and must declare at
- * least `layout` and `mode`. Loader/page/layout are intentionally unreachable
- * before it — a route without an explicit rendering contract does not compile.
+ * Resolved public contract of a route: its layouts' params/query merged with
+ * its own (child overrides parent, as `mergeRouteSchemas()` does at runtime),
+ * plus the navigation input side of the resolved query.
  */
-class UnconfiguredRoute {
-  config<LayoutRoute, QuerySchema extends FurinSchema, Mode extends RenderingMode>(
-    options: ConfigFor<NoFields, ParamsOf<QuerySchema>> & {
-      layout: LayoutRoute;
-      mode: Mode;
-      params?: undefined;
-      query: QuerySchema;
-    }
-  ): ConfiguredChain<
+interface RouteContract {
+  params: unknown;
+  query: unknown;
+  search: unknown;
+}
+
+interface EmptyContract {
+  params: NoFields;
+  query: NoFields;
+  search: NoFields;
+}
+
+type ContractOf<Route> = Route extends { readonly [routeContractBrand]?: infer Contract }
+  ? NonNullable<Contract> extends RouteContract
+    ? NonNullable<Contract>
+    : EmptyContract
+  : EmptyContract;
+
+type Flatten<Value> = { [Key in keyof Value]: Value[Key] };
+
+type MergeSchemaValues<Parent, Child> = keyof Child extends never
+  ? Parent
+  : keyof Parent extends never
+    ? Child
+    : Flatten<Omit<Parent, keyof Child> & Child>;
+
+type ResolvedConfig<
+  Parent extends RouteContract,
+  ParamsSchema extends FurinSchema | undefined,
+  QuerySchema extends FurinSchema | undefined,
+> = ConfigFor<
+  MergeSchemaValues<Parent["params"], ParamsOf<ParamsSchema>>,
+  MergeSchemaValues<Parent["query"], ParamsOf<QuerySchema>>
+>;
+
+type ConfiguredRoute<
+  Parent extends RouteContract,
+  ParentData extends LoaderData,
+  ParamsSchema extends FurinSchema | undefined,
+  QuerySchema extends FurinSchema | undefined,
+  Schemas extends RouteSchemas | undefined,
+  Mode extends RenderingMode,
+> = ConfiguredStage<
+  InitialState<
+    MergeSchemaValues<Parent["params"], ParamsOf<ParamsSchema>>,
+    MergeSchemaValues<Parent["query"], ParamsOf<QuerySchema>>,
+    MergeSchemaValues<Parent["search"], SearchInputOf<QuerySchema>>,
+    Schemas,
+    ParentData,
+    Parent["params"],
     Mode,
-    QuerySchemaChain<
-      ParamsOf<QuerySchema>,
-      QuerySchema,
-      DataOfRoute<LayoutRoute>,
-      NoRequestLoader,
-      ParamsOfRoute<LayoutRoute>,
-      Mode
-    >
+    RouteKind
+  >
+>;
+
+type RouteKind = "layout" | "page";
+
+type FileRouteId = [keyof FileRoutes] extends [never] ? string : keyof FileRoutes & string;
+
+/** Before the first typegen any id is accepted, with no parent and no path params. */
+type FileRouteOf<Id extends string> = Id extends keyof FileRoutes
+  ? FileRoutes[Id]
+  : { kind: RouteKind; parent: undefined; pathParams: NoFields };
+
+type FileRouteKind<Entry> = Entry extends { kind: infer Kind extends RouteKind } ? Kind : RouteKind;
+type FileRouteParent<Entry> = Entry extends { parent: infer Parent } ? Parent : undefined;
+
+/**
+ * Contract a keyed route inherits: its path params as strings, refined by the
+ * types its layouts declare, plus the parent layout's query.
+ */
+interface FileRouteContract<Entry> {
+  params: MergeSchemaValues<
+    Entry extends { pathParams: infer PathParams } ? PathParams : NoFields,
+    ContractOf<FileRouteParent<Entry>>["params"]
   >;
-  config<
-    LayoutRoute,
-    ParamsSchema extends FurinSchema,
-    QuerySchema extends FurinSchema,
-    Mode extends RenderingMode,
-  >(
-    options: ConfigFor<ParamsOf<ParamsSchema>, ParamsOf<QuerySchema>> & {
-      layout: LayoutRoute;
-      mode: Mode;
-      params: ParamsSchema;
-      query: QuerySchema;
-    }
-  ): ConfiguredChain<
+  query: ContractOf<FileRouteParent<Entry>>["query"];
+  search: ContractOf<FileRouteParent<Entry>>["search"];
+}
+
+type FileConfiguredRoute<
+  Entry,
+  ParamsSchema extends FurinSchema | undefined,
+  QuerySchema extends FurinSchema | undefined,
+  Schemas extends RouteSchemas | undefined,
+  Mode extends RenderingMode,
+> = ConfiguredStage<
+  InitialState<
+    MergeSchemaValues<FileRouteContract<Entry>["params"], ParamsOf<ParamsSchema>>,
+    MergeSchemaValues<FileRouteContract<Entry>["query"], ParamsOf<QuerySchema>>,
+    MergeSchemaValues<FileRouteContract<Entry>["search"], SearchInputOf<QuerySchema>>,
+    Schemas,
+    DataOfRoute<FileRouteParent<Entry>>,
+    ContractOf<FileRouteParent<Entry>>["params"],
     Mode,
-    SchemaChain<
-      ParamsOf<ParamsSchema>,
-      ParamsOf<QuerySchema>,
-      ParamsSchema,
-      QuerySchema,
-      DataOfRoute<LayoutRoute>,
-      NoRequestLoader,
-      ParamsOfRoute<LayoutRoute>,
-      Mode
-    >
-  >;
-  config<LayoutRoute, ParamsSchema extends FurinSchema, Mode extends RenderingMode>(
-    options: ConfigFor<ParamsOf<ParamsSchema>, NoFields> & {
-      layout: LayoutRoute;
-      mode: Mode;
-      params: ParamsSchema;
-      query?: undefined;
+    FileRouteKind<Entry>
+  >
+>;
+
+/** Keyed routes take their parent layout from the pages tree. */
+interface NoLayoutOption {
+  layout?: FurinTypeError<"defineRoute(id) reads the parent layout from the pages tree: remove layout">;
+}
+
+/** A terminal the route file's kind does not allow becomes a compile error. */
+type KindCheck<
+  State extends ChainState,
+  Terminal extends RouteKind,
+  ValidComponent,
+> = Terminal extends State["kind"]
+  ? ValidComponent
+  : FurinTypeError<
+      Terminal extends "page"
+        ? "this route file is a layout (_route): finish it with layout()"
+        : "this route file is a page: finish it with page(); layouts live in _route files"
+    >;
+
+interface ChainRuntime {
+  head: unknown;
+  loader: unknown;
+  metadata: RouteMetadata;
+  paramsSchema: FurinSchema | undefined;
+  querySchema: FurinSchema | undefined;
+  requestLoader: unknown;
+}
+
+// Named stages keep compile errors readable, e.g. "Property 'staticParams'
+// does not exist on type 'SsrRouteStage<...>'".
+
+/** SSR routes render per request: `staticParams()` needs mode `ssg` or `isr`. */
+interface SsrRouteStage<State extends ChainState> extends Omit<RouteChain<State>, "staticParams"> {}
+
+/** `staticParams()` must come first and only once, before `requestLoader()`. */
+interface StaticParamsClosedStage<State extends ChainState>
+  extends Omit<RouteChain<State>, "staticParams"> {}
+
+/** After `loader()`: attach `head()` or finish with `page()`/`layout()`. */
+interface LoadedRouteStage<State extends ChainState>
+  extends Pick<RouteChain<State>, "head" | "layout" | "page"> {}
+
+/** `head()` metadata is page-only: a headed route can only finish with `page()`. */
+interface HeadedPageStage<State extends ChainState> extends Pick<RouteChain<State>, "page"> {}
+
+type ConfiguredStage<State extends ChainState> = State["mode"] extends infer Mode
+  ? Mode extends "ssr"
+    ? SsrRouteStage<State>
+    : RouteChain<State>
+  : never;
+
+type ElysiaOfSchemas<Schemas> = Schemas extends {
+  params: infer ParamsSchema extends FurinSchema;
+  query: infer QuerySchema extends FurinSchema | undefined;
+}
+  ? ReturnType<typeof registerSchema<ParamsSchema, QuerySchema>>
+  : Schemas extends { query: infer QuerySchema extends FurinSchema }
+    ? ReturnType<typeof registerQuery<QuerySchema>>
+    : ReturnType<typeof registerPlain>;
+
+type RouteTerminal<State extends ChainState> = {
+  __type: "FURIN_ROUTE";
+  head:
+    | Head<State["params"], State["query"], State["parentData"], State["data"], State["mode"]>
+    | undefined;
+  mode: State["mode"];
+  readonly [inheritedDataBrand]?: State["parentData"];
+  readonly [loaderDataBrand]?: RenderLoaderData<State["parentData"], State["data"]>;
+  readonly [routeContractBrand]?: {
+    params: State["params"];
+    query: State["query"];
+    search: State["search"];
+  };
+  remountDeps: RouteMetadata["remountDeps"];
+  requestLoader: RequestLoader<State["params"], State["query"], State["requestData"]> | undefined;
+  revalidate: number | undefined;
+  staticParams: RouteMetadata["staticParams"];
+  tags: readonly string[] | undefined;
+} & (State["loaded"] extends true
+  ? {
+      loader: Loader<
+        State["params"],
+        State["query"],
+        State["parentData"],
+        State["data"],
+        State["mode"]
+      >;
     }
-  ): ConfiguredChain<
-    Mode,
-    SchemaChain<
-      ParamsOf<ParamsSchema>,
-      NoFields,
-      ParamsSchema,
-      undefined,
-      DataOfRoute<LayoutRoute>,
-      NoRequestLoader,
-      ParamsOfRoute<LayoutRoute>,
-      Mode
-    >
-  >;
-  config<LayoutRoute, Mode extends RenderingMode>(
-    options: ConfigFor<NoFields, NoFields> & {
-      layout: LayoutRoute;
-      mode: Mode;
-      params?: undefined;
-      query?: undefined;
-    }
-  ): ConfiguredChain<
-    Mode,
-    NoSchemaChain<
-      NoFields,
-      NoFields,
-      DataOfRoute<LayoutRoute>,
-      NoRequestLoader,
-      ParamsOfRoute<LayoutRoute>,
-      Mode
-    >
-  >;
-  config<
-    LayoutRoute,
-    ParamsSchema extends FurinSchema | undefined,
-    QuerySchema extends FurinSchema | undefined,
-  >(
-    options: DefineRouteConfig<ParamsOf<ParamsSchema>, ParamsOf<QuerySchema>> & {
-      layout: LayoutRoute;
-      mode: RenderingMode;
-      params?: ParamsSchema;
-      query?: QuerySchema;
-    }
-  ): unknown {
-    assertStaticParamsOutsideConfig(options);
-    if (options.params === undefined) {
-      if (options.query !== undefined) {
-        return new QuerySchemaChain<
-          ParamsOf<Exclude<QuerySchema, undefined>>,
-          Exclude<QuerySchema, undefined>,
-          DataOfRoute<LayoutRoute>,
-          NoRequestLoader,
-          ParamsOfRoute<LayoutRoute>
-        >(options, options.query as Exclude<QuerySchema, undefined>, undefined);
-      }
-      return new NoSchemaChain<
-        NoFields,
-        NoFields,
-        DataOfRoute<LayoutRoute>,
-        NoRequestLoader,
-        ParamsOfRoute<LayoutRoute>
-      >(options, undefined);
-    }
-    return new SchemaChain<
-      ParamsOf<Exclude<ParamsSchema, undefined>>,
-      ParamsOf<Exclude<QuerySchema, undefined>>,
-      Exclude<ParamsSchema, undefined>,
-      Exclude<QuerySchema, undefined>,
-      DataOfRoute<LayoutRoute>,
-      NoRequestLoader,
-      ParamsOfRoute<LayoutRoute>
-    >(
-      options,
-      options.params as Exclude<ParamsSchema, undefined>,
-      options.query as Exclude<QuerySchema, undefined>,
-      undefined
-    );
+  : NoFields) &
+  (State["schemas"] extends RouteSchemas ? { schemas: State["schemas"] } : NoFields);
+
+type PageComponentOf<State extends ChainState> = Component<
+  State["params"],
+  State["query"],
+  State["parentData"],
+  State["data"],
+  State["requestData"]
+>;
+
+type LayoutComponentOf<State extends ChainState> = LayoutComponent<
+  State["params"],
+  State["query"],
+  State["parentData"],
+  State["data"],
+  State["requestData"]
+>;
+
+type PageTerminal<State extends ChainState> = RouteTerminal<State> & {
+  component: PageComponentOf<State>;
+  elysia: ElysiaOfSchemas<State["schemas"]>;
+  page: PageComponentOf<State>;
+};
+
+type LayoutTerminal<State extends ChainState> = RouteTerminal<State> & {
+  component: LayoutComponentOf<State>;
+  elysia: ReturnType<typeof registerLayout>;
+  layout: LayoutComponentOf<State>;
+};
+
+function registerPage(
+  route: FurinRouteKey,
+  paramsSchema: FurinSchema | undefined,
+  querySchema: FurinSchema | undefined
+): unknown {
+  if (paramsSchema !== undefined) {
+    return registerSchema(route, paramsSchema, querySchema);
   }
+  return querySchema === undefined ? registerPlain(route) : registerQuery(route, querySchema);
+}
+
+function schemaFields(paramsSchema: FurinSchema | undefined, querySchema: FurinSchema | undefined) {
+  if (paramsSchema !== undefined) {
+    return { schemas: { params: paramsSchema, query: querySchema } };
+  }
+  return querySchema === undefined ? {} : { schemas: { query: querySchema } };
+}
+
+function terminalFields(runtime: ChainRuntime) {
+  const { head, loader, metadata, paramsSchema, querySchema, requestLoader } = runtime;
+  return {
+    __type: "FURIN_ROUTE" as const,
+    mode: metadata.mode,
+    revalidate: metadata.revalidate,
+    remountDeps: metadata.remountDeps,
+    staticParams: metadata.staticParams,
+    tags: metadata.tags,
+    head,
+    ...(loader === undefined ? {} : { loader }),
+    requestLoader,
+    ...schemaFields(paramsSchema, querySchema),
+  };
+}
+
+class RouteChain<State extends ChainState> {
+  protected readonly runtime: ChainRuntime;
+
+  constructor(runtime: ChainRuntime) {
+    this.runtime = runtime;
+  }
+
+  requestLoader<Data extends RequestLoaderData>(
+    requestLoader: RequestLoader<State["params"], State["query"], Data>
+  ): StaticParamsClosedStage<WithState<State, { requestData: Data }>> {
+    return new RouteChain<WithState<State, { requestData: Data }>>({
+      ...this.runtime,
+      requestLoader,
+    });
+  }
+
+  staticParams(
+    staticParams: StaticParams<State["params"], State["parentParams"], State["parentData"]>
+  ): StaticParamsClosedStage<State> {
+    const { metadata, requestLoader } = this.runtime;
+    return new RouteChain<State>({
+      ...this.runtime,
+      metadata: withStaticParams(metadata, staticParams, requestLoader !== undefined),
+    });
+  }
+
+  loader<Data extends PublicLoaderData>(
+    loader: Loader<State["params"], State["query"], State["parentData"], Data, State["mode"]>
+  ): LoadedRouteStage<WithState<State, { data: Data; loaded: true }>> {
+    return new RouteChain<WithState<State, { data: Data; loaded: true }>>({
+      ...this.runtime,
+      loader,
+    });
+  }
+
+  /** Head metadata is page-only: a headed chain can only terminate with `page()`. */
+  head(
+    head: Head<State["params"], State["query"], State["parentData"], State["data"], State["mode"]>
+  ): HeadedPageStage<State> {
+    return new RouteChain<State>({ ...this.runtime, head });
+  }
+
+  page(
+    component: KindCheck<
+      State,
+      "page",
+      PageRequestLoaderCheck<State["mode"], State["requestData"], PageComponentOf<State>>
+    >
+  ): PageTerminal<State> {
+    const { metadata, paramsSchema, querySchema, requestLoader } = this.runtime;
+    assertPageRequestLoaderMode(metadata, requestLoader);
+    const terminal = {
+      ...terminalFields(this.runtime),
+      component,
+      elysia: undefined as unknown,
+      page: component,
+    };
+    terminal.elysia = registerPage(terminal, paramsSchema, querySchema);
+    return terminal as unknown as PageTerminal<State>;
+  }
+
+  layout(component: KindCheck<State, "layout", LayoutComponentOf<State>>): LayoutTerminal<State> {
+    const { paramsSchema, querySchema } = this.runtime;
+    return {
+      ...terminalFields(this.runtime),
+      component,
+      elysia: registerLayout(paramsSchema, querySchema),
+      layout: component,
+    } as unknown as LayoutTerminal<State>;
+  }
+}
+
+interface ConfigOptions {
+  params?: FurinSchema | undefined;
+  query?: FurinSchema | undefined;
+}
+
+function configure(options: RouteMetadata & ConfigOptions): unknown {
+  assertStaticParamsOutsideConfig(options);
+  return new RouteChain({
+    head: undefined,
+    loader: undefined,
+    metadata: options,
+    paramsSchema: options.params,
+    querySchema: options.query,
+    requestLoader: undefined,
+  });
 }
 
 /**
@@ -1282,111 +855,143 @@ class UnconfiguredRoute {
  */
 class UnconfiguredRootRoute {
   config<QuerySchema extends FurinSchema, Mode extends RenderingMode>(
-    options: ConfigFor<NoFields, ParamsOf<QuerySchema>> & {
+    options: ResolvedConfig<EmptyContract, undefined, QuerySchema> & {
       mode: Mode;
       params?: undefined;
       query: QuerySchema;
     }
-  ): ConfiguredChain<
-    Mode,
-    QuerySchemaChain<ParamsOf<QuerySchema>, QuerySchema, NoFields, NoRequestLoader, NoFields, Mode>
-  >;
+  ): ConfiguredRoute<EmptyContract, NoFields, undefined, QuerySchema, { query: QuerySchema }, Mode>;
   config<
     ParamsSchema extends FurinSchema,
     QuerySchema extends FurinSchema,
     Mode extends RenderingMode,
   >(
-    options: ConfigFor<ParamsOf<ParamsSchema>, ParamsOf<QuerySchema>> & {
+    options: ResolvedConfig<EmptyContract, ParamsSchema, QuerySchema> & {
       mode: Mode;
       params: ParamsSchema;
       query: QuerySchema;
     }
-  ): ConfiguredChain<
-    Mode,
-    SchemaChain<
-      ParamsOf<ParamsSchema>,
-      ParamsOf<QuerySchema>,
-      ParamsSchema,
-      QuerySchema,
-      NoFields,
-      NoRequestLoader,
-      NoFields,
-      Mode
-    >
+  ): ConfiguredRoute<
+    EmptyContract,
+    NoFields,
+    ParamsSchema,
+    QuerySchema,
+    { params: ParamsSchema; query: QuerySchema },
+    Mode
   >;
   config<ParamsSchema extends FurinSchema, Mode extends RenderingMode>(
-    options: ConfigFor<ParamsOf<ParamsSchema>, NoFields> & {
+    options: ResolvedConfig<EmptyContract, ParamsSchema, undefined> & {
       mode: Mode;
       params: ParamsSchema;
       query?: undefined;
     }
-  ): ConfiguredChain<
-    Mode,
-    SchemaChain<
-      ParamsOf<ParamsSchema>,
-      NoFields,
-      ParamsSchema,
-      undefined,
-      NoFields,
-      NoRequestLoader,
-      NoFields,
-      Mode
-    >
+  ): ConfiguredRoute<
+    EmptyContract,
+    NoFields,
+    ParamsSchema,
+    undefined,
+    { params: ParamsSchema; query: undefined },
+    Mode
   >;
   config<Mode extends RenderingMode>(
-    options: ConfigFor<NoFields, NoFields> & {
+    options: ResolvedConfig<EmptyContract, undefined, undefined> & {
       mode: Mode;
       params?: undefined;
       query?: undefined;
     }
-  ): ConfiguredChain<
-    Mode,
-    NoSchemaChain<NoFields, NoFields, NoFields, NoRequestLoader, NoFields, Mode>
-  >;
-  config<ParamsSchema extends FurinSchema | undefined, QuerySchema extends FurinSchema | undefined>(
-    options: DefineRouteConfig<ParamsOf<ParamsSchema>, ParamsOf<QuerySchema>> & {
-      mode: RenderingMode;
-      params?: ParamsSchema;
-      query?: QuerySchema;
-    }
-  ): unknown {
-    assertStaticParamsOutsideConfig(options);
-    if (options.params === undefined) {
-      if (options.query !== undefined) {
-        return new QuerySchemaChain<
-          ParamsOf<Exclude<QuerySchema, undefined>>,
-          Exclude<QuerySchema, undefined>,
-          NoFields
-        >(options, options.query as Exclude<QuerySchema, undefined>, undefined);
-      }
-      return new NoSchemaChain<NoFields, NoFields, NoFields>(options, undefined);
-    }
-    return new SchemaChain<
-      ParamsOf<Exclude<ParamsSchema, undefined>>,
-      ParamsOf<Exclude<QuerySchema, undefined>>,
-      Exclude<ParamsSchema, undefined>,
-      Exclude<QuerySchema, undefined>,
-      NoFields
-    >(
-      options,
-      options.params as Exclude<ParamsSchema, undefined>,
-      options.query as Exclude<QuerySchema, undefined>,
-      undefined
-    );
+  ): ConfiguredRoute<EmptyContract, NoFields, undefined, undefined, undefined, Mode>;
+  config(options: RouteMetadata & ConfigOptions): unknown {
+    return configure(options);
   }
 }
 
-export function defineRoute(): UnconfiguredRoute {
-  return new UnconfiguredRoute();
+/**
+ * First stage of the builder, `defineRoute("/board/[boardId]")`: `config()` is
+ * MANDATORY and declares at least `mode`. The generated `FileRoutes` entry
+ * supplies the parent layout, the path params and the terminal (`layout()` for
+ * `_route` files, `page()` otherwise), so `config()` takes no `layout` and
+ * `params` only refines the path params.
+ */
+class UnconfiguredFileRoute<Entry> {
+  config<QuerySchema extends FurinSchema, Mode extends RenderingMode>(
+    options: ResolvedConfig<FileRouteContract<Entry>, undefined, QuerySchema> &
+      NoLayoutOption & {
+        mode: Mode;
+        params?: undefined;
+        query: QuerySchema;
+      }
+  ): FileConfiguredRoute<Entry, undefined, QuerySchema, { query: QuerySchema }, Mode>;
+  config<
+    ParamsSchema extends FurinSchema,
+    QuerySchema extends FurinSchema,
+    Mode extends RenderingMode,
+  >(
+    options: ResolvedConfig<FileRouteContract<Entry>, ParamsSchema, QuerySchema> &
+      NoLayoutOption & {
+        mode: Mode;
+        params: ParamsSchema;
+        query: QuerySchema;
+      }
+  ): FileConfiguredRoute<
+    Entry,
+    ParamsSchema,
+    QuerySchema,
+    { params: ParamsSchema; query: QuerySchema },
+    Mode
+  >;
+  config<ParamsSchema extends FurinSchema, Mode extends RenderingMode>(
+    options: ResolvedConfig<FileRouteContract<Entry>, ParamsSchema, undefined> &
+      NoLayoutOption & {
+        mode: Mode;
+        params: ParamsSchema;
+        query?: undefined;
+      }
+  ): FileConfiguredRoute<
+    Entry,
+    ParamsSchema,
+    undefined,
+    { params: ParamsSchema; query: undefined },
+    Mode
+  >;
+  config<Mode extends RenderingMode>(
+    options: ResolvedConfig<FileRouteContract<Entry>, undefined, undefined> &
+      NoLayoutOption & {
+        mode: Mode;
+        params?: undefined;
+        query?: undefined;
+      }
+  ): FileConfiguredRoute<Entry, undefined, undefined, undefined, Mode>;
+  config(options: RouteMetadata & ConfigOptions): unknown {
+    return configure(options);
+  }
+}
+
+/**
+ * `defineRoute(id)` keys the route by its file id (the app's prefix, then the
+ * path under `pagesDir` with brackets and groups, `/index` dropped, layouts
+ * ending in `/_route`) and reads its parent from the generated `FileRoutes`.
+ * The id is type-only: the runtime chain comes from the pages tree.
+ */
+export function defineRoute<Id extends FileRouteId>(
+  _id: Id
+): UnconfiguredFileRoute<FileRouteOf<Id>> {
+  return new UnconfiguredFileRoute();
 }
 
 export function defineRootRoute(): UnconfiguredRootRoute {
   return new UnconfiguredRootRoute();
 }
 
-export type RouteParams<Route> = Route extends { elysia: infer App }
-  ? ElysiaRouteParams<ElysiaRouteLeaf<App>>
+/** Resolved contract (inherited + own params/query, search input) of a route terminal. */
+export type RouteContractOf<Route> = Route extends {
+  readonly [routeContractBrand]?: infer Contract;
+}
+  ? NonNullable<Contract> extends RouteContract
+    ? NonNullable<Contract>
+    : never
   : never;
+
+export type RouteParams<Route> = RouteContractOf<Route>["params"];
 
 export type RouteLoaderData<Route> = Route extends {
   readonly [loaderDataBrand]?: infer Data;

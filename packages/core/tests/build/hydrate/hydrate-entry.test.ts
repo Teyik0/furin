@@ -8,8 +8,13 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { buildClient } from "../../../src/build/client.ts";
 import { generateHydrateEntry } from "../../../src/build/hydrate.ts";
+import { scanPages } from "../../../src/server/router/discovery.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
+import { buildRouteMatcher } from "../../../src/server/router/patterns.ts";
+import { createTmpApp } from "../../support/app-fixtures.ts";
+import { runProcess } from "../../support/process.ts";
 
 // ── Minimal stub ──────────────────────────────────────────────────────────────
 
@@ -28,15 +33,34 @@ function makeRoute(pattern: string, filePath: string): ResolvedRoute {
 const ROUTES = [makeRoute("/", "/app/src/pages/index.tsx")];
 const ROOT = "/app/src/pages/root.tsx";
 
+function hydratePathname(code: string, pathname: string): string {
+  const declaration = code.match(/^const __furinBasePath = .*;$/m)?.[0] ?? "";
+  const expression = code.match(/^const pathname = (.*);$/m)?.[1];
+  const readPathname = new Function("window", `${declaration}\nreturn ${expression};`);
+  return readPathname({ location: { pathname } });
+}
+
 // Biome's useTopLevelRegex: hoist Slice 10 regexes so repeated test runs
 // don't reconstruct them inside the callback.
-const INITIAL_DIGEST_BOUND_RE = /initialDigest:\s*loaderData\.__furinError\?\.digest/;
-const LOADER_DIGEST_CHAIN_RE = /loaderData\.__furinError\?\.digest/;
+const INITIAL_DIGEST_BOUND_RE = /initialDigest:\s*failure\?\.status === "error" \? failure\.error\.digest/;
+const LOADER_DIGEST_CHAIN_RE = /findRouteFailure\(loaderData\)/;
 const INITIAL_DIGEST_PROP_RE = /initialDigest:/;
 
 // ── B12: no basePath — generated code is unchanged ───────────────────────────
 
 describe("generateHydrateEntry", () => {
+  test("hydrates a catch-all route whose tail is empty without changing its pathname", () => {
+    const code = generateHydrateEntry([makeRoute("/docs/*", "/app/pages/docs/[...rest].tsx")], ROOT, "", false);
+    const path = hydratePathname(code, "/docs/");
+    expect(buildRouteMatcher([{ pattern: "/docs/*" }])(path)?.params).toEqual({ "*": "" });
+  });
+  test("generates valid source for quoted route filenames and patterns", () => {
+    const code = generateHydrateEntry([
+      { ...makeRoute('/say"hi', '/app/pages/say"hi.tsx'),
+        routeChain: [{ __type: "FURIN_ROUTE", sourcePath: '/app/pages/layout"name/_route.tsx', layout: () => null }] } as ResolvedRoute,
+    ], '/app/pages/root"layout.tsx', "", false);
+    expect(() => new Bun.Transpiler({ loader: "tsx" }).transformSync(code)).not.toThrow();
+  });
   test("forwards the imported page's remount dependencies into the client route", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
 
@@ -66,23 +90,20 @@ describe("generateHydrateEntry", () => {
 
   test("B12: without basePath — uses window.location.pathname directly", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
-    // No basePath stripping logic
     expect(code).toContain("window.location.pathname");
-    expect(code).not.toContain("startsWith");
-    expect(code).not.toContain(".slice(");
+    expect(code).toContain('const __furinBasePath = "";');
   });
 
   test("B12b: without basePath — log drain endpoint is the bare path", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", true);
-    // endpoint should be the bare string, not a concatenation
-    expect(code).toContain('endpoint: "/_furin/ingest"');
-    // No string concatenation for the endpoint
-    expect(code).not.toContain('" + "/_furin/ingest"');
+    expect(code).toContain('endpoint: __furinBasePath + "/_furin/ingest"');
+    expect(code).toContain('const __furinBasePath = "";');
   });
 
   test("B12c: without basePath — RouterProvider has basePath: ''", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
-    expect(code).toContain('basePath: ""');
+    expect(code).toContain('basePath: __furinBasePath');
+    expect(code).toContain('const __furinBasePath = "";');
   });
 
   test("emits query defaults into client route metadata", () => {
@@ -148,8 +169,8 @@ describe("generateHydrateEntry", () => {
 
   test("B13: with basePath='/furin' — code strips prefix before route matching", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "/furin", false);
-    // The generated pathname expression uses a `b` variable for the basePath literal
-    expect(code).toContain('const b = "/furin"');
+    expect(code).toContain('const __furinBasePath = "/furin";');
+    expect(code).toContain('const b = __furinBasePath');
     expect(code).toContain("startsWith(b)");
     expect(code).toContain("p.slice(b.length)");
   });
@@ -160,16 +181,15 @@ describe("generateHydrateEntry", () => {
     expect(code).toContain('|| "/"');
   });
 
-  test("B13c: strips trailing slash from pathname before route matching", () => {
+  test("B13c: matches a trailing slash after stripping the base path", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "/furin", false);
-    // The generated pathname expression must strip trailing slashes so that
-    // "/furin/docs/routing/" → "/docs/routing" and matches the regex.
-    expect(code).toContain(".replace(/\\/+$/");
+    const path = hydratePathname(code, "/furin/docs/routing/");
+    expect(buildRouteMatcher([{ pattern: "/docs/routing" }])(path)).not.toBeNull();
   });
 
-  test("B13d: without basePath — strips trailing slash from window.location.pathname", () => {
+  test("B13d: without basePath — preserves the native route's trailing slash", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
-    expect(code).toContain("window.location.pathname.replace(/\\/+$/");
+    expect(hydratePathname(code, "/docs/routing/")).toBe("/docs/routing/");
   });
 
   test("route regexes escape static regex metacharacters", () => {
@@ -180,7 +200,10 @@ describe("generateHydrateEntry", () => {
       false
     );
 
-    expect(code).toContain('new RegExp("^\\\\/v1\\\\.0$")');
+    const expression = code.match(/new RegExp\(("[^\n]+?")\)/)?.[1];
+    const matcher = new RegExp(JSON.parse(expression ?? '""'));
+    expect(matcher.test("/v1.0")).toBe(true);
+    expect(matcher.test("/v1x0")).toBe(false);
   });
 
   test("emits specific client routes before a catch-all", () => {
@@ -214,17 +237,18 @@ describe("generateHydrateEntry", () => {
 
   test("B14: with basePath — RouterProvider receives basePath prop", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "/furin", false);
-    expect(code).toContain('basePath: "/furin"');
+    expect(code).toContain('basePath: __furinBasePath');
+    expect(code).toContain('const __furinBasePath = "/furin";');
   });
 
   test("B14b: different basePath value is correctly injected", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "/my-app", false);
-    expect(code).toContain('basePath: "/my-app"');
-    expect(code).toContain('const b = "/my-app"');
+    expect(code).toContain('basePath: __furinBasePath');
+    expect(code).toContain('const __furinBasePath = "/my-app";');
     expect(code).toContain("startsWith(b)");
   });
 
-  test("client bundle keeps shared router contexts when a page imports Link", () => {
+  test("client bundle keeps shared router contexts when a page imports Link", async () => {
     const tmpRoot = mkdtempSync(join(import.meta.dir, ".tmp-hydrate-entry-"));
     const outDir = join(tmpRoot, "out");
     mkdirSync(outDir, { recursive: true });
@@ -237,9 +261,9 @@ describe("generateHydrateEntry", () => {
       writeFileSync(
         rootPath,
         [
-          'import { defineRoute } from "@teyik0/furin/client";',
+          'import { defineRootRoute } from "@teyik0/furin/client";',
           "",
-          "export const route = defineRoute().layout(({ children }) => <div>{children}</div>);",
+          "export const route = defineRootRoute().layout(({ children }) => <div>{children}</div>);",
         ].join("\n")
       );
 
@@ -249,7 +273,7 @@ describe("generateHydrateEntry", () => {
           'import { defineRoute } from "@teyik0/furin/client";',
           'import { Link } from "@teyik0/furin/link";',
           "",
-          'export const route = defineRoute().page(() => <Link to="/docs">Docs</Link>);',
+          'export const route = defineRoute("/").page(() => <Link to="/docs">Docs</Link>);',
         ].join("\n")
       );
 
@@ -258,7 +282,7 @@ describe("generateHydrateEntry", () => {
         generateHydrateEntry([makeRoute("/", pagePath)], rootPath, "", false)
       );
 
-      const result = Bun.spawnSync(
+      const result = await runProcess(
         [
           "bun",
           "build",
@@ -271,14 +295,10 @@ describe("generateHydrateEntry", () => {
           "--target",
           "browser",
         ],
-        {
-          cwd: join(import.meta.dir, "../.."),
-          stderr: "pipe",
-          stdout: "pipe",
-        }
+        { cwd: join(import.meta.dir, "../.."), timeoutMs: 14_000 }
       );
 
-      expect(result.exitCode, result.stderr.toString()).toBe(0);
+      expect(result.exitCode, result.stderr).toBe(0);
 
       const chunks: string[] = [];
       for (const file of readdirSync(outDir)) {
@@ -288,9 +308,9 @@ describe("generateHydrateEntry", () => {
       }
       const bundleText = chunks.join("\n");
 
-      // Router + search, two document contexts, and two initializers each for
-      // query and route snapshots, shared by Symbol.for across public bundles.
-      expect((bundleText.match(/createContext\(null\)/g) ?? []).length).toBe(8);
+      // Router, router store + search, two document contexts, and two initializers
+      // each for query and route snapshots, shared by Symbol.for across public bundles.
+      expect((bundleText.match(/createContext\(null\)/g) ?? []).length).toBe(9);
     } finally {
       rmSync(tmpRoot, { force: true, recursive: true });
     }
@@ -416,7 +436,7 @@ describe("generateHydrateEntry — boundary chain emission", () => {
 
 // ── Slice 10 — Digest rehydration ─────────────────────────────────────────────
 //
-// The server embeds `__FURIN_DATA__.__furinError.digest` in the initial HTML
+// The server embeds the failed route match (with its digest) in the initial HTML
 // whenever the loader or shell-render threw. The hydrate entry must forward
 // that id onto RouterProvider as `initialDigest`, which in turn passes it to
 // the root FurinErrorBoundary. That way, any client-side error that bubbles
@@ -425,7 +445,7 @@ describe("generateHydrateEntry — boundary chain emission", () => {
 // server log entry.
 
 describe("generateHydrateEntry — digest rehydration (Slice 10)", () => {
-  test("reads __furinError.digest off the parsed loader data", () => {
+  test("reads the failed route match off the parsed loader data", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
     // The generated code must *extract* the digest from loaderData before
     // passing it to RouterProvider. We tolerate minor formatting (optional
@@ -523,5 +543,31 @@ describe("generateHydrateEntry — HMR hardening", () => {
     expect(code).toContain('import.meta.hot.on("bun:ws:disconnect"');
     expect(code).toContain('import.meta.hot.on("bun:ws:connect"');
     expect(code).toContain("window.location.reload();");
+  });
+});
+
+describe("production hydrate entry", () => {
+  test("ships no absolute project paths in the client bundle", async () => {
+    const app = createTmpApp("cli-app");
+    try {
+      const { root, routes } = await scanPages(join(app.path, "src/pages"));
+      const outDir = join(app.path, "production-build");
+      await buildClient(routes, {
+        basePath: "",
+        clientLogging: false,
+        outDir,
+        publicPath: "/_client/",
+        rootLayout: root.path,
+      });
+      const clientDir = join(outDir, "client");
+      const code = readdirSync(clientDir)
+        .filter((file) => file.endsWith(".js"))
+        .map((file) => readFileSync(join(clientDir, file), "utf8"))
+        .join("\n");
+      expect(code.includes("__FURIN_DATA__")).toBe(true);
+      expect(code.includes(app.path)).toBe(false);
+    } finally {
+      app.cleanup();
+    }
   });
 });

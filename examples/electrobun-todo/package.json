@@ -13,6 +13,7 @@
     "tscheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@elysia/eden": "2.0.0-beta.5",
     "@fontsource-variable/manrope": "5.2.8",
     "@fontsource/ibm-plex-mono": "5.2.7",
     "@teyik0/furin": "workspace:*",

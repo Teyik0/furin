@@ -4,10 +4,9 @@ import { DocPage } from "@/components/doc-page";
 import { renderDocContent } from "@/lib/doc-content";
 import { DOCS_BY_PATH } from "@/lib/docs";
 import { getDocSourceText } from "@/lib/docs-server";
-import { route as parentRoute } from "./_route";
 
-export const route = defineRoute()
-  .config({ layout: parentRoute, mode: "ssg" })
+export const route = defineRoute("/docs/link-navigation")
+  .config({ mode: "ssg" })
   .loader(async () => {
     const { default: LinkNavigation } = await import("@/content/docs/link-navigation.mdx");
     const doc = DOCS_BY_PATH["/docs/link-navigation"];

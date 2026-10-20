@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { createTmpApp } from "../../core/tests/support/app-fixtures";
 import { runCli } from "../../core/tests/support/process";
+import { createTmpApp } from "./support/core";
 
 test("a relocated Furin app retains its factory guard across the separately bundled desktop host", async () => {
   const fixture = createTmpApp("cli-app");
@@ -23,15 +23,15 @@ const app = new Elysia()
     if (path === "/wrapper-shortcut") return new Response("wrapper", { status: 203 });
     return next(request, server);
   })
-  .request(({ request }) => {
+  .onRequest(({ request }) => {
     const path = new URL(request.url).pathname;
     observed.push(path);
     if (path === "/request-shortcut") return new Response("request", { status: 201 });
   })
   .get("/constant", "constant")
   .get("/api/host", () => ({ host: true }))
-  .setup(() => { lifecycle.setup += 1; })
-  .cleanup(() => { lifecycle.cleanup += 1; })
+  .onStart(() => { lifecycle.setup += 1; })
+  .onStop(() => { lifecycle.cleanup += 1; })
   .use(await furin({ pagesDir: import.meta.dir + "/pages" }));
 
 export default Object.assign(app, {

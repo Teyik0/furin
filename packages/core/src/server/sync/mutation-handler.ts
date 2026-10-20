@@ -71,4 +71,10 @@ export function installMutationHandlers(app: Elysia): void {
       table
     );
   };
+  const dispatch = app["~dispatch"].bind(app);
+  app["~dispatch"] = (index, context) => {
+    // Dynamic JIT routes dispatch directly without calling handler() first.
+    app.handler(index, false, undefined, undefined, app["~routeTable"]);
+    return dispatch(index, context);
+  };
 }

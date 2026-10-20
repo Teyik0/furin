@@ -1,29 +1,19 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
-import { transformForClient } from "../plugin/transform-client";
-import { createRoutesPlugin } from "../plugin/routes.ts";
-import { environmentGuardPlugin } from "../rsc/build/environment.ts";
-import { detectLoaderFromPath } from "../server/lang-detect.ts";
+import { existsSync, mkdirSync } from "node:fs";
+import { basename, dirname, join, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createClientStripPlugin } from "../plugin/client-plugin.ts";
+import { createRoutesPlugin } from "../plugin/route-registry.ts";
+import { discoverClientBoundaries, registerServerBoundaries } from "../rsc/build/discover.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
-import { runBunBuild } from "./bun-build.ts";
-import { generateHydrateEntry } from "./hydrate";
+import { PRODUCTION_DEFINE, runBunBuild } from "./bun-build.ts";
+import { generateClientReferenceEntry, generateProductionHydrateEntry } from "./hydrate";
 import { type ClientPreloadManifest, writeClientPreloadManifest } from "./preload-manifest.ts";
-import { CLIENT_MODULE_PATH, LINK_MODULE_PATH, SEARCH_MODULE_PATH } from "./shared";
+import { writeBuildMetafile } from "./shared";
 import type { BuildClientOptions, BunBuildAliasConfig } from "./types";
 import { createVirtualBuildEntry } from "./virtual-entry.ts";
 
-const SCRIPT_FILE_FILTER = /\.(tsx?|jsx?)$/;
-const ROUTER_PROVIDER_PATH = resolve(import.meta.dir, "../client/router/provider.tsx");
-
-function resolveClientModuleSpecifiers(code: string): string {
-  return code
-    .replaceAll(`"@teyik0/furin/client"`, JSON.stringify(CLIENT_MODULE_PATH))
-    .replaceAll(`'furin/client'`, JSON.stringify(CLIENT_MODULE_PATH))
-    .replaceAll(`"@teyik0/furin/link"`, JSON.stringify(LINK_MODULE_PATH))
-    .replaceAll(`'furin/link'`, JSON.stringify(LINK_MODULE_PATH))
-    .replaceAll(`"@teyik0/furin/search"`, JSON.stringify(SEARCH_MODULE_PATH))
-    .replaceAll(`'furin/search'`, JSON.stringify(SEARCH_MODULE_PATH));
-}
+// Within Furin's browser build only the router imports evlog.
+const CLIENT_DIST_DIR = `${join(dirname(dirname(fileURLToPath(import.meta.resolve("@teyik0/furin")))), "dist")}${sep}`;
 
 export interface BuildClientResult {
   /** Public paths of all CSS chunks, e.g. `["/_client/chunk-abc.css"]` */
@@ -79,9 +69,12 @@ export async function buildClient(
     mkdirSync(clientDir, { recursive: true });
   }
 
-  const hydrateCode = resolveClientModuleSpecifiers(
-    generateHydrateEntry(routes, rootLayout, basePath, clientLogging)
+  const boundaries = await discoverClientBoundaries(
+    [...new Set([rootLayout, ...routes.flatMap(route => [route.path, ...route.routeChain.flatMap(entry => entry.sourcePath ? [entry.sourcePath] : [])])])], plugins
   );
+  await registerServerBoundaries(boundaries);
+  const hydrateCode =
+    generateClientReferenceEntry(boundaries) + generateProductionHydrateEntry(routes, rootLayout, basePath, clientLogging);
   const hydratePath = join(
     outDir,
     dirName === "client" ? "_hydrate.tsx" : `_hydrate-${dirName}.tsx`
@@ -90,35 +83,11 @@ export async function buildClient(
 
   console.log("[furin] Building production client bundle…");
 
-  const transformPlugin: Bun.BunPlugin = {
-    name: "furin-transform-client",
-    setup(build) {
-      build.onLoad({ filter: SCRIPT_FILE_FILTER }, async (args) => {
-        const { path } = args;
-        if (path.includes("node_modules")) {
-          return;
-        }
-
-        const code = await Bun.file(path).text();
-        const result = transformForClient(code, path);
-        // transformForClient now emits TS/TSX directly (no pre-transpile),
-        // so JSX → React handling is delegated to Bun.build's loader, which
-        // applies the project tsconfig's automatic runtime by default.
-        const transformed = resolveClientModuleSpecifiers(result.code);
-
-        return {
-          contents: transformed,
-          loader: detectLoaderFromPath(path),
-        };
-      });
-    },
-  };
-
   const routerLoggerPlugin: Bun.BunPlugin = {
     name: "furin-client-router-logger",
     setup(build) {
       build.onResolve({ filter: /^evlog$/ }, ({ importer }) => {
-        if (importer === ROUTER_PROVIDER_PATH) {
+        if (importer.startsWith(CLIENT_DIST_DIR)) {
           return { namespace: "furin-client-router-logger", path: "router-logger" };
         }
       });
@@ -159,7 +128,8 @@ export async function buildClient(
     // Overridable via the `publicPath` option (e.g. "/furin/_client/" for basePath builds).
     publicPath,
     // Resolve the in-memory entry first. User plugins still run before Furin's
-    // transforms for every imported application module.
+    // transforms for every imported application module, as bunfig's
+    // `[serve.static] plugins` do in dev, which uses the same strip plugin.
     plugins: [
       hydrateEntry.plugin,
       ...(plugins ?? []),
@@ -167,21 +137,15 @@ export async function buildClient(
       ...(pagesDir
         ? [createRoutesPlugin({ instances: [{ pagesDir, prefix: basePath }], target: "client" })]
         : []),
-      environmentGuardPlugin("client"),
-      transformPlugin,
+      createClientStripPlugin({ mode: "build" }),
     ],
-    alias: {
-      "@teyik0/furin/client": CLIENT_MODULE_PATH,
-      "@teyik0/furin/link": LINK_MODULE_PATH,
-      "@teyik0/furin/search": SEARCH_MODULE_PATH,
-    },
     define: {
       ...Object.fromEntries(
         Object.entries(process.env)
           .filter(([name, value]) => name.startsWith("FURIN_PUBLIC_") && value !== undefined)
           .map(([name, value]) => [`process.env.${name}`, JSON.stringify(value)])
       ),
-      "process.env.NODE_ENV": JSON.stringify("production"),
+      ...PRODUCTION_DEFINE,
     },
   };
 
@@ -190,9 +154,7 @@ export async function buildClient(
     throw new Error("[furin] client build did not produce the requested metafile");
   }
   if (metafilePath !== undefined) {
-    mkdirSync(dirname(metafilePath), { recursive: true });
-    writeFileSync(metafilePath, `${JSON.stringify(result.metafile, null, 2)}\n`);
-    console.log(`[furin] Client metafile: ${metafilePath}`);
+    writeBuildMetafile(metafilePath, result.metafile, "Client");
   }
   for (const output of result.outputs) {
     console.log(`[furin]   ${output.path} (${(output.size / 1024).toFixed(1)} KB)`);

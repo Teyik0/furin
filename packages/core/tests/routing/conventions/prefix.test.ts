@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   assertNoPrefixSlugCollisions,
   clientDirNameForPrefix,
+  isWithinPrefix,
   prefixSlug,
 } from "../../../src/shared/prefix";
 
@@ -15,6 +16,14 @@ describe("clientDirNameForPrefix / prefixSlug", () => {
     expect(prefixSlug("/admin/v2")).toBe("admin-v2");
     expect(clientDirNameForPrefix("/admin/v2")).toBe("client-admin-v2");
   });
+
+  test("preserves percent escapes for Unicode and reserved characters", () => {
+    for (const segment of ["café", "東京", "a:b", "[id]", "a\\b", "a;b", "%41", "A*"]) {
+      expect(decodeURIComponent(prefixSlug(`/${segment}`))).toBe(segment);
+    }
+    expect(prefixSlug("/café")).toBe("caf%C3%A9");
+    expect(prefixSlug("/a:b")).toBe("a%3Ab");
+  });
 });
 
 describe("assertNoPrefixSlugCollisions", () => {
@@ -27,9 +36,39 @@ describe("assertNoPrefixSlugCollisions", () => {
     expect(() => assertNoPrefixSlugCollisions(["/admin", "/admin"])).not.toThrow();
   });
 
-  test("rejects distinct prefixes whose slugs collide (/a-b vs /a/b)", () => {
-    expect(() => assertNoPrefixSlugCollisions(["/a-b", "/a/b"])).toThrow(
-      '"/a-b" and "/a/b" both map to the client directory "client-a-b"'
+  test("encodes separators so distinct prefixes cannot overwrite artifacts", () => {
+    const prefixes = ["/a-b", "/a/b", "/a__b", "/a%2Db", "/.", "/.."];
+    expect(new Set(prefixes.map(prefixSlug)).size).toBe(prefixes.length);
+    expect(() => assertNoPrefixSlugCollisions(prefixes)).not.toThrow();
+    expect(prefixSlug("/.")).not.toBe(".");
+    expect(prefixSlug("/..")).not.toBe("..");
+  });
+
+  test("keeps case-distinct mounts separate on case-insensitive filesystems", () => {
+    const prefixes = ["/admin", "/Admin", "/ADMIN", "/%41dmin"];
+    expect(new Set(prefixes.map((prefix) => prefixSlug(prefix).toLowerCase())).size).toBe(
+      prefixes.length
     );
+  });
+
+  test("encodes Windows wildcard characters in generated directories", () => {
+    expect(prefixSlug("/assets*")).not.toContain("*");
+    expect(prefixSlug("/assets*")).not.toBe(prefixSlug("/assets%2A"));
+  });
+});
+
+describe("isWithinPrefix", () => {
+  test("every path lies within the root prefix", () => {
+    expect(isWithinPrefix("/anything", "")).toBe(true);
+  });
+
+  test("accepts the prefix itself and paths below it", () => {
+    expect(isWithinPrefix("/admin", "/admin")).toBe(true);
+    expect(isWithinPrefix("/admin/users", "/admin")).toBe(true);
+  });
+
+  test("rejects paths that only share the prefix text", () => {
+    expect(isWithinPrefix("/administrator", "/admin")).toBe(false);
+    expect(isWithinPrefix("/", "/admin")).toBe(false);
   });
 });

@@ -1,10 +1,10 @@
 import "../../setup/global.ts";
-import { afterEach, beforeEach, expect, test } from "bun:test";
-import { EdenFetchError } from "@elysia/eden";
+import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
+import { EdenFetchError, treaty } from "@elysia/eden";
 import { Elysia, t } from "elysia";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { createClient, useMutation, useQuery } from "../../../src/client.ts";
+import { furinSync, useMutation, useQuery } from "../../../src/client.ts";
 import { installDom, uninstallDom } from "../../support/dom.ts";
 
 let root: Root | undefined;
@@ -91,9 +91,9 @@ test.each([
   "an Eden fetch failure is normalized instead of exposing its native payload",
   async ({ cause, detail }) => {
     const app = new Elysia().delete("/cards", () => ({ ok: true }));
-    const api = createClient<typeof app>(window.location.origin, {
+    const api = treaty<typeof app>(window.location.origin, {
       fetcher: ((_input, _init) => Promise.reject(cause)) as typeof fetch,
-    });
+    }).use(furinSync);
     let observed: unknown;
     function View() {
       const mutation = useMutation(api.cards.delete, {
@@ -129,10 +129,10 @@ test.each([
   "an unexpected HTTP body $body becomes a readable Eden error without losing its status",
   async ({ body, detail }) => {
     const app = new Elysia().delete("/cards", () => ({ ok: true }));
-    const api = createClient<typeof app>(window.location.origin, {
+    const api = treaty<typeof app>(window.location.origin, {
       fetcher: ((_input, _init) =>
         Promise.resolve(Response.json(body, { status: 502 }))) as typeof fetch,
-    });
+    }).use(furinSync);
     let observed: unknown;
     let rejected: Promise<unknown> | undefined;
     function View() {
@@ -312,9 +312,9 @@ test("an Eden mutation exposes pending state and its typed response", async () =
       return { id: "1", title: body.title };
     }
   );
-  const api = createClient<typeof app>(window.location.origin, {
+  const api = treaty<typeof app>(window.location.origin, {
     fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-  });
+  }).use(furinSync);
   function View() {
     const save = useMutation(api.cards.post);
     return (
@@ -487,20 +487,19 @@ test.each(["rejection", "retry"])(
         title = "After";
         return { ok: true };
       });
-    const api = createClient<typeof app>(window.location.origin, {
-      retry: 1,
+    const api = treaty<typeof app>(window.location.origin, {
       fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-    });
+    }).use(furinSync);
     function View() {
-      const query = useQuery(api.cards.get);
-      const mutation = useMutation(api.cards.patch);
+      const query = useQuery(api.cards.get.live());
+      const mutation = useMutation(api.cards.patch, { retry: 1 });
       return (
         <button
           disabled={mutation.isPending}
           onClick={() =>
             mutation.mutate(undefined, {
               optimistic(cache) {
-                cache.update(api.cards.get, (cards) =>
+                cache.update(api.cards.get.live(), (cards) =>
                   cards.map((card) => ({ ...card, title: "After" }))
                 );
               },
@@ -537,3 +536,59 @@ test.each(["rejection", "retry"])(
     expect(keys[0]).not.toBe("");
   }
 );
+
+test.each([
+  { call: "forwards Eden options", attempts: 2, warned: false },
+  { call: "calls Eden without options", attempts: 1, warned: true },
+])("a mutation lambda that $call retries only with its own key", async (variant) => {
+  const keys: string[] = [];
+  const app = new Elysia().post(
+    "/cards",
+    { body: t.Object({ title: t.String() }) },
+    ({ headers }) => {
+      keys.push(headers["idempotency-key"] ?? "");
+      return keys.length === 1
+        ? Response.json(
+            { code: "FURIN_MUTATION_IN_PROGRESS" },
+            { status: 409, headers: { "Retry-After": "0" } }
+          )
+        : { ok: true };
+    }
+  );
+  const api = treaty(app).use(furinSync);
+  const warn = spyOn(console, "warn").mockImplementation(() => undefined);
+  let saved: Promise<unknown> | undefined;
+  function View() {
+    const mutation = useMutation(
+      (title: string) =>
+        variant.warned ? api.cards.post({ title }) : api.cards.post({ title }, {}),
+      { retry: 2 }
+    );
+    return (
+      <button
+        onClick={() => {
+          saved = mutation.mutateAsync("Draft").catch((error: unknown) => error);
+        }}
+        type="button"
+      >
+        Save
+      </button>
+    );
+  }
+  try {
+    const container = document.createElement("div");
+    root = createRoot(container);
+    await act(() => root?.render(<View />));
+    await act(async () => {
+      container.querySelector("button")?.click();
+      await saved;
+    });
+    expect(keys).toHaveLength(variant.attempts);
+    expect(new Set(keys).size).toBe(1);
+    expect(warn.mock.calls.some(([message]) => String(message).includes("retry is disabled"))).toBe(
+      variant.warned
+    );
+  } finally {
+    warn.mockRestore();
+  }
+});

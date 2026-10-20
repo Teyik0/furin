@@ -64,7 +64,7 @@ test("furin dev --web owns an inert server and drains it on cancellation without
       join(root, "server.ts"),
       `
       import { Elysia } from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
-      export default new Elysia().get("/", () => "web-only").cleanup(() =>
+      export default new Elysia().get("/", () => "web-only").onStop(() =>
         Bun.write(${JSON.stringify(join(root, "closed"))}, "closed").then(() => undefined));
     `
     );
@@ -129,8 +129,8 @@ test("web development startup timeout is a failure and drains the partial applic
       join(root, "server.ts"),
       `import {Elysia} from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
       export default new Elysia()
-        .cleanup(() => Bun.write(${JSON.stringify(join(root, "closed"))}, "closed").then(() => undefined))
-        .setup(() => new Promise(() => {}));`
+        .onStop(() => Bun.write(${JSON.stringify(join(root, "closed"))}, "closed").then(() => undefined))
+        .onStart(() => new Promise(() => {}));`
     );
     child = Bun.spawn(
       [process.execPath, resolve(import.meta.dir, "../../src/cli/index.ts"), "dev", "--port", "0"],

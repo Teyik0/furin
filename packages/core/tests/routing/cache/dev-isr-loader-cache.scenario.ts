@@ -1,67 +1,35 @@
 import { expect } from "bun:test";
+import { cpSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { type AnyElysia, Elysia } from "elysia";
+import { furin } from "../../../src/furin.ts";
 import {
-  __resetCacheState,
   __resetDevLoaderCacheState,
+  getAllDevISRLoaderEntries,
   getDevISRLoaderCache,
   getDevSSGLoaderCache,
   invalidateDevLoaderCacheByPath,
   invalidateDevLoaderCacheBySource,
 } from "../../../src/server/cache/index.ts";
-import { registerDevPagePlugin } from "../../../src/server/dev-page-plugin.ts";
-import { createDevtoolsPlugin } from "../../../src/server/devtools/plugin.ts";
-import { setProductionTemplateContent } from "../../../src/server/render/template.ts";
-import { scanPages } from "../../../src/server/router/discovery.ts";
-import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
-import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
-import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
+import { allInstances, type FurinInstance, withInstance } from "../../../src/server/instance.ts";
+import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
+import { createTmpApp } from "../../support/app-fixtures.ts";
 
 // This scenario runs in the dedicated Worker created by
 // dev-isr-loader-cache.test.ts. The Worker isolates the dev/cache module state;
 // the parent bun:test case owns test discovery and failure reporting.
 
 const fixturesDir = join(import.meta.dir, "../../fixtures/pages/default");
-const template =
-  '<!DOCTYPE html><html><head><!--FURIN_HEAD--></head><body><div id="root"><!--FURIN_HTML--></div><!--FURIN_TAIL--></body></html>';
 const timestampRe = /data-timestamp="(\d+)"/;
-const originalDevMode = IS_DEV;
 
-setProductionTemplateContent(template);
-registerDevPagePlugin();
-
+// `__resetCacheState()` would also forget the mounted runtime; the dev loader
+// reset clears every registered runtime's loader caches.
 function prepareDevCacheTest(): void {
-  __resetCacheState();
   __resetDevLoaderCacheState();
 }
 
-async function runScenario(fn: () => Promise<void>): Promise<void> {
-  __setDevMode(false);
-  prepareDevCacheTest();
-  try {
-    await fn();
-  } finally {
-    __setDevMode(originalDevMode);
-    prepareDevCacheTest();
-  }
-}
-
-function getRoute(
-  result: Awaited<ReturnType<typeof scanPages>>,
-  pattern: string,
-  mode: "isr" | "ssg"
-): ResolvedRoute {
-  const route = result.routes.find(
-    (candidate) => candidate.pattern === pattern && candidate.mode === mode
-  );
-  if (!route) {
-    throw new Error(`No ${pattern} fixture with mode=${mode}`);
-  }
-  return route;
-}
-
 async function requestText(app: AnyElysia, path: string): Promise<string> {
-  setProductionTemplateContent(template);
   const response = await app.handle(new Request(`http://localhost${path}`));
   expect(response.status).toBe(200);
   return response.text();
@@ -73,31 +41,97 @@ function timestampFrom(html: string): string {
   return value as string;
 }
 
-function scanDefaultPages(): ReturnType<typeof scanPages> {
-  return scanPages(fixturesDir);
+// Reads its requestLoader field outside a Suspense boundary: production PPR
+// rejects the page, and development must too.
+const pprOutsideSuspensePage = `import { defineRoute } from "@teyik0/furin";
+import { use } from "react";
+
+export const route = defineRoute("/ppr-outside-suspense")
+  .config({ mode: "isr", revalidate: 60 })
+  .requestLoader(({ cookies }) => ({ session: cookies.get("session") }))
+  .page(({ session }) => <main>{String(use(session))}</main>);
+`;
+
+// A valid PPR page whose public loader stamps its run.
+const pprLoaderPage = `import { Await, defineRoute } from "@teyik0/furin";
+import { Suspense } from "react";
+
+export const route = defineRoute("/ppr-loader-page")
+  .config({ mode: "ssg" })
+  .requestLoader(({ cookies }) => ({ session: cookies.get("session") }))
+  .loader(() => ({ timestamp: Date.now() }))
+  .page(({ session, timestamp }) => (
+    <main data-timestamp={String(timestamp)}>
+      <Suspense fallback="Loading">
+        <Await resolve={session}>{(value) => <strong>{String(value)}</strong>}</Await>
+      </Suspense>
+    </main>
+  ));
+`;
+
+/** The public `timestamp` field of a page's navigation data. */
+async function dataTimestamp(app: AnyElysia, path: string): Promise<string> {
+  const response = await app.handle(
+    new Request(`http://localhost${path}?_furin=data`, { headers: { cookie: "session=alice" } })
+  );
+  expect(response.status).toBe(200);
+  const { syncData } = await parseDeferredNdjson(
+    response.body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() }),
+    undefined
+  );
+  return String(syncData.timestamp);
 }
 
-function createDevRouteApp(route: ResolvedRoute, root: RootLayout): AnyElysia {
+/** Mounts the default page fixtures through a development `furin()`. */
+async function mountDevelopmentPages(
+  appPath: string
+): Promise<{ app: AnyElysia; instance: FurinInstance; pagesDir: string }> {
+  const pagesDir = join(appPath, "src/pages");
+  rmSync(pagesDir, { force: true, recursive: true });
+  cpSync(fixturesDir, pagesDir, { recursive: true });
+  writeFileSync(join(pagesDir, "ppr-outside-suspense.tsx"), pprOutsideSuspensePage);
+  writeFileSync(join(pagesDir, "ppr-loader-page.tsx"), pprLoaderPage);
+  process.chdir(appPath);
   __setDevMode(true);
-  setProductionTemplateContent(template);
-  return new Elysia().use(createRoutePlugin(route, root));
+  const app = new Elysia().use(await furin({ pagesDir }));
+  // Furin stores pagesDir with POSIX separators on every platform.
+  const instance = allInstances().find(
+    (candidate) => candidate.pagesDir === pagesDir.replaceAll("\\", "/")
+  );
+  if (!instance) {
+    throw new Error(`No furin() runtime registered for ${pagesDir}`);
+  }
+  // Cache keys and dependencies use the POSIX path Furin stores.
+  return { app, instance, pagesDir: instance.pagesDir };
 }
+
+const originalCwd = process.cwd();
+const tmpApp = createTmpApp("cli-app");
 
 try {
-  await runScenario(async () => {
-    const result = await scanDefaultPages();
-    const route = getRoute(result, "/isr-page", "isr");
-    const app = createDevRouteApp(route, result.root);
+  const { app, instance, pagesDir } = await mountDevelopmentPages(tmpApp.path);
+  const rootPath = `${pagesDir}/root.tsx`;
+  const scoped = <T>(fn: () => T): T => withInstance(instance, fn);
+  const runScenario = async (fn: () => Promise<void>): Promise<void> => {
+    prepareDevCacheTest();
+    try {
+      await fn();
+    } finally {
+      prepareDevCacheTest();
+    }
+  };
 
+  await runScenario(async () => {
+    const pagePath = `${pagesDir}/isr-page.tsx`;
     const ts1 = timestampFrom(await requestText(app, "/isr-page"));
-    const cacheKey = `${result.root.path}:/isr-page`;
-    const cached = getDevISRLoaderCache(cacheKey);
+    const cacheKey = `${rootPath}:/isr-page`;
+    const cached = scoped(() => getDevISRLoaderCache(cacheKey));
 
     expect(cached).toBeDefined();
-    expect(cached?.dependencies).toContain(route.path);
-    expect(cached?.dependencies).toContain(result.root.path);
-    invalidateDevLoaderCacheBySource(route.path);
-    expect(getDevISRLoaderCache(cacheKey)).toBeUndefined();
+    expect(cached?.dependencies).toContain(pagePath);
+    expect(cached?.dependencies).toContain(rootPath);
+    scoped(() => invalidateDevLoaderCacheBySource(pagePath));
+    expect(scoped(() => getDevISRLoaderCache(cacheKey))).toBeUndefined();
 
     await Bun.sleep(20);
     const ts2 = timestampFrom(await requestText(app, "/isr-page"));
@@ -105,10 +139,6 @@ try {
   });
 
   await runScenario(async () => {
-    const result = await scanDefaultPages();
-    const route = getRoute(result, "/isr-page", "isr");
-    const app = createDevRouteApp(route, result.root);
-
     const ts1 = timestampFrom(await requestText(app, "/isr-page"));
     await Bun.sleep(20);
     const ts2 = timestampFrom(await requestText(app, "/isr-page"));
@@ -117,50 +147,53 @@ try {
   });
 
   await runScenario(async () => {
-    const result = await scanDefaultPages();
-    const route = getRoute(result, "/isr-query-page", "isr");
-    const app = createDevRouteApp(route, result.root);
-
     const alpha = await requestText(app, "/isr-query-page?tenant=alpha");
     const beta = await requestText(app, "/isr-query-page?tenant=beta");
     expect(alpha).toContain("alpha");
     expect(beta).toContain("beta");
 
-    const alphaKey = `${result.root.path}:/isr-query-page?tenant=alpha`;
-    const betaKey = `${result.root.path}:/isr-query-page?tenant=beta`;
-    expect(getDevISRLoaderCache(alphaKey)).toBeDefined();
-    expect(getDevISRLoaderCache(betaKey)).toBeDefined();
+    const alphaKey = `${rootPath}:/isr-query-page?tenant=alpha`;
+    const betaKey = `${rootPath}:/isr-query-page?tenant=beta`;
+    expect(scoped(() => getDevISRLoaderCache(alphaKey))).toBeDefined();
+    expect(scoped(() => getDevISRLoaderCache(betaKey))).toBeDefined();
 
-    const outcome = invalidateDevLoaderCacheByPath("/isr-query-page", "page");
+    const outcome = scoped(() => invalidateDevLoaderCacheByPath("/isr-query-page", "page"));
 
     expect(outcome.isr).toBe(2);
-    expect(getDevISRLoaderCache(alphaKey)).toBeUndefined();
-    expect(getDevISRLoaderCache(betaKey)).toBeUndefined();
+    expect(scoped(() => getDevISRLoaderCache(alphaKey))).toBeUndefined();
+    expect(scoped(() => getDevISRLoaderCache(betaKey))).toBeUndefined();
   });
 
   await runScenario(async () => {
-    const result = await scanDefaultPages();
-    const route = getRoute(result, "/isr-page", "isr");
-    const app = createDevRouteApp(route, result.root);
+    const plain = timestampFrom(await requestText(app, "/isr-page"));
+    await Bun.sleep(20);
+    expect(timestampFrom(await requestText(app, "/isr-page?utm_source=mail"))).toBe(plain);
 
+    const alpha = timestampFrom(
+      await requestText(app, "/isr-query-page?tenant=alpha&utm_source=mail")
+    );
+    await Bun.sleep(20);
+    expect(
+      timestampFrom(await requestText(app, "/isr-query-page?utm_source=news&tenant=alpha"))
+    ).toBe(alpha);
+    expect(scoped(() => getAllDevISRLoaderEntries().map(([key]) => key)).toSorted()).toEqual([
+      `${rootPath}:/isr-page`,
+      `${rootPath}:/isr-query-page?tenant=alpha`,
+    ]);
+  });
+
+  await runScenario(async () => {
     const ts1 = timestampFrom(await requestText(app, "/isr-page"));
-    const cacheKey = `${result.root.path}:/isr-page`;
-    invalidateDevLoaderCacheBySource("/some/unrelated/file.tsx");
+    const cacheKey = `${rootPath}:/isr-page`;
+    scoped(() => invalidateDevLoaderCacheBySource("/some/unrelated/file.tsx"));
 
-    expect(getDevISRLoaderCache(cacheKey)).toBeDefined();
+    expect(scoped(() => getDevISRLoaderCache(cacheKey))).toBeDefined();
     await Bun.sleep(20);
     const ts2 = timestampFrom(await requestText(app, "/isr-page"));
     expect(ts2).toBe(ts1);
   });
 
   await runScenario(async () => {
-    const result = await scanDefaultPages();
-    const route = getRoute(result, "/isr-page", "isr");
-    __setDevMode(true);
-    const app = new Elysia()
-      .use(createRoutePlugin(route, result.root))
-      .use(createDevtoolsPlugin([route], undefined));
-
     await requestText(app, "/isr-page");
     const response = await app.handle(new Request("http://localhost/_furin/devtools/snapshot"));
     expect(response.status).toBe(200);
@@ -173,23 +206,23 @@ try {
     expect(entry.mode).toBe("isr");
     expect(entry.isFresh).toBe(true);
     expect(entry.revalidateSeconds).toBe(60);
-    expect(entry.dependencies).toContain(relative(process.cwd(), route.path).replaceAll("\\", "/"));
     expect(entry.dependencies).toContain(
-      relative(process.cwd(), result.root.path).replaceAll("\\", "/")
+      relative(process.cwd(), `${pagesDir}/isr-page.tsx`).replaceAll("\\", "/")
     );
+    expect(entry.dependencies).toContain(relative(process.cwd(), rootPath).replaceAll("\\", "/"));
     expect(entry.fieldNames).toEqual(["timestamp", "params", "path", "query"]);
-    expect(JSON.stringify(body)).not.toContain(timestampFrom(await requestText(app, "/isr-page")));
+    // Cache entries expose field names, never loader values. (The event log
+    // carries wall-clock timestamps that can equal this Date.now() value.)
+    expect(JSON.stringify(body.caches)).not.toContain(
+      timestampFrom(await requestText(app, "/isr-page"))
+    );
   });
 
   await runScenario(async () => {
-    const result = await scanDefaultPages();
-    const route = getRoute(result, "/ssg-loader-page", "ssg");
-    const app = createDevRouteApp(route, result.root);
-
     const ts1 = timestampFrom(await requestText(app, "/ssg-loader-page"));
     await Bun.sleep(20);
     const ts2 = timestampFrom(await requestText(app, "/ssg-loader-page"));
-    const cached = getDevSSGLoaderCache(`${result.root.path}:/ssg-loader-page`);
+    const cached = scoped(() => getDevSSGLoaderCache(`${rootPath}:/ssg-loader-page`));
 
     expect(ts2).toBe(ts1);
     expect(cached?.mode).toBe("ssg");
@@ -197,25 +230,63 @@ try {
   });
 
   await runScenario(async () => {
-    const result = await scanDefaultPages();
-    const route = getRoute(result, "/ssg-loader-page", "ssg");
-    const app = createDevRouteApp(route, result.root);
-
+    const pagePath = `${pagesDir}/ssg-loader-page.tsx`;
     const ts1 = timestampFrom(await requestText(app, "/ssg-loader-page"));
-    const cacheKey = `${result.root.path}:/ssg-loader-page`;
-    const cached = getDevSSGLoaderCache(cacheKey);
+    const cacheKey = `${rootPath}:/ssg-loader-page`;
+    const cached = scoped(() => getDevSSGLoaderCache(cacheKey));
 
     expect(cached).toBeDefined();
-    expect(cached?.dependencies).toContain(route.path);
-    expect(cached?.dependencies).toContain(result.root.path);
+    expect(cached?.dependencies).toContain(pagePath);
+    expect(cached?.dependencies).toContain(rootPath);
 
-    const outcome = invalidateDevLoaderCacheBySource(route.path);
+    const outcome = scoped(() => invalidateDevLoaderCacheBySource(pagePath));
     expect(outcome.ssg).toBe(1);
-    expect(getDevSSGLoaderCache(cacheKey)).toBeUndefined();
+    expect(scoped(() => getDevSSGLoaderCache(cacheKey))).toBeUndefined();
 
     await Bun.sleep(20);
     const ts2 = timestampFrom(await requestText(app, "/ssg-loader-page"));
     expect(Number(ts2)).toBeGreaterThan(Number(ts1));
+  });
+
+  await runScenario(async () => {
+    const response = await app.handle(
+      new Request("http://localhost/ppr-outside-suspense", {
+        headers: { cookie: "session=alice" },
+      })
+    );
+
+    // The production PPR diagnostic, shown in the development overlay.
+    expect(response.status).toBe(500);
+    const body = await response.text();
+    expect(body).toContain("__FURIN_DEV_DIAGNOSTIC__");
+    expect(body).toContain("requestLoader fields must be consumed inside a Suspense boundary");
+  });
+
+  await runScenario(async () => {
+    const documentTimestamp = timestampFrom(await requestText(app, "/ssg-loader-page"));
+    await Bun.sleep(20);
+
+    expect(await dataTimestamp(app, "/ssg-loader-page")).toBe(documentTimestamp);
+  });
+
+  await runScenario(async () => {
+    const pagePath = `${pagesDir}/ppr-loader-page.tsx`;
+    const document = await app.handle(
+      new Request("http://localhost/ppr-loader-page", { headers: { cookie: "session=alice" } })
+    );
+    expect(document.status).toBe(200);
+    const html = await document.text();
+    expect(html).toContain("<strong>alice</strong>");
+    const documentTimestamp = timestampFrom(html);
+    await Bun.sleep(20);
+    expect(await dataTimestamp(app, "/ppr-loader-page")).toBe(documentTimestamp);
+
+    // A source edit drops the public data navigation serves too.
+    scoped(() => invalidateDevLoaderCacheBySource(pagePath));
+    await Bun.sleep(20);
+    expect(Number(await dataTimestamp(app, "/ppr-loader-page"))).toBeGreaterThan(
+      Number(documentTimestamp)
+    );
   });
 
   self.postMessage({ type: "pass" });
@@ -225,4 +296,8 @@ try {
     stack: error instanceof Error ? error.stack : undefined,
     type: "fail",
   });
+} finally {
+  // The working directory is process-wide, not per Worker.
+  process.chdir(originalCwd);
+  tmpApp.cleanup();
 }

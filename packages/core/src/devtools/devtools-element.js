@@ -169,10 +169,15 @@ function requestUrl(input) {
 }
 
 function installFetchObserver() {
-  const dataUrl = new URL(assetUrl("/_furin/data"), window.location.href);
+  const prefix = assetUrl("");
   const observedFetch = async (input, init) => {
     const url = requestUrl(input);
-    if (url.origin !== dataUrl.origin || url.pathname !== dataUrl.pathname) {
+    const entries = url.search.slice(1).split("&");
+    if (
+      url.origin !== window.location.origin ||
+      !(url.pathname === prefix || url.pathname.startsWith(`${prefix}/`)) ||
+      !entries.includes("_furin=data")
+    ) {
       return nativeFetch.call(window, input, init);
     }
     const id = operationId();
@@ -181,7 +186,9 @@ function installFetchObserver() {
     );
     headers.set("x-furin-devtools-operation-id", id);
     const startedAt = performance.now();
-    const logicalPath = url.searchParams.get("path") ?? url.pathname;
+    const search = entries.filter((entry) => entry !== "_furin=data").join("&");
+    const logicalPath =
+      (url.pathname.slice(prefix.length) || "/") + (search === "" ? "" : `?${search}`);
     pushBounded(browserState.operations, {
       durationMs: null,
       id,

@@ -1,7 +1,7 @@
 import { createServer } from "node:net";
 
 /**
- * Returns an unused TCP port allocated by the OS.  Used by HMR integration
+ * Returns an unused TCP port allocated by the OS.  Used by integration
  * tests to spawn a dev server on a fresh port without collisions when the
  * test suite runs in parallel with other servers.
  *

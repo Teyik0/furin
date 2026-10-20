@@ -3,7 +3,7 @@ import type { Context } from "elysia";
 import { QueryStore, setServerQueryEnvironment } from "../../client/query-store.ts";
 import { toLogical } from "../../client/router/link-utils.ts";
 import { bindQueryData } from "../../shared/query-bindings.ts";
-import { mergeQuerySeeds, type QuerySeed, queryTag } from "../../shared/sync-query.ts";
+import { mergeQuerySeeds, type QuerySeed, queryTags } from "../../shared/sync-query.ts";
 import { getAutoInvalidateRegistry } from "../auto-invalidate/registry.ts";
 import { currentInstance, instanceSlot } from "../instance.ts";
 import type { LoaderResult } from "../render/loaders.ts";
@@ -22,6 +22,36 @@ setServerQueryEnvironment(() => contexts.getStore());
 const trackedQueryPaths = instanceSlot(() => new Set<string>());
 const deferredQueries = new WeakMap<Promise<unknown>, QuerySeed[]>();
 
+/**
+ * A response body may only travel when the loader output already exposes all of it by identity:
+ * the whole response, or every top-level value of a response object.
+ */
+function exposesBody(seed: QuerySeed): boolean {
+  const bound = new Set(
+    seed.bindings?.map((binding) =>
+      binding.source.reduce<unknown>(
+        (value, key) => (value as { [field: string]: unknown })[key],
+        seed.data
+      )
+    )
+  );
+  if (bound.has(seed.data)) {
+    return true;
+  }
+  const { data } = seed;
+  return (
+    data !== null &&
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    Object.values(data).every((value) => bound.has(value))
+  );
+}
+
+/** Reads whose body is not exposed keep their identity and bindings for cache tags and sync. */
+function transportableSeeds(seeds: readonly QuerySeed[]): QuerySeed[] {
+  return seeds.map((seed) => (exposesBody(seed) ? seed : { ...seed, data: undefined }));
+}
+
 export function deferredQuerySeeds(promise: Promise<unknown>): QuerySeed[] | undefined {
   return deferredQueries.get(promise);
 }
@@ -34,14 +64,14 @@ export function captureQueryReads<Result extends LoaderResult>(
   const { origin } = new URL(ctx.request.url);
   const store = new QueryStore(origin);
   const registry = getAutoInvalidateRegistry();
-  const trackedPaths = trackedQueryPaths();
+  const trackedPaths = trackedQueryPaths(currentInstance());
   const requestUrl = new URL(ctx.request.url);
   const path = toLogical(requestUrl.pathname, currentInstance().prefix) + requestUrl.search;
   const onRead = () => {
     const seeds = store.dehydrate();
     registry.registerLoaderTags(
       path,
-      seeds.map((seed) => queryTag(seed.identity)),
+      seeds.flatMap((seed) => queryTags(seed.identity)),
       owner ?? "eden-queries"
     );
     trackedPaths.delete(path);
@@ -63,7 +93,7 @@ export function captureQueryReads<Result extends LoaderResult>(
     const seeds = store.dehydrate();
     if (result.type === "data" && seeds.length > 0) {
       const captured = [...((result.syncData.__furinQueries as QuerySeed[] | undefined) ?? [])];
-      mergeQuerySeeds(captured, bindQueryData(result.syncData, seeds));
+      mergeQuerySeeds(captured, transportableSeeds(bindQueryData(result.syncData, seeds)));
       result.syncData = { ...result.syncData, __furinQueries: captured };
     }
     if (result.type === "data" && result.deferredPromises) {
@@ -73,7 +103,10 @@ export function captureQueryReads<Result extends LoaderResult>(
             const completed = store.dehydrate();
             if (completed.length > 0) {
               const captured = deferredQueries.get(promise) ?? [];
-              mergeQuerySeeds(captured, bindQueryData({ [key]: value }, completed));
+              mergeQuerySeeds(
+                captured,
+                transportableSeeds(bindQueryData({ [key]: value }, completed))
+              );
               deferredQueries.set(promise, captured);
             }
           })

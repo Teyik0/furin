@@ -3,12 +3,12 @@ import { join } from "node:path";
 import { act } from "react";
 import { hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
-import { buildPageElement } from "../../../src/client/router/boundary-tree.tsx";
+import { resolveRouteElement } from "../../../src/client/route-element.tsx";
 import type { LoadedClientRoute } from "../../../src/client/router/types.ts";
-import { buildElement } from "../../../src/server/render/element.tsx";
 import { scanPages } from "../../../src/server/router/discovery.ts";
 import { buildRouteRegex } from "../../../src/server/router/patterns.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
+import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 import { useDomTests } from "../../support/dom.ts";
 import { expectDefined } from "../../support/utils.ts";
 
@@ -45,7 +45,17 @@ test.each(scenarios.flatMap((scenario) => [false, true].map((dev) => ({ ...scena
     };
     const container = document.createElement("div");
     const data = { query: { failure } };
-    container.innerHTML = renderToString(buildElement(route, data, layout.route));
+    container.innerHTML = renderToString(
+      resolveRouteElement({
+        boundaries: route.segmentBoundaries,
+        boundaryOptions: undefined,
+        chain: route.routeChain,
+        data,
+        page: { component: route.page.component, pattern: route.pattern },
+        reset: () => undefined,
+        rootBoundary: layout,
+      })
+    );
     document.body.appendChild(container);
     const errors: unknown[] = [];
     let root: Root | undefined;
@@ -53,7 +63,15 @@ test.each(scenarios.flatMap((scenario) => [false, true].map((dev) => ({ ...scena
       await act(() => {
         root = hydrateRoot(
           container,
-          buildPageElement(match, layout.route, data, undefined, undefined),
+          resolveRouteElement({
+            boundaries: match.segmentBoundaries ?? [],
+            boundaryOptions: undefined,
+            chain: collectRouteChainFromRoute(match.pageRoute),
+            data,
+            page: { component: match.component, pattern: match.pattern },
+            reset: () => undefined,
+            rootBoundary: undefined,
+          }),
           { onRecoverableError: (error) => errors.push(error) }
         );
       });

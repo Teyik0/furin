@@ -30,26 +30,30 @@ interface MoveInput {
 
 export const Kanban = ({ boardId, initialCards }: KanbanProps) => {
   const [isDragging, setIsDragging] = useState(false);
-  const move = useMutation(({ cardId, column, position, before }: MoveInput) =>
-    api.cards({ id: cardId }).patch(
-      { column, position },
-      {
-        optimistic: (cache) =>
-          cache.update(api.boards({ boardId }).get, (data) => ({
-            ...data,
-            cards: moveCard(data.cards, cardId, column, before)?.nextCards ?? data.cards,
-          })),
-      }
-    )
+  const move = useMutation(
+    ({ cardId, column, position, before }: MoveInput) =>
+      api.cards({ id: cardId }).patch(
+        { column, position },
+        {
+          optimistic: (cache) =>
+            cache.update(api.boards({ boardId }).get.live(), (data) => ({
+              ...data,
+              cards: moveCard(data.cards, cardId, column, before)?.nextCards ?? data.cards,
+            })),
+        }
+      ),
+    { retry: 2 }
   );
-  const remove = useMutation((cardId: string) =>
-    api.cards({ id: cardId }).delete(undefined, {
-      optimistic: (cache) =>
-        cache.update(api.boards({ boardId }).get, (data) => ({
-          ...data,
-          cards: data.cards.filter((card) => card.id !== cardId),
-        })),
-    })
+  const remove = useMutation(
+    (cardId: string) =>
+      api.cards({ id: cardId }).delete(undefined, {
+        optimistic: (cache) =>
+          cache.update(api.boards({ boardId }).get.live(), (data) => ({
+            ...data,
+            cards: data.cards.filter((card) => card.id !== cardId),
+          })),
+      }),
+    { retry: 2 }
   );
 
   const handleMove = (cardId: string, column: ColumnType, before: string) => {
@@ -351,7 +355,7 @@ interface AddCardFormProps extends AddCardProps {
 
 const AddCardForm = ({ column, boardId, onClose }: AddCardFormProps) => {
   const [text, setText] = useState("");
-  const add = useMutation(api.boards({ boardId }).cards.post, { onSuccess: onClose });
+  const add = useMutation(api.boards({ boardId }).cards.post, { retry: 2, onSuccess: onClose });
   const handleSubmit = (formData: FormData) => {
     const title = String(formData.get("title") ?? "").trim();
     if (!title) {
@@ -362,7 +366,7 @@ const AddCardForm = ({ column, boardId, onClose }: AddCardFormProps) => {
       { column, title },
       {
         optimistic: (cache) =>
-          cache.update(api.boards({ boardId }).get, (data) => ({
+          cache.update(api.boards({ boardId }).get.live(), (data) => ({
             ...data,
             cards: [
               ...data.cards,

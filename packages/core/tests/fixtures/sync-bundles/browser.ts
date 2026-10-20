@@ -1,3 +1,3 @@
-import { withSync } from "../../../dist/client.js";
+import { furinSync } from "../../../dist/client.js";
 
-console.log(withSync);
+console.log(furinSync);

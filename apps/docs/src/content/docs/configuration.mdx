@@ -1,9 +1,10 @@
 # Configuration Reference
 
-Production builds read the first `furin.config.ts`, `furin.config.js`, or `furin.config.mjs` in the working directory. `defineConfig()` provides inference; Furin validates serializable fields when the CLI loads the file.
+Production builds read the first `furin.config.ts`, `furin.config.js`, or `furin.config.mjs` in the working directory. `defineConfig()` provides inference; Furin validates serializable fields when the CLI loads the file. Unknown keys fail with their path and the closest valid key (for example, `reactCompilor` suggests `reactCompiler`), every plugin must be an object with a `name` string and a `setup` function, and every target must be a built-in name or a deployment adapter.
 
 ```ts
 // furin.config.ts
+import { vercel } from "@teyik0/furin/adapters/vercel";
 import { defineConfig } from "@teyik0/furin/config";
 import tailwind from "bun-plugin-tailwind";
 
@@ -15,7 +16,7 @@ export default defineConfig({
   reactCompiler: true,
   plugins: [{ ...tailwind, buildOnly: true }],
   bun: { compile: "embed" },
-  vercel: { regions: ["cdg1"] },
+  targets: ["bun", vercel({ regions: ["cdg1"] })],
 });
 ```
 
@@ -35,11 +36,12 @@ CLI flags override the corresponding file settings. Paths are resolved from the 
 | `plugins` | `FurinPlugin[]` | None | Bun build and route-import plugins |
 | `preload.routeChunks` | `boolean` | `true` | Emit `<link rel="modulepreload">` for the current route's chunks |
 | `bun.compile` | `"server" \| "embed"` | No executable | Compile the Bun server |
-| `vercel.regions` | `VercelRegion[]` | Vercel project default | Function compute regions |
 | `static` | `StaticExportConfig` | See below | Configure pure static output |
-| `targets` | `BuildTarget[]` | None | Reserved schema field; the current CLI selects targets with `--target` |
+| `targets` | `(BuildTarget \| FurinAdapter)[]` | `["bun"]` | What `furin build` builds without `--target`; also where adapters receive their options |
 
-`apps` takes precedence over `pagesDir` and server-entry scanning. When neither is configured, a server build statically scans literal `furin({ pagesDir, prefix })` calls in `src/server.ts`, then falls back to `src/pages`.
+`apps` takes precedence over `pagesDir` and the server entry. When neither is configured, a server build evaluates the server entry in a child process, with `furin()` only recording its `{ pagesDir, prefix }`, and builds those apps, then falls back to `src/pages`. Any `furin()` call counts, whatever its import name or how its options are computed. If the server entry cannot be evaluated at build time, list the apps in `apps`.
+
+Server builds then check the result against the application itself: Elysia AOT already evaluates the server entry, and Furin records every `furin({ pagesDir, prefix })` call it makes. A mounted app the build did not produce, or a built app the server never mounts, fails the build and lists both sides. Relative `pagesDir` values resolve against `rootDir`. Applications using `.mount()` skip AOT and therefore this check.
 
 ```ts
 export default defineConfig({
@@ -101,17 +103,19 @@ export default defineConfig({ bun: { compile: "server" } });
 
 The CLI `--compile` flag wins over this field.
 
-## Vercel Regions
+## Targets And Adapters
 
 ```ts
+import { vercel } from "@teyik0/furin/adapters/vercel";
+
 export default defineConfig({
-  vercel: {
-    regions: ["cdg1"],
-  },
+  targets: ["bun", vercel({ regions: ["cdg1"] })],
 });
 ```
 
-Place compute close to the application's database or upstream service. The editor suggests [Vercel's supported compute regions](https://vercel.com/docs/regions#region-list). The list must contain at least one unique supported region code; unsupported values fail configuration loading.
+`furin build` builds every entry of `targets`. `furin build --target vercel` builds the configured entry named `vercel`, so its options apply; a name missing from `targets` uses the built-in target with default options.
+
+`vercel({ regions })` places the Function close to the application's database or upstream service. The editor suggests [Vercel's supported compute regions](https://vercel.com/docs/regions#region-list); an empty list, duplicates, and unsupported codes fail while the configuration loads. See [Deployment](/docs/deployment#adapters) for the adapter contract.
 
 ## Static Export
 
@@ -152,13 +156,15 @@ await furin({
 | Field | Purpose |
 |---|---|
 | `pagesDir` | Runtime pages identity; defaults to `src/pages` |
-| `prefix` | Mount pages, framework endpoints, public assets, and client assets below a path |
+| `prefix` | Full physical path of pages, framework endpoints, public assets, and client assets; the client bundle is built for it |
 | `clientDir` | Override production client assets; build artifacts normally resolve this automatically |
 | `clientLogging` | Enable browser logging for this runtime/build context |
-| `logger` | evlog Elysia options plus global sampling |
+| `logger` | evlog Elysia options plus process-wide sampling; a second instance with a different `sampling` throws |
+| `cachePurger` | CDN purge hook for this instance; receives its physical paths and takes precedence over `setCachePurger()` |
+| `cacheTagPurger` | CDN purge hook for this instance's semantic cache tags; receives the tags passed to `revalidateTag()` and takes precedence over the deployment adapter's tag purger |
 | `pageCache` | Optional shared store for SSG, ISR, and PPR public artifacts; when omitted, the existing process-local render caches remain active |
-| `sync` | Sync adapter, principal resolver, optional notifier, and optional durable endpoint `path` |
+| `sync` | Sync adapter, principal resolver, optional notifier, optional principal hash `secret`, and optional durable endpoint `path` |
 
-Keep the same `pagesDir` and `prefix` between the build and runtime mount. See [Caching](/docs/caching), [Multi-Instance](/docs/multi-instance), and [Sync & Invalidations](/docs/sync).
+Keep the same `pagesDir` and `prefix` between the build and runtime mount. `prefix` is the full physical path: mount Furin on an Elysia instance without its own prefix. Each `furin()` call serves one application. See [Caching](/docs/caching), [Multi-Instance](/docs/multi-instance), and [Sync & Invalidations](/docs/sync).
 
 For a single Bun process, omit `pageCache`. For multiple Bun replicas, create one `redisPageCache()` adapter at module scope and pass it to each `furin()` mount. On Vercel Build Output, omit it and use the cache integration installed by the deployment adapter. Vercel deployments reject a custom `pageCache` during application initialization so native and Redis caches cannot become competing sources of truth.

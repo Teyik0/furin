@@ -1,12 +1,18 @@
-import { describe, expect, test } from "bun:test";
-import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { afterEach, describe, expect, test } from "bun:test";
+import { cpSync, existsSync, lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { version } from "../../../package.json";
+import { vercel } from "../../../src/adapter/vercel.ts";
 import { buildApp } from "../../../src/build/index.ts";
 import { ssgRouteCache } from "../../../src/server/cache/ssg.ts";
 import { __resetTemplateState } from "../../../src/server/render/template.ts";
-import { createTmpApp, type TmpApp, writeAppFile } from "../../support/app-fixtures.ts";
+import {
+  createTmpApp,
+  keyPagesForPrefix,
+  type TmpApp,
+  writeAppFile,
+} from "../../support/app-fixtures.ts";
 import { withBuildStub } from "../../support/with-build-stub.ts";
 
 const tmpApps: TmpApp[] = [];
@@ -52,10 +58,9 @@ function createVercelApp(): TmpApp {
     "src/pages/news.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "isr", revalidate: 90, tags: ["news,world"] })',
+      "export const route = defineRoute(\"/news\")",
+      '  .config({ mode: "isr", revalidate: 90, tags: ["news,world"] })',
       "  .page(() => <main>News</main>);",
       "",
     ].join("\n")
@@ -66,10 +71,9 @@ function createVercelApp(): TmpApp {
     [
       'import { t } from "elysia";',
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "isr", query: t.Object({ q: t.Optional(t.String()) }), revalidate: 90 })',
+      "export const route = defineRoute(\"/search\")",
+      '  .config({ mode: "isr", query: t.Object({ q: t.Optional(t.String()) }), revalidate: 90 })',
       '  .loader(({ query }) => ({ q: query.q }))',
       '  .page(({ q }) => <main>Search: {q}</main>);',
       "",
@@ -81,10 +85,9 @@ function createVercelApp(): TmpApp {
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { t } from "elysia";',
-      'import { route as rootRoute } from "../root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "isr", params: t.Object({ slug: t.String() }), revalidate: 90 })',
+      "export const route = defineRoute(\"/events/[slug]\")",
+      '  .config({ mode: "isr", params: t.Object({ slug: t.String() }), revalidate: 90 })',
       '  .staticParams(() => [{ slug: "launch" }])',
       '  .page(({ params }) => <main>Event: {params.slug}</main>);',
       "",
@@ -96,10 +99,9 @@ function createVercelApp(): TmpApp {
     [
       'import { t } from "elysia";',
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssg", query: t.Object({ coupon: t.Optional(t.String()) }) })',
+      "export const route = defineRoute(\"/offers\")",
+      '  .config({ mode: "ssg", query: t.Object({ coupon: t.Optional(t.String()) }) })',
       '  .page(({ query }) => <main>Coupon: {query.coupon}</main>);',
       "",
     ].join("\n")
@@ -115,7 +117,7 @@ function cleanupTmpApps(): void {
   }
 }
 
-process.on("exit", cleanupTmpApps);
+afterEach(cleanupTmpApps);
 
 describe.serial("Vercel deployment adapter", () => {
   test("emits CDN assets, a Bun catch-all function, and native SSG/ISR prerenders", (done) => {
@@ -125,9 +127,8 @@ describe.serial("Vercel deployment adapter", () => {
         app.path,
         "src/pages/account/_route.tsx",
         `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "../root";
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("/account/_route")
+  .config({ mode: "ssr" })
   .loader(({ request }) => ({ session: request.headers.get("cookie") }))
   .layout(({ children, session }) => <section>{session}{children}</section>);`
       );
@@ -135,9 +136,8 @@ export const route = defineRoute()
         app.path,
         "src/pages/account/index.tsx",
         `import { defineRoute } from "@teyik0/furin";
-import { route as accountRoute } from "./_route";
-export const route = defineRoute()
-  .config({ layout: accountRoute, mode: "isr", revalidate: 90 })
+export const route = defineRoute("/account")
+  .config({ mode: "isr", revalidate: 90 })
   .loader(() => ({ catalog: "Coffee" }))
   .page(({ catalog }) => <main>{catalog}</main>);`
       );
@@ -145,9 +145,8 @@ export const route = defineRoute()
         app.path,
         "src/pages/catalog/_route.tsx",
         `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "../root";
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 5 })
+export const route = defineRoute("/catalog/_route")
+  .config({ mode: "isr", revalidate: 5 })
   .loader(() => ({ heading: "Catalog" }))
   .layout(({ children, heading }) => <section>{heading}{children}</section>);`
       );
@@ -155,9 +154,8 @@ export const route = defineRoute()
         app.path,
         "src/pages/catalog/index.tsx",
         `import { defineRoute } from "@teyik0/furin";
-import { route as catalogRoute } from "./_route";
-export const route = defineRoute()
-  .config({ layout: catalogRoute, mode: "ssg" })
+export const route = defineRoute("/catalog")
+  .config({ mode: "ssg" })
   .loader(() => ({ product: "Coffee" }))
   .page(({ product }) => <main>{product}</main>);`
       );
@@ -171,8 +169,7 @@ export const route = defineRoute()
             analyze: true,
             plugins: [userPlugin],
             rootDir: app.path,
-            target: "vercel",
-            vercelConfig: { regions: ["cdg1"] },
+            target: vercel({ regions: ["cdg1"] }),
           }),
         (config) => {
           buildConfigs.push(config);
@@ -191,6 +188,19 @@ export const route = defineRoute()
       expect(config.version).toBe(3);
       expect(config.framework).toEqual({ name: "furin", version });
       expect(config.routes).toContainEqual({ handle: "filesystem" });
+      // Navigation data shares the page URL, so it must bypass prerendered
+      // documents (which ignore `_furin`) and reach the Bun function.
+      const dataRoute = config.routes.findIndex(
+        (rule: { has?: unknown }) => rule.has !== undefined
+      );
+      expect(config.routes[dataRoute]).toEqual({
+        dest: "/__server",
+        has: [{ key: "_furin", type: "query", value: "data" }],
+        src: "/(.*)",
+      });
+      expect(dataRoute).toBeLessThan(
+        config.routes.findIndex((rule: { handle?: string }) => rule.handle === "filesystem")
+      );
       expect(config.routes).toContainEqual({
         dest: "/news-isr?__furin_path=$__furin_path",
         src: "(?<__furin_path>/news)",
@@ -226,7 +236,7 @@ export const route = defineRoute()
       expect(bootstrap).toContain('import("./handler.js")');
       expect(bootstrap).toContain("furin_module_init");
       expect(bootstrap).toContain("furin_server_init");
-      expect(bootstrap).toContain('event: "vercel_cold_start"');
+      expect(bootstrap).toContain("vercel_cold_start");
       expect(
         existsSync(join(app.path, ".furin/build/analysis/vercel-server.json"))
       ).toBe(true);
@@ -240,6 +250,7 @@ export const route = defineRoute()
         readFileSync(join(functionsDir, "news-isr.prerender-config.json"), "utf8")
       );
       expect(newsPrerender.expiration).toBe(90);
+      expect(newsPrerender.allowQuery).toEqual(["__furin_path"]);
       expect(newsPrerender.fallback).toBe("news-isr.prerender-fallback.html");
       expect(newsPrerender.initialHeaders["vercel-cache-tag"]).toBe("/news,news%2Cworld");
       expect(readFileSync(join(functionsDir, newsPrerender.fallback), "utf8")).toContain("News");
@@ -247,14 +258,17 @@ export const route = defineRoute()
         readFileSync(join(functionsDir, "search-isr.prerender-config.json"), "utf8")
       );
       expect(searchPrerender.fallback).toBeUndefined();
+      expect(searchPrerender.allowQuery).toEqual(["__furin_path", "q"]);
       const offersPrerender = JSON.parse(
         readFileSync(join(functionsDir, "offers-ssg.prerender-config.json"), "utf8")
       );
       expect(offersPrerender.fallback).toBeUndefined();
+      expect(offersPrerender.allowQuery).toEqual(["__furin_path", "coupon"]);
       const eventPrerender = JSON.parse(
         readFileSync(join(functionsDir, "events/launch-isr.prerender-config.json"), "utf8")
       );
       expect(eventPrerender.expiration).toBe(90);
+      expect(eventPrerender.allowQuery).toEqual(["__furin_path"]);
       expect(eventPrerender.fallback).toBe("launch-isr.prerender-fallback.html");
       expect(
         JSON.parse(
@@ -284,36 +298,25 @@ export const route = defineRoute()
         "Home page"
       );
 
-      const serverBuild = buildConfigs.find((build) =>
-        build.entrypoints.some((entrypoint) => entrypoint.endsWith("_vercel-handler.ts"))
+      const captureEntry = join(app.path, ".furin/build/vercel/_furin-app.ts");
+      const serverBuild = buildConfigs.find((build) => build.entrypoints.includes(captureEntry));
+      expect(serverBuild?.entrypoints[0]).toEndWith(join("src", "adapter", "vercel", "handler.ts"));
+      const runtimeData = JSON.parse(
+        readFileSync(join(serverFunctionDir, "furin-vercel.json"), "utf8")
       );
-      const entrypoint = serverBuild?.entrypoints[0] as string;
-      const source = serverBuild?.files?.[entrypoint] as string;
-      const captureEntry = join(serverFunctionDir, "_furin-app.ts");
-      expect(source).toContain("@vercel+functions");
-      expect(source).toContain("getCache as getVercelCache");
-      expect(source).toContain("invalidateByTag");
-      expect(source).toContain("setRuntimeCacheProvider");
-      expect(source).toContain("setRuntimeEvlogWaitUntil(waitUntil)");
-      expect(source).toContain("waitUntil");
-      expect(source).toContain("serverModule.default");
-      expect(source).toContain("app.handle(restoredRequest)");
-      expect(source.indexOf("setRuntimeCacheProvider({")).toBeLessThan(
-        source.indexOf("const serverModule = await import")
-      );
-      expect(source.indexOf("setRuntimeEvlogWaitUntil(waitUntil)")).toBeLessThan(
-        source.indexOf("const serverModule = await import")
-      );
+      expect(runtimeData.prerenderAliases).toContainEqual([
+        "/news-isr",
+        "^(?:(?<__furin_path>/news))$",
+      ]);
       const serverPluginNames = serverBuild?.plugins?.map((plugin) => plugin.name) ?? [];
       expect(serverPluginNames).toContain("elysia-aot");
       expect(serverPluginNames).toContain("test-user-plugin");
       expect(serverPluginNames.indexOf("test-user-plugin")).toBeLessThan(
         serverPluginNames.indexOf("elysia-aot")
       );
-      expect(readFileSync(captureEntry, "utf8")).toContain(
-        "export default __serverModule.default"
-      );
-      expect(source).toContain(captureEntry.replaceAll("\\", "/"));
+      expect(
+        readFileSync(join(app.path, ".furin/build/vercel/_furin-application.ts"), "utf8")
+      ).toContain("export default __serverModule.default");
 
       const manifest = result.targets.vercel;
       if (!manifest || !("isrRoutes" in manifest)) {
@@ -342,6 +345,76 @@ export const route = defineRoute()
     ).rejects.toThrow("must export the Elysia app as default");
   });
 
+  test("serves no request before the application's async plugins resolve", async () => {
+    const app = createTmpApp("cli-app");
+    tmpApps.push(app);
+    writeAppFile(
+      app.path,
+      "src/server.ts",
+      [
+        'import { furin } from "@teyik0/furin";',
+        'import { Elysia } from "elysia";',
+        "",
+        "const guard = Bun.sleep(50).then(() => {",
+        '  if (process.env.FURIN_TEST_GUARD === "reject") throw new Error("guard plugin failed");',
+        '  return process.env.FURIN_TEST_GUARD === "deny"',
+        '    ? new Elysia({ name: "guard" }).onRequest(({ status }) => status(401, "denied"))',
+        "    : new Elysia();",
+        "});",
+        "",
+        "const app = new Elysia()",
+        "  .use(guard)",
+        '  .get("/api/health", () => "ok")',
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: generated source text
+        "  .use(await furin({ pagesDir: `${import.meta.dir}/pages` }));",
+        "",
+        "export default app;",
+        "",
+      ].join("\n")
+    );
+    await buildApp({ rootDir: app.path, target: "vercel" });
+    const handlerUrl = pathToFileURL(
+      join(app.path, ".vercel/output/functions/__server.func/handler.js")
+    ).href;
+    const run = async (guard: string): Promise<string> => {
+      const child = Bun.spawn(
+        [
+          process.execPath,
+          "-e",
+          `const handler = await import(${JSON.stringify(handlerUrl)}).then(
+            (module) => module.default,
+            (error) => {
+              console.log("__FURIN_RESULT__import-rejected:" + error.message);
+              process.exit(0);
+            }
+          );
+          const response = await handler.fetch(new Request("http://furin.test/api/health"));
+          console.log("__FURIN_RESULT__" + response.status);
+          process.exit(0);`,
+        ],
+        {
+          cwd: app.path,
+          env: { ...process.env, FURIN_TEST_GUARD: guard },
+          stderr: "pipe",
+          stdout: "pipe",
+        }
+      );
+      const [stdout, stderr] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited,
+      ]);
+      const result = stdout.split("\n").find((line) => line.startsWith("__FURIN_RESULT__"));
+      if (result === undefined) {
+        throw new Error(`Generated handler did not report a result:\n${stdout}\n${stderr}`);
+      }
+      return result.slice("__FURIN_RESULT__".length);
+    };
+
+    expect(await run("deny")).toBe("401");
+    expect(await run("reject")).toBe("import-rejected:guard plugin failed");
+  });
+
   test("treats a root requestLoader as PPR without running it during the build", async () => {
     const app = createVercelApp();
     const rootPath = join(app.path, "src/pages/root.tsx");
@@ -362,6 +435,15 @@ export const route = defineRoute()
     );
     expect(config.chain.outputPath).toBe("__server");
     expect(config.initialHeaders["content-type"]).toContain("application/x-nextjs-pre-render");
+    expect(config.allowQuery).toEqual(["__furin_path"]);
+    const search = JSON.parse(
+      readFileSync(
+        join(app.path, ".vercel/output/functions/search-isr.prerender-config.json"),
+        "utf8"
+      )
+    );
+    expect(search.chain.outputPath).toBe("__server");
+    expect(search.allowQuery).toEqual(["__furin_path", "q"]);
   });
 
   test("rejects a custom page cache instead of combining it with Vercel caching", async () => {
@@ -377,7 +459,7 @@ export const route = defineRoute()
         )
     );
     await expect(buildApp({ rootDir: app.path, target: "vercel" })).rejects.toThrow(
-      "pageCache cannot be configured with the Vercel target"
+      'pageCache cannot be configured with the "vercel" adapter'
     );
   });
 
@@ -409,8 +491,7 @@ export const route = defineRoute()
         app.path,
         `src/pages/blog/${name}.tsx`,
         `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "../root";
-export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" })
+export const route = defineRoute("/blog/${name}").config({ mode: "${mode}" })
   ${mode === "isr" ? '.requestLoader(({ cookies }) => ({ user: cookies.get("session") }))' : ""}
   .page(() => <main>${name}</main>);`
       );
@@ -435,6 +516,8 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" }
   test("keeps prefixed apps and their CDN assets isolated", (done) => {
     async function runScenario(): Promise<void> {
       const app = createVercelApp();
+      cpSync(join(app.path, "src/pages"), join(app.path, "src/admin"), { recursive: true });
+      keyPagesForPrefix(app.path, "src/admin", "/admin");
       writeAppFile(
         app.path,
         "src/server.ts",
@@ -444,7 +527,7 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" }
           "",
           "const app = new Elysia()",
           '  .use(await furin({ pagesDir: "./src/pages" }))',
-          '  .use(await furin({ pagesDir: "./src/pages", prefix: "/admin" }));',
+          '  .use(await furin({ pagesDir: "./src/admin", prefix: "/admin" }));',
           "",
           "if (import.meta.main) {",
           "  app.listen(3000);",
@@ -458,7 +541,7 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" }
       await buildApp({
         apps: [
           { pagesDir: "src/pages", prefix: "" },
-          { pagesDir: "src/pages", prefix: "/admin" },
+          { pagesDir: "src/admin", prefix: "/admin" },
         ],
         rootDir: app.path,
         target: "vercel",
@@ -509,19 +592,17 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" }
     for (const name of ["tagged", "untagged"]) {
       writeAppFile(app.path, `src/pages/blog/${name}.tsx`,
         `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "../root";
-export const route = defineRoute().config({ layout: rootRoute, mode: "ssg", tags: ${name === "tagged" ? '["specific"]' : "[]"} }).page(() => <main>${name}</main>);`);
+export const route = defineRoute("/blog/${name}").config({ mode: "ssg", tags: ${name === "tagged" ? '["specific"]' : "[]"} }).page(() => <main>${name}</main>);`);
     }
     writeAppFile(
       app.path,
       "src/pages/index.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
         "let renderCount = 0;",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssg" })',
+        "export const route = defineRoute(\"/\")",
+        '  .config({ mode: "ssg" })',
         "  .loader(() => ({ renderCount: ++renderCount }))",
         '  .page(({ renderCount }) => <main>SSG render {renderCount}</main>);',
         "",
@@ -532,11 +613,10 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "ssg", tags
       "src/pages/news.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
         "let renderCount = 0;",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "isr", revalidate: 90, tags: ["news,world"] })',
+        "export const route = defineRoute(\"/news\")",
+        '  .config({ mode: "isr", revalidate: 90, tags: ["news,world"] })',
         "  .loader(() => ({ renderCount: ++renderCount }))",
         '  .page(({ renderCount }) => <main>ISR render {renderCount}</main>);',
         "",
@@ -547,9 +627,8 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "ssg", tags
       "src/pages/flight.tsx",
       `import { defineRoute } from "@teyik0/furin";
 import { renderServerComponent } from "@teyik0/furin/rsc";
-import { route as rootRoute } from "./root";
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("/flight")
+  .config({ mode: "ssr" })
   .loader(async () => ({ article: await renderServerComponent(<h1>Flight article</h1>) }))
   .page(({ article }) => <main>{article}</main>);`
     );
@@ -558,13 +637,12 @@ export const route = defineRoute()
       "src/pages/account.tsx",
       `import { defineRoute } from "@teyik0/furin";
 import { Suspense, use } from "react";
-import { route as rootRoute } from "./root";
 let calls = 0;
 function User({ data }: { data: Promise<unknown> }) {
   return <strong>{String(use(data))}</strong>;
 }
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 60, tags: ["news,world"] })
+export const route = defineRoute("/account")
+  .config({ mode: "isr", revalidate: 60, tags: ["news,world"] })
   .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
   .loader(() => ({ count: ++calls }))
   .page(({ count, user }) => <main>public:{count}<Suspense fallback="loading"><User data={user} /></Suspense></main>);`
@@ -584,7 +662,7 @@ export const route = defineRoute()
     expect(serverInputs.some((path) => path.endsWith("/src/build/hydrate.ts"))).toBe(true);
     expect(serverInputs.some((path) => path.endsWith("/plugin/transform-client.ts"))).toBe(false);
     expect(
-      serverInputs.some((path) => path.endsWith("/plugin/route-config-autofix.ts"))
+      serverInputs.some((path) => path.endsWith("/plugin/route-config.ts"))
     ).toBe(false);
     expect(
       serverInputs.some((path) => path.endsWith("/server/dev-page-plugin.ts"))
@@ -630,21 +708,21 @@ export const route = defineRoute()
       }));
       const fallbackResumeBody = await fallbackResume.text();
       const flight = await handler.fetch(new Request("http://furin.test/flight"));
-      const flightData = await handler.fetch(new Request("http://furin.test/_furin/data?path=/flight"));
+      const flightData = await handler.fetch(new Request("http://furin.test/flight?_furin=data"));
       const api = await handler.fetch(new Request("http://furin.test/api/health"));
       const renderer = await handler.fetch(new Request("http://furin.test/api/renderer"));
-      const tagged = await handler.fetch(new Request("http://furin.test/_furin/data?path=/blog/tagged"));
-      const untagged = await handler.fetch(new Request("http://furin.test/_furin/data?path=/blog/untagged"));
+      const tagged = await handler.fetch(new Request("http://furin.test/blog/tagged?_furin=data"));
+      const untagged = await handler.fetch(new Request("http://furin.test/blog/untagged?_furin=data"));
       const injected = await handler.fetch(new Request("http://furin.test/api/health?__furin_path=/news"));
       const ssgFirst = await handler.fetch(new Request("http://furin.test/index-ssg?__furin_path=/"));
       const ssgSecond = await handler.fetch(new Request("http://furin.test/index-ssg?__furin_path=/"));
       const offers = await handler.fetch(new Request("http://furin.test/offers-ssg?__furin_path=/offers&coupon=SALE"));
-      const data = await handler.fetch(new Request("http://furin.test/_furin/data?path=%2F"));
+      const data = await handler.fetch(new Request("http://furin.test/?_furin=data"));
       const accountFirst = await handler.fetch(new Request("http://furin.test/account", { headers: { cookie: "session=alice" } }));
       const accountFirstBody = await accountFirst.text();
       const accountSecond = await handler.fetch(new Request("http://furin.test/account", { headers: { cookie: "session=bob" } }));
       const accountSecondBody = await accountSecond.text();
-      const accountData = await handler.fetch(new Request("http://furin.test/_furin/data?path=/account"));
+      const accountData = await handler.fetch(new Request("http://furin.test/account?_furin=data"));
       const { parseDeferredNdjson } = await import(${JSON.stringify(pathToFileURL(join(import.meta.dir, "../../../src/shared/deferred-ndjson.ts")).href)});
       const accountDataCount = (await parseDeferredNdjson(accountData.body, undefined)).syncData.count;
       const tagInvalidation = await handler.fetch(new Request("http://furin.test/api/revalidate-tag", { method: "POST" }));

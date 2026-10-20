@@ -23,14 +23,9 @@ export {
 } from "./client/hmr.ts";
 export { useMutation } from "./client/mutation.ts";
 export { useQuery } from "./client/query.tsx";
+export type { LiveQuery } from "./client/query-store.ts";
 export { getRouteApi } from "./client/route-api.tsx";
-export {
-  createClient,
-  type OptimisticCache,
-  type SyncCallOptions,
-  type SyncClientOptions,
-  withSync,
-} from "./client/sync.ts";
+export { furinSync, type OptimisticCache, type SyncCallOptions } from "./client/sync.ts";
 export { Await, useAsyncError, useAsyncValue } from "./shared/await.tsx";
 
 export { type DeferredData, defer, isDeferred } from "./shared/defer.ts";

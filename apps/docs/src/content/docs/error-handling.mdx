@@ -7,7 +7,7 @@ Furin separates unexpected failures from expected missing content:
 
 Both conventions are scoped by directory. The nearest authored boundary wins, and a boundary failure bubbles to the next parent boundary.
 
-These page conventions return HTML or Furin's navigation transport. For JSON APIs, use Elysia 2's `problem()` and class-based `.error(ErrorClass, handler)` APIs so failures follow RFC 9457 and Eden can infer each error response:
+These page conventions return HTML or Furin's navigation transport. For JSON APIs, use Elysia 2's `problem()` and class-based `.onError(ErrorClass, handler)` APIs so failures follow RFC 9457 and Eden can infer each error response:
 
 ```ts
 import { Elysia } from "elysia";
@@ -15,7 +15,7 @@ import { Elysia } from "elysia";
 class PostUnavailable extends Error {}
 
 export const postsApi = new Elysia()
-  .error(PostUnavailable, ({ problem }) =>
+  .onError(PostUnavailable, ({ problem }) =>
     problem(503, { detail: "Posts are temporarily unavailable" })
   )
   .get("/posts/:id", ({ params, problem }) => {
@@ -62,7 +62,21 @@ return { content };
 
 The nearest `error.tsx` handles this failure, including a 404 API response. Use `notFound()` when the page itself should render `not-found.tsx`. Failed ISR renders are not cached.
 
-Without an authored boundary, Furin renders its built-in safe error screen. If the root document itself cannot render, a framework-owned minimal document is the last resort.
+Without an authored boundary, Furin renders its built-in safe error screen inside the root layout. If the root document itself cannot render, a framework-owned minimal document is the last resort.
+
+## Boundary Scope
+
+A directory's `error.tsx` and `not-found.tsx` render inside that directory's layout. They handle failures of the directory's pages and deeper layouts, but not of the layout beside them: when `blog/_route.tsx` fails, the boundary in the parent directory handles it. This is the `error.tsx` scope of the Next.js App Router.
+
+| What failed | What renders |
+|---|---|
+| A page loader, `head()` or `notFound()` in a page | The nearest boundary, inside every layout above it |
+| A layout loader | The nearest boundary in a parent directory, inside the layouts above it |
+| The root loader, or the document shell during rendering | The root `error.tsx` / `not-found.tsx` inside the framework's minimal document |
+
+The root boundary also handles any failure that no deeper boundary declares, inside the root layout. A shell render failure cannot be traced to one segment, so the server and the client both render it as a root failure.
+
+The layouts that stay rendered keep their loader data. Furin does not rerun their loaders, and failed loaders and their descendants do not contribute data. Hydration and client navigation render the same tree as the server. For an unmatched URL, a root layout that depends on an unexecuted loader is skipped.
 
 ## Not Found
 
@@ -83,13 +97,12 @@ export default function BlogNotFound({ error }: NotFoundProps) {
 Trigger it from a loader when the URL matches a page but its resource does not exist:
 
 ```tsx
+// src/pages/blog/[slug].tsx
 import { defineRoute, notFound } from "@teyik0/furin";
 import { t } from "elysia";
-import { route as parentRoute } from "./_route";
 
-export const route = defineRoute()
+export const route = defineRoute("/blog/[slug]")
   .config({
-    layout: parentRoute,
     mode: "ssr",
     params: t.Object({ slug: t.String() }),
   })

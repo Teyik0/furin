@@ -19,9 +19,8 @@ test("editing a server-only composite helper refreshes cached SSG content withou
       'import { defineRoute } from "@teyik0/furin";',
       'import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";',
       'import { ServerCard } from "../components/server-card";',
-      'import { route as rootRoute } from "./root";',
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssg" })',
+      'export const route = defineRoute("/")',
+      '  .config({ mode: "ssg" })',
       "  .loader(async () => ({ card: await createCompositeComponent(() => <ServerCard />) }))",
       "  .page(({ card }) => <CompositeComponent src={card} />);",
     ].join("\n")

@@ -3,11 +3,18 @@
 import "@teyik0/furin/routes";
 
 declare module "@teyik0/furin/routes" {
-  interface RouteMap {
-    "/": typeof import("./src/pages/index").route;
+  interface FileRoutes {
+    "/": {
+      kind: "page";
+      pattern: "/";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: {};
+    };
   }
+}
 
-  interface RoutePatternMap {
+declare module "@teyik0/furin/routes" {
+  interface RouteMap {
     "/": typeof import("./src/pages/index").route;
   }
 }

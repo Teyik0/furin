@@ -244,7 +244,7 @@ interface DefaultErrorScreenProps {
   reset: () => void;
 }
 
-export function DefaultErrorScreen({ message, digest, reset }: DefaultErrorScreenProps) {
+function DefaultErrorScreen({ message, digest, reset }: DefaultErrorScreenProps) {
   return (
     // react-doctor-disable-next-line react-doctor/design-no-em-dash-in-jsx-text
     <ScreenFrame badge={<div style={BADGE_STYLE}>500 — ERROR</div>}>
@@ -274,7 +274,7 @@ interface DefaultNotFoundScreenProps {
   message: string | undefined;
 }
 
-export function DefaultNotFoundScreen({ message }: DefaultNotFoundScreenProps) {
+function DefaultNotFoundScreen({ message }: DefaultNotFoundScreenProps) {
   return (
     // react-doctor-disable-next-line react-doctor/design-no-em-dash-in-jsx-text
     <ScreenFrame badge={<div style={BADGE_STYLE}>404 — NOT FOUND</div>}>

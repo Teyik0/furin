@@ -1,4 +1,4 @@
-const REGEX_SPECIAL_CHARACTERS_RE = /[.*+?^${}()|[\]\\]/g;
+import { escapeRegExp } from "../server/router/patterns.ts";
 
 export interface VirtualBuildEntry {
   entrypoint: string;
@@ -12,9 +12,7 @@ export function createVirtualBuildEntry(
   loader: Bun.Loader
 ): VirtualBuildEntry {
   const normalizedEntrypoint = entrypoint.replaceAll("\\", "/");
-  const entrypointFilter = new RegExp(
-    `^${normalizedEntrypoint.replace(REGEX_SPECIAL_CHARACTERS_RE, "\\$&")}$`
-  );
+  const entrypointFilter = new RegExp(`^${escapeRegExp(normalizedEntrypoint)}$`);
   return {
     entrypoint: normalizedEntrypoint,
     files: { [normalizedEntrypoint]: source },

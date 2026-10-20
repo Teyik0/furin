@@ -12,7 +12,7 @@
  * Usage : bun packages/core/tests/bench/params-validation.bench.ts
  */
 
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Elysia, t } from "elysia";
 import type { FurinOptions } from "../../src/furin.ts";
@@ -68,6 +68,8 @@ const withoutSchemaApp = new Elysia().get("/x/:id", ({ params }) => params.id);
 const benchTmpDir = join(import.meta.dir, "../../.tmp-tests");
 mkdirSync(benchTmpDir, { recursive: true });
 const benchRoot = mkdtempSync(join(benchTmpDir, "furin-bench-"));
+// Benches run as plain scripts (not bun test), where "exit" does fire.
+process.on("exit", () => rmSync(benchRoot, { force: true, recursive: true }));
 const pagesDir = join(benchRoot, "pages");
 mkdirSync(join(pagesDir, "posts"), { recursive: true });
 
@@ -83,10 +85,9 @@ writeFileSync(
   join(pagesDir, "posts/[id].tsx"),
   `import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
-import { route as rootRoute } from "../root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr", params: t.Object({ id: t.String() }) })
+export const route = defineRoute("/posts/[id]")
+  .config({ mode: "ssr", params: t.Object({ id: t.String() }) })
   .loader(({ params }) => ({ id: params.id }))
   .page(({ id }) => id);
 `
@@ -94,10 +95,9 @@ export const route = defineRoute()
 writeFileSync(
   join(pagesDir, "index.tsx"),
   `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("/")
+  .config({ mode: "ssr" })
   .page(() => "home");
 `
 );

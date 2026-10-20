@@ -26,7 +26,7 @@ export function devtoolsEventsSnapshot(instance?: FurinInstance): {
   events: DevtoolsServerEvent[];
   lastEventId: number;
 } {
-  const hub = instanceDevtoolsHub(instance);
+  const hub = instanceDevtoolsHub(instance ?? currentInstance());
   return { events: [...hub.events], lastEventId: hub.sequence };
 }
 
@@ -35,7 +35,7 @@ export function subscribeDevtoolsEventsAfter(
   listener: (event: DevtoolsServerEvent) => void,
   instance?: FurinInstance
 ): { replay: DevtoolsServerEvent[]; unsubscribe: () => void } {
-  const hub = instanceDevtoolsHub(instance);
+  const hub = instanceDevtoolsHub(instance ?? currentInstance());
   hub.listeners.add(listener);
   return {
     replay: hub.events.filter((event) => event.id > cursor),
@@ -46,7 +46,7 @@ export function subscribeDevtoolsEventsAfter(
 }
 
 export function appendDevtoolsEvent(event: DevtoolsServerEventInput): DevtoolsServerEvent {
-  const hub = instanceDevtoolsHub();
+  const hub = instanceDevtoolsHub(currentInstance());
   hub.sequence += 1;
   const complete = {
     ...event,

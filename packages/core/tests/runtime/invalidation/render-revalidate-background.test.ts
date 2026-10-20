@@ -1,9 +1,7 @@
-import { expect, test } from "bun:test";
+import { afterAll, expect, test } from "bun:test";
 import { join } from "node:path";
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
-import "../../setup/evlog-mock";
-
 import {
   __resetCacheState,
   isrCache,
@@ -13,8 +11,11 @@ import {
 import { handleISR } from "../../../src/server/render/index.ts";
 import { scanPages } from "../../../src/server/router/discovery.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
-import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { notFound } from "../../../src/shared/not-found.ts";
+
+const originalDevMode = IS_DEV;
+afterAll(() => __setDevMode(originalDevMode));
 
 function createMockLoaderContext(overrides: Partial<Context>): Context {
   return {
@@ -93,7 +94,12 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
   const isrRoute: ResolvedRoute = { ...matchedIsrRoute, mode: "isr" };
 
   let staleHtml = "<html>stale-redirect</html>";
-  isrCache.set("/isr-page/redirect", { generatedAt: 0, html: staleHtml, revalidate: 60 });
+  isrCache.set("/isr-page/redirect", {
+    generatedAt: 0,
+    html: staleHtml,
+    ndjson: "{}\n",
+    revalidate: 60,
+  });
   let revalidationAttempts = 0;
   let route = createISRRoute(isrRoute, {
     loader: () => {
@@ -115,7 +121,12 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
 
   __resetCacheState();
   staleHtml = "<html>stale-error</html>";
-  isrCache.set("/isr-page/error", { generatedAt: 0, html: staleHtml, revalidate: 60 });
+  isrCache.set("/isr-page/error", {
+    generatedAt: 0,
+    html: staleHtml,
+    ndjson: "{}\n",
+    revalidate: 60,
+  });
   revalidationAttempts = 0;
   route = createISRRoute(isrRoute, {
     loader: () => {
@@ -137,7 +148,12 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
 
   __resetCacheState();
   staleHtml = "<html>stale-not-found</html>";
-  isrCache.set("/isr-page/not-found", { generatedAt: 0, html: staleHtml, revalidate: 60 });
+  isrCache.set("/isr-page/not-found", {
+    generatedAt: 0,
+    html: staleHtml,
+    ndjson: "{}\n",
+    revalidate: 60,
+  });
   route = createISRRoute(isrRoute, {
     loader: () => notFound({ message: "gone" }),
     pattern: "/isr-page/not-found",
@@ -164,7 +180,7 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
   const cacheKey = "/isr-page/race";
   const gate = createDeferred();
   let loaderReleased = false;
-  isrCache.set(cacheKey, { generatedAt: 0, html: staleHtml, revalidate: 60 });
+  isrCache.set(cacheKey, { generatedAt: 0, html: staleHtml, ndjson: "{}\n", revalidate: 60 });
   revalidationAttempts = 0;
   route = createISRRoute(isrRoute, {
     loader: async () => {
@@ -265,7 +281,12 @@ async function runNotFoundGenerationRace(source: "head" | "loader"): Promise<voi
       pattern: cacheKey,
     }
   );
-  isrCache.set(cacheKey, { generatedAt: 0, html: "<html>old</html>", revalidate: 60 });
+  isrCache.set(cacheKey, {
+    generatedAt: 0,
+    html: "<html>old</html>",
+    ndjson: "{}\n",
+    revalidate: 60,
+  });
   let freshHtml: string | undefined;
   try {
     await handleISR(oldRoute, createMockLoaderContext({ path: cacheKey }), root, "");

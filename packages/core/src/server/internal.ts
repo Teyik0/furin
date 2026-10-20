@@ -13,6 +13,7 @@ import {
 import { setRuntimeEvlogWaitUntil as installRuntimeEvlogWaitUntil } from "./evlog.ts";
 import { markExternalPrerenderRequest as markExternalPrerender } from "./external-prerender.ts";
 import { __clearInstanceRegistry } from "./instance.ts";
+import { type AppPrerender, collectPrerenders as collect } from "./prerender.ts";
 import { restorePprResumeRequest as restoreResumeRequest } from "./render/ppr-request.ts";
 
 // ── Compile-time context for compiled binaries ──────────────────────────────
@@ -25,6 +26,43 @@ export interface EmbeddedAppData {
   publicDir?: string;
 }
 
+/** Namespace of a bundled page, layout or convention module. */
+export interface CompiledModule {
+  /** Convention component (`error.tsx`, `not-found.tsx`). */
+  readonly default?: unknown;
+  /** `defineRoute(id)` export of a page or layout. */
+  readonly route?: unknown;
+}
+
+/**
+ * What a deployment platform provides. Adapters declare these once; the build
+ * and the production runtime read them instead of naming a platform.
+ */
+export interface AdapterCapabilities {
+  /**
+   * Who serves `/_client/*` and `public/` files: Furin from disk, Furin from
+   * files embedded in a standalone executable, or the platform before
+   * requests reach Elysia.
+   */
+  readonly assets: "filesystem" | "embedded" | "platform";
+  /**
+   * Who caches public SSG, ISR and PPR pages: Furin (process memory or
+   * `furin({ pageCache })`) or the platform's own cache.
+   */
+  readonly publicCache: "framework" | "platform";
+  /**
+   * Whether requests arrive through `Bun.serve()`, so browser events can
+   * upgrade to a WebSocket. Platforms invoking `app.handle(Request)` use SSE.
+   */
+  readonly websocket: boolean;
+}
+
+/** Deployment adapter a production build was made for. */
+export interface CompileContextAdapter {
+  readonly capabilities: AdapterCapabilities;
+  readonly name: string;
+}
+
 export interface CompileContextRoute {
   mode: "ssr" | "ssg" | "isr";
   path: string;
@@ -32,15 +70,16 @@ export interface CompileContextRoute {
 }
 
 export interface CompileContext {
+  /** Absent when the host application owns deployment (package builds). */
+  adapter?: CompileContextAdapter;
   buildId?: string;
   /** Runtime directory containing this app's disk-served client assets. */
   clientDir?: string;
   /** Whether the emitted hydration client sends browser log batches. */
   clientLogging?: boolean;
-  /** Deployment adapter that owns public page caching for this build. */
-  deploymentTarget?: "vercel";
   embedded?: EmbeddedAppData;
-  modules: Record<string, unknown>;
+  /** Bundled route modules, keyed by their absolute posix source path. */
+  modules: { readonly [path: string]: CompiledModule };
   /** Elysia-native route tree generated for this mounted app. */
   nativeRoutes?: AnyElysia;
   /** Mount prefix this app was built for (`""` = root). */
@@ -65,8 +104,6 @@ export interface CompileContext {
     }
   >;
   routes: CompileContextRoute[];
-  /** False when a deployment platform serves client/public assets before Elysia. */
-  serveAssets?: boolean;
   ssgCache?: Record<string, SsgCacheEntry>;
   /** Production HTML template embedded by filesystem-free deployment adapters. */
   templateHtml?: string;
@@ -95,6 +132,11 @@ export function setCacheTagPurger(purger: (tags: string[]) => Promise<void>): vo
 }
 
 export const restorePprResumeRequest = restoreResumeRequest;
+
+/** Build-time prerender pass, run by the build inside the production bundle. */
+export function collectPrerenders(render: boolean): Promise<AppPrerender[]> {
+  return collect(render);
+}
 
 // Contexts are keyed by (pagesDir, prefix) — pagesDir being the directory
 // containing root.tsx, normalized to posix separators. The SAME pagesDir may
@@ -126,68 +168,30 @@ export function __setCompileContext(ctx: CompileContext): void {
 }
 
 /**
- * Looks up the compile context for a (pagesDir, prefix) mount. Resolution
- * order, from most to least specific:
- * 1. exact (pagesDir, prefix) key — distinguishes the same app mounted twice;
- * 2. sole context registered for `pagesDir` — callers that don't pass a
- *    prefix, and contexts emitted before the prefix field existed;
- * 3. sole context registered for `prefix` — deployed binaries run from a
- *    different cwd than the build, so the absolute pagesDir key misses there,
- *    but the mount prefix is stable across machines;
- * 4. the sole registered context (single-app back-compat).
+ * Looks up the compile context of a mount. The declared prefix is the mount's
+ * build-time identity and is stable across machines, while the absolute
+ * pagesDir differs once a binary runs from another cwd: a sole context for
+ * the prefix answers, and pagesDir only disambiguates independent apps that
+ * share a prefix. A context built for another prefix never answers.
+ *
+ * Without a mount, route discovery resolves absolute module paths through the
+ * module table of the sole compiled app, if exactly one is registered.
  */
 export function getCompileContext(pagesDir?: string, prefix?: string): CompileContext | null {
-  if (pagesDir !== undefined) {
-    const dir = normalizeContextKey(pagesDir);
-    if (prefix !== undefined) {
-      const exact = _compileContexts.get(contextKey(dir, prefix));
-      if (exact) {
-        return exact;
-      }
-    }
-    const dirMatch = soleContextForPagesDir(dir);
-    if (dirMatch) {
-      return dirMatch;
-    }
+  if (pagesDir === undefined || prefix === undefined) {
+    return _compileContexts.size === 1 ? (_compileContexts.values().next().value ?? null) : null;
   }
-  if (prefix !== undefined) {
-    const prefixMatch = contextForPrefix(prefix);
-    if (prefixMatch) {
-      return prefixMatch;
-    }
+  const candidates = [..._compileContexts.values()].filter((ctx) => (ctx.prefix ?? "") === prefix);
+  if (candidates.length <= 1) {
+    return candidates[0] ?? null;
   }
-  if (_compileContexts.size === 1) {
-    return _compileContexts.values().next().value ?? null;
+  const exact = _compileContexts.get(contextKey(normalizeContextKey(pagesDir), prefix));
+  if (exact) {
+    return exact;
   }
-  return null;
-}
-
-/**
- * The sole context registered for `dir`, or null when none matches — or when
- * SEVERAL do (the same pagesDir mounted at two prefixes): guessing there
- * would hand one mount the other's assets/build ID.
- */
-function soleContextForPagesDir(dir: string): CompileContext | null {
-  let match: CompileContext | null = null;
-  for (const ctx of _compileContexts.values()) {
-    if (pagesDirOf(ctx) !== dir) {
-      continue;
-    }
-    if (match) {
-      return null;
-    }
-    match = ctx;
-  }
-  return match;
-}
-
-function contextForPrefix(prefix: string): CompileContext | null {
-  for (const ctx of _compileContexts.values()) {
-    if ((ctx.prefix ?? "") === prefix) {
-      return ctx;
-    }
-  }
-  return null;
+  throw new Error(
+    `[furin] ${candidates.length} compiled apps are registered for prefix ${JSON.stringify(prefix || "/")} and none was built from ${JSON.stringify(pagesDir)}. Mount each compiled app with the pagesDir it was built from.`
+  );
 }
 
 /** All registered contexts, keyed by the composite (pagesDir, prefix) key. */

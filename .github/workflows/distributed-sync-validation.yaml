@@ -13,6 +13,7 @@ jobs:
     env:
       FURIN_SYNC_POSTGRES_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
       FURIN_SYNC_REDIS_URL: redis://127.0.0.1:6379
+      FURIN_PAGE_CACHE_REDIS_URL: redis://127.0.0.1:6379
     # Digest update process: review both upstream releases, update both digests together,
     # and run this workflow through CI before merging.
     # The public Docker Official Images mirror avoids Docker Hub anonymous pull quotas.
@@ -51,7 +52,7 @@ jobs:
       - name: Setup bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
-          bun-version: latest
+          bun-version-file: .bun-version
 
       - name: Install packages
         run: bun install --frozen-lockfile
@@ -59,8 +60,15 @@ jobs:
       - name: Generate Prisma test client
         run: bun run --cwd packages/core generate:sync-prisma
 
+      # Run from packages/core so its bunfig (test root and preload) applies.
       - name: Test PostgreSQL adapters and atomic mutations
-        run: bun test --isolate packages/core/tests/client/sync/adapters/postgres-sync-adapter.test.ts packages/core/tests/client/sync/atomic-postgres-sync.test.ts
+        working-directory: packages/core
+        run: bun test --isolate tests/client/sync/adapters/postgres-sync-adapter.test.ts tests/client/sync/atomic-postgres-sync.test.ts
 
       - name: Test Redis adapter and notifier
-        run: bun test packages/core/tests/client/sync/adapters/redis-sync.test.ts
+        working-directory: packages/core
+        run: bun test tests/client/sync/adapters/redis-sync.test.ts
+
+      - name: Test principal journal recovery and shared Redis page cache
+        working-directory: packages/core
+        run: bun test --isolate tests/runtime/sync/principal-journal.integration.test.ts tests/runtime/cache/redis-page-cache.test.ts

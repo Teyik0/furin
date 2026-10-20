@@ -1,4 +1,4 @@
-import { allStateBuckets, type FurinInstance, instanceSlot } from "../instance.ts";
+import { allStateBuckets, currentInstance, type FurinInstance, instanceSlot } from "../instance.ts";
 import { createHtmlRouteCache, type ISRCacheEntry } from "./isr-ssg";
 import { registerCacheInvalidator } from "./registry";
 import type { Cache, CacheGeneration } from "./route-cache";
@@ -21,32 +21,32 @@ const instanceIsrCache = instanceSlot<ISRCacheState>((instance) => {
 });
 
 export function isrRouteCache(instance?: FurinInstance): Cache<ISRCacheEntry> {
-  return instanceIsrCache(instance).cache;
+  return instanceIsrCache(instance ?? currentInstance()).cache;
 }
 
 /** Raw store view over the current instance's ISR cache. */
 export const isrCache: StoreView<ISRCacheEntry> = createStoreView(
-  () => instanceIsrCache().cache.store
+  () => instanceIsrCache(currentInstance()).cache.store
 );
 
 export function getISRCache(key: string): ISRCacheEntry | undefined {
-  return instanceIsrCache().cache.get(key);
+  return instanceIsrCache(currentInstance()).cache.get(key);
 }
 
 export function deleteISRCache(key: string): boolean {
-  return instanceIsrCache().cache.delete(key);
+  return instanceIsrCache(currentInstance()).cache.delete(key);
 }
 
 export function setISRCache(key: string, entry: ISRCacheEntry): void {
-  instanceIsrCache().cache.set(key, entry);
+  instanceIsrCache(currentInstance()).cache.set(key, entry);
 }
 
 export function captureISRCacheGeneration(key: string): ISRCacheGeneration {
-  return instanceIsrCache().cache.captureGeneration(key);
+  return instanceIsrCache(currentInstance()).cache.captureGeneration(key);
 }
 
 export function releaseISRCacheGeneration(key: string, generation: ISRCacheGeneration): void {
-  instanceIsrCache().cache.releaseGeneration(key, generation);
+  instanceIsrCache(currentInstance()).cache.releaseGeneration(key, generation);
 }
 
 export function setISRCacheIfGenerationUnchanged(
@@ -58,16 +58,16 @@ export function setISRCacheIfGenerationUnchanged(
   if (!generation.valid) {
     return false;
   }
-  instanceIsrCache().cache.set(key, entry);
+  instanceIsrCache(currentInstance()).cache.set(key, entry);
   return true;
 }
 
 export function pendingISRRevalidations(): Map<string, Promise<void>> {
-  return instanceIsrCache().pendingRevalidations;
+  return instanceIsrCache(currentInstance()).pendingRevalidations;
 }
 
 export function clearPendingISRRevalidations(instance?: FurinInstance): void {
-  instanceIsrCache(instance).pendingRevalidations.clear();
+  instanceIsrCache(instance ?? currentInstance()).pendingRevalidations.clear();
 }
 
 export function hasPendingISRRevalidations(): boolean {

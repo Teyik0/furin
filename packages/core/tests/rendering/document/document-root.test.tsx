@@ -33,10 +33,9 @@ export const route = defineRootRoute()
 function pageSource(component: string, head: string | undefined): string {
   const headStep = head === undefined ? "" : `\n  .head(${head})`;
   return `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("/")
+  .config({ mode: "ssr" })
   .loader(() => ({}))${headStep}
   .page(() => (${component}));
 `;

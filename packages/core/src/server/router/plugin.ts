@@ -1,57 +1,40 @@
-import { type AnyElysia, type Context, Elysia, problem } from "elysia";
+import type { Context } from "elysia";
 import { toCrossJSONAsync } from "seroval";
+import type { RuntimeData } from "../../client/internal/runtime-types.ts";
+import { toLogical } from "../../client/router/link-utils.ts";
 import type { HeadOptions } from "../../client.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
-import type { FurinSchema } from "../../shared/elysia-contract.ts";
-import { physicalPath } from "../../shared/prefix.ts";
-import { containsRscSource } from "../../shared/route-frame.ts";
+import { isWithinPrefix } from "../../shared/prefix.ts";
+import { containsRscSource, isRouteFrameLine } from "../../shared/route-frame.ts";
+import { failRouteMatches, loaderFailureIndex } from "../../shared/route-matches.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
-import { getLogger } from "../context-logger.ts";
 import {
   currentInstrumentationRequest,
   emitPayloadSerialized,
 } from "../devtools/instrumentation.ts";
 import { isExternalPrerenderRequest } from "../external-prerender.ts";
-import { currentInstance } from "../instance.ts";
+import { currentInstance, isDevelopment } from "../instance.ts";
 import { injectSyncRuntimeScript, resolvePath } from "../render/assemble.ts";
-import { handleISR } from "../render/isr.ts";
+import { type CachedRouteData, handleISR, handleISRData } from "../render/isr.ts";
 import {
   hasMixedLoaderModes,
-  hasRequestLoader,
   type LoaderResult,
   runLoaders,
   runMixedLoaders,
   runPublicLoaders,
-  withRequestLoaderData,
 } from "../render/loaders.ts";
-import { renderPprRoute, runPprPublicLoaders } from "../render/ppr-route.ts";
-import { createDeferredRouteFrameStream } from "../render/route-frame-transport.ts";
-import { extractTitle } from "../render/shell.ts";
-import { prerenderRoute, prerenderRuntimeSSG } from "../render/ssg.ts";
-import { renderSSR, serializeLoaderDataNdjson } from "../render/ssr.ts";
-import { IS_DEV } from "../runtime-env.ts";
-import { handleDevRequest, reportDevRouteFailure } from "./hmr.ts";
-import { buildRouteMatcher, resolveDocumentMode, resolveDocumentRevalidate } from "./patterns.ts";
-import { mergeRouteSchemas } from "./schema-merge.ts";
+import { withNavigationHead } from "../render/navigation-head.ts";
+import { type PprShell, renderPprRoute, runPprPublicLoaders } from "../render/ppr-route.ts";
+import { hasRequestLoader, withRequestLoaderData } from "../render/request-loaders.ts";
 import {
-  createSearchRouteMetadata,
-  parseDataEndpointPath,
-  parseRouteParams,
-  parseRouteQuery,
-} from "./schemas.ts";
-import type { ResolvedRoute, ResolvedRoutesSource, RootLayout } from "./types.ts";
-
-const MAX_NAVIGATION_HEAD_BYTES = 64 * 1024;
-
-type DataResolvedRoutesSource =
-  | ResolvedRoutesSource
-  | ((request: Request) => Promise<ResolvedRoute[]>);
-type RefreshDevRoute = (
-  route: ResolvedRoute
-) => Promise<{ route: ResolvedRoute; root: RootLayout }>;
-type DataRouteResolver = (
-  route: ResolvedRoute
-) => Promise<{ route: ResolvedRoute; root: RootLayout | undefined }>;
+  createDeferredRouteFrameStream,
+  serializeLoaderDataNdjson,
+} from "../render/route-frame-transport.ts";
+import { prerenderRoute, prerenderRuntimeSSG } from "../render/ssg.ts";
+import { renderSSR } from "../render/ssr.ts";
+import type { CurrentRoute, PagePorts } from "./dispatch.ts";
+import { resolveDocumentMode, resolveDocumentRevalidate } from "./patterns.ts";
+import type { ResolvedRoute, RootLayout } from "./types.ts";
 
 interface DataRouteParamsInput {
   [key: string]: unknown;
@@ -65,7 +48,7 @@ type SyntheticDataContext = Omit<Context, "params" | "query"> & {
 type RouteDataContext = Pick<SyntheticDataContext, "params" | "path" | "query">;
 
 function emitSerializedPayload(body: string, kind: "route-data" | "rsc", requestUrl: string): void {
-  if (!IS_DEV) {
+  if (!isDevelopment()) {
     return;
   }
   const request = currentInstrumentationRequest();
@@ -81,12 +64,39 @@ function emitSerializedPayload(body: string, kind: "route-data" | "rsc", request
   });
 }
 
-async function runDataEndpointLoaders(
-  route: ResolvedRoute,
+/** Whether a route is partially prerendered: a requestLoader below an SSG or ISR document. */
+export function isPprRoute(route: ResolvedRoute): boolean {
+  return resolveDocumentMode(route) !== "ssr" && hasRequestLoader(route);
+}
+
+/**
+ * A PPR route's shell source, and the route to render it with: the page
+ * cache's, or without one a fresh prerender from the runtime's loader result.
+ */
+async function resolvePprShell(
+  current: CurrentRoute,
   ctx: Context,
-  root: RootLayout | undefined,
-  searchRoutes: SearchRouteMetadata[]
+  purpose: "data" | "document",
+  ports: PagePorts
+): Promise<{ route: ResolvedRoute; source: PprShell }> {
+  if (ports.cache.pages) {
+    return { route: current.route, source: { type: "cached" } };
+  }
+  const publicResult = await ports.cache.loaders(current, ctx, purpose);
+  const route =
+    publicResult === undefined || publicResult.type === "data"
+      ? await ports.modules.render(current.route)
+      : current.route;
+  return { route, source: { publicResult, type: "fresh" } };
+}
+
+async function runDataEndpointLoaders(
+  current: CurrentRoute,
+  ctx: Context,
+  searchRoutes: SearchRouteMetadata[],
+  ports: PagePorts
 ): Promise<LoaderResult> {
+  const { root, route } = current;
   if (hasMixedLoaderModes(route)) {
     return runMixedLoaders(route, ctx);
   }
@@ -94,9 +104,21 @@ async function runDataEndpointLoaders(
     return runLoaders(route, ctx);
   }
 
-  const result = hasRequestLoader(route)
-    ? await runPprPublicLoaders(route, ctx, currentInstance().buildId, root, searchRoutes)
-    : await runPublicLoaders(route, ctx);
+  let result: LoaderResult;
+  if (hasRequestLoader(route)) {
+    const shell = await resolvePprShell(current, ctx, "data", ports);
+    result = await runPprPublicLoaders(
+      shell.route,
+      ctx,
+      currentInstance().buildId,
+      root,
+      searchRoutes,
+      shell.source
+    );
+  } else {
+    result =
+      (await ports.cache.loaders(current, ctx, "data")) ?? (await runPublicLoaders(route, ctx));
+  }
   if (result.type !== "data" || !hasRequestLoader(route)) {
     return result;
   }
@@ -110,23 +132,31 @@ async function serializeLoaderDataResponse(
   routeContext: RouteDataContext
 ): Promise<Response> {
   if (result.type === "redirect") {
-    const { prefix } = currentInstance();
-    const pageUrl = new URL(requestUrl);
-    pageUrl.pathname = physicalPath(prefix, pageUrl.pathname);
-    return serializeNavigationRedirect(result.response, pageUrl, prefix);
+    // The request scope serializes every data redirect, guards' included.
+    return result.response;
   }
   if (result.type === "not-found") {
-    const serialized = await toCrossJSONAsync({
-      __furinNotFound: { data: result.error.data, message: result.error.message },
-      __furinStatus: 404,
-    });
-    return new Response(`${JSON.stringify(serialized)}\n`, {
+    const body = await serializeLoaderDataNdjson(
+      failRouteMatches(result.syncData, loaderFailureIndex(result.syncData), {
+        error: { data: result.error.data, message: result.error.message },
+        status: "notFound",
+      }),
+      result.deferredPromises
+    );
+    return new Response(body, {
       headers: { "content-type": "application/x-ndjson" },
       status: 200,
     });
   }
   if (result.type === "error") {
-    return createRouteDataErrorResponse(result.error, result.message, result.status, routeContext);
+    return createRouteDataErrorResponse(
+      result.error,
+      result.message,
+      result.status,
+      routeContext,
+      result.syncData,
+      result.deferredPromises
+    );
   }
 
   const syncDataWithTitle = withResolvedHead(route, result.syncData);
@@ -152,26 +182,8 @@ async function serializeLoaderDataResponse(
   });
 }
 
-export async function serializeGuardRedirect(
-  response: Response,
-  request: Request
-): Promise<Response> {
-  const location = response.headers.get("location");
-  if (!location) {
-    return response;
-  }
-  const requestUrl = new URL(request.url);
-  const prefix = requestUrl.pathname.slice(0, -"/_furin/data".length);
-  const rawPath = requestUrl.searchParams.get("path");
-  const logicalPath = rawPath ? parseDataEndpointPath(rawPath) : undefined;
-  const pageUrl = logicalPath
-    ? new URL(prefix + logicalPath.pathname + logicalPath.url.search, requestUrl)
-    : requestUrl;
-
-  return await serializeNavigationRedirect(response, pageUrl, prefix);
-}
-
-async function serializeNavigationRedirect(
+/** Encodes a redirect as the navigation payload SPA data requests understand. */
+export async function serializeNavigationRedirect(
   response: Response,
   pageUrl: URL,
   prefix: string
@@ -181,11 +193,9 @@ async function serializeNavigationRedirect(
     return response;
   }
   const target = new URL(location, pageUrl);
-  const withinMount =
-    prefix === "" || target.pathname === prefix || target.pathname.startsWith(`${prefix}/`);
   const href =
-    target.origin === pageUrl.origin && withinMount
-      ? (target.pathname.slice(prefix.length) || "/") + target.search + target.hash
+    target.origin === pageUrl.origin && isWithinPrefix(target.pathname, prefix)
+      ? toLogical(target.pathname, prefix) + target.search + target.hash
       : target.href;
   const serialized = await toCrossJSONAsync({ __furinRedirect: href });
   const headers = new Headers(response.headers);
@@ -208,10 +218,11 @@ function applyNavigationDataCache(
   response: Response,
   result: LoaderResult,
   route: ResolvedRoute,
-  requestUrl: string
+  requestUrl: string,
+  pageCache: boolean
 ): Response {
   const cacheable =
-    !IS_DEV &&
+    pageCache &&
     resolveDocumentMode(route) !== "ssr" &&
     !hasRequestLoader(route) &&
     result.type === "data" &&
@@ -232,94 +243,147 @@ async function createLoaderDataResponse(
   result: LoaderResult,
   route: ResolvedRoute,
   requestUrl: string,
-  routeContext: RouteDataContext
+  routeContext: RouteDataContext,
+  pageCache: boolean
 ): Promise<Response> {
   const response = await serializeLoaderDataResponse(result, route, requestUrl, routeContext);
-  return applyNavigationDataCache(response, result, route, requestUrl);
+  return result.type === "redirect"
+    ? response
+    : applyNavigationDataCache(response, result, route, requestUrl, pageCache);
+}
+
+/**
+ * SSG navigation data from the same cache entry as the document. A loader
+ * failure falls back to the live loader path so the client receives the
+ * regular error payload.
+ */
+async function readSSGRouteData(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout,
+  searchRoutes: SearchRouteMetadata[]
+): Promise<CachedRouteData | undefined> {
+  let runtimeResult: Awaited<ReturnType<typeof prerenderRuntimeSSG>>;
+  try {
+    runtimeResult = await prerenderRuntimeSSG(
+      route,
+      ctx.params ?? {},
+      root,
+      new URL(ctx.request.url).origin,
+      currentInstance().buildId,
+      searchRoutes
+    );
+  } catch {
+    return;
+  }
+  const { cacheStored, entry } = runtimeResult;
+  if (entry instanceof Response) {
+    return { result: { response: entry, type: "redirect" }, type: "loader" };
+  }
+  if (entry.status !== 200) {
+    return;
+  }
+  return {
+    cacheControl: cacheStored ? navigationDataCacheControl(route) : undefined,
+    headers: {},
+    ndjson: entry.ndjson,
+    type: "payload",
+  };
+}
+
+/**
+ * Reads navigation data through the render cache that backs the document, so
+ * SPA navigations to ISR/SSG pages reuse (or populate) the same entry instead
+ * of re-running public loaders. Mirrors `renderResolvedRoute`: SSR documents,
+ * requestLoader (PPR) routes and runtimes without a page cache never take this
+ * path, so private data is never served from a shared entry.
+ */
+function readCachedRouteData(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout,
+  searchRoutes: SearchRouteMetadata[]
+): Promise<CachedRouteData | undefined> | undefined {
+  if (hasRequestLoader(route) || isExternalPrerenderRequest(ctx.request)) {
+    return;
+  }
+  const documentMode = resolveDocumentMode(route);
+  if (documentMode === "isr") {
+    return handleISRData(route, ctx, root, currentInstance().buildId, searchRoutes);
+  }
+  if (documentMode === "ssg") {
+    return readSSGRouteData(route, ctx, root, searchRoutes);
+  }
+}
+
+function cachedRouteDataResponse(
+  payload: Extract<CachedRouteData, { type: "payload" }>,
+  requestUrl: string
+): Response {
+  const firstLine = payload.ndjson.slice(0, payload.ndjson.indexOf("\n"));
+  const headers = new Headers(payload.headers);
+  headers.set(
+    "content-type",
+    isRouteFrameLine(firstLine) ? "application/x-furin-route" : "application/x-ndjson"
+  );
+  if (payload.cacheControl === undefined) {
+    headers.set("cache-control", "private, no-store");
+  } else {
+    headers.set("cache-control", payload.cacheControl);
+    headers.set("cache-tag", new URL(requestUrl).pathname);
+  }
+  return new Response(payload.ndjson, { headers });
 }
 
 /** Serialise navigation data after Elysia has run the matched page's hooks. */
 export async function renderRouteData(
-  route: ResolvedRoute,
+  current: CurrentRoute,
   ctx: Context,
-  root: RootLayout,
   searchRoutes: SearchRouteMetadata[],
-  logicalHref: string
+  logicalHref: string,
+  ports: PagePorts
 ): Promise<Response> {
   const logicalContext = Object.create(ctx, {
     path: { enumerable: true, value: new URL(logicalHref, ctx.request.url).pathname },
   }) as Context;
-  const result = await runDataEndpointLoaders(route, logicalContext, root, searchRoutes);
-  return createLoaderDataResponse(
-    result,
-    route,
-    new URL(logicalHref, ctx.request.url).href,
-    logicalContext
-  );
+  const requestUrl = new URL(logicalHref, ctx.request.url).href;
+  const { root, route } = current;
+  const cached = ports.cache.pages
+    ? await readCachedRouteData(route, logicalContext, root, searchRoutes)
+    : undefined;
+  if (cached?.type === "payload") {
+    return cachedRouteDataResponse(cached, requestUrl);
+  }
+  const result =
+    cached?.result ?? (await runDataEndpointLoaders(current, logicalContext, searchRoutes, ports));
+  return createLoaderDataResponse(result, route, requestUrl, logicalContext, ports.cache.pages);
 }
 
-async function createRouteDataErrorResponse(
+export async function createRouteDataErrorResponse(
   error: unknown,
   message: string,
   status: number,
-  routeContext: RouteDataContext | undefined
+  routeContext: RouteDataContext | undefined,
+  data: RuntimeData | undefined,
+  deferredPromises: { [key: string]: Promise<unknown> } | undefined
 ): Promise<Response> {
-  const __furinError = { digest: computeErrorDigest(error), message, status };
-  const payload = routeContext
-    ? {
-        __furinError,
-        params: routeContext.params,
-        path: routeContext.path,
-        query: routeContext.query,
-      }
-    : { __furinError };
-  const serialized = await toCrossJSONAsync(payload);
-  return new Response(`${JSON.stringify(serialized)}\n`, {
+  const payload = {
+    ...data,
+    ...(routeContext
+      ? { params: routeContext.params, path: routeContext.path, query: routeContext.query }
+      : {}),
+  };
+  const body = await serializeLoaderDataNdjson(
+    failRouteMatches(payload, loaderFailureIndex(payload), {
+      error: { digest: computeErrorDigest(error), message, status },
+      status: "error",
+    }),
+    deferredPromises
+  );
+  return new Response(body, {
     headers: { "content-type": "application/x-ndjson" },
     status,
   });
-}
-
-async function resolveDataRoute(
-  route: ResolvedRoute,
-  resolveRoute: DataRouteResolver
-): Promise<{ route: ResolvedRoute; root: RootLayout | undefined } | Response> {
-  try {
-    return await resolveRoute(route);
-  } catch (error) {
-    getLogger().error(error instanceof Error ? error : new Error(String(error)));
-    if (IS_DEV) {
-      reportDevRouteFailure(error, route);
-    }
-    return createRouteDataErrorResponse(error, "Something went wrong", 500, undefined);
-  }
-}
-
-async function resolveDataRoutes(
-  routesSource: DataResolvedRoutesSource,
-  request: Request
-): Promise<ResolvedRoute[] | Response> {
-  try {
-    return typeof routesSource === "function" ? await routesSource(request) : routesSource;
-  } catch (error) {
-    getLogger().error(error instanceof Error ? error : new Error(String(error)));
-    return createRouteDataErrorResponse(error, "Something went wrong", 500, undefined);
-  }
-}
-
-function resolvedSearchRoutes(
-  routes: ResolvedRoute[],
-  matchedRoute: ResolvedRoute,
-  currentRoute: ResolvedRoute,
-  searchRoutes: SearchRouteMetadata[],
-  refreshDevRoute: RefreshDevRoute | undefined
-): SearchRouteMetadata[] {
-  if (refreshDevRoute === undefined) {
-    return searchRoutes;
-  }
-  return createSearchRouteMetadata(
-    routes.map((route) => (route === matchedRoute ? currentRoute : route))
-  );
 }
 
 /** @internal Handles a production SSG route — sets ETags, Cache-Control, and Cache-Tag. */
@@ -380,209 +444,35 @@ async function handleSSGRequest(
   return injectSyncRuntimeScript(entry.html);
 }
 
-export function createRoutePlugin(
-  route: ResolvedRoute,
-  root: RootLayout,
-  buildId?: string,
-  searchRoutes?: SearchRouteMetadata[]
-): AnyElysia {
-  const resolvedBuildId = buildId ?? "";
-  const { pattern, routeChain } = route;
-
-  // Keep every route-chain schema in Elysia's native merge pipeline so its
-  // coercion and default semantics remain authoritative for document requests.
-  const plugin = routeChain.reduce<AnyElysia>((app, entry) => {
-    if (!(entry.params || entry.query)) {
-      return app;
-    }
-    return app.guard({
-      params: entry.params as FurinSchema,
-      query: entry.query as FurinSchema,
-      schema: "merge",
-    });
-  }, new Elysia());
-
-  plugin.get(pattern, (ctx: Context) =>
-    renderResolvedRoute(route, ctx, root, resolvedBuildId, searchRoutes)
-  );
-
-  return plugin;
-}
-
-export function renderResolvedRoute(
-  route: ResolvedRoute,
+/**
+ * Renders a page document: PPR documents prerendered and resumed, through the
+ * page cache when the runtime has one; SSG and ISR documents through the page
+ * cache too; every other document live with the loader result the runtime's
+ * cache policy supplies.
+ */
+export async function renderResolvedRoute(
+  current: CurrentRoute,
   ctx: Context,
-  root: RootLayout,
   buildId: string,
-  searchRoutes: SearchRouteMetadata[] | undefined
-): unknown {
-  // Dev mode: re-imports page + layouts on every request via the
-  // ?furin-server cache-buster. Only loader output is cached in dev; HTML is
-  // always reassembled with the latest Bun client chunk URL.
-  if (IS_DEV) {
-    return handleDevRequest(route, ctx, root, searchRoutes);
-  }
-
+  searchRoutes: SearchRouteMetadata[] | undefined,
+  ports: PagePorts
+): Promise<unknown> {
+  const { root, route } = current;
   const documentMode = resolveDocumentMode(route);
-  if (documentMode === "ssr") {
-    return renderSSR(route, ctx, root, undefined, searchRoutes);
+  if (isPprRoute(route)) {
+    const shell = await resolvePprShell(current, ctx, "document", ports);
+    return renderPprRoute(shell.route, ctx, root, buildId, searchRoutes, shell.source);
   }
-
-  if (hasRequestLoader(route)) {
-    return renderPprRoute(route, ctx, root, buildId, searchRoutes);
-  }
-
-  if (documentMode === "ssg") {
-    return handleSSGRequest(route, ctx, root, buildId, searchRoutes);
-  }
-
-  if (documentMode === "isr") {
+  if (ports.cache.pages && documentMode !== "ssr") {
+    if (documentMode === "ssg") {
+      return handleSSGRequest(route, ctx, root, buildId, searchRoutes);
+    }
     ctx.set.headers["cache-tag"] = resolvePath(route.pattern, ctx.params ?? {});
     return handleISR(route, ctx, root, buildId, searchRoutes);
   }
-
-  return renderSSR(route, ctx, root, undefined, searchRoutes);
-}
-
-/**
- * Elysia plugin that handles `GET /_furin/data?path=<logicalHref>`.
- *
- * Returns route-frame loader data for successful routes. Deferred routes stream
- * the initial sync frame first, then append one frame batch per settled Promise.
- * SPA navigation calls this endpoint via `parseDeferredNdjson`, which supports
- * both route frames and legacy NDJSON sentinels.
- *
- * Special fields emitted alongside data:
- *   - `__furinStatus: 404` — when the loader called `notFound()`
- *   - `__furinNotFound`    — not-found payload
- *   - `__furinRedirect`    — logical path after a server-side redirect
- */
-export function createDataEndpoint(
-  routesSource: DataResolvedRoutesSource,
-  root?: RootLayout,
-  refreshDevRoute?: RefreshDevRoute
-): AnyElysia {
-  const plugin = new Elysia();
-  let matchedRoutes = Array.isArray(routesSource) ? routesSource : [];
-  let matchRoute = buildRouteMatcher(matchedRoutes);
-  let searchRoutes = createSearchRouteMetadata(matchedRoutes);
-  const resolveRoute: DataRouteResolver =
-    refreshDevRoute ?? ((route: ResolvedRoute) => Promise.resolve({ root, route }));
-
-  plugin.get(
-    "/_furin/data",
-    {
-      // The transport path is validated below without requiring a TypeBox schema.
-    },
-    async (ctx) => {
-      const rawPath = ctx.query.path;
-      if (!rawPath || typeof rawPath !== "string") {
-        return problem("Bad Request", { detail: "Missing required query param: path" });
-      }
-
-      const parsed = parseDataEndpointPath(rawPath);
-      if (!parsed) {
-        return problem("Bad Request", { detail: "Invalid path" });
-      }
-      const { url, pathname } = parsed;
-
-      // Rewrite the request-scoped wide event so logs / drains report the
-      // *logical* path the user navigated to (e.g. "/board/123/card/456")
-      // instead of the technical "/_furin/data" transport URL. We set this
-      // before the route-match check so 404s also surface the attempted path
-      // — otherwise monitoring just sees "GET /_furin/data 404" with no clue.
-      const wideEventLog = getLogger();
-      wideEventLog.set({ path: rawPath });
-
-      const currentRoutes = await resolveDataRoutes(routesSource, ctx.request);
-      if (currentRoutes instanceof Response) {
-        return currentRoutes;
-      }
-      if (currentRoutes !== matchedRoutes) {
-        matchedRoutes = currentRoutes;
-        matchRoute = buildRouteMatcher(matchedRoutes);
-        searchRoutes = createSearchRouteMetadata(matchedRoutes);
-      }
-      const matched = matchRoute(pathname);
-
-      if (!matched) {
-        return problem("Not Found", { detail: "Route not found" });
-      }
-
-      // Now that we know the matched pattern, add it as a stable aggregation
-      // key for drains (e.g. "p99 latency by route").
-      wideEventLog.set({ routePattern: matched.route.pattern });
-
-      const current = await resolveDataRoute(matched.route, resolveRoute);
-      if (current instanceof Response) {
-        return current;
-      }
-      const currentSearchRoutes = resolvedSearchRoutes(
-        matchedRoutes,
-        matched.route,
-        current.route,
-        searchRoutes,
-        refreshDevRoute
-      );
-
-      // Build a synthetic Elysia-compatible context for the matched route.
-      // Loaders receive request, params, query, set, headers, and cookie.
-      // Build the synthetic URL from the parsed `pathname + search` only —
-      // never from `rawPath` directly — so an attacker cannot smuggle a
-      // foreign origin into `syntheticRequest.url`.
-      // Forward the real request headers (cookies, auth) so loaders reading
-      // `request.headers` behave the same during SPA navigation as in SSR.
-      const syntheticRequest = new Request(new URL(pathname + url.search, ctx.request.url), {
-        headers: ctx.request.headers,
-      });
-      const syntheticSet = { headers: {} as Record<string, string>, status: 200 as number };
-      const syntheticCtx: SyntheticDataContext = {
-        cookie: ctx.cookie,
-        headers: ctx.headers,
-        params: matched.params,
-        path: pathname,
-        query: Object.fromEntries(url.searchParams),
-        // Loader-emitted redirects flow through `runLoaders` → `result.type
-        // === "redirect"` and are converted to NDJSON below. The Response we
-        // return here only has to be detectable by that pipeline.
-        redirect: (location: string, status?: number) =>
-          new Response(null, { headers: { location }, status: status ?? 302 }),
-        request: syntheticRequest,
-        set: syntheticSet,
-        // Synthetic `status` helper: numeric codes only. Callers that reach
-        // this endpoint never dispatch a string-keyed status; rejecting them
-        // is safer than coercing via `Number(code)` and silently producing
-        // `NaN`.
-        status: (code: number) => new Response(null, { status: code }),
-      } as unknown as SyntheticDataContext;
-
-      // Normalize params and query through the route chain schemas so SPA and
-      // document requests expose identical typed/defaulted inputs.
-      const mergedParams = mergeRouteSchemas(current.route.routeChain, "params");
-      const mergedQuery = mergeRouteSchemas(current.route.routeChain, "query");
-      const parsedParams = await parseRouteParams(matched.params, mergedParams);
-      if (!parsedParams.ok) {
-        return problem(422, { detail: "Invalid params", errors: parsedParams.errors });
-      }
-      const parsedQuery = await parseRouteQuery(url, mergedQuery);
-      if (!parsedQuery.ok) {
-        return problem(422, { detail: "Invalid query", errors: parsedQuery.errors });
-      }
-      syntheticCtx.params = parsedParams.params;
-      syntheticCtx.query = parsedQuery.query as SearchParamsInput;
-
-      const result = await runDataEndpointLoaders(
-        current.route,
-        syntheticCtx as unknown as Context,
-        current.root,
-        currentSearchRoutes
-      );
-
-      return createLoaderDataResponse(result, current.route, syntheticRequest.url, syntheticCtx);
-    }
-  );
-
-  return plugin;
+  const loaderResult = await ports.cache.loaders(current, ctx, "document");
+  const renderRoute = loaderResult?.type === "data" ? await ports.modules.render(route) : route;
+  return renderSSR(renderRoute, ctx, root, loaderResult, searchRoutes);
 }
 
 /**
@@ -596,10 +486,7 @@ export function createDataEndpoint(
  * synchronous loader data. A throwing `head()` is swallowed: a missing title
  * must never break the data response.
  */
-function withResolvedHead(
-  route: ResolvedRoute,
-  syncData: Record<string, unknown>
-): Record<string, unknown> {
+function withResolvedHead(route: ResolvedRoute, syncData: RuntimeData): RuntimeData {
   const { head } = route.page;
   if (!head) {
     return syncData;
@@ -610,17 +497,5 @@ function withResolvedHead(
   } catch {
     return syncData;
   }
-  const title = extractTitle(headOptions.meta);
-  let includeHead = false;
-  try {
-    includeHead =
-      new TextEncoder().encode(JSON.stringify(headOptions)).byteLength <= MAX_NAVIGATION_HEAD_BYTES;
-  } catch {
-    // Invalid or cyclic metadata must not break an otherwise valid navigation.
-  }
-  return {
-    ...syncData,
-    ...(includeHead ? { __furinHead: headOptions } : {}),
-    ...(title === undefined ? {} : { __furinTitle: title }),
-  };
+  return withNavigationHead(syncData, headOptions);
 }

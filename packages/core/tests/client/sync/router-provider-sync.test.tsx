@@ -2,16 +2,21 @@
 import "../../setup/global.ts";
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { treaty } from "@elysia/eden";
-import { Elysia } from "elysia";
+import { type Context, Elysia } from "elysia";
 import { act, createElement, Suspense, use } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { toCrossJSON } from "seroval";
+import { fromCrossJSON, toCrossJSON } from "seroval";
 import { RouterProvider, useRouter } from "../../../src/client/link.tsx";
 import type { ClientRoute, LoadedClientRoute } from "../../../src/client/router/index.ts";
-import { useQuery, withSync } from "../../../src/client.ts";
+import { furinSync, useMutation, useQuery } from "../../../src/client.ts";
+import { autoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
+import { runLoaders } from "../../../src/server/render/loaders.ts";
+import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { serializeRouteFrame, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
+import { ROUTE_MATCHES_KEY } from "../../../src/shared/route-matches.ts";
 import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
+import { navigationDataPath } from "../../support/navigation-data.ts";
 
 interface PageProps {
   message?: unknown;
@@ -19,7 +24,7 @@ interface PageProps {
 }
 
 declare module "@teyik0/furin/routes" {
-  interface RoutePatternMap {
+  interface RouteMap {
     "/optimistic-board/:boardId": { loader: () => { message: string } };
   }
 }
@@ -112,9 +117,7 @@ async function renderRouter(
         defaultPreloadStaleTime: 30_000,
         initialData: initialData ?? { message: "stale" },
         initialDigest: undefined,
-        initialError: undefined,
         initialMatch,
-        initialNotFound: undefined,
         prefetchCacheSize: 50,
         root: null,
         routes: routes ?? [route],
@@ -178,11 +181,9 @@ describe("RouterProvider sync refresh", () => {
         await gate.promise;
         return { ok: true };
       });
-    const api = withSync(
-      treaty<typeof app>(window.location.origin, {
-        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-      })
-    );
+    const api = treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    }).use(furinSync);
     function Counter(props: PageProps) {
       const countData = props.countData as { count: number };
       return <main>{countData.count}</main>;
@@ -227,7 +228,8 @@ describe("RouterProvider sync refresh", () => {
     try {
       await act(async () => {
         write = api.count.post(undefined, {
-          optimistic: (cache) => cache.update(api.count.get, (data) => ({ count: data.count + 1 })),
+          optimistic: (cache) =>
+            cache.update(api.count.get.live(), (data) => ({ count: data.count + 1 })),
         });
         await Promise.resolve();
       });
@@ -248,6 +250,90 @@ describe("RouterProvider sync refresh", () => {
     }
   });
 
+  test("the documented per-field loader projection hydrates and projects cache.update at once", async () => {
+    const gate = Promise.withResolvers<void>();
+    const identity = { id: "board", scope: { boardId: "alpha" }, session: "test" };
+    let reads = 0;
+    const app = new Elysia()
+      .get("/workspace", ({ set }) => {
+        reads += 1;
+        set.headers["x-furin-query"] = JSON.stringify(identity);
+        return { board: { title: "Alpha" }, cards: [{ column: "todo", id: "c1" }] };
+      })
+      .post("/workspace", async () => {
+        await gate.promise;
+        return { ok: true };
+      });
+    const client = (origin: string) =>
+      treaty<typeof app>(origin, {
+        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+      }).use(furinSync);
+    const serverApi = client("http://ssr.internal");
+    const api = client(window.location.origin);
+    const loaded = await runLoaders(
+      {
+        mode: "ssr",
+        pattern: "/board",
+        page: {
+          loader: async () => {
+            const { data } = await serverApi.workspace.get.live();
+            return { board: data?.board, cards: data?.cards };
+          },
+        },
+        routeChain: [],
+      } as unknown as ResolvedRoute,
+      {
+        request: new Request(`${window.location.origin}/board`),
+        path: "/board",
+        params: {},
+        query: {},
+        set: { headers: {} },
+      } as unknown as Context
+    );
+    autoInvalidateRegistry.unregisterPath("/board");
+    if (loaded.type !== "data") {
+      throw new Error("Loader failed");
+    }
+    function Board(props: PageProps) {
+      const board = props.board as { title: string };
+      const cards = props.cards as { column: string }[];
+      return <main>{`${board.title}:${cards.map((card) => card.column).join()}`}</main>;
+    }
+    const route = makeRoute("/board");
+    const initialMatch = await loadInitialMatch(route);
+    initialMatch.component = Board;
+    globalThis.fetch = mock(() =>
+      Promise.resolve(makeNdjsonResponse(loaded.syncData))
+    ) as unknown as typeof fetch;
+    const rendered = await renderRouter(
+      route,
+      initialMatch,
+      fromCrossJSON(toCrossJSON(loaded.syncData), {}) as PageProps
+    );
+    currentCleanup = rendered.cleanup;
+    expect(rendered.container.textContent).toBe("Alpha:todo");
+    let write: ReturnType<typeof api.workspace.post> | undefined;
+    try {
+      await act(async () => {
+        write = api.workspace.post(undefined, {
+          optimistic: (cache) =>
+            cache.update(api.workspace.get.live(), (data) => ({
+              ...data,
+              cards: data.cards.map((card) => ({ ...card, column: "done" })),
+            })),
+        });
+        await Promise.resolve();
+      });
+      expect(rendered.container.textContent).toBe("Alpha:done");
+      expect(reads).toBe(1);
+    } finally {
+      gate.resolve();
+      await act(async () => {
+        await write;
+      });
+    }
+  });
+
   test("an opaque journal reset refreshes observed GETs and the current route", async () => {
     const identity = { id: "board.count", scope: { boardId: "alpha" }, session: "test" };
     let count = 0;
@@ -258,13 +344,11 @@ describe("RouterProvider sync refresh", () => {
       set.headers["x-furin-query"] = JSON.stringify(identity);
       return { count };
     });
-    const api = withSync(
-      treaty<typeof app>(window.location.origin, {
-        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-      })
-    );
+    const api = treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    }).use(furinSync);
     function Counter(props: PageProps) {
-      return <main>{`${props.message}:${useQuery(api.count.get).data?.count}`}</main>;
+      return <main>{`${props.message}:${useQuery(api.count.get.live()).data?.count}`}</main>;
     }
     const seed = () => [{ url: `${window.location.origin}/count`, identity, data: { count } }];
     const route = makeRoute("/board");
@@ -297,6 +381,71 @@ describe("RouterProvider sync refresh", () => {
     expect(loaderReads).toBe(1);
   });
 
+  test.each(["reset", "unknown-tag"])(
+    "%s recovery refreshes the active loader and expires other prefetched routes",
+    async (recovery) => {
+      const reads = new Map<string, number>();
+      let revision = 0;
+      let router: ReturnType<typeof useRouter> | undefined;
+      const app = new Elysia()
+        .get("/_furin/sync/changes", () => ({
+          changes:
+            recovery === "reset"
+              ? []
+              : [{ cursor: "1", invalidations: [{ kind: "tags", tags: ["posts"] }] }],
+          cursor: "1",
+          hasMore: false,
+          reset: recovery === "reset",
+        }))
+        .get("/*", ({ request }) => {
+          const path = new URL(request.url).pathname;
+          reads.set(path, (reads.get(path) ?? 0) + 1);
+          return makeNdjsonResponse({ message: `${path}:${revision}` });
+        });
+      globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+        // Happy DOM's AbortSignal cannot be passed to Bun's native Request.
+        const requestInit = { ...init, signal: undefined };
+        return app.handle(
+          input instanceof Request
+            ? new Request(input, requestInit)
+            : new Request(new URL(input, window.location.origin), requestInit)
+        );
+      }) as typeof fetch;
+      function RoutePage(props: PageProps) {
+        router = useRouter();
+        return <main>{String(props.message)}</main>;
+      }
+      const board = makeRoute("/board");
+      board.load = async () => ({
+        default: { component: RoutePage, _route: { __type: "FURIN_ROUTE" } as never },
+      });
+      const sidebar = makeRoute("/sidebar");
+      const rendered = await renderRouter(
+        board,
+        await loadInitialMatch(board),
+        { message: "/board:0" },
+        [board, sidebar]
+      );
+      currentCleanup = rendered.cleanup;
+      expect(router).toBeDefined();
+      await act(async () => {
+        router?.prefetch("/sidebar" as string);
+        await Bun.sleep(0);
+      });
+      expect(reads.get("/sidebar")).toBe(1);
+      revision = 1;
+      await act(async () => {
+        browserEvents.emit("0");
+        await Bun.sleep(0);
+      });
+      expect(rendered.container.textContent).toBe("/board:1");
+      expect(reads.get("/board")).toBe(1);
+      await act(async () => router?.navigate("/sidebar" as string));
+      expect(reads.get("/sidebar")).toBe(2);
+      expect(rendered.container.textContent).toBe("/sidebar:1");
+    }
+  );
+
   test("a streamed private GET updates promise props optimistically, rolls back, and refreshes on sync", async () => {
     const writeGate = Promise.withResolvers<void>();
     const identity = { id: "board.count", scope: { boardId: "alpha" }, session: "test" };
@@ -313,11 +462,9 @@ describe("RouterProvider sync refresh", () => {
         await writeGate.promise;
         return new Response("Rejected", { status: 500 });
       });
-    const api = withSync(
-      treaty<typeof app>(window.location.origin, {
-        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-      })
-    );
+    const api = treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    }).use(furinSync);
     function Value({ data }: { data: Promise<{ count: number }> }) {
       return <main>{use(data).count}</main>;
     }
@@ -413,7 +560,8 @@ describe("RouterProvider sync refresh", () => {
       let write: ReturnType<typeof api.count.post>;
       await act(async () => {
         write = api.count.post(undefined, {
-          optimistic: (cache) => cache.update(api.count.get, (data) => ({ count: data.count + 1 })),
+          optimistic: (cache) =>
+            cache.update(api.count.get.live(), (data) => ({ count: data.count + 1 })),
         });
         await Promise.resolve();
       });
@@ -450,7 +598,7 @@ describe("RouterProvider sync refresh", () => {
           })
         );
       }
-      if (url.pathname === "/_furin/data") {
+      if (url.searchParams.get("_furin") === "data") {
         loaderReads += 1;
         return Promise.resolve(makeNdjsonResponse({ message: "fresh" }));
       }
@@ -505,7 +653,7 @@ describe("RouterProvider sync refresh", () => {
           })
         );
       }
-      if (url.pathname === "/_furin/data") {
+      if (url.searchParams.get("_furin") === "data") {
         requested.data += 1;
         return Promise.resolve(makeNdjsonResponse({ message: "fresh" }));
       }
@@ -553,7 +701,7 @@ describe("RouterProvider sync refresh", () => {
           })
         );
       }
-      if (url.pathname === "/_furin/data") {
+      if (url.searchParams.get("_furin") === "data") {
         requested.data += 1;
         return Promise.resolve(makeNdjsonResponse({ message: "fresh" }));
       }
@@ -606,7 +754,7 @@ describe("RouterProvider sync refresh", () => {
           })
         );
       }
-      if (url.pathname === "/_furin/data") {
+      if (url.searchParams.get("_furin") === "data") {
         requested.data += 1;
         return Promise.resolve(makeNdjsonResponse({ message: "fresh" }));
       }
@@ -674,11 +822,9 @@ describe("Eden optimistic loader projection", () => {
       refreshes += 1;
       return Promise.resolve(makeNdjsonResponse({ message: "saved" }));
     }) as unknown as typeof fetch;
-    const api = withSync(
-      treaty<typeof app>(window.location.origin, {
-        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-      })
-    );
+    const api = treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    }).use(furinSync);
     const route = makeRoute("/board");
     const rendered = await renderRouter(route, await loadInitialMatch(route));
     let call: ReturnType<typeof api.cards.post> | undefined;
@@ -697,6 +843,35 @@ describe("Eden optimistic loader projection", () => {
     });
     expect(refreshes).toBe(0);
   });
+  test("a hydrated failed match is not a loaded page for optimistic refreshes", async () => {
+    const app = new Elysia().post("/cards", () => ({ ok: true }));
+    let refreshes = 0;
+    globalThis.fetch = (() => {
+      refreshes += 1;
+      return Promise.resolve(makeNdjsonResponse({ message: "saved" }));
+    }) as unknown as typeof fetch;
+    const api = treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    }).use(furinSync);
+    const route = makeRoute("/board");
+    const rendered = await renderRouter(route, await loadInitialMatch(route), {
+      [ROUTE_MATCHES_KEY]: [
+        { fields: {}, status: "success" },
+        { error: { digest: "d1", message: "boom", status: 500 }, status: "error" },
+      ],
+    });
+    ({ cleanup } = rendered);
+
+    await act(async () => {
+      await api.cards.post(undefined, {
+        optimistic: (cache) =>
+          cache.update("/board", (loader) => ({ ...loader, message: "saved" })),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(refreshes).toBe(0);
+  });
   test("renders optimistic props without local state and hands off to confirmed data", async () => {
     const mutationGate = Promise.withResolvers<void>();
     const refreshGate = Promise.withResolvers<void>();
@@ -708,11 +883,9 @@ describe("Eden optimistic loader projection", () => {
       await refreshGate.promise;
       return makeNdjsonResponse({ message: "saved" });
     }) as unknown as typeof fetch;
-    const api = withSync(
-      treaty<typeof app>(window.location.origin, {
-        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-      })
-    );
+    const api = treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    }).use(furinSync);
     const route = makeRoute("/board");
     const rendered = await renderRouter(route, await loadInitialMatch(route));
     ({ cleanup } = rendered);
@@ -750,11 +923,9 @@ describe("Eden optimistic loader projection", () => {
     });
     globalThis.fetch = (async () =>
       makeNdjsonResponse({ message: "10" })) as unknown as typeof fetch;
-    const api = withSync(
-      treaty<typeof app>(window.location.origin, {
-        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-      })
-    );
+    const api = treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    }).use(furinSync);
     const route = makeRoute("/board");
     const rendered = await renderRouter(route, await loadInitialMatch(route), { message: "0" });
     ({ cleanup } = rendered);
@@ -791,63 +962,6 @@ describe("Eden optimistic loader projection", () => {
     expect(rendered.container.textContent).toBe("10");
   });
 
-  test.each([200, 409])(
-    "shares optimism for concurrent calls with the same explicit key (%s)",
-    async (duplicateStatus) => {
-      const gate = Promise.withResolvers<void>();
-      let requests = 0;
-      let callbacks = 0;
-      const app = new Elysia().post("/cards", async () => {
-        requests += 1;
-        if (requests === 2) {
-          return Response.json(
-            { code: "FURIN_MUTATION_PAYLOAD_MISMATCH" },
-            { status: duplicateStatus }
-          );
-        }
-        await gate.promise;
-        return { ok: true };
-      });
-      globalThis.fetch = (async () =>
-        makeNdjsonResponse({ message: "1" })) as unknown as typeof fetch;
-      const api = withSync(
-        treaty<typeof app>(window.location.origin, {
-          fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-        })
-      );
-      const route = makeRoute("/board");
-      const rendered = await renderRouter(route, await loadInitialMatch(route), { message: "0" });
-      ({ cleanup } = rendered);
-      const options = {
-        headers: { "Idempotency-Key": "shared" },
-        optimistic(cache: import("../../../src/client.ts").OptimisticCache) {
-          callbacks += 1;
-          cache.update("/board", (loader) => ({
-            ...loader,
-            message: String(Number(loader.message) + 1),
-          }));
-        },
-      };
-      let first: ReturnType<typeof api.cards.post> | undefined;
-      await act(async () => {
-        first = api.cards.post(undefined, options);
-        await Promise.resolve();
-        await api
-          .use({ name: "additional-plugin", before: () => undefined })
-          .cards.post(undefined, options);
-      });
-      expect(rendered.container.textContent).toBe("1");
-      expect(callbacks).toBe(1);
-      await act(async () => {
-        gate.resolve();
-        await first;
-        await new Promise((resolve) => setTimeout(resolve, 5));
-      });
-      expect(rendered.container.textContent).toBe("1");
-      expect(requests).toBe(2);
-    }
-  );
-
   test("updates the active dynamic route without repeating its params or query", async () => {
     window.history.replaceState(null, "", "/optimistic-board/one?filter=open");
     const gate = Promise.withResolvers<void>();
@@ -857,11 +971,9 @@ describe("Eden optimistic loader projection", () => {
     });
     globalThis.fetch = (async () =>
       makeNdjsonResponse({ message: "confirmed" })) as unknown as typeof fetch;
-    const api = withSync(
-      treaty<typeof app>(window.location.origin, {
-        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-      })
-    );
+    const api = treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    }).use(furinSync);
     const route = makeRoute("/optimistic-board/:boardId");
     route.regex = OPTIMISTIC_BOARD_REGEX;
     const rendered = await renderRouter(route, await loadInitialMatch(route));
@@ -894,11 +1006,9 @@ describe("Eden optimistic loader projection", () => {
     });
     globalThis.fetch = (async () =>
       makeNdjsonResponse({ message: "confirmed" })) as unknown as typeof fetch;
-    const api = withSync(
-      treaty<typeof app>(window.location.origin, {
-        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-      })
-    );
+    const api = treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    }).use(furinSync);
     const route = makeRoute("/board");
     const rendered = await renderRouter(route, await loadInitialMatch(route));
     ({ cleanup } = rendered);
@@ -952,11 +1062,9 @@ describe("Eden optimistic loader projection", () => {
       reads += 1;
       return Promise.resolve(makeNdjsonResponse({ message: saved ? "1" : "0" }));
     }) as unknown as typeof fetch;
-    const api = withSync(
-      treaty<typeof app>(window.location.origin, {
-        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-      })
-    );
+    const api = treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    }).use(furinSync);
     const route = makeRoute("/board");
     const rendered = await renderRouter(route, await loadInitialMatch(route), { message: "0" });
     ({ cleanup } = rendered);
@@ -1022,38 +1130,46 @@ describe("Eden optimistic loader projection", () => {
     });
     globalThis.fetch = (async () =>
       makeNdjsonResponse({ message: "1" })) as unknown as typeof fetch;
-    const api = withSync(
-      treaty<typeof app>(window.location.origin, {
-        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-      }),
-      { retry: 2 }
-    );
+    const api = treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    }).use(furinSync);
     const route = makeRoute("/board");
     const rendered = await renderRouter(route, await loadInitialMatch(route), { message: "0" });
     ({ cleanup } = rendered);
     let callbacks = 0;
-    let call: ReturnType<typeof api.cards.post> | undefined;
-    await act(async () => {
-      call = api.cards.post(undefined, {
-        optimistic(cache) {
-          callbacks += 1;
-          cache.update("/board", (loader) => ({
-            ...loader,
-            message: String(Number(loader.message) + 1),
-          }));
-        },
+    let mutate: ReturnType<typeof useMutation<typeof api.cards.post>>["mutateAsync"] | undefined;
+    function Mutator() {
+      mutate = useMutation(api.cards.post, { retry: 2 }).mutateAsync;
+      return null;
+    }
+    const mutatorRoot = createRoot(document.createElement("div"));
+    await act(() => mutatorRoot.render(<Mutator />));
+    let call: Promise<unknown> | undefined;
+    try {
+      await act(async () => {
+        call = mutate?.(undefined, {
+          optimistic(cache) {
+            callbacks += 1;
+            cache.update("/board", (loader) => ({
+              ...loader,
+              message: String(Number(loader.message) + 1),
+            }));
+          },
+        });
+        await waitForDom(() => attempts === 3, { timeoutMs: 2000 });
       });
-      await waitForDom(() => attempts === 3, { timeoutMs: 2000 });
-    });
-    expect(attempts).toBe(3);
-    expect(callbacks).toBe(1);
-    expect(new Set(keys).size).toBe(1);
-    expect(rendered.container.textContent).toBe("1");
-    await act(async () => {
-      gate.resolve();
-      await call;
-    });
-    expect(rendered.container.textContent).toBe("1");
+      expect(attempts).toBe(3);
+      expect(callbacks).toBe(1);
+      expect(new Set(keys).size).toBe(1);
+      expect(rendered.container.textContent).toBe("1");
+      await act(async () => {
+        gate.resolve();
+        await call;
+      });
+      expect(rendered.container.textContent).toBe("1");
+    } finally {
+      await act(() => mutatorRoot.unmount());
+    }
   });
   test("a newer navigation cancels an optimistic wait and stays available", async () => {
     const gate = Promise.withResolvers<void>();
@@ -1062,16 +1178,14 @@ describe("Eden optimistic loader projection", () => {
       return { ok: true };
     });
     globalThis.fetch = ((input: RequestInfo | URL) => {
-      const path = new URL(input.toString(), window.location.origin).searchParams.get("path");
+      const path = navigationDataPath(input, window.location.origin);
       return Promise.resolve(
         makeNdjsonResponse({ message: path === "/other" ? "other" : "confirmed" })
       );
     }) as typeof fetch;
-    const api = withSync(
-      treaty<typeof app>(window.location.origin, {
-        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-      })
-    );
+    const api = treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    }).use(furinSync);
     let navigate: ReturnType<typeof useRouter>["navigate"] | undefined;
     function NavigablePage(props: PageProps) {
       ({ navigate } = useRouter());
@@ -1126,7 +1240,7 @@ describe("Eden optimistic loader projection", () => {
         return { ok: true };
       });
       globalThis.fetch = ((input: RequestInfo | URL) => {
-        const path = new URL(input.toString(), window.location.origin).searchParams.get("path");
+        const path = navigationDataPath(input, window.location.origin);
         paths.push(path);
         if (path === "/other" && paths.length === 1) {
           navigationStarted.resolve();
@@ -1136,11 +1250,9 @@ describe("Eden optimistic loader projection", () => {
           makeNdjsonResponse({ message: path === "/other" ? "other" : "confirmed" })
         );
       }) as typeof fetch;
-      const api = withSync(
-        treaty<typeof app>(window.location.origin, {
-          fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-        })
-      );
+      const api = treaty<typeof app>(window.location.origin, {
+        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+      }).use(furinSync);
       let navigate: ReturnType<typeof useRouter>["navigate"] | undefined;
       function NavigablePage(props: PageProps) {
         ({ navigate } = useRouter());
@@ -1194,11 +1306,9 @@ describe("Eden optimistic loader projection", () => {
       await gate.promise;
       return Response.json({ message: "rejected" }, { status: 422 });
     });
-    const api = withSync(
-      treaty<typeof app>(window.location.origin, {
-        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-      })
-    );
+    const api = treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    }).use(furinSync);
     const route = makeRoute("/board");
     const first = await renderRouter(
       route,

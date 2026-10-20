@@ -11,14 +11,12 @@ import { StackReveal } from "@/components/landing/stack-reveal";
 import { SyncDemo } from "@/components/landing/sync-demo";
 import { highlighter } from "@/lib/highlight";
 import { LandingServer, type LandingSlots } from "../components/landing/landing-server";
-import { route as parentRoute } from "./root";
 
 const FILES = {
   "pages/index.tsx": `import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "./root"
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("/")
+  .config({ mode: "ssr" })
   .loader(async () => ({
     message: "Hello from Furin!",
     renderedAt: Date.now(),
@@ -72,29 +70,31 @@ type FileName = keyof typeof FILES;
 // Abridged from examples/task-manager: src/api/modules/{boards,cards}/index.ts,
 // src/lib/api.ts (client branch) and src/lib/card-mutations.ts (moveBoardCard).
 const SYNC_SERVER = `// boards/index.ts
-.get(
-  "/boards/:boardId",
-  { sync: { id: "board", scope: ({ params }) => ({ boardId: params.boardId }) } },
-  ({ params, problem }) => { /* … getBoardData(params.boardId) */ }
-)
+.get("/boards/:boardId", ({ params, problem }) => {
+  /* … getBoardData(params.boardId) */
+})
 
-// cards/index.ts
+// cards/index.ts: PATCH /api/cards/c1 refreshes GET /api/cards/c1
 .patch("/cards/:id", {
   body: t.Object({ column: t.Optional(columnType), /* … */ }),
-  sync: {
-    invalidate: ({ params, responseValue }) => cardInvalidations(params.id, responseValue),
-  },
-}, ({ params, body, problem, mutation }) => mutation((tx) => { /* … */ }))`;
+}, ({ params, body, problem, mutation, invalidate }) => mutation((tx) => {
+  /* … const card = updateCard(tx, params.id, body) */
+  invalidate("/api/boards/:boardId", { boardId: card.boardId });
+  return card;
+}))
+
+// index.ts
+declare module "@teyik0/furin" { interface Register { app: typeof api } }`;
 
 const SYNC_CLIENT = `// api.ts
-createClient<Api>(window.location.origin, { retry: 2 }).api
+treaty<Api>(window.location.origin).use(furinSync).api
 
 // card-mutations.ts · moveBoardCard
 return api.cards({ id: cardId }).patch(
   { column, position },
   {
     optimistic: (cache) =>
-      cache.update(api.boards({ boardId }).get, (data) => ({
+      cache.update(api.boards({ boardId }).get.live(), (data) => ({
         ...data,
         cards: moveCard(data.cards, cardId, column, before)?.nextCards ?? data.cards,
       })),
@@ -113,8 +113,8 @@ const landingSlots: LandingSlots = {
   SyncDemo: () => <SyncDemo />,
 };
 
-export const route = defineRoute()
-  .config({ layout: parentRoute, mode: "ssg" })
+export const route = defineRoute("/")
+  .config({ mode: "ssg" })
   .loader(async () => {
     const entries = Object.entries(FILES) as [FileName, string][];
     const lines = FILES["pages/index.tsx"].split("\n");

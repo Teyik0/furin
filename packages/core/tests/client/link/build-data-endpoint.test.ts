@@ -3,21 +3,25 @@ import { buildDataEndpoint, detectStaticMode } from "../../../src/client/router/
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
 
 describe("buildDataEndpoint — runtime mode (SSR/ISR/dev)", () => {
-  test("uses /_furin/data?path= with the percent-encoded logical href", () => {
-    expect(buildDataEndpoint("", "/blog/post", false)).toBe("/_furin/data?path=%2Fblog%2Fpost");
+  test("requests the page URL itself with the navigation data marker", () => {
+    expect(buildDataEndpoint("", "/blog/post", false)).toBe("/blog/post?_furin=data");
   });
 
   test("preserves the basePath prefix", () => {
     expect(buildDataEndpoint("/furin", "/docs/routing", false)).toBe(
-      "/furin/_furin/data?path=%2Fdocs%2Frouting"
+      "/furin/docs/routing?_furin=data"
     );
   });
 
-  test("encodes query strings inside the path argument", () => {
-    // The runtime endpoint executes the loader with the requested query, so
-    // we must round-trip search params via the `?path=` argument.
-    expect(buildDataEndpoint("", "/search?q=foo bar", false)).toBe(
-      "/_furin/data?path=%2Fsearch%3Fq%3Dfoo%20bar"
+  test("requests a mounted app's index at its physical path", () => {
+    expect(buildDataEndpoint("/furin", "/", false)).toBe("/furin?_furin=data");
+  });
+
+  test("keeps the page query exactly as written and drops the fragment", () => {
+    // The loader runs with the requested query, and the page's own params
+    // keep their encoding so documents and data share render cache keys.
+    expect(buildDataEndpoint("", "/search?q=foo%20bar&tag=a+b#results", false)).toBe(
+      "/search?q=foo%20bar&tag=a+b&_furin=data"
     );
   });
 });

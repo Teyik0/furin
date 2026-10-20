@@ -1,10 +1,8 @@
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
-import { route as parentRoute } from "./_route";
 
-export const route = defineRoute()
+export const route = defineRoute("/schema-merge-parent/child")
   .config({
-    layout: parentRoute,
     mode: "ssr",
     query: t.Object({
       childFilter: t.Optional(t.String({ default: "child-default" })),

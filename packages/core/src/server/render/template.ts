@@ -136,7 +136,7 @@ export async function getDevTemplate(origin: string): Promise<string> {
 }
 
 export async function getDevDocumentAssets(origin: string): Promise<DocumentAssets> {
-  const state = instanceTemplateState();
+  const state = instanceTemplateState(currentInstance());
   if (state.devAssets && Date.now() - state.devAssets.ts < DEV_TEMPLATE_TTL_MS) {
     return state.devAssets.assets;
   }
@@ -150,21 +150,21 @@ export async function getDevDocumentAssets(origin: string): Promise<DocumentAsse
 }
 
 export function setProductionTemplatePath(path: string | null, instance?: FurinInstance): void {
-  const state = instanceTemplateState(instance);
+  const state = instanceTemplateState(instance ?? currentInstance());
   state.prodPath = path;
   state.prodAssets = null;
   state.prodContent = null;
 }
 
 export function setProductionTemplateContent(content: string, instance?: FurinInstance): void {
-  const state = instanceTemplateState(instance);
+  const state = instanceTemplateState(instance ?? currentInstance());
   state.prodPath = null;
   state.prodContent = content;
   state.prodAssets = documentAssetsFromTemplate(content);
 }
 
 export function getProductionDocumentAssets(): DocumentAssets | null {
-  const own = readDocumentAssets(instanceTemplateState());
+  const own = readDocumentAssets(instanceTemplateState(currentInstance()));
   if (own !== null) {
     return own;
   }
@@ -172,7 +172,7 @@ export function getProductionDocumentAssets(): DocumentAssets | null {
 }
 
 export function getProductionTemplate(): string | null {
-  const own = readTemplate(instanceTemplateState());
+  const own = readTemplate(instanceTemplateState(currentInstance()));
   if (own !== null) {
     return own;
   }
@@ -214,13 +214,13 @@ export function setProductionPreloadManifest(
   manifest: ClientPreloadManifest,
   instance?: FurinInstance
 ): void {
-  instanceTemplateState(instance).prodPreload = manifest;
+  instanceTemplateState(instance ?? currentInstance()).prodPreload = manifest;
 }
 
 /** The client build's preload manifest, or `null` in dev and before a build. */
 export function getProductionPreloadManifest(): ClientPreloadManifest | null {
   return (
-    instanceTemplateState().prodPreload ??
+    instanceTemplateState(currentInstance()).prodPreload ??
     instanceTemplateState(defaultInstanceBucket()).prodPreload
   );
 }

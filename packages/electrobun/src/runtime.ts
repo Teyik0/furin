@@ -167,11 +167,11 @@ function startSessionBootstrap(session: DesktopSession, appOrigin: string) {
 }
 
 export interface DesktopApp {
-  cleanup: (handler: () => void) => unknown;
   listen: (
     options: { hostname: string; port: number; development: boolean },
     callback: (server: { port?: number; stop: (force: boolean) => void | Promise<void> }) => void
   ) => DesktopApp;
+  onStop: (handler: () => void) => unknown;
   server?: { port?: number };
   stop: (closeActiveConnections: boolean) => Promise<void> | undefined;
 }

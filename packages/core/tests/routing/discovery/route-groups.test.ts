@@ -1,12 +1,12 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type AnyElysia, Elysia } from "elysia";
 import { writeRouteTypes } from "../../../src/build/route-types.ts";
+import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { scanPages } from "../../../src/server/router/discovery.ts";
-import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
+import { mountProductionPages } from "../../support/production-app.ts";
 import { expectDefined } from "../../support/utils.ts";
 
 const PAGES_DIR = join(import.meta.dir, "../../fixtures/pages/route-groups");
@@ -16,14 +16,11 @@ beforeAll(() => {
   originalDevMode = IS_DEV;
   __setDevMode(false);
 });
+afterEach(() => __resetCompileContext());
 afterAll(() => __setDevMode(originalDevMode));
 
 test("group layouts render in filesystem order and stay scoped to their pages", async () => {
-  const { root, routes } = await scanPages(PAGES_DIR);
-  const app = routes.reduce<AnyElysia>(
-    (server, route) => server.use(createRoutePlugin(route, root)),
-    new Elysia()
-  );
+  const { app } = await mountProductionPages(PAGES_DIR, "");
 
   const admin = await app.handle(new Request("http://localhost/users/42"));
   if (admin.status !== 200) {
@@ -55,13 +52,9 @@ test("group error and not-found boundaries belong only to their descendants", as
 
   expect(admin.segmentBoundaries).toHaveLength(1);
   expect(admin.segmentBoundaries[0]?.path).toBe(join(PAGES_DIR, "(admin)").replaceAll("\\", "/"));
-  expect(admin.segmentBoundaries[0]?.error).toBe(admin.error);
-  expect(admin.segmentBoundaries[0]?.notFound).toBe(admin.notFound);
-  expect(admin.error).toBeDefined();
-  expect(admin.notFound).toBeDefined();
+  expect(admin.segmentBoundaries[0]?.error).toBeDefined();
+  expect(admin.segmentBoundaries[0]?.notFound).toBeDefined();
   expect(marketing.segmentBoundaries).toEqual([]);
-  expect(marketing.error).toBeUndefined();
-  expect(marketing.notFound).toBeUndefined();
 });
 
 test("generated navigation types use public URLs and preserve grouped source imports", async () => {
@@ -72,8 +65,7 @@ test("generated navigation types use public URLs and preserve grouped source imp
     const declaration = readFileSync(join(projectRoot, "furin-env.d.ts"), "utf8");
 
     expect(declaration).toContain('"/users/:id": typeof import(');
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: asserts generated TypeScript syntax
-    expect(declaration).toContain("[path: `/users/${string}`]");
+    expect(declaration).not.toContain("[path:");
     expect(declaration).toContain("/(admin)/(settings)/users/[id]");
     expect(declaration).not.toContain('"/(admin)/users/:id"');
   } finally {

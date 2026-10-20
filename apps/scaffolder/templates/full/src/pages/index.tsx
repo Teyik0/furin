@@ -4,10 +4,9 @@ import { getHelloPayload } from "@/api/hello";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { route as parentRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: parentRoute, mode: "ssr" })
+export const route = defineRoute("/")
+  .config({ mode: "ssr" })
   .loader(() => ({ ...getHelloPayload() }))
   .page(({ message, source }) => (
     <div className="w-full space-y-8">

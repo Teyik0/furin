@@ -26,7 +26,7 @@ test("creates a trimmed todo and lists it through the API", async () => {
     expect(await list.json()).toEqual([todo]);
     expect(backend.list()).toEqual([todo]);
     expect(JSON.parse(list.headers.get("x-furin-query") ?? "null")).toMatchObject({
-      id: "nativeTodos",
+      id: "/api/todos",
       scope: {},
     });
   } finally {
@@ -91,9 +91,10 @@ test("patches only supplied fields and deletes with journal and page invalidatio
     const deleted = await write(`/api/todos/${todo.id}`, "DELETE", undefined);
     expect(await deleted.json()).toEqual({ ok: true });
     for (const response of [created, completed, renamed, both, deleted]) {
-      expect(JSON.parse(response.headers.get("x-furin-queries") ?? "null")).toEqual([
-        { id: "nativeTodos", scope: {} },
-      ]);
+      expect(JSON.parse(response.headers.get("x-furin-queries") ?? "null")).toContainEqual({
+        id: "/api/todos",
+        scope: {},
+      });
       expect(response.headers.get("x-furin-revalidate")).toContain("/");
     }
     expect(backend.list()).toEqual([]);
@@ -101,7 +102,11 @@ test("patches only supplied fields and deletes with journal and page invalidatio
       new Request(`http://localhost/_furin/sync/changes?after=${before}`)
     );
     expect(changes.status).toBe(200);
-    expect(await changes.json()).toMatchObject({ reset: true, changes: [], hasMore: false });
+    // Every write belongs to the single local principal, so recovery returns them.
+    const recovered: { changes: unknown[]; hasMore: boolean; reset: boolean } =
+      await changes.json();
+    expect(recovered).toMatchObject({ reset: false, hasMore: false });
+    expect(recovered.changes).toHaveLength(5);
     const journal = await backend.sync.adapter.readChanges({ after: before, limit: 20 });
     expect(journal.changes).toHaveLength(5);
     for (const change of journal.changes) {

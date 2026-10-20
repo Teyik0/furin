@@ -46,7 +46,7 @@ export function getPprResumeState(request: Request): PprResumeState | undefined 
   return resumeRequests.get(request);
 }
 
-export function markPprResumeRequest(request: Request, state: PprResumeState): Request {
+function markPprResumeRequest(request: Request, state: PprResumeState): Request {
   resumeRequests.set(request, state);
   return request;
 }
@@ -88,7 +88,7 @@ export async function restorePprResumeRequest(
   );
 }
 
-export function pprContentType(state: string): string {
+function pprContentType(state: string): string {
   return `application/x-nextjs-pre-render; state-length=${new TextEncoder().encode(state).byteLength}; origin="text/html; charset=utf-8"`;
 }
 

@@ -9,6 +9,7 @@ import {
 import type { PageCacheAdapter } from "../../../src/server/cache/page-cache.ts";
 import { setPageCacheAdapter } from "../../../src/server/cache/page-cache-state.ts";
 import { defaultInstanceBucket } from "../../../src/server/instance.ts";
+import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import type {
   BeginMutationInput,
   BeginMutationResult,
@@ -28,7 +29,9 @@ import {
   createSyncChangesPlugin,
   subscribeSyncCursor,
 } from "../../../src/server/sync/stream.ts";
+import { queryTag } from "../../../src/shared/sync-query.ts";
 
+const originalDevMode = IS_DEV;
 const syncDatabase = new Database(":memory:");
 migrateSqliteSync(syncDatabase);
 const syncListeners = new Set<(cursor: string) => void>();
@@ -70,6 +73,7 @@ test("furinSync uses the injected adapter for reservation and atomic completion"
   };
   const adapter: SyncAdapter = {
     abortMutation: () => Promise.resolve(),
+    appendInvalidations: () => Promise.resolve("0"),
     beginMutation: (_input: BeginMutationInput): Promise<BeginMutationResult> =>
       Promise.resolve({ kind: "execute", lease }),
     completeMutation: (input: CompleteMutationInput): Promise<CompleteMutationResult> => {
@@ -113,6 +117,7 @@ test("furinSync durably preserves manual and declarative invalidations", async (
   };
   const adapter: SyncAdapter = {
     abortMutation: () => Promise.resolve(),
+    appendInvalidations: () => Promise.resolve("0"),
     beginMutation: () => Promise.resolve({ kind: "execute", lease }),
     completeMutation: (input) => {
       completed.push(input);
@@ -129,7 +134,8 @@ test("furinSync durably preserves manual and declarative invalidations", async (
   };
   const app = new Elysia()
     .use(furinSync({ adapter, notifier, principal: () => "principal" }))
-    .post("/cards", { sync: { invalidate: { path: "/declared", type: "layout" } } }, () => {
+    .post("/cards", ({ invalidate }) => {
+      invalidate({ path: "/declared", type: "layout" });
       revalidatePath("/manual", "page");
       revalidatePath("/declared", "layout");
       return { ok: true };
@@ -148,6 +154,7 @@ test("furinSync durably preserves manual and declarative invalidations", async (
     expect(response.headers.get("x-furin-revalidate")).toBe("/manual,/declared:layout");
     expect(completed[0]?.invalidations).toEqual([
       { kind: "path", path: "/declared", type: "layout" },
+      { kind: "tags", tags: [queryTag({ id: "/cards", scope: {} })] },
       { kind: "path", path: "/manual", type: "page" },
     ]);
   } finally {
@@ -169,14 +176,11 @@ test("furinSync completes idempotency when cache invalidation is unavailable", a
   let mutationCalls = 0;
   const app = new Elysia()
     .use(furinSync(testSync))
-    .post(
-      "/invalidation-outage",
-      { sync: { invalidate: { path: "/cards", type: "page" } } },
-      () => {
-        mutationCalls += 1;
-        return { mutationCalls };
-      }
-    );
+    .post("/invalidation-outage", ({ invalidate }) => {
+      invalidate({ path: "/cards", type: "page" });
+      mutationCalls += 1;
+      return { mutationCalls };
+    });
   const request = () =>
     app.handle(
       new Request("http://localhost/invalidation-outage", {
@@ -206,6 +210,7 @@ test("furinSync schedules the next lease renewal while the current renewal is pe
   };
   const adapter: SyncAdapter = {
     abortMutation: () => Promise.resolve(),
+    appendInvalidations: () => Promise.resolve("0"),
     beginMutation: () => Promise.resolve({ kind: "execute", lease }),
     completeMutation: () => Promise.resolve({ cursor: undefined, kind: "committed" }),
     currentCursor: () => Promise.resolve("0"),
@@ -269,11 +274,10 @@ test("furinSync schedules the next lease renewal while the current renewal is pe
 test("furinSync direct handle completes inside bun:test", async () => {
   resetSyncTestState();
   try {
-    const app = new Elysia()
-      .use(furinSync(testSync))
-      .post("/cards", { sync: { invalidate: { path: "/board", type: "layout" } } }, () => ({
-        ok: true,
-      }));
+    const app = new Elysia().use(furinSync(testSync)).post("/cards", ({ invalidate }) => {
+      invalidate({ path: "/board", type: "layout" });
+      return { ok: true };
+    });
 
     const response = await app.handle(
       new Request("http://localhost/cards", {
@@ -297,7 +301,8 @@ test("furinSync bypasses reads and synchronizes mutations implicitly", async () 
     const app = new Elysia()
       .use(furinSync(testSync))
       .get("/boards", () => [{ id: "board-1" }])
-      .post("/boards", () => {
+      .post("/boards", ({ invalidate }) => {
+        invalidate({ path: "/board", type: "layout" });
         mutationCalls += 1;
         return { id: "board-1" };
       });
@@ -306,13 +311,60 @@ test("furinSync bypasses reads and synchronizes mutations implicitly", async () 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([{ id: "board-1" }]);
 
-    response = await app.handle(
-      new Request("http://localhost/boards", {
+    // A key-less mutation still runs and invalidates; it is just not deduplicated.
+    for (const _ of [1, 2]) {
+      // biome-ignore lint/performance/noAwaitInLoops: each key-less request must complete in turn.
+      response = await app.handle(new Request("http://localhost/boards", { method: "POST" }));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("x-furin-revalidate")).toBe("/board:layout");
+    }
+    expect(mutationCalls).toBe(2);
+  } finally {
+    resetSyncTestState();
+  }
+});
+
+test.each([
+  ["an oversized key", "k".repeat(256)],
+  ["a key with control characters", "card\tcreate"],
+  ["a non-ASCII key", "carte-créée"],
+])("furinSync rejects %s before reserving a mutation", async (_, key) => {
+  resetSyncTestState();
+  try {
+    let calls = 0;
+    const app = new Elysia().use(furinSync(testSync)).post("/cards", () => {
+      calls += 1;
+      return { calls };
+    });
+    const response = await app.handle(
+      new Request("http://localhost/cards", {
+        headers: { "Idempotency-Key": key },
         method: "POST",
       })
     );
-    expect(response.status).toBe(428);
-    expect(mutationCalls).toBe(0);
+    expect(response.status).toBe(400);
+    expect(response.headers.get("content-type")).toStartWith("application/problem+json");
+    expect(await response.json()).toMatchObject({
+      code: "FURIN_INVALID_IDEMPOTENCY_KEY",
+      status: 400,
+    });
+    expect(calls).toBe(0);
+  } finally {
+    resetSyncTestState();
+  }
+});
+
+test("furinSync accepts a 255-character printable Idempotency-Key", async () => {
+  resetSyncTestState();
+  try {
+    const app = new Elysia().use(furinSync(testSync)).post("/cards", () => ({ created: true }));
+    const response = await app.handle(
+      new Request("http://localhost/cards", {
+        headers: { "Idempotency-Key": `${"k".repeat(250)} ~!@#` },
+        method: "POST",
+      })
+    );
+    expect(response.status).toBe(200);
   } finally {
     resetSyncTestState();
   }
@@ -328,18 +380,18 @@ test("furinSync enforces idempotent mutation semantics directly", async () => {
         calls += 1;
         return { calls };
       })
-      .post("/opted-out", { sync: false }, () => {
+      .post("/opted-out", { idempotent: false }, () => {
         calls += 1;
         return { calls };
       });
 
     let response = await syncApp.handle(new Request("http://localhost/synced", { method: "POST" }));
-    expect(response.status).toBe(428);
-    expect(calls).toBe(0);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ calls: 1 });
 
     response = await syncApp.handle(new Request("http://localhost/opted-out", { method: "POST" }));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ calls: 1 });
+    expect(await response.json()).toEqual({ calls: 2 });
 
     calls = 0;
     const replayApp = new Elysia().use(furinSync(testSync)).post("/cards", () => {
@@ -475,6 +527,7 @@ test("furinSync publishes invalidations for successful mutations with unreplayab
   };
   const adapter: SyncAdapter = {
     abortMutation: () => Promise.resolve(),
+    appendInvalidations: () => Promise.resolve("0"),
     beginMutation: () => Promise.resolve({ kind: "execute", lease }),
     completeMutation: (input) => {
       completed.push(input);
@@ -494,11 +547,10 @@ test("furinSync publishes invalidations for successful mutations with unreplayab
   };
   const app = new Elysia()
     .use(furinSync({ adapter, notifier, principal: () => "principal" }))
-    .post(
-      "/download",
-      { sync: { invalidate: { path: "/board", type: "layout" } } },
-      () => new Response("ok")
-    );
+    .post("/download", ({ invalidate }) => {
+      invalidate({ path: "/board", type: "layout" });
+      return new Response("ok");
+    });
 
   try {
     const response = await _runWithRequestInvalidationScope(() =>
@@ -512,7 +564,10 @@ test("furinSync publishes invalidations for successful mutations with unreplayab
 
     expect(response.status).toBe(500);
     expect(response.headers.get("x-furin-revalidate")).toBe("/board:layout");
-    expect(completed[0]?.invalidations).toEqual([{ kind: "path", path: "/board", type: "layout" }]);
+    expect(completed[0]?.invalidations).toEqual([
+      { kind: "path", path: "/board", type: "layout" },
+      { kind: "tags", tags: [queryTag({ id: "/download", scope: {} })] },
+    ]);
     expect(published).toEqual(["7"]);
   } finally {
     resetSyncTestState();
@@ -593,6 +648,7 @@ test("sync changes exposes a refresh cursor without private durable invalidation
   const reads: ReadChangesInput[] = [];
   const adapter: SyncAdapter = {
     abortMutation: () => Promise.resolve(),
+    appendInvalidations: () => Promise.resolve("0"),
     beginMutation: () => Promise.resolve({ kind: "conflict", reason: "in-progress" }),
     completeMutation: () => Promise.resolve({ kind: "lost" }),
     currentCursor: () => Promise.resolve(cursor),
@@ -643,6 +699,7 @@ test("sync cursor polling recovers when notifier subscription fails", async () =
   }) as typeof setInterval;
   const adapter: SyncAdapter = {
     abortMutation: () => Promise.resolve(),
+    appendInvalidations: () => Promise.resolve("0"),
     beginMutation: () => Promise.resolve({ kind: "conflict", reason: "in-progress" }),
     completeMutation: () => Promise.resolve({ kind: "lost" }),
     currentCursor: () => Promise.resolve("0"),
@@ -659,11 +716,59 @@ test("sync cursor polling recovers when notifier subscription fails", async () =
   try {
     const subscription = await subscribeSyncCursor(
       { adapter, notifier, principal: () => "principal" },
+      true,
       () => undefined
     );
     expect(intervalDelays).toEqual([250]);
     subscription.unsubscribe();
   } finally {
+    globalThis.setInterval = originalSetInterval;
+    resetSyncTestState();
+  }
+});
+
+test("the safety poll interval follows the subscribing runtime, not the mode at import", async () => {
+  resetSyncTestState();
+  const intervalDelays: number[] = [];
+  const originalSetInterval = globalThis.setInterval;
+  globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => {
+    intervalDelays.push(args[1] ?? 0);
+    return originalSetInterval(...args);
+  }) as typeof setInterval;
+  const adapter: SyncAdapter = {
+    abortMutation: () => Promise.resolve(),
+    appendInvalidations: () => Promise.resolve("0"),
+    beginMutation: () => Promise.resolve({ kind: "conflict", reason: "in-progress" }),
+    completeMutation: () => Promise.resolve({ kind: "lost" }),
+    currentCursor: () => Promise.resolve("0"),
+    readChanges: () => Promise.resolve({ changes: [], cursor: "0", hasMore: false, reset: false }),
+    renewMutation: () => Promise.resolve("lost"),
+    scope: "distributed",
+  };
+  const notifier: SyncNotifier = {
+    publish: () => Promise.resolve(),
+    subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve() }),
+  };
+
+  try {
+    // The stream module was imported while the default mode was development.
+    __setDevMode(true);
+    const production = await subscribeSyncCursor(
+      { adapter, notifier, principal: () => "principal" },
+      false,
+      () => undefined
+    );
+    __setDevMode(false);
+    const development = await subscribeSyncCursor(
+      { adapter: { ...adapter }, notifier, principal: () => "principal" },
+      true,
+      () => undefined
+    );
+    expect(intervalDelays).toEqual([15_000, 250]);
+    production.unsubscribe();
+    development.unsubscribe();
+  } finally {
+    __setDevMode(originalDevMode);
     globalThis.setInterval = originalSetInterval;
     resetSyncTestState();
   }
@@ -680,6 +785,7 @@ test("sync cursor does not poll when the notifier recovers missed notifications"
   let cursorReads = 0;
   const adapter: SyncAdapter = {
     abortMutation: () => Promise.resolve(),
+    appendInvalidations: () => Promise.resolve("0"),
     beginMutation: () => Promise.resolve({ kind: "conflict", reason: "in-progress" }),
     completeMutation: () => Promise.resolve({ kind: "lost" }),
     currentCursor: () => {
@@ -699,6 +805,7 @@ test("sync cursor does not poll when the notifier recovers missed notifications"
   try {
     const subscription = await subscribeSyncCursor(
       { adapter, notifier, principal: () => "principal" },
+      true,
       () => undefined
     );
     expect(cursorReads).toBe(1);

@@ -1,6 +1,6 @@
 {
   "name": "@teyik0/furin",
-  "version": "0.7.0-alpha.5",
+  "version": "0.8.0-alpha.0",
   "description": "React meta-framework powered by Elysia and Bun with file-based routing, SSR, SSG, and ISR.",
   "keywords": [
     "react",
@@ -53,7 +53,7 @@
     },
     "./rsc": {
       "types": "./dist/rsc.d.ts",
-      "browser": "./src/rsc-client.ts",
+      "browser": "./dist/rsc-client.js",
       "bun": "./src/rsc.tsx",
       "import": "./dist/rsc.js"
     },
@@ -66,6 +66,11 @@
       "types": "./dist/config.d.ts",
       "bun": "./src/config.ts",
       "import": "./dist/config.js"
+    },
+    "./adapters/vercel": {
+      "types": "./dist/adapter/vercel.d.ts",
+      "bun": "./src/adapter/vercel.ts",
+      "import": "./dist/adapter/vercel.js"
     },
     "./sync": {
       "types": "./dist/server/sync/index.d.ts",
@@ -159,44 +164,50 @@
     "fix": "ultracite fix",
     "generate:sync-prisma": "bun --bun node_modules/prisma/build/index.js generate --schema tests/fixtures/sync-prisma/schema.prisma",
     "test": "bun run generate:sync-prisma && bun test --parallel=2 --isolate --max-concurrency 4 --bail --timeout 15000",
+    "test:coverage": "bun run generate:sync-prisma && bun test --parallel=2 --isolate --max-concurrency 4 --timeout 15000 --coverage --coverage-reporter=lcov",
     "test:dev": "bun run generate:sync-prisma && bun test --changed --parallel --isolate --max-concurrency 4 --bail --timeout 15000",
     "test:hmr:soak": "FURIN_WEBVIEW_TESTS=1 FURIN_HMR_SOAK_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts -t 'tracks memory' --timeout 3600000",
-    "test:webview": "FURIN_WEBVIEW_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts --timeout 60000",
+    "test:webview": "FURIN_WEBVIEW_TESTS=1 bun test tests/browser --timeout 60000",
     "tscheck": "bun run generate:sync-prisma && tsc --noEmit"
   },
   "dependencies": {
-    "@elysia/eden": "^2.0.0-beta.5",
-    "@elysia/static": "2.0.0-beta.2",
+    "@elysia/eden": "2.0.0-beta.5",
+    "@elysia/static": "2.0.0-beta.3",
     "@jridgewell/trace-mapping": "^0.3.31",
-    "@vercel/functions": "^3.9.9",
-    "@yuku-toolchain/types": "0.12.0",
-    "exact-mirror": "catalog:",
-    "magic-string": "^1.4.2",
-    "react-server-dom-webpack": "19.3.0",
-    "seroval": "^1.6.7",
+    "@vercel/functions": "^3.10.1",
+    "cjs-module-lexer": "^2.3.0",
+    "magic-string": "^1.4.3",
+    "react-server-dom-webpack": "~19.3.1",
+    "seroval": "^1.6.11",
     "typescript": "7.0.2",
     "yuku-ast": "0.12.0",
     "yuku-parser": "0.12.0"
   },
   "devDependencies": {
-    "@prisma/adapter-pg": "7.10.0",
-    "@prisma/client": "7.10.0",
-    "@prisma/client-runtime-utils": "7.10.0",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "@prisma/client-runtime-utils": "7.10.1",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "drizzle-orm": "0.45.3",
+    "drizzle-orm": "0.45.4",
+    "exact-mirror": "catalog:",
     "expect-type": "^1.4.0",
-    "prisma": "7.10.0"
+    "prisma": "7.10.1"
   },
   "peerDependencies": {
-    "drizzle-orm": "^0.45.3",
+    "@types/bun": ">=1.4.0",
+    "drizzle-orm": "^0.45.4",
     "elysia": "catalog:",
     "evlog": "catalog:",
+    "exact-mirror": ">=1.2.6",
     "react": "catalog:",
     "react-dom": "catalog:",
     "typebox": "catalog:"
   },
   "peerDependenciesMeta": {
+    "@types/bun": {
+      "optional": true
+    },
     "drizzle-orm": {
       "optional": true
     }

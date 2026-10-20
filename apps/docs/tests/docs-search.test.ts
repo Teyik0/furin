@@ -41,6 +41,16 @@ Ship the first page.
     expect(entries.some((entry) => entry.href === "/docs#first-page")).toBe(true);
   });
 
+  test("orders a page before its own sections so it wins score ties", () => {
+    const [doc] = DOCS_CARDS;
+    if (!doc) {
+      throw new Error("Expected docs cards fixture");
+    }
+    const { entries } = buildSearchEntriesForDoc(doc, "## One\nFirst.\n\n## Two\nSecond.", 0);
+
+    expect(entries.map((entry) => entry.order)).toEqual([0, 1, 2]);
+  });
+
   test("ignores fenced code blocks in indexed content", () => {
     const [doc] = DOCS_CARDS;
     if (!doc) {

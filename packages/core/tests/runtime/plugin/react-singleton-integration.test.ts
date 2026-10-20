@@ -5,12 +5,13 @@
  * Regression test for: "dispatcher is null" hook crash on HMR.
  */
 import { describe, expect, test } from "bun:test";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createElement, createContext as mainCreateContext, useState as mainUseState } from "react";
 import { renderToString } from "react-dom/server";
+import { resolveRouteElement } from "../../../src/client/route-element.tsx";
 import { registerDevPagePlugin } from "../../../src/server/dev-page-plugin.ts";
 import { withDocumentState } from "../../../src/server/render/document.tsx";
-import { buildElement } from "../../../src/server/render/element.tsx";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import { requireTmpPath, withTmpFiles, withTmpPage } from "../../support/tmp-files";
 
@@ -35,18 +36,15 @@ describe("furin-dev-page React singleton", () => {
         const first = await import(`${pagePath}?furin-server&t=${timestamp}`);
         const second = await import(`${pagePath}?furin-server&t=${timestamp + 1}`);
         const makeElement = (component: typeof first.default, boardId: string, title: string) =>
-          buildElement(
-            {
-              mode: "ssr",
-              page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE" }, component },
-              path: pagePath,
-              pattern: "/hmr-board/:boardId",
-              routeChain: [],
-              segmentBoundaries: [],
-            },
-            { params: { boardId }, title },
-            { __type: "FURIN_ROUTE" }
-          );
+          resolveRouteElement({
+            boundaries: [],
+            boundaryOptions: undefined,
+            chain: [],
+            data: { params: { boardId }, title },
+            page: { component, pattern: "/hmr-board/:boardId" },
+            reset: () => undefined,
+            rootBoundary: undefined,
+          });
         const firstTree = makeElement(first.default, "a", "First");
         const secondTree = makeElement(second.default, "b", "Second");
 
@@ -156,9 +154,8 @@ describe("furin-dev-page React singleton", () => {
       {
         "_route.tsx": (paths) => `import { defineRoute } from "@teyik0/furin";
           import { Nav } from ${JSON.stringify(paths["nav.tsx"])};
-          import { route as rootRoute } from ${JSON.stringify(paths["root.tsx"])};
-          export const route = defineRoute()
-            .config({ layout: rootRoute, mode: "ssr" })
+          export const route = defineRoute("/_route")
+            .config({ mode: "ssr" })
             .layout(({ children }) => (
               <section>
                 <Nav />
@@ -170,10 +167,9 @@ describe("furin-dev-page React singleton", () => {
             const [open] = useState(true);
             return <button data-open={String(open)}>nav</button>;
           }`,
-        "page.tsx": (paths) => `import { defineRoute } from "@teyik0/furin";
-          import { route as parentRoute } from ${JSON.stringify(paths["_route.tsx"])};
-          export const route = defineRoute()
-            .config({ layout: parentRoute, mode: "ssg" })
+        "page.tsx": `import { defineRoute } from "@teyik0/furin";
+          export const route = defineRoute("/page")
+            .config({ mode: "ssg" })
             .page(() => <main>docs page</main>);`,
         "root.tsx": `import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
           export const route = defineRootRoute()
@@ -191,14 +187,15 @@ describe("furin-dev-page React singleton", () => {
         const layout = adaptDefinedLayout(routeMod.route, root);
         const page = adaptDefinedPage(pageMod.route, layout);
 
-        const element = buildElement(
-          {
-            page,
-            routeChain: [root, layout, page._route],
-          } as Parameters<typeof buildElement>[0],
-          {},
-          root
-        );
+        const element = resolveRouteElement({
+          boundaries: [],
+          boundaryOptions: undefined,
+          chain: [root, layout, page._route],
+          data: {},
+          page: { component: page.component, pattern: "/" },
+          reset: () => undefined,
+          rootBoundary: undefined,
+        });
 
         expect(() =>
           renderToString(
@@ -217,6 +214,27 @@ describe("furin-dev-page React singleton", () => {
             )
           )
         ).not.toThrow();
+      }
+    ));
+
+  test("a page's JSX runtime is the project React when the server runs from another directory", () =>
+    withTmpPage(
+      TMP_DIR,
+      "export default function Page() { return <main>pinned</main>; }",
+      async (pagePath) => {
+        const script = `
+          const plugin = await import(${JSON.stringify(join(CORE_DIR, "src/server/dev-page-plugin.ts"))});
+          plugin.registerDevPagePlugin();
+          const page = await import(${JSON.stringify(`${pagePath}?furin-server&t=1`)});
+          page.default();
+          console.log(JSON.stringify(Object.keys(require.cache).filter((path) => path.endsWith("jsx-dev-runtime.js"))));
+        `;
+        const child = Bun.spawn(["bun", "-e", script], { cwd: tmpdir(), stderr: "pipe" });
+
+        expect(await new Response(child.stderr).text()).toBe("");
+        expect(JSON.parse(await new Response(child.stdout).text())).toEqual([
+          Bun.resolveSync("react/jsx-dev-runtime", CORE_DIR),
+        ]);
       }
     ));
 });

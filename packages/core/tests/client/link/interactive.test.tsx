@@ -8,9 +8,7 @@ import {
   type RouterContextValue,
   SSR_FALLBACK_ROUTER,
 } from "../../../src/client/link.tsx";
-import { setPrefetchCacheEntry } from "../../../src/client/router/provider.tsx";
-import type { CacheEntry } from "../../../src/client/router/types.ts";
-import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
+import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -378,30 +376,40 @@ describe("Link SSR path", () => {
   });
 });
 
-describe("prefetch cache helpers", () => {
-  test("setPrefetchCacheEntry evicts the oldest entry when the cap is exceeded", () => {
-    const cache = new Map<string, CacheEntry>();
-    const entry = (id: string): CacheEntry => ({
-      createdAt: Date.now(),
-      promise: Promise.resolve({
-        data: { id },
-        match: null,
-        notFound: { message: id },
-      }),
-      staleTime: 30_000,
-    });
-
-    setPrefetchCacheEntry(cache, "/a", entry("a"), 2);
-    setPrefetchCacheEntry(cache, "/b", entry("b"), 2);
-    setPrefetchCacheEntry(cache, "/c", entry("c"), 2);
-
-    expect([...cache.keys()]).toEqual(["/b", "/c"]);
-  });
-});
-
 // ── LinkInteractive (client) ──────────────────────────────────────────────────
 
 describe("LinkInteractive — client-side behaviour", () => {
+  test("download links retain native navigation", () => {
+    const navigate = mock(() => Promise.resolve());
+    const view = renderLink(
+      createElement(Link, { to: "/asset", download: "asset.txt" }, "Download"),
+      makeRouterContext({ navigate })
+    );
+    document.removeEventListener("click", preventHappyDomAnchorNavigation);
+    try {
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+      dispatchReactEvent(view.anchor, event);
+      expect(event.defaultPrevented).toBe(false);
+      expect(navigate).not.toHaveBeenCalled();
+    } finally {
+      document.addEventListener("click", preventHappyDomAnchorNavigation);
+      view.cleanup();
+    }
+  });
+
+  test("same-origin absolute links navigate using the logical mount path", () => {
+    const navigate = mock(() => Promise.resolve());
+    const view = renderLink(
+      createElement(Link, { to: `${window.location.origin}/furin/about?q=1#part` }, "About"),
+      makeRouterContext({ basePath: "/furin", navigate })
+    );
+    dispatchReactEvent(view.anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(navigate).toHaveBeenCalledWith("/about?q=1#part", {
+      replace: undefined,
+      resetScroll: true,
+    });
+    view.cleanup();
+  });
   let originalOpen: typeof window.open | undefined;
   let originalHrefDescriptor: PropertyDescriptor | undefined;
 
@@ -856,7 +864,7 @@ describe("LinkInteractive — client-side behaviour", () => {
     );
 
     expect(calls.length).toBe(0);
-    await new Promise((r) => setTimeout(r, 20));
+    await waitForDom(() => calls.length > 0, undefined);
     expect(calls.length).toBe(1);
     const [firstCall] = calls;
     if (!firstCall) {

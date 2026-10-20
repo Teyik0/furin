@@ -1,12 +1,15 @@
-import { toCrossJSON } from "seroval";
+import { toCrossJSON, toCrossJSONAsync } from "seroval";
+import type { RuntimeData } from "../../client/internal/runtime-types.ts";
+import { serializeCompactJsonLine } from "../../shared/compact-json.ts";
 import {
+  containsRscSource,
   MAX_ROUTE_FRAME_STREAM_BYTES,
   serializeRouteFrame,
   serializeRouteFrames,
   serializeRouteFrameValue,
 } from "../../shared/route-frame.ts";
 import { deferredQuerySeeds } from "../sync/query-context.ts";
-import { serializeDeferredRejection } from "./loaders.ts";
+import { serializeDeferredRejection } from "./loader-errors.ts";
 
 export async function serializeDeferredRouteFrame(
   key: string,
@@ -14,13 +17,14 @@ export async function serializeDeferredRouteFrame(
   idPrefix: string
 ): Promise<string> {
   try {
-    const { rscFrames, value } = serializeRouteFrameValue(await promise, idPrefix);
+    const { rscFrames, value, references } = serializeRouteFrameValue(await promise, idPrefix);
     const queries = deferredQuerySeeds(promise);
     return (
       serializeRouteFrame({
         key,
         type: "defer-resolve",
         value,
+        ...(references && { references }),
         ...(queries && { queries: toCrossJSON(queries) }),
       }) + rscFrames
     );
@@ -34,7 +38,7 @@ export async function serializeDeferredRouteFrame(
 }
 
 export function createDeferredRouteFrameStream(
-  syncData: Record<string, unknown>,
+  syncData: RuntimeData,
   deferredPromises: Record<string, Promise<unknown>>
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -62,4 +66,37 @@ export function createDeferredRouteFrameStream(
       controller.close();
     },
   });
+}
+
+/**
+ * Serialises a loader's `syncData` + `deferredPromises` into the same one-line
+ * NDJSON shape live navigation data requests (`?_furin=data`) receive.
+ */
+export async function serializeLoaderDataNdjson(
+  syncData: RuntimeData,
+  deferredPromises: Record<string, Promise<unknown>> | undefined
+): Promise<string> {
+  const payload: RuntimeData = {
+    ...syncData,
+    ...(deferredPromises ?? {}),
+  };
+  const deferredEntries = Object.entries(deferredPromises ?? {});
+  if (containsRscSource(payload) || deferredEntries.length > 0) {
+    let ndjson = serializeRouteFrames(
+      syncData,
+      deferredEntries.map(([key]) => key)
+    );
+    await Promise.all(
+      deferredEntries.map(async ([key, promise], index) => {
+        ndjson += await serializeDeferredRouteFrame(key, promise, `defer-${index}`);
+      })
+    );
+    return ndjson;
+  }
+  const compactJson = serializeCompactJsonLine(payload);
+  if (compactJson !== undefined) {
+    return compactJson;
+  }
+  const serialized = await toCrossJSONAsync(payload);
+  return `${JSON.stringify(serialized)}\n`;
 }

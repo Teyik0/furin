@@ -86,9 +86,9 @@ marker, legacy-instance checks and download-directory policy.
 
 ## Keep the isomorphic Eden client
 
-Keep the server-side `createClient(apiPlugin).api` and browser-side
-`createClient<Api>(window.location.origin, { fetch: { cache: "no-store",
-credentials: "include" } }).api`. Here `apiPlugin` is the same final application
+Keep the server-side `treaty(apiPlugin).use(furinSync).api` and browser-side
+`treaty<Api>(window.location.origin, { fetch: { cache: "no-store",
+credentials: "include" } }).use(furinSync).api`. Here `apiPlugin` is the same final application
 that listens, not a second active router.
 
 The server client calls `app.handle()` without network dispatch. Furin permits

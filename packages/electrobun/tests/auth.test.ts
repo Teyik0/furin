@@ -12,7 +12,7 @@ test("bootstrap credentials never pass through prior application hooks or wrappe
   const wrapPaths: string[] = [];
   let bodyCalls = 0;
   const app = createDesktopApp()
-    .request(({ request }) => {
+    .onRequest(({ request }) => {
       hookPaths.push(new URL(request.url).pathname);
     })
     .wrap((next) => (request) => {

@@ -2,7 +2,10 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { RequestLogger } from "evlog";
 // biome-ignore lint/style/noExportedImports: used locally and re-exported for consumers
 import { createLogger } from "evlog";
-import { getRequestLogger } from "./evlog.ts";
+import { createMiddlewareLogger } from "evlog/toolkit";
+import { physicalPath } from "../shared/prefix.ts";
+import { getFurinEvlogOptions, getRequestLogger, registerEmission } from "./evlog.ts";
+import { currentInstance } from "./instance.ts";
 
 export { createLogger };
 
@@ -11,10 +14,16 @@ export { createLogger };
  * (not in a live request, not in a synthetic render scope).
  */
 const noopLogger: RequestLogger = {
+  // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op
+  debug: () => {},
   emit: () => null,
   // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op
   error: () => {},
-  fork: (_label, fn) => fn() as undefined,
+  // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op
+  fatal: () => {},
+  fork: async (_label, fn) => {
+    await fn();
+  },
   getContext: () => ({}),
   // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op
   info: () => {},
@@ -22,6 +31,8 @@ const noopLogger: RequestLogger = {
   set: () => {},
   // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op
   setLevel: () => {},
+  // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op
+  trace: () => {},
   // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op
   warn: () => {},
 };
@@ -48,6 +59,12 @@ export function getLogger(): RequestLogger {
   }
 }
 
+/** Wide-event fields seeding the logger of a synthetic render. */
+export interface SyntheticRenderContext {
+  render?: "isr" | "ssg";
+  route: string;
+}
+
 /**
  * Runs `fn` inside a synthetic render scope.
  *
@@ -61,16 +78,37 @@ export function getLogger(): RequestLogger {
  */
 export async function runInSyntheticRenderScope<T>(
   fn: () => Promise<T> | T,
-  initialContext: Record<string, unknown>
+  initialContext: SyntheticRenderContext
 ): Promise<T> {
-  const logger = createLogger(initialContext);
+  const options = getFurinEvlogOptions();
+  const { route } = initialContext;
+  const middleware =
+    options === undefined
+      ? undefined
+      : createMiddlewareLogger({
+          ...options,
+          waitUntil: undefined,
+          method: "GET",
+          path: physicalPath(currentInstance().prefix, route),
+        });
+  const logger = middleware?.logger ?? createLogger({ ...initialContext });
+  if (middleware) {
+    logger.set({ ...initialContext });
+  }
   try {
-    const result = await syntheticRenderStorage.run(logger, () => Promise.resolve(fn()));
-    logger.emit();
-    return result;
+    return await syntheticRenderStorage.run(logger, () => Promise.resolve(fn()));
   } catch (err) {
     logger.error(err instanceof Error ? err : new Error(String(err)));
-    logger.emit();
     throw err;
+  } finally {
+    const emission = Promise.resolve()
+      .then(() => (middleware ? middleware.finish() : logger.emit()))
+      .then(
+        () => undefined,
+        (error: unknown) => {
+          console.error("[furin] Synthetic log emission failed", error);
+        }
+      );
+    registerEmission(emission, options, undefined);
   }
 }

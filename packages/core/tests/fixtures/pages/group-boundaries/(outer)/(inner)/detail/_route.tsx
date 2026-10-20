@@ -1,9 +1,8 @@
 import { defineRoute } from "@teyik0/furin";
 import { useState } from "react";
-import { route as rootRoute } from "../../../root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("/(outer)/(inner)/detail/_route")
+  .config({ mode: "ssr" })
   .layout(({ children }) => {
     const [failed, setFailed] = useState(false);
     if (failed) {

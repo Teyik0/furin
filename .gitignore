@@ -15,8 +15,8 @@ coverage
 
 # logs
 logs
-_.log
-report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+*.log
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # dotenv environment variable files
 .env
@@ -38,7 +38,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .opencode
 .claude
 PLAN*.md
-generated**
+/apps/docs/src/generated/
+/packages/core/tests/fixtures/sync-prisma/generated/
 
 **/*.db*
 **/.tmp/**

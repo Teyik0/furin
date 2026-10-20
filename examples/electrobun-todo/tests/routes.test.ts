@@ -25,7 +25,7 @@ async function checkTodoRequests(filename: string) {
         const page = await app.handle(new Request("http://localhost/"));
         expect(page.status).toBe(200);
         expect(await page.text()).toContain("Une page, deux surfaces");
-        const data = await app.handle(new Request("http://localhost/_furin/data?path=%2F"));
+        const data = await app.handle(new Request("http://localhost/?_furin=data"));
         if (!data.body) {
           throw new Error("Missing todo loader data");
         }

@@ -90,10 +90,9 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     "src/pages/blog/_route.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "../root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      'export const route = defineRoute("/blog/_route")',
+      '  .config({ mode: "ssr" })',
       '  .layout(({ children }) => <nav data-blog-layout="blog-v1">{children}</nav>);',
     ].join("\n")
   );
@@ -104,10 +103,9 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     "src/pages/blog/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as parentRoute } from "./_route";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: parentRoute, mode: "ssg" })',
+      'export const route = defineRoute("/blog")',
+      '  .config({ mode: "ssg" })',
       '  .page(() => <main data-blog-listing="true">Blog listing</main>);',
     ].join("\n")
   );
@@ -119,10 +117,9 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { t } from "elysia";',
-      'import { route as parentRoute } from "./_route";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: parentRoute, mode: "ssg", params: t.Object({ slug: t.String() }) })',
+      'export const route = defineRoute("/blog/[slug]")',
+      '  .config({ mode: "ssg", params: t.Object({ slug: t.String() }) })',
       "  .page(() => (",
       '    <article data-post-version="post-v1">Blog post content</article>',
       "  ));",
@@ -135,10 +132,9 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     "src/pages/blog/isr-stamp.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as parentRoute } from "./_route";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: parentRoute, mode: "isr", revalidate: 60 })',
+      'export const route = defineRoute("/blog/isr-stamp")',
+      '  .config({ mode: "isr", revalidate: 60 })',
       "  .loader(async () => ({ stamp: Date.now() }))",
       "  .page(({ stamp }) => (",
       "    <div data-stamp={String(stamp)}>ISR stamp: {stamp}</div>",
@@ -152,10 +148,9 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     "src/pages/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssg" })',
+      'export const route = defineRoute("/")',
+      '  .config({ mode: "ssg" })',
       "  .page(() => <main>Home</main>);",
     ].join("\n")
   );
@@ -220,10 +215,9 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
-        'import { route as parentRoute } from "./_route";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: parentRoute, mode: "ssg", params: t.Object({ slug: t.String() }) })',
+        'export const route = defineRoute("/blog/[slug]")',
+        '  .config({ mode: "ssg", params: t.Object({ slug: t.String() }) })',
         "  .page(() => (",
         '    <article data-post-version="post-v2">Updated blog post</article>',
         "  ));",
@@ -284,10 +278,9 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
       "src/pages/blog/_route.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "../root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/blog/_route")',
+        '  .config({ mode: "ssr" })',
         '  .layout(({ children }) => <nav data-blog-layout="blog-v2">{children}</nav>);',
       ].join("\n")
     );
@@ -332,10 +325,9 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
       "src/pages/blog/_route.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "../root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/blog/_route")',
+        '  .config({ mode: "ssr" })',
         '  .layout(({ children }) => <nav data-blog-layout="blog-v3">{children}</nav>);',
       ].join("\n")
     );
@@ -433,10 +425,9 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
       "src/pages/blog/isr-stamp.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as parentRoute } from "./_route";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: parentRoute, mode: "isr", revalidate: 60 })',
+        'export const route = defineRoute("/blog/isr-stamp")',
+        '  .config({ mode: "isr", revalidate: 60 })',
         "  // Loader intentionally returns a bumped stamp so a cache miss is detectable.",
         "  .loader(async () => ({ stamp: Date.now() + 99999 }))",
         "  .page(({ stamp }) => (",

@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
-import { createTmpApp, writeAppFile } from "../support/app-fixtures.ts";
-import { getTestPort, waitForHttp } from "../support/http.ts";
+import { createTmpApp, keyPagesForPrefix, writeAppFile } from "../support/app-fixtures.ts";
+import { getFreePort } from "../support/hmr.ts";
+import { waitForHttp } from "../support/http.ts";
 import { runCli, startProcess } from "../support/process.ts";
 
 function createApiPrerenderApp(mode: "isr" | "ssg") {
@@ -16,15 +17,14 @@ export const api = new Elysia().get("/api/message", () => ({ message: "In-memory
     app.path,
     "src/pages/index.tsx",
     `import { defineRoute } from "@teyik0/furin";
-import { createClient } from "@teyik0/furin/client";
+import { treaty } from "@elysia/eden";
 import { api } from "../api";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: ${JSON.stringify(mode)}, revalidate: 60 })
+export const route = defineRoute("/")
+  .config({ mode: ${JSON.stringify(mode)}, revalidate: 60 })
   .staticParams(() => [{}])
   .loader(async () => {
-    const { data, error } = await createClient(api).api.message.get();
+    const { data, error } = await treaty(api).api.message.get();
     if (error) throw error;
     return data;
   })
@@ -80,7 +80,7 @@ test.each(["ssg", "isr"] as const)(
         `import { furin } from "@teyik0/furin";
 import { api } from "./api";
 export default api
-  .beforeHandle(({ path, status }) => {
+  .onBeforeHandle(({ path, status }) => {
     if (path === "/") return status(404, "not found");
   })
   .use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
@@ -98,18 +98,18 @@ export default api
   30_000
 );
 
-test.each(["use", "setup"] as const)(
+test.each(["use", "onStart"] as const)(
   "Vercel builds an API extended with .%s() after an in-memory ISR loader request",
   async (method) => {
     const app = createApiPrerenderApp("isr");
     try {
-      if (method === "setup") {
+      if (method === "onStart") {
         writeAppFile(
           app.path,
           "src/server.ts",
           `import { furin } from "@teyik0/furin";
 import { api } from "./api";
-export default api.setup(() => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+export default api.onStart(() => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
         );
       }
 
@@ -208,7 +208,7 @@ test("Bun builds and serves an API extended after an in-memory SSG loader reques
   try {
     const build = await runCli(["build", "--target", "bun"], { cwd: app.path });
     expect(build.exitCode, build.stderr).toBe(0);
-    const port = getTestPort();
+    const port = await getFreePort();
     const server = startProcess([process.execPath, ".furin/build/bun/server.js"], {
       cwd: app.path,
       env: { PORT: String(port) },
@@ -238,11 +238,11 @@ test("Vercel still rejects an API sealed inside the server entry itself", async 
       `import { furin } from "@teyik0/furin";
 import { api } from "./api";
 await api.handle(new Request("http://localhost/api/message"));
-export default api.setup(() => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+export default api.onStart(() => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
     );
     const build = await runCli(["build", "--target", "vercel"], { cwd: app.path });
     expect(build.exitCode).toBe(1);
-    expect(build.stderr).toContain("[Elysia] .setup() called after the app was sealed");
+    expect(build.stderr).toContain("[Elysia] .onStart() called after the app was sealed");
   } finally {
     app.cleanup();
   }
@@ -267,6 +267,7 @@ const sync = {
 };
 export default api.use(await furin({ pagesDir: "./src/pages", prefix: "/tasks", sync }));`
     );
+    keyPagesForPrefix(app.path, "src/pages", "/tasks");
     const build = await runCli(["build", "--target", "vercel"], { cwd: app.path });
     expect(build.exitCode, build.stderr).toBe(0);
     const fallback = await Bun.file(

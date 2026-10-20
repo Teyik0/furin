@@ -88,7 +88,6 @@ function pageSource(version: string, changedHookSignature: boolean): string {
   return [
     'import { useState } from "react";',
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     "",
     "function CounterPage() {",
     ...(changedHookSignature ? ['  const [signature] = useState("changed-hooks");'] : []),
@@ -103,8 +102,8 @@ function pageSource(version: string, changedHookSignature: boolean): string {
     "  );",
     "}",
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     "  .page(CounterPage);",
   ].join("\n");
 }
@@ -120,7 +119,6 @@ function importedChildPageSource(importPath: string): string {
   return [
     'import { useState } from "react";',
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     `import { ChildCounter } from ${JSON.stringify(importPath)};`,
     "",
     "function ParentPage() {",
@@ -136,8 +134,8 @@ function importedChildPageSource(importPath: string): string {
     "  );",
     "}",
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     "  .page(ParentPage);",
   ].join("\n");
 }
@@ -164,9 +162,8 @@ function importedRoutePageSource(): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
     'import { ImportedPage } from "../components/ImportedPage";',
-    'import { route as rootRoute } from "./root";',
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     "  .page(ImportedPage);",
   ].join("\n");
 }
@@ -193,9 +190,8 @@ function importedLoaderPageSource(): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
     'import { FeaturePage, loadData } from "../components/LoaderFeature";',
-    'import { route as rootRoute } from "./root";',
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     "  .loader(loadData)",
     "  .page(FeaturePage);",
   ].join("\n");
@@ -279,7 +275,6 @@ function dynamicImportPageSource(): string {
   return [
     'import { lazy, Suspense, useState } from "react";',
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     "",
     'const LazyChild = lazy(() => import("../components/LazyChild").then((module) => ({',
     "  default: module.LazyChild,",
@@ -304,8 +299,8 @@ function dynamicImportPageSource(): string {
     "  );",
     "}",
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     "  .page(DynamicPage);",
   ].join("\n");
 }
@@ -317,8 +312,8 @@ function lazyChildSource(version: string): string {
 function missingImportPageSource(version: string): string {
   return pageSource(version, false)
     .replace(
-      'import { route as rootRoute } from "./root";',
-      'import { route as rootRoute } from "./root";\nimport { MissingChild } from "../components/MissingChild";'
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { defineRoute } from "@teyik0/furin";\nimport { MissingChild } from "../components/MissingChild";'
     )
     .replace("    </main>", "      <MissingChild />\n    </main>");
 }
@@ -327,7 +322,6 @@ function topologyHomeSource(): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
     'import { Link } from "@teyik0/furin/link";',
-    'import { route as rootRoute } from "./root";',
     "",
     "function HomePage() {",
     "  return (",
@@ -337,8 +331,8 @@ function topologyHomeSource(): string {
     "  );",
     "}",
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     "  .page(HomePage);",
   ].join("\n");
 }
@@ -346,12 +340,11 @@ function topologyHomeSource(): string {
 function addedRouteSource(version: string): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     "",
     `function AddedPage() { return <main data-version="${version}">Added route</main>; }`,
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/added")',
+    '  .config({ mode: "ssr" })',
     "  .page(AddedPage);",
   ].join("\n");
 }
@@ -375,7 +368,6 @@ function sectionLayoutSource(version: string): string {
   return [
     'import { useState } from "react";',
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "../root";',
     "",
     "function SectionLayout({ children }: { children: React.ReactNode }) {",
     "  const [count, setCount] = useState(0);",
@@ -391,8 +383,8 @@ function sectionLayoutSource(version: string): string {
     "  );",
     "}",
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/section/_route")',
+    '  .config({ mode: "ssr" })',
     "  .layout(SectionLayout);",
   ].join("\n");
 }
@@ -401,7 +393,6 @@ function sectionLayoutLoaderSource(value: string): string {
   return [
     'import { useState } from "react";',
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "../root";',
     "",
     "function SectionLayout({ children, label }: { children: React.ReactNode; label: string }) {",
     "  const [count, setCount] = useState(0);",
@@ -413,8 +404,8 @@ function sectionLayoutLoaderSource(value: string): string {
     "  </section>;",
     "}",
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/section/_route")',
+    '  .config({ mode: "ssr" })',
     `  .loader(() => ({ label: "loader-${value}" }))`,
     "  .layout(SectionLayout);",
   ].join("\n");
@@ -424,7 +415,6 @@ function sectionLayoutRequestLoaderSource(value: string): string {
   return [
     'import { Suspense, use, useState } from "react";',
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "../root";',
     "",
     'function PrivateLabel({ data }: { data: Promise<string> }) { return <output data-testid="request-loader">{use(data)}</output>; }',
     "function SectionLayout({ children, label }: { children: React.ReactNode; label: Promise<string> }) {",
@@ -437,8 +427,8 @@ function sectionLayoutRequestLoaderSource(value: string): string {
     "  </section>;",
     "}",
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/section/_route")',
+    '  .config({ mode: "ssr" })',
     `  .requestLoader(() => ({ label: "private-${value}" }))`,
     "  .layout(SectionLayout);",
   ].join("\n");
@@ -448,12 +438,12 @@ function sectionLayoutConfigSource(queryType: "number" | "string"): string {
   const schema = queryType === "number" ? "t.Number()" : "t.String()";
   return sectionLayoutLoaderSource("config")
     .replace(
-      'import { route as rootRoute } from "../root";',
-      'import { t } from "elysia";\nimport { route as rootRoute } from "../root";'
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { defineRoute } from "@teyik0/furin";\nimport { t } from "elysia";'
     )
     .replace(
-      '.config({ layout: rootRoute, mode: "ssr" })',
-      `.config({ layout: rootRoute, mode: "ssr", query: t.Object({ page: ${schema} }), tags: ["${queryType}"] })`
+      '.config({ mode: "ssr" })',
+      `.config({ mode: "ssr", query: t.Object({ page: ${schema} }), tags: ["${queryType}"] })`
     )
     .replace(
       '.loader(() => ({ label: "loader-config" }))',
@@ -465,7 +455,6 @@ function sectionPageSource(version: string): string {
   return [
     'import { useState } from "react";',
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as sectionRoute } from "./_route";',
     "",
     "function SectionPage() {",
     "  const [count, setCount] = useState(0);",
@@ -479,8 +468,8 @@ function sectionPageSource(version: string): string {
     "  );",
     "}",
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: sectionRoute, mode: "ssr" })',
+    'export const route = defineRoute("/section")',
+    '  .config({ mode: "ssr" })',
     "  .page(SectionPage);",
   ].join("\n");
 }
@@ -492,7 +481,6 @@ function loaderPageSource(version: string, loaderThrows: boolean): string {
   return [
     'import { useState } from "react";',
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     "",
     "function LoaderPage({ message }: { message: string }) {",
     "  const [count, setCount] = useState(0);",
@@ -507,8 +495,8 @@ function loaderPageSource(version: string, loaderThrows: boolean): string {
     "  );",
     "}",
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     loader,
     "  .page(LoaderPage);",
   ].join("\n");
@@ -524,14 +512,11 @@ function componentOnlyLoaderPageSource(version: string): string {
 function routeContractPageSource(version: "after" | "before"): string {
   const isBefore = version === "before";
   const schema = isBefore ? "t.Number()" : "t.String()";
-  const config = isBefore
-    ? '.config({ layout: rootRoute, mode: "ssr",'
-    : '.config({ layout: rootRoute, mode: "isr", revalidate: 60,';
+  const config = isBefore ? '.config({ mode: "ssr",' : '.config({ mode: "isr", revalidate: 60,';
   return [
     'import { useState } from "react";',
     'import { defineRoute } from "@teyik0/furin";',
     'import { t } from "elysia";',
-    'import { route as rootRoute } from "../root";',
     "",
     "function ContractPage({ summary }: { summary: string }) {",
     "  const [count, setCount] = useState(0);",
@@ -546,7 +531,7 @@ function routeContractPageSource(version: "after" | "before"): string {
     "  );",
     "}",
     "",
-    "export const route = defineRoute()",
+    'export const route = defineRoute("/items/[id]")',
     `  ${config}`,
     `    params: t.Object({ id: ${schema} }),`,
     `    query: t.Object({ page: ${schema} }),`,
@@ -568,20 +553,14 @@ function slowLoaderPageSource(version: string, delayMs: number): string {
 
 function renderingModePageSource(version: string, mode: "isr" | "ssg" | "ssr"): string {
   const config =
-    mode === "isr"
-      ? '.config({ layout: rootRoute, mode: "isr", revalidate: 60 })'
-      : `.config({ layout: rootRoute, mode: "${mode}" })`;
-  return loaderPageSource(version, false).replace(
-    '.config({ layout: rootRoute, mode: "ssr" })',
-    config
-  );
+    mode === "isr" ? '.config({ mode: "isr", revalidate: 60 })' : `.config({ mode: "${mode}" })`;
+  return loaderPageSource(version, false).replace('.config({ mode: "ssr" })', config);
 }
 
 function deferredPageSource(version: string): string {
   return [
     'import { Suspense, useState } from "react";',
     'import { Await, defer, defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     "",
     "function DeferredPage({ message }: { message: Promise<string> }) {",
     "  const [count, setCount] = useState(0);",
@@ -598,8 +577,8 @@ function deferredPageSource(version: string): string {
     "  );",
     "}",
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     `  .loader(() => defer({ message: Bun.sleep(100).then(() => "deferred-${version}") }))`,
     "  .page(DeferredPage);",
   ].join("\n");
@@ -610,7 +589,6 @@ function rscPageSource(version: string): string {
     'import { useState } from "react";',
     'import { defineRoute } from "@teyik0/furin";',
     'import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";',
-    'import { route as rootRoute } from "./root";',
     "",
     "function RscPage({ card }) {",
     "  const [count, setCount] = useState(0);",
@@ -625,8 +603,8 @@ function rscPageSource(version: string): string {
     "  );",
     "}",
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     "  .loader(async () => ({",
     "    card: await createCompositeComponent(() => (",
     `      <article data-testid="rsc-value">rsc-${version}</article>`,
@@ -640,7 +618,6 @@ function cssPageSource(): string {
   return [
     'import { useState } from "react";',
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     'import "./styles.css";',
     "",
     "function CssPage() {",
@@ -655,8 +632,8 @@ function cssPageSource(): string {
     "  );",
     "}",
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     "  .page(CssPage);",
   ].join("\n");
 }
@@ -1288,9 +1265,8 @@ browserTest(
   async () => {
     const harness = await createBrowserHarness(
       `import { defineRoute } from "@teyik0/furin";
-       import { route as rootRoute } from "./root";
        import { ChildCounter } from "../components/ChildCounter";
-       export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" })
+       export const route = defineRoute("/").config({ mode: "ssr" })
          .page(() => <main data-version="deferred"><ChildCounter /></main>);`,
       [
         {
@@ -1956,6 +1932,54 @@ browserTest(
 );
 
 browserTest(
+  "the development overlay keeps source lines below server code stripped from the client",
+  async () => {
+    const harness = await createBrowserHarness(pageSource("lines-v1", false), [], false);
+    activeHarness = harness;
+    await harness.view.click('[data-testid="increment"]');
+
+    writeAppFile(
+      harness.app.path,
+      "src/pages/index.tsx",
+      [
+        'import { useState } from "react";',
+        'import { defineRoute } from "@teyik0/furin";',
+        "",
+        "const loadLabel = async () => {",
+        '  const label = "server-only";',
+        "  return { label };",
+        "};",
+        "",
+        "function CounterPage() {",
+        "  const [count] = useState(0);",
+        '  if (count === 0) throw new Error("located client render exploded");',
+        "  return <main>{count}</main>;",
+        "}",
+        "",
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssr" })',
+        "  .loader(loadLabel)",
+        "  .page(CounterPage);",
+      ].join("\n")
+    );
+
+    let location = "";
+    for (let attempt = 0; attempt < 150; attempt += 1) {
+      location = (await harness.view.evaluate(
+        'document.querySelector("#__furin-dev-error-overlay")?.shadowRoot?.querySelector("[data-furin-diagnostic-location]")?.textContent ?? ""'
+      )) as string;
+      if (location.includes("src/pages/index.tsx")) {
+        break;
+      }
+      await Bun.sleep(100);
+    }
+
+    expect(location).toContain("src/pages/index.tsx:11:");
+  },
+  45_000
+);
+
+browserTest(
   "successive syntax and render errors recover on the next valid edit",
   async () => {
     const harness = await createBrowserHarness(pageSource("sequence-v1", false), [], false);
@@ -2043,6 +2067,42 @@ browserTest(
 
     await waitForVersion(harness.view, "cold-recovered");
     await waitForElementText(harness.view, '[data-testid="loader"]', "loader-cold-recovered");
+    await waitForDevErrorOverlayRemoved(harness.view);
+  },
+  45_000
+);
+
+browserTest(
+  "a cold invalid layout export shows the overlay and recovers after an edit",
+  async () => {
+    const harness = await createBrowserHarness(
+      pageSource("home", false),
+      [
+        {
+          contents: sectionLayoutSource("layout-broken").replace(
+            ".layout(SectionLayout);",
+            ".loader(() => ({}));"
+          ),
+          relativePath: "src/pages/section/_route.tsx",
+        },
+        {
+          contents: sectionPageSource("section-v1"),
+          relativePath: "src/pages/section/index.tsx",
+        },
+      ],
+      false
+    );
+    activeHarness = harness;
+    await harness.view.navigate(`${harness.url}/section`);
+    await waitForDevErrorOverlayText(harness.view, "_route.tsx must export");
+
+    writeAppFile(
+      harness.app.path,
+      "src/pages/section/_route.tsx",
+      sectionLayoutSource("layout-fixed")
+    );
+
+    await waitForElementText(harness.view, '[data-testid="layout-version"]', "layout-fixed");
     await waitForDevErrorOverlayRemoved(harness.view);
   },
   45_000
@@ -2287,7 +2347,7 @@ browserTest(
     expect(
       (await harness.view.evaluate(`
         performance.getEntriesByType("resource")
-          .filter((entry) => entry.name.includes("/_furin/data"))
+          .filter((entry) => entry.name.includes("_furin=data"))
           .length
       `)) as number
     ).toBe(0);
@@ -2338,7 +2398,7 @@ export const route = defineRootRoute()
     await Bun.sleep(300);
     expect(
       (await harness.view.evaluate(`performance.getEntriesByType("resource")
-        .filter((entry) => entry.name.includes("/_furin/data")).length`)) as number
+        .filter((entry) => entry.name.includes("_furin=data")).length`)) as number
     ).toBe(0);
     await waitForElementText(harness.view, '[data-testid="root-data"]', "loader-stable");
     expect((await readSnapshot(harness.view)).count).toBe("1");
@@ -2485,7 +2545,7 @@ browserTest(
       window.__furinHmrDataRequests = 0;
       const originalFetch = window.fetch.bind(window);
       window.fetch = (...args) => {
-        if (String(args[0]).includes("/_furin/data")) {
+        if (String(args[0]).includes("_furin=data")) {
           window.__furinHmrDataRequests += 1;
         }
         return originalFetch(...args);
@@ -2600,7 +2660,7 @@ for (const importKind of ["static", "dynamic", "circular", "route-export"] as co
     `editing a ${importKind} server-only composite helper refreshes the browser while preserving client state`,
     async () => {
       const helper = (version: string): string =>
-        `${importKind === "circular" ? 'import { seed } from "../pages/index";\n' : ""}export function ServerCard() { return <article data-testid="rsc-value" ${importKind === "circular" ? "data-seed={seed}" : ""}>${version}</article>; }${importKind === "route-export" ? '\nimport { defineRoute } from "@teyik0/furin";\nimport { route as rootRoute } from "./root";\nexport const route = defineRoute().config({ layout: rootRoute }).page(() => <main>Helper route</main>);' : ""}`;
+        `${importKind === "circular" ? 'import { seed } from "../pages/index";\n' : ""}export function ServerCard() { return <article data-testid="rsc-value" ${importKind === "circular" ? "data-seed={seed}" : ""}>${version}</article>; }${importKind === "route-export" ? '\nimport { defineRoute } from "@teyik0/furin";\nexport const route = defineRoute("/helper").config({ mode: "ssr" }).page(() => <main>Helper route</main>);' : ""}`;
       const helperPath =
         importKind === "route-export" ? "src/pages/helper.tsx" : "src/components/server-card.tsx";
       let page = rscPageSource("server-helper")
@@ -2661,9 +2721,8 @@ browserTest(
             'import { defineRoute } from "@teyik0/furin";',
             'import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";',
             'import { ServerCard } from "../../components/server-card";',
-            'import { route as rootRoute } from "../root";',
-            "export const route = defineRoute()",
-            '  .config({ layout: rootRoute, mode: "ssg" })',
+            'export const route = defineRoute("/nested/_route")',
+            '  .config({ mode: "ssg" })',
             "  .loader(async () => ({ card: await createCompositeComponent(() => <ServerCard />) }))",
             "  .layout(({ children, card }) => <section>{children}<CompositeComponent src={card} /></section>);",
           ].join("\n"),
@@ -2671,7 +2730,7 @@ browserTest(
         },
         {
           contents: pageSource("nested-helper", false)
-            .replace('from "./root"', 'from "./_route"')
+            .replace('defineRoute("/")', 'defineRoute("/nested")')
             .replace('mode: "ssr"', 'mode: "ssg"'),
           relativePath: "src/pages/nested/index.tsx",
         },
@@ -2754,7 +2813,10 @@ browserTest(
           relativePath: "src/admin-pages/root.tsx",
         },
         {
-          contents: pageSource("admin-v1", false),
+          contents: pageSource("admin-v1", false).replace(
+            'defineRoute("/")',
+            'defineRoute("/admin")'
+          ),
           relativePath: "src/admin-pages/index.tsx",
         },
         {
@@ -2783,7 +2845,11 @@ browserTest(
     await harness.view.click('[data-testid="increment"]');
     await adminView.click('[data-testid="increment"]');
 
-    writeAppFile(harness.app.path, "src/admin-pages/index.tsx", pageSource("admin-v2", false));
+    writeAppFile(
+      harness.app.path,
+      "src/admin-pages/index.tsx",
+      pageSource("admin-v2", false).replace('defineRoute("/")', 'defineRoute("/admin")')
+    );
 
     const adminAfter = await waitForVersion(adminView, "admin-v2");
     const publicAfter = await readSnapshot(harness.view);

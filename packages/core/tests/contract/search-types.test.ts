@@ -17,9 +17,8 @@ const createRootLayout = () =>
 declare const rootLayout: ReturnType<typeof createRootLayout>;
 
 const createProductsRoute = () =>
-  defineRoute()
+  defineRoute("/")
     .config({
-      layout: rootLayout,
       mode: "ssr",
       query: t.Object({ page: t.Number(), tag: t.Optional(t.String()) }),
     })

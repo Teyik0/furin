@@ -13,7 +13,7 @@ test("startup preserves native policy and cleanup failures while closing the lis
   const previousData = process.env.FURIN_APP_DATA_DIR;
   const cleanupError = new Error("module cleanup failed");
   let shutdowns = 0;
-  const app = createDesktopApp().setup((root) => {
+  const app = createDesktopApp().onStart((root) => {
     root.get("/private-html", html);
   });
   try {
@@ -82,13 +82,13 @@ for (const nested of [false, true]) {
     const data = await mkdtemp(join(tmpdir(), "furin-late-native-"));
     const previousData = process.env.FURIN_APP_DATA_DIR;
     let added = false;
-    const app = createDesktopApp().setup((root) => {
+    const app = createDesktopApp().onStart((root) => {
       const add = () => {
         root.get("/private-html", html);
         added = true;
       };
       if (nested) {
-        root.setup(add);
+        root.onStart(add);
       } else {
         add();
       }
@@ -127,7 +127,7 @@ test("queued unauthenticated traffic cannot receive a late native HTML bundle be
   const previousData = process.env.FURIN_APP_DATA_DIR;
   const entered = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
-  const app = createDesktopApp().setup(async (root) => {
+  const app = createDesktopApp().onStart(async (root) => {
     entered.resolve();
     await release.promise;
     root.get("/private-html", html);

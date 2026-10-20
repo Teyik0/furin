@@ -47,7 +47,7 @@ function isJsonValue(value: unknown, seen: WeakSet<object>): value is JsonValue 
   });
 }
 
-function isJsonObject(value: unknown): value is JsonObject {
+export function isJsonObject(value: unknown): value is JsonObject {
   return (
     value !== null &&
     typeof value === "object" &&

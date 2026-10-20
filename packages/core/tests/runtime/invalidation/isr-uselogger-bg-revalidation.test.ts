@@ -8,27 +8,9 @@
  * Fix: context-logger.ts exposes getLogger with a fallback to a detached createLogger()
  * instance scoped to the render (via runInSyntheticRenderScope), whose wide event is
  * emitted to the configured drain at the end of the render.
- *
- * NOTE: render.test.ts mocks evlog/elysia with a no-op stub. Bun reuses workers across
- * test files, so that mock can leak here. We override it at the top of this file to
- * restore the throw-outside-context behaviour these tests depend on.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
-
-// Must appear before any import that pulls in evlog/elysia (Bun hoists mock.module).
-// Reproduces the real evlog behaviour: useLogger() throws when called outside a
-// request context (no evlog ALS entry). This ensures the tests are not affected by
-// the no-op stub that render.test.ts installs for its own purposes.
-mock.module("evlog/elysia", () => ({
-  evlog: () => (app: unknown) => app,
-  useLogger() {
-    throw new Error(
-      "[evlog] useLogger() was called outside of an evlog plugin context. Make sure app.use(evlog()) is registered before your routes."
-    );
-  },
-}));
-
+import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { useLogger as evlogUseLogger } from "evlog/elysia";
 import { __resetCacheState } from "../../../src/server/cache/invalidation.ts";
 import { getLogger as furinGetLogger } from "../../../src/server/context-logger.ts";

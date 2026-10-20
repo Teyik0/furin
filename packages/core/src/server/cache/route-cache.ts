@@ -1,6 +1,16 @@
+import type { Context } from "elysia";
+import { isInvalidatedPath } from "../../shared/invalidation-header.ts";
+import {
+  buildSearchParams,
+  collectSearchDefaults,
+  type SearchParamsInput,
+} from "../../shared/search-params.ts";
+import { mergeRouteSchemas } from "../router/schema-merge.ts";
+import type { ResolvedRoute } from "../router/types.ts";
+
 export type RevalidateType = "page" | "layout";
 
-export interface CacheInvalidationResult {
+interface CacheInvalidationResult {
   deleted: boolean;
   purgedPaths: string[];
 }
@@ -45,17 +55,41 @@ export function pathWithoutSearch(path: string): string {
   return path.slice(0, searchStart);
 }
 
-export function pathWithRequestSearch(path: string, requestUrl: string): string {
-  const { search } = new URL(requestUrl);
-  return `${pathWithoutSearch(path)}${search}`;
-}
-
-function matchesPath(urlPath: string, path: string, type: RevalidateType): boolean {
-  if (type === "page") {
-    return urlPath === path;
-  }
-  const prefix = path === "/" || path.endsWith("/") ? path : `${path}/`;
-  return urlPath === path || urlPath.startsWith(prefix);
+/**
+ * The cache key for a cached render of `path` and the context that render must
+ * use. The key holds the query as the route's schema decoded it (none when the
+ * route declares no query schema), re-serialised the way client links build
+ * URLs: undeclared params dropped, schema defaults omitted, params sorted. So
+ * `?page=01`, `?page=1` and `?junk=x&page=1` share one entry. The context's
+ * request URL carries exactly that search, so every URL sharing the key would
+ * have rendered the same output. Invalid queries never get here: route
+ * validation rejects them first.
+ */
+export function canonicalCacheRequest(
+  route: ResolvedRoute,
+  path: string,
+  ctx: Context
+): { cacheKey: string; ctx: Context } {
+  const querySchema = mergeRouteSchemas(route.routeChain, "query");
+  const params =
+    querySchema === undefined
+      ? new URLSearchParams()
+      : buildSearchParams(
+          (ctx.query ?? {}) as SearchParamsInput,
+          collectSearchDefaults(querySchema)
+        );
+  params.sort();
+  const search = params.toString();
+  const cacheKey = search === "" ? pathWithoutSearch(path) : `${pathWithoutSearch(path)}?${search}`;
+  const url = new URL(ctx.request.url);
+  url.search = search;
+  return {
+    cacheKey,
+    ctx: Object.create(ctx, {
+      query: { enumerable: true, value: querySchema === undefined ? {} : ctx.query },
+      request: { enumerable: true, value: new Request(url, { headers: ctx.request.headers }) },
+    }) as Context,
+  };
 }
 
 export function createRouteCache<Entry>(options: RouteCacheOptions<Entry>): Cache<Entry> {
@@ -134,7 +168,7 @@ export function createRouteCache<Entry>(options: RouteCacheOptions<Entry>): Cach
 
       for (const key of new Set([...store.keys(), ...generations.keys()])) {
         const urlPath = pathFromKey(key);
-        if (urlPath === null || !matchesPath(urlPath, path, type)) {
+        if (urlPath === null || !isInvalidatedPath(urlPath, path, type)) {
           continue;
         }
         if (deleteEntry(key)) {

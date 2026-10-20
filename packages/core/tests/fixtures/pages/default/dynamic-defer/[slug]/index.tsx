@@ -1,9 +1,9 @@
 import { defineRoute } from "@teyik0/furin";
 import { defer } from "../../../../../../src/client";
-import { paramsSchema, route as parentRoute } from "./_route";
+import { paramsSchema } from "./_route";
 
-export const route = defineRoute()
-  .config({ layout: parentRoute, mode: "ssr", params: paramsSchema })
+export const route = defineRoute("/dynamic-defer/[slug]")
+  .config({ mode: "ssr", params: paramsSchema })
   .loader(({ params }) =>
     defer({
       post: Promise.resolve({ title: `Post for ${String(params.slug)}` }),

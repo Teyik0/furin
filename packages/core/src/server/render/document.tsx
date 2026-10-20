@@ -7,7 +7,8 @@ import {
 import { QueryStoreContext } from "../../client/query.tsx";
 import { QueryStore } from "../../client/query-store.ts";
 import type { HeadOptions } from "../../client.ts";
-import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
+import { isJsonObject } from "../../shared/compact-json.ts";
+import { serializeRouteFrames } from "../../shared/route-frame.ts";
 import type { QuerySeed } from "../../shared/sync-query.ts";
 import { currentInstance } from "../instance.ts";
 import { getSyncPath } from "../sync/config.ts";
@@ -18,7 +19,8 @@ export function withDocumentState(
   assets: DocumentAssets,
   head: HeadOptions | undefined,
   data: object | undefined,
-  nonce?: string
+  nonce?: string,
+  jsonCompatible?: boolean
 ): ReactNode {
   const syncPath = getSyncPath();
   const browserEventsClientPath = `${currentInstance().prefix}/_furin/events/client.js`;
@@ -30,7 +32,7 @@ export function withDocumentState(
           frameworkModules: [browserEventsClientPath, ...assets.frameworkModules],
         };
   const routeFrames =
-    data !== undefined && containsRscSource(data)
+    data !== undefined && !(jsonCompatible ?? isJsonObject(data))
       ? serializeRouteFrames(data, undefined)
       : undefined;
   const state: DocumentState = {

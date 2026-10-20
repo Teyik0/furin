@@ -2,8 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { resolve } from "node:path";
 import { checkDiskSpace } from "../src/utils/disk";
 
-const encoder = new TextEncoder();
-const originalSpawnSync = Bun.spawnSync;
+const originalSpawn = Bun.spawn;
 
 function getCommand(args: unknown): string[] {
   if (Array.isArray(args)) {
@@ -15,66 +14,56 @@ function getCommand(args: unknown): string[] {
     return [...cmd];
   }
 
-  throw new Error("Unexpected Bun.spawnSync arguments");
+  throw new Error("Unexpected Bun.spawn arguments");
+}
+
+function fakeProcess(exitCode: number, stdout: string): ReturnType<typeof Bun.spawn> {
+  return {
+    exited: Promise.resolve(exitCode),
+    stdout: new Response(stdout).body,
+  } as unknown as ReturnType<typeof Bun.spawn>;
 }
 
 afterEach(() => {
-  Bun.spawnSync = originalSpawnSync;
+  Bun.spawn = originalSpawn;
 });
 
 describe("checkDiskSpace", () => {
-  it("checks the nearest existing ancestor for relative target paths", () => {
+  it("checks the nearest existing ancestor for relative target paths", async () => {
     let command: string[] = [];
 
-    Bun.spawnSync = ((args) => {
+    Bun.spawn = ((args) => {
       command = getCommand(args);
-      return {
-        exitCode: 0,
-        stderr: new Uint8Array(),
-        stdout: encoder.encode(
-          "Filesystem 1K-blocks Used Available Capacity Mounted\n/dev/disk 100 0 100 0% /\n"
-        ),
-        success: true,
-      } as ReturnType<typeof Bun.spawnSync>;
-    }) as typeof Bun.spawnSync;
+      return fakeProcess(
+        0,
+        "Filesystem 1K-blocks Used Available Capacity Mounted\n/dev/disk 100 0 100 0% /\n"
+      );
+    }) as typeof Bun.spawn;
 
-    expect(checkDiskSpace("new-project/nested", 1024)).toBe(true);
+    expect(await checkDiskSpace("new-project/nested", 1024)).toBe(true);
     expect(command).toEqual(["df", "-k", resolve(process.cwd())]);
   });
 
-  it("returns false when available space is below the required minimum", () => {
+  it("returns false when available space is below the required minimum", async () => {
     // 50 KB available, 100 KB required
-    Bun.spawnSync = ((_args) => ({
-      exitCode: 0,
-      stderr: new Uint8Array(),
-      stdout: encoder.encode(
+    Bun.spawn = ((_args) =>
+      fakeProcess(
+        0,
         "Filesystem 1K-blocks Used Available Capacity Mounted\n/dev/disk 200 150 50 75% /\n"
-      ),
-      success: true,
-    })) as typeof Bun.spawnSync;
+      )) as typeof Bun.spawn;
 
-    expect(checkDiskSpace("/tmp", 100 * 1024)).toBe(false);
+    expect(await checkDiskSpace("/tmp", 100 * 1024)).toBe(false);
   });
 
-  it("returns true (fail-open) when df exits with a non-zero code", () => {
-    Bun.spawnSync = ((_args) => ({
-      exitCode: 1,
-      stderr: encoder.encode("df: /no/such: No such file or directory"),
-      stdout: new Uint8Array(),
-      success: false,
-    })) as typeof Bun.spawnSync;
+  it("returns true (fail-open) when df exits with a non-zero code", async () => {
+    Bun.spawn = ((_args) => fakeProcess(1, "")) as typeof Bun.spawn;
 
-    expect(checkDiskSpace("/tmp", 1024)).toBe(true);
+    expect(await checkDiskSpace("/tmp", 1024)).toBe(true);
   });
 
-  it("returns true (fail-open) when df output is malformed", () => {
-    Bun.spawnSync = ((_args) => ({
-      exitCode: 0,
-      stderr: new Uint8Array(),
-      stdout: encoder.encode("unexpected garbage output\n"),
-      success: true,
-    })) as typeof Bun.spawnSync;
+  it("returns true (fail-open) when df output is malformed", async () => {
+    Bun.spawn = ((_args) => fakeProcess(0, "unexpected garbage output\n")) as typeof Bun.spawn;
 
-    expect(checkDiskSpace("/tmp", 1024)).toBe(true);
+    expect(await checkDiskSpace("/tmp", 1024)).toBe(true);
   });
 });

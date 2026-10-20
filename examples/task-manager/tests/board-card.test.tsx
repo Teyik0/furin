@@ -1,6 +1,7 @@
 import "../../../packages/core/tests/setup/global.ts";
 import { expect, mock, test } from "bun:test";
 import { treaty } from "@elysia/eden";
+import { furinSync } from "@teyik0/furin/client";
 import { Elysia } from "elysia";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -14,7 +15,7 @@ const app = new Elysia().delete("/boards/:boardId", ({ status }) =>
 mock.module("../src/lib/api", () => ({
   api: treaty<typeof app>("http://localhost", {
     fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
-  }),
+  }).use(furinSync),
 }));
 const { BoardCard } = await import("../src/components/board-card");
 

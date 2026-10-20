@@ -1,6 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: benchmark
 
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Elysia } from "elysia";
 import type { FurinOptions } from "../../src/furin";
@@ -11,6 +11,8 @@ if (globalThis.gc === undefined) {
 }
 
 const benchRoot = mkdtempSync(join(import.meta.dir, "../../.tmp-tests/", "dbg-growth-"));
+// Benches run as plain scripts (not bun test), where "exit" does fire.
+process.on("exit", () => rmSync(benchRoot, { force: true, recursive: true }));
 const pagesDir = join(benchRoot, "pages");
 mkdirSync(join(pagesDir, "posts"), { recursive: true });
 writeFileSync(
@@ -23,9 +25,8 @@ writeFileSync(
   join(pagesDir, "posts/[id].tsx"),
   `import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
-import { route as rootRoute } from "../root";
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr", params: t.Object({ id: t.String() }) })
+export const route = defineRoute("/posts/[id]")
+  .config({ mode: "ssr", params: t.Object({ id: t.String() }) })
   .loader(({ params }) => ({ id: params.id }))
   .page(({ id }) => id);
 `
@@ -33,8 +34,7 @@ export const route = defineRoute()
 writeFileSync(
   join(pagesDir, "index.tsx"),
   `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "./root";
-export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" }).page(() => "home");
+export const route = defineRoute("/").config({ mode: "ssr" }).page(() => "home");
 `
 );
 

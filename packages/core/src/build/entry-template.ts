@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { SsgCacheEntry } from "../server/cache/index.ts";
+import type { CompileContextAdapter } from "../server/internal.ts";
 import type { ClientPreloadManifest } from "./preload-manifest.ts";
 
 // import.meta.resolve() runs at runtime (not inlined at bundle time), resolves
@@ -17,14 +17,17 @@ const _pkgSrcDir = _pkgSrcDirRaw.replace(/\\/g, "/");
 const _ext = _pkgSrcDir.endsWith("/src") ? ".ts" : ".js";
 const INTERNAL_MODULE_PATH = `${_pkgSrcDir}/server/internal${_ext}`;
 const RUNTIME_ENV_MODULE_PATH = `${_pkgSrcDir}/server/runtime-env${_ext}`;
+const STATIC_EXPORT_MODULE_PATH = `${_pkgSrcDir}/server/static-export${_ext}`;
+/** Sidecar holding the SSG documents the production bundle rendered at build time. */
+export const PRERENDER_SNAPSHOT_FILE = "furin-prerender.json";
 
 /** One app's compile context payload — the generated entry can carry several. */
 export interface EntryAppContext {
+  /** Deployment adapter whose capabilities the runtime reads. */
+  adapter?: CompileContextAdapter;
   buildId?: string;
   /** Whether the emitted hydration client sends browser log batches. */
   clientLogging?: boolean;
-  /** Deployment adapter that owns public page caching for this build. */
-  deploymentTarget?: "vercel";
   /** Extra lines injected inside this app's `__setCompileContext({...})` call. */
   extraContext?: string[];
   /** Additional route modules such as filesystem-derived `_route` layouts. */
@@ -51,9 +54,6 @@ export interface EntryAppContext {
     }
   >;
   routes: Array<{ mode: "ssr" | "ssg" | "isr"; path: string; pattern: string }>;
-  /** False when the deployment platform serves client/public assets itself. */
-  serveAssets?: boolean;
-  ssgCache?: Record<string, SsgCacheEntry>;
   /** In-memory production document template for filesystem-free runtimes. */
   templateHtml?: string;
 }
@@ -71,8 +71,16 @@ export interface EntryTemplateOptions {
    *   NODE_ENV (the host decides), and it imports furin internals via the
    *   package specifier so the host and the register module share ONE copy of
    *   the context registry (`packages: "external"` keeps it unbundled).
+   * - "static": registers contexts in production mode and exports the static
+   *   export renderer, without a server entry. `--target static` renders
+   *   from this temporary bundle.
    */
-  mode?: "app" | "boot" | "register";
+  mode?: "app" | "boot" | "register" | "static";
+  /**
+   * Seed each context's SSG cache from the build-time prerender snapshot,
+   * a JSON sidecar next to the emitted bundle.
+   */
+  prerenderSnapshot: boolean;
   /**
    * Server entry to boot after context registration. Omitted in package
    * (register-module) mode where the entry only registers contexts.
@@ -124,7 +132,8 @@ function collectConventionPaths(
 /** Emits one app's module imports + `__setCompileContext({...})` call. */
 function buildAppContextBlock(
   app: EntryAppContext,
-  varPrefix: string
+  varPrefix: string,
+  prerenderSnapshot: boolean
 ): { contextLines: string[]; importLines: string[] } {
   const allModulePaths = [
     ...new Set([
@@ -161,13 +170,10 @@ function buildAppContextBlock(
   const routeMetadataLine = app.routeMetadata
     ? `  routeMetadata: ${JSON.stringify(app.routeMetadata)},`
     : "";
-  const deploymentTargetLine =
-    app.deploymentTarget === undefined
-      ? ""
-      : `  deploymentTarget: ${JSON.stringify(app.deploymentTarget)},`;
-  const serveAssetsLine =
-    app.serveAssets === undefined ? "" : `  serveAssets: ${JSON.stringify(app.serveAssets)},`;
-  const ssgCacheLine = app.ssgCache ? `  ssgCache: ${JSON.stringify(app.ssgCache)},` : "";
+  const adapterLine = app.adapter === undefined ? "" : `  adapter: ${JSON.stringify(app.adapter)},`;
+  const ssgCacheLine = prerenderSnapshot
+    ? `  ssgCache: __furinSnapshot[${JSON.stringify(app.prefix ?? "")}],`
+    : "";
   const preloadManifestLine = app.preloadManifest
     ? `  preloadManifest: ${JSON.stringify(app.preloadManifest)},`
     : "";
@@ -178,7 +184,7 @@ function buildAppContextBlock(
     "__setCompileContext({",
     `  buildId: ${JSON.stringify(app.buildId ?? "")},`,
     `  clientLogging: ${JSON.stringify(app.clientLogging ?? false)},`,
-    deploymentTargetLine,
+    adapterLine,
     `  prefix: ${JSON.stringify(app.prefix ?? "")},`,
     `  rootPath: ${JSON.stringify(app.rootPath.replace(/\\/g, "/"))},`,
     app.nativeRoutes ? `  nativeRoutes: ${nativeRoutesVar},` : "",
@@ -190,7 +196,6 @@ function buildAppContextBlock(
     ...routeEntries,
     "  ],",
     routeMetadataLine,
-    serveAssetsLine,
     ssgCacheLine,
     preloadManifestLine,
     templateHtmlLine,
@@ -216,7 +221,7 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
     // Per-app variable namespace so several apps' module imports never collide
     // inside the single generated entry.
     const varPrefix = apps.length === 1 ? "_" : `_a${appIndex}_`;
-    const block = buildAppContextBlock(app, varPrefix);
+    const block = buildAppContextBlock(app, varPrefix, options.prerenderSnapshot);
     importLines.push(...block.importLines);
     contextBlocks.push("", ...block.contextLines);
   }
@@ -226,6 +231,9 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
     `import { __setCompileContext } from ${JSON.stringify(internalSpecifier)};`,
     ...(productionMode
       ? [`import { __setDevMode } from ${JSON.stringify(RUNTIME_ENV_MODULE_PATH)};`]
+      : []),
+    ...(options.prerenderSnapshot
+      ? [`import __furinSnapshot from ${JSON.stringify(`./${PRERENDER_SNAPSHOT_FILE}`)};`]
       : []),
     ...importLines,
     ...(productionMode
@@ -268,9 +276,16 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
             "export const onStartup = __serverModule.onStartup;",
             "export const onShutdown = __serverModule.onShutdown;",
             "export default __serverModule.default;",
+            `export { collectPrerenders as __furinPrerender } from ${JSON.stringify(INTERNAL_MODULE_PATH)};`,
             "",
           ]
         : []),
+    ...(mode === "static"
+      ? [
+          `export { exportStaticPages as __furinStaticExport } from ${JSON.stringify(STATIC_EXPORT_MODULE_PATH)};`,
+          "",
+        ]
+      : []),
   ];
 
   return lines.join("\n");

@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/bun-sqlite";
 import { integer, sqliteTable } from "drizzle-orm/sqlite-core";
 import { Elysia } from "elysia";
 import { furin } from "../../../src/furin.ts";
+import { __clearInstanceRegistry } from "../../../src/server/instance.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { drizzleSyncAdapter } from "../../../src/server/sync/drizzle/index.ts";
 import { furinSync } from "../../../src/server/sync/plugin.ts";
@@ -58,6 +59,7 @@ test.each(["", "/api"])(
             headers: { "idempotency-key": "one" },
           })
         );
+      // Without a client key the server generates one: the write commits, unreplayable.
       expect(
         (
           await outer.handle(
@@ -66,7 +68,7 @@ test.each(["", "/api"])(
             })
           )
         ).status
-      ).toBe(428);
+      ).toBe(201);
       const committed = await write();
       expect(committed.status).toBe(201);
       expect(committed.headers.get("x-inner")).toBe("kept");
@@ -75,9 +77,10 @@ test.each(["", "/api"])(
       expect(replay.status).toBe(201);
       expect(replay.headers.get("x-inner")).toBe("kept");
       expect(await replay.text()).toBe("");
-      expect(await (await read()).json()).toEqual({ path, rows: [{ value: 1 }] });
+      expect(await (await read()).json()).toEqual({ path, rows: [{ value: 1 }, { value: 1 }] });
     } finally {
       __setDevMode(previousDevMode);
+      __clearInstanceRegistry();
       sqlite.close();
       fixture.cleanup();
     }

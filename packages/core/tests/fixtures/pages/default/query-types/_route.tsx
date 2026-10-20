@@ -1,6 +1,5 @@
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
-import { route as rootRoute } from "../root";
 
 export const querySchema = t.Object({
   active: t.Boolean(),
@@ -9,9 +8,8 @@ export const querySchema = t.Object({
   tags: t.Optional(t.Array(t.String())),
 });
 
-export const route = defineRoute()
+export const route = defineRoute("/query-types/_route")
   .config({
-    layout: rootRoute,
     mode: "ssr",
     query: querySchema,
   })
