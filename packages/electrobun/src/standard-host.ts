@@ -17,7 +17,7 @@ import { deliverToNativeOwner, openNativeInstance } from "./native-instance";
 import { armNativeRestart, nativeLauncherPath } from "./native-restart";
 import type { DesktopSdk, NativeTray, NativeWindow, SdkMenuItem } from "./native-sdk";
 import { nativeLaunchEvents } from "./open-events";
-import { type DesktopMode, type DesktopState, getDesktopState } from "./registry";
+import { type DesktopMode, type DesktopState, getDesktopEntry, getDesktopState } from "./registry";
 import {
   type DesktopAppModule,
   type DesktopBackend,
@@ -660,7 +660,7 @@ export async function runStandardDesktopHost(
         starting = startDesktopBackend(
           async () => {
             const module = await options.load();
-            state = getDesktopState(module.default);
+            state = module.default ? getDesktopState(module.default) : getDesktopEntry()?.state;
             return module;
           },
           options.dataDir,
@@ -754,6 +754,7 @@ export async function runStandardDesktopHost(
     const cancelled = !!closing && error === lifetime.signal.reason;
     if (!cancelled) {
       failureCode = 1;
+      console.error("[furin-electrobun] Native startup failed:", error);
     }
     try {
       await desktop.quit();

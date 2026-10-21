@@ -1,6 +1,12 @@
 import { mkdir } from "node:fs/promises";
 import type { ApplicationRuntime, DesktopListen } from "./capabilities";
-import { activateDesktopApp, type DesktopMode, getDesktopState } from "./registry";
+import {
+  activateDesktopApp,
+  type DesktopEntry,
+  type DesktopMode,
+  getDesktopState,
+  withDesktopEntry,
+} from "./registry";
 
 export function getExternalUrl(
   detail: unknown,
@@ -179,12 +185,12 @@ export interface DesktopApp {
     callback: (server: { port?: number; stop: (force: boolean) => void | Promise<void> }) => void
   ) => DesktopApp;
   onStop: (handler: () => void) => unknown;
-  server?: { port?: number };
+  server?: { hostname?: string; port?: number; url: URL };
   stop: (closeActiveConnections: boolean) => Promise<void> | undefined;
 }
 
 export interface DesktopAppModule {
-  default: DesktopApp;
+  default?: DesktopApp;
   onShutdown?: () => void | Promise<void>;
   onStartup?: (signal: AbortSignal) => void | Promise<void>;
 }
@@ -339,31 +345,20 @@ export async function startDesktopBackend(
   process.env.FURIN_APP_DATA_DIR = dataDir;
   // One startup budget, starting before the application import evaluates.
   const deadline = Date.now() + 30_000;
-  const module = await withDeadline(
-    withCancellation(load(), nativeSignal),
-    30_000,
-    "Desktop startup exceeded 30 seconds while importing the application."
-  );
-  const app = module.default;
-  const state = app ? getDesktopState(app) : undefined;
-  if (state) {
-    state.runtime = runtime;
-  }
-  if (!app || typeof app.listen !== "function" || typeof app.stop !== "function") {
-    throw new Error("Desktop server must default-export an Elysia app.");
-  }
+  let module: DesktopAppModule | undefined;
+  let app: DesktopApp | undefined;
   let bootstrap: ReturnType<typeof startSessionBootstrap> | undefined;
   let stopped: Promise<void> | undefined;
   const stop = (): Promise<void> => {
     stopped ??= withShutdownDeadline(
       (async () => {
         try {
-          await app.stop(true);
+          await (app ?? entry.app)?.stop(true);
         } finally {
           try {
-            await getDesktopState(app)?.stop();
+            await (app ? getDesktopState(app) : entry.state)?.stop();
           } finally {
-            await module.onShutdown?.();
+            await module?.onShutdown?.();
           }
         }
       })()
@@ -372,10 +367,6 @@ export async function startDesktopBackend(
     });
     return stopped;
   };
-  if (app.server) {
-    await stop();
-    throw new Error("Desktop app is already listening. Guard web boot with if (import.meta.main).");
-  }
   const session = {
     name: `furin_desktop_${crypto.randomUUID().replaceAll("-", "")}`,
     value: crypto.randomUUID(),
@@ -387,10 +378,32 @@ export async function startDesktopBackend(
     () => bootstrap?.origin,
     (destination) => bootstrap?.allows(destination) ?? false
   );
-  let canceled = false;
+  const entry: DesktopEntry = { guard, mode, runtime };
   const startup = new AbortController();
   const listeningReady = Promise.withResolvers<void>();
   try {
+    module = await withDesktopEntry(entry, () =>
+      withDeadline(
+        withCancellation(load(), nativeSignal),
+        30_000,
+        "Desktop startup exceeded 30 seconds while importing the application."
+      )
+    );
+    app = module.default ?? entry.app;
+    if (!app || typeof app.listen !== "function" || typeof app.stop !== "function") {
+      throw new Error("Desktop entry must install desktopApp() or default-export an Elysia app.");
+    }
+    const state = getDesktopState(app);
+    if (state) {
+      state.runtime = runtime;
+    }
+    if (app.server && !state?.listening) {
+      throw new Error(
+        "Desktop app is already listening. Guard web boot with if (import.meta.main)."
+      );
+    }
+    const activeApp = app;
+    const loaded = module;
     // The plugin registered cleanup before any request could seal Elysia.
     state?.closed?.then(() => {
       listeningReady.reject(
@@ -401,38 +414,36 @@ export async function startDesktopBackend(
     return await withDeadline(
       withCancellation(
         (async () => {
-          const validate = await activateDesktopApp(app, guard, mode);
-          if (canceled) {
-            throw new Error("Desktop startup was canceled.");
-          }
-          await getDesktopState(app)?.start(startup.signal);
-          if (runtime?.kind === "desktop") {
-            runtime.signal?.throwIfAborted();
-          }
-          if (canceled) {
-            throw new Error("Desktop startup was canceled.");
-          }
-          await module.onStartup?.(startup.signal);
-          if (canceled) {
-            throw new Error("Desktop startup was canceled.");
-          }
-          if (app.server) {
+          const validate = await activateDesktopApp(activeApp, guard, mode);
+          startup.signal.throwIfAborted();
+          await state?.start(startup.signal);
+          nativeSignal?.throwIfAborted();
+          startup.signal.throwIfAborted();
+          await loaded.onStartup?.(startup.signal);
+          startup.signal.throwIfAborted();
+          const ownsListening = !!state?.listening && (!!activeApp.server || !loaded.default);
+          if (!ownsListening && activeApp.server) {
             throw new Error("onStartup must not open a listener; the desktop host owns listening.");
           }
-          const listen = state?.hooks?.listen?.() ?? {};
-          origin = listenDesktop(app, listen, mode, validate, listeningReady);
-          await listeningReady.promise;
-          if (!listen.tls) {
+          if (ownsListening) {
+            await Promise.race([state.listening, listeningReady.promise]);
+            const { server } = activeApp;
+            if (!(server?.port && LISTEN_HOSTS.has(server.hostname ?? ""))) {
+              throw new Error("The desktop listener must include the loopback interface.");
+            }
+            origin = `${server.url.protocol}//127.0.0.1:${server.port}`;
+          } else {
+            const listen = state?.hooks?.listen?.() ?? {};
+            origin = listenDesktop(activeApp, listen, mode, validate, listeningReady);
+            await listeningReady.promise;
+          }
+          if (origin.startsWith("http:")) {
             bootstrap = startSessionBootstrap(session, origin);
           }
           const backend = createBackend(origin, session, bootstrap, stop, () => !!stopped);
           await state?.ready?.(backend);
-          if (canceled) {
-            throw new Error("Desktop startup was canceled.");
-          }
-          if (runtime?.kind === "desktop") {
-            runtime.signal?.throwIfAborted();
-          }
+          startup.signal.throwIfAborted();
+          nativeSignal?.throwIfAborted();
           return backend;
         })(),
         nativeSignal
@@ -441,7 +452,10 @@ export async function startDesktopBackend(
       "Desktop startup exceeded 30 seconds while waiting for Elysia setup."
     );
   } catch (error) {
-    canceled = true;
+    if (!nativeSignal?.aborted || error !== nativeSignal.reason) {
+      // Cleanup or the SDK's synchronous quit may prevent a later rethrow from printing.
+      console.error("[furin-electrobun] Desktop startup failed:", error);
+    }
     startup.abort(error);
     try {
       await stop();

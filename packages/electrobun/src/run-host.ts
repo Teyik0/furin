@@ -143,6 +143,7 @@ export async function runDesktopHost<Sdk extends NativeHostSdk>(
       process.on("SIGTERM", stop);
     }
   } catch (error) {
+    console.error("[furin-electrobun] Native host setup failed:", error);
     try {
       if (pending) {
         await withShutdownDeadline(

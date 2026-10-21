@@ -4,7 +4,7 @@ import { join } from "node:path";
 /** Headless implementation of the documented SDK boundary, not of the Furin host. */
 export async function installSdk(
   root: string,
-  mode?: "hung-quit" | "failed-window" | "close-window",
+  mode?: "hung-quit" | "failed-window" | "close-window" | "immediate-quit",
   options?: {
     channel?: string;
     metadataFromCwd?: boolean;
@@ -97,6 +97,7 @@ export async function installSdk(
         if (event.response?.allow === false) return false;
         quitting = true;
         require("node:fs").writeFileSync(${JSON.stringify(join(root, "quit"))}, String(code));
+        ${mode === "immediate-quit" ? "process.exit(code);" : ""}
         ${mode === "hung-quit" ? "setInterval(() => {}, 1000); return true;" : "setTimeout(() => process.exit(code), 0); return true;"}
       }
     };

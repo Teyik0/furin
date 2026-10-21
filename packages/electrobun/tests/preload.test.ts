@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installSdk, sdkRunHeader } from "./fixtures/sdk";
 
-test("bun --hot src/server.ts starts one desktop/browser owner without evaluating the launcher app", async () => {
+async function startsDesktop(owner: "host" | "entry") {
   const root = await mkdtemp(join(tmpdir(), "furin-preload-"));
   let child: Bun.Subprocess<"ignore", "pipe", "pipe"> | undefined;
   let output: Promise<string[]> | undefined;
@@ -55,14 +55,29 @@ test("bun --hot src/server.ts starts one desktop/browser owner without evaluatin
       import {desktopApp} from ${JSON.stringify(join(import.meta.dir, "../src/server.ts"))};
       import {value} from "./value";
       import state from "../storage/state.txt" with {type:"file"};
-      import {appendFileSync} from "node:fs";
+      import {appendFileSync,rmSync} from "node:fs";
       let desktop;
-      export default new Elysia().use(desktopApp({
+      rmSync(${JSON.stringify(join(root, "window-url"))},{force:true});
+      const app = new Elysia().use(desktopApp({
         onStartup({runtime}){desktop=runtime.desktop;appendFileSync(${JSON.stringify(join(root, "starts"))}, "start\\n");},
+        async onReady({runtime,backend}){
+          if(runtime.kind!=="desktop") throw new Error("Missing desktop runtime");
+          if((await fetch(backend.origin)).status!==403) throw new Error("Unprotected desktop listener");
+          await Bun.sleep(100);
+          if(await Bun.file(${JSON.stringify(join(root, "window-url"))}).exists()) throw new Error("Window opened before readiness");
+        },
         onShutdown(){appendFileSync(${JSON.stringify(join(root, "stops"))}, "stop\\n");}
       })).get("/",()=>({value,pid:process.pid}))
         .get("/checkpoint",async()=>{await Bun.sleep(500);return {pid:process.pid,state:await Bun.file(state).text()};})
-        .get("/restart",()=>desktop.restart());
+        .get("/restart",()=>desktop.restart())
+        .onStop(()=>{appendFileSync(${JSON.stringify(join(root, "listener-stops"))}, "stop\\n");});
+      ${
+        owner === "host"
+          ? "export default app;"
+          : `export type App = typeof app;
+        app.listen({hostname:"127.0.0.1",port:0});
+        if((await fetch(app.server.url)).status!==403) throw new Error("Listener exposed during import");`
+      }
       if(import.meta.main) throw new Error("Launcher evaluated the application");`
     );
     await installSdk(root);
@@ -140,6 +155,7 @@ test("bun --hot src/server.ts starts one desktop/browser owner without evaluatin
     await writeFile(join(root, ".furin/electrobun/control"), "stop");
     expect(await child.exited, (await output).join("\n")).toBe(0);
     expect(await Bun.file(join(root, "stops")).text()).toBe("stop\nstop\nstop\nstop\n");
+    expect(await Bun.file(join(root, "listener-stops")).text()).toBe("stop\nstop\nstop\nstop\n");
   } finally {
     if (child && child.exitCode === null && child.signalCode === null) {
       const control = join(root, ".furin/electrobun/control");
@@ -154,7 +170,13 @@ test("bun --hot src/server.ts starts one desktop/browser owner without evaluatin
     await child?.exited;
     await rm(root, { recursive: true, force: true });
   }
-}, 25_000);
+}
+
+test.each(["host", "entry"] as const)(
+  "bun --hot src/server.ts starts one desktop/browser owner with %s-owned listening",
+  startsDesktop,
+  25_000
+);
 
 test.each([
   ["plain", "src/server.ts", true, false],

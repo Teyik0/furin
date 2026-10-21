@@ -2,7 +2,12 @@ import { type AnyElysia, Elysia } from "elysia";
 import { BunAdapter, isHTMLBundle } from "elysia/adapter/bun";
 import type { ElysiaConfig, EventScope } from "elysia/types";
 import type { DesktopAppOptions } from "./capabilities";
-import { type DesktopMode, type DesktopState, registerDesktopApp } from "./registry";
+import {
+  type DesktopMode,
+  type DesktopState,
+  getDesktopEntry,
+  registerDesktopApp,
+} from "./registry";
 
 export type {
   AdmissionContext,
@@ -109,9 +114,14 @@ export function desktopApp(hooks?: DesktopAppOptions) {
     let ready: Promise<void> | undefined;
     let available = false;
     const closed = Promise.withResolvers<void>();
+    const entry = getDesktopEntry();
+    const listening = entry ? Promise.withResolvers<void>() : undefined;
     const state: DesktopState = {
       closed: closed.promise,
+      guard: entry?.guard,
       hooks,
+      listening: listening?.promise,
+      runtime: entry?.runtime,
       start(parent) {
         starting ??= Promise.resolve().then(async () => {
           const native = state.runtime?.kind === "desktop" ? state.runtime.signal : undefined;
@@ -159,6 +169,25 @@ export function desktopApp(hooks?: DesktopAppOptions) {
     // Public configuration disables native promoted Responses. Bun HTML/HMR
     // bypasses dispatch independently and is checked through public route metadata.
     app["~config"] = { ...options, nativeStaticResponse: false };
+    if (entry && listening) {
+      listening.promise.catch(() => undefined);
+      const { listen } = app;
+      app.listen = (listenOptions, callback) => {
+        controller.signal.throwIfAborted();
+        // Validate synchronous native routes before Bun can open the socket.
+        validate(entry.mode);
+        return listen.call(app, listenOptions, (server) => {
+          try {
+            validate(entry.mode);
+            callback?.(server);
+            listening.resolve();
+          } catch (error) {
+            listening.reject(error);
+            Promise.resolve(server.stop(true)).catch(console.error);
+          }
+        });
+      };
+    }
     app.wrap((next) => (request, ...rest: unknown[]) => {
       const denied = protectNetworkDispatch(request, rest, app, state);
       if (denied) {
@@ -171,16 +200,24 @@ export function desktopApp(hooks?: DesktopAppOptions) {
     });
     app
       .onStart(async () => {
-        if (
-          hooks?.restrictWebToLoopback &&
-          app.server &&
-          !LOCAL_HOSTS.has(app.server.hostname ?? "")
-        ) {
-          throw new Error("restrictWebToLoopback requires a loopback listener hostname.");
-        }
-        await state.start();
-        if (!state.guard && app.server) {
-          await state.ready?.({ origin: app.server.url.origin });
+        try {
+          if (entry) {
+            await state.validate(entry.mode);
+          }
+          if (
+            hooks?.restrictWebToLoopback &&
+            app.server &&
+            !LOCAL_HOSTS.has(app.server.hostname ?? "")
+          ) {
+            throw new Error("restrictWebToLoopback requires a loopback listener hostname.");
+          }
+          await state.start();
+          if (!state.guard && app.server) {
+            await state.ready?.({ origin: app.server.url.origin });
+          }
+        } catch (error) {
+          listening?.reject(error);
+          throw error;
         }
       })
       .onStop(() => state.stop());

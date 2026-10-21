@@ -85,8 +85,9 @@ loads its launch-CWD-dependent metadata before restoring the project CWD.
 
 Furin detects the existing `furin.config.ts` / `.js` / `.mjs`, `rootDir` and
 `serverEntry` conventions. With no explicit server entry, it uses `src/server.ts`.
-The server must default-export an inert Elysia root with `desktopApp()` as its
-first plugin, before wrappers or application plugins:
+Install `desktopApp()` as the first plugin of the server root, before wrappers
+or application plugins. The inert-root form below also supports Furin's
+production app artifact:
 
 ```ts
 import { furin } from "@teyik0/furin";
@@ -114,9 +115,14 @@ if (import.meta.main) {
 }
 ```
 
-Desktop imports must not start a listener. An already listening app is rejected
-with a migration diagnostic; the CLI does not try to strip arbitrary `.listen`
-calls from your code.
+In source development, the entry may own `.listen()` and its Elysia `onStop`
+cleanup without exporting an app. The host installs the desktop session and
+runtime as `desktopApp()` is registered, before the entry can listen. It awaits
+the listen callback and `onReady` before opening a window or publishing readiness.
+For example, the entry can finish with `app.listen({ hostname: "127.0.0.1", port: 3000 })`
+instead of the export and `import.meta.main` block above. An inert default export
+remains supported: the host then starts its listener. Production packaging keeps
+using Furin's inert app artifact.
 
 The functional plugin preserves the original Elysia identity, prefix, decorators
 and route inference. Installing it after a wrapper or after listening is rejected.
@@ -132,8 +138,9 @@ error is unredacted (open events can carry OAuth URLs); sanitize before persisti
 creation, before windows/dev readiness. An update failure shows a native error
 dialog and restarts through the native launcher in a fresh process. Services
 are never reopened in the old process; the replacement obtains new HTTP sessions.
-Web uses Elysia onStart/onStop; the desktop host initializes resources before its
-listener opens. Callbacks are options, not required named module exports.
+Web uses Elysia onStart/onStop; an application-owned desktop listener also awaits
+startup before serving application requests. Callbacks are options, not required
+named module exports.
 They must tolerate partial initialization and honor startup cancellation.
 
 The desktop session is always mandatory. `restrictWebToLoopback` optionally adds
@@ -141,8 +148,8 @@ local-host and mutation-origin checks to ordinary web requests, and refuses a we
 listener bound to a non-loopback hostname. It does not disable desktop protection.
 With this option omitted, ordinary web requests are not session-protected.
 
-The desktop host imports and listens to that same root; it does not remount the
-application inside another Elysia instance. Change the original constructor,
+The desktop host loads that same root and coordinates its listener; it does not
+remount the application inside another Elysia instance. Change the original constructor,
 rather than wrapping a complete existing Furin app in a new parent. Rehosting
 changes final-root ownership: apps using sync must bind `furinSync(sync)` on the
 new final root too, as described in the

@@ -31,8 +31,13 @@ tests, builds, unrelated hot entries and the managed SDK do not launch desktop.
 
 `furin dev` remains an optional explicit launcher. Its `--desktop` option opens
 only native; `--web` runs a server without the SDK. `--port` applies only to that
-web mode. Export an inert Elysia root; keep any existing manual source `listen()`
-guarded with `import.meta.main`.
+web mode. The source entry can call `.listen()` and register Elysia `onStop`
+cleanup directly, without a default export. `desktopApp()` installs the native
+runtime and session protection before listening; the host awaits Elysia's listen
+callback and application `onReady` before opening the window. Inert default
+exports remain supported and are used by Furin's production app artifact.
+Startup errors are printed before cleanup and SDK `quit(1)`, so an immediate
+native exit preserves the original cause in development diagnostics.
 
 ## Configuration and lifecycle
 
