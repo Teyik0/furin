@@ -1,0 +1,64 @@
+packages/electrobun/src/runtime.ts
+  s_c49090554f371c::t_8c0dc9c0677b43 455-458
+  s_c49090554f371c::t_a2328816cd6edf 3-9,401-403,431
+  s_c49090554f371c::t_802b17a0ba9272 385-390
+  s_c49090554f371c::t_13cace4d94d96f 356,392
+  s_c49090554f371c::t_ba2637efcb1358 188,193,348-349,359,361,381,391,393-400,404-406,417,419,422,424-425,428-429,432-440
+  s_c49090554f371c::t_920da8bd6b645d 418,420-421,423,430,445-446
+packages/electrobun/native-host.md
+  s_c49090554f371c::t_f3fc69bb1b2524 34-40
+packages/electrobun/src/registry.ts
+  s_c49090554f371c::t_13cace4d94d96f 3,22,55
+  s_c49090554f371c::t_3161945562faf6 12,23-25,27-28,34-35,37,49-51,53
+  s_c49090554f371c::t_1476a35661b5da 36,39-48,52,57
+  s_c49090554f371c::t_ba2637efcb1358 21,26,58-61
+  s_c49090554f371c::t_c9076384522f50 54
+packages/electrobun/src/run-host.ts
+  s_c49090554f371c::t_8c0dc9c0677b43 146
+packages/electrobun/README.md
+  s_c49090554f371c::t_f3fc69bb1b2524 88-90,118-125,141
+  s_c49090554f371c::t_ca72f9b658d9d4 142-143,151-152
+packages/electrobun/tests/fixtures/sdk.ts
+  s_c49090554f371c::t_d876f3c6ea6d2d 7
+  s_c49090554f371c::t_920da8bd6b645d 100
+packages/electrobun/src/server.ts
+  s_c49090554f371c::t_3161945562faf6 117-118,121,123-124,172-173,175,177-190,203,218-220
+  s_c49090554f371c::t_a2328816cd6edf 5-10,204-217
+  s_c49090554f371c::t_920da8bd6b645d 174
+  s_c49090554f371c::t_802b17a0ba9272 176
+packages/electrobun/src/standard-host.ts
+  s_c49090554f371c::t_ba2637efcb1358 20,663
+  s_c49090554f371c::t_8c0dc9c0677b43 757
+packages/electrobun/tests/preload-entry.integration.test.ts
+  s_c49090554f371c::t_bf1e795729ff94 7-9,39-40,45-48
+  s_c49090554f371c::t_ab6e5440aefa39 67-70
+  s_c49090554f371c::t_d876f3c6ea6d2d 1-6,10-14,20-24,28-29,35-38,41-44,51-62,64-65,71-76,81-84
+  s_c49090554f371c::t_ca72f9b658d9d4 66
+  s_c49090554f371c::t_a2328816cd6edf 15-19,25-27,30-34,49-50
+  s_c49090554f371c::t_6f3b7f674e08da 63
+  s_c49090554f371c::t_78beaefdcb01a1 77-80
+packages/electrobun/tests/preload.test.ts
+  s_c49090554f371c::t_f3fc69bb1b2524 173-177
+  s_c49090554f371c::t_13cace4d94d96f 74-78,158
+  s_c49090554f371c::t_a2328816cd6edf 178-179
+  s_c49090554f371c::t_37f2004689b1f3 61,63-68,72-73
+  s_c49090554f371c::t_4f0241f07bdc08 7
+  s_c49090554f371c::t_f752fa65dba139 58,60
+  s_c49090554f371c::t_163187623b2d5f 79-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a9f9ded1f2b1eefa1ea3d9860ebf2fe2fe830af1",
+  "prompts": {},
+  "sessions": {
+    "s_c49090554f371c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a15ee4-743f-74f0-a105-fd6c96a56aaf",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
