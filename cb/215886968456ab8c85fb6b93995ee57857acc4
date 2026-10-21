@@ -1,0 +1,55 @@
+packages/electrobun/tests/internal-dispatch-build.test.ts
+  s_a451f6728398c9::t_01158fbd52905d 45-46,48-50,55,59-61,71,82,139,149,151
+  s_a451f6728398c9::t_79c3fa31b3a8fc 6-39,66-70,72-76,87-114,117-137,152-192,194-196
+  s_a451f6728398c9::t_38ede2b83c33b6 41,47,51-54,56-58,150
+packages/core/src/build/elysia-aot.ts
+  s_a451f6728398c9::t_de26c761154ebe 175-177
+  s_a451f6728398c9::t_a1dade9592db19 181-185,187-201,205-219,221-253
+  s_a451f6728398c9::t_f93ef5bef02b88 1,18,106,112-133,142,145,151,161-164,167-168,174,178,186,254-255
+packages/core/src/adapter/build.ts
+  s_a451f6728398c9::t_829310dfbb3bc8 43-44,48
+packages/core/build.ts
+  s_a451f6728398c9::t_a92d4aaec8692c 77
+packages/core/src/build/entry-template.ts
+  s_a451f6728398c9::t_829310dfbb3bc8 21,233-235,275
+packages/core/src/build/discover-mounts-process.ts
+  s_a451f6728398c9::t_829310dfbb3bc8 6,12
+packages/core/tests/build/aot-prerender-isolation.test.ts
+  s_a451f6728398c9::t_de26c761154ebe 267
+  s_a451f6728398c9::t_8cc9e2ca027a53 222
+  s_a451f6728398c9::t_b6f91829510f00 4,187,192-201,208-210,212,220-221,223-224
+  s_a451f6728398c9::t_a1dade9592db19 188-191,202-207,214-219,225-226,230-248,251-252,255-262,264-266,271-286,291-293,303-305,307-322
+  s_a451f6728398c9::t_d64b02d611f7ef 254,263,287-290,294-302,306
+  s_a451f6728398c9::t_cb7acc7432d010 186
+  s_a451f6728398c9::t_483324c1234ab8 211
+  s_a451f6728398c9::t_8c28527a5a9104 213
+  s_a451f6728398c9::t_046f5fb58b7656 227-229
+  s_a451f6728398c9::t_e4029b3ca2e856 249-250
+  s_a451f6728398c9::t_830d259418e2ad 253
+  s_a451f6728398c9::t_f228876e961f41 268-270
+  s_a451f6728398c9::t_928eeb58d7c689 323
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_a451f6728398c9::t_19dfa51fdcae2b 333
+packages/electrobun/README.md
+  s_a451f6728398c9::t_19dfa51fdcae2b 124-127
+packages/core/src/build/elysia-aot-worker.ts
+  s_a451f6728398c9::t_f93ef5bef02b88 25-27,29-31,103,119,127
+packages/core/src/server/server-entry.ts
+  s_a451f6728398c9::t_829310dfbb3bc8 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cb215886968456ab8c85fb6b93995ee57857acc4",
+  "prompts": {},
+  "sessions": {
+    "s_a451f6728398c9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a15efc-4dc9-7271-bba3-d10de08c465c",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
