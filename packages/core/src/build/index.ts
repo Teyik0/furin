@@ -8,14 +8,13 @@ import type { RuntimeTargetApp } from "../adapter/runtime-build";
 import { buildStaticTarget } from "../adapter/static";
 import type { FurinAdapter } from "../adapter/types.ts";
 import { vercel } from "../adapter/vercel.ts";
-import { BUILD_TARGETS, type BuildTarget, type FurinPlugin, type FurinTarget } from "../config";
+import { BUILD_TARGETS, type BuildTarget, type FurinTarget } from "../config";
 import { assertValidRouteConfig } from "../plugin/route-config.ts";
-import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
 import { normalizePrefix } from "../server/instance.ts";
-import { scanPages } from "../server/router/discovery.ts";
 import { assertNoPrefixSlugCollisions, assertOnePagesDirPerMount } from "../shared/prefix.ts";
 import { withProductionBuild } from "../shared/production-build.ts";
 import { discoverFurinMounts } from "./discover-mounts.ts";
+import { discoverPages } from "./discover-pages.ts";
 import { writeRouteTypes } from "./route-types";
 import { ensureDir, toBuildRouteManifestEntry, toPosixPath } from "./shared";
 import type { BuildAppOptions, BuildAppResult, BuildManifest } from "./types";
@@ -62,16 +61,6 @@ function adapterFor(target: FurinAdapter | "bun" | "vercel", options: BuildAppOp
   return target === "bun" ? bun(options.compile, options.bun?.output) : vercel({});
 }
 const BUILD_OUTPUT_DIR = ".furin/build";
-let isomorphicRuntimePluginRegistered = false;
-
-function registerIsomorphicRuntimePlugin(): void {
-  if (isomorphicRuntimePluginRegistered) {
-    return;
-  }
-  Bun.plugin(isomorphicTransformPlugin("server"));
-  isomorphicRuntimePluginRegistered = true;
-}
-
 /**
  * Resolves the list of apps to build, in priority order:
  * 1. explicit `apps` config (furin.config.ts),
@@ -110,43 +99,14 @@ async function resolveAppSpecs(
 }
 
 /**
- * Registers runtime plugins, resolves the configured apps and scans their
- * pages. Shared by `buildApp()` and `generateRouteTypes()`.
+ * Resolves and validates mounts, then evaluates their pages in a disposable
+ * process. Shared by `buildApp()` and `generateRouteTypes()`.
  */
 async function scanApps(
   options: RouteTypegenOptions,
   serverEntry: string | null,
   rootDir: string
 ): Promise<RuntimeTargetApp[]> {
-  // Register user plugins as runtime module loaders BEFORE scanPages.
-  //
-  // scanPages() calls import() on every page file, which triggers all their
-  // static imports (e.g. ".mdx" files). If the loader is not yet registered
-  // at that point, Bun caches the raw/unprocessed result — and that cached
-  // value is reused for every subsequent import(), including prerenderSSG().
-  //
-  // Plugins marked `buildOnly` (e.g. bun-plugin-tailwind uses onBeforeParse,
-  // which doesn't exist in the runtime context) only affect Bun.build()
-  // bundles. Any other registration failure would make route imports differ
-  // from the bundle, so it fails the build.
-  for (const plugin of options.plugins ?? []) {
-    const { buildOnly, ...runtimePlugin } = plugin as FurinPlugin;
-    if (buildOnly) {
-      continue;
-    }
-    try {
-      Bun.plugin(runtimePlugin);
-    } catch (err) {
-      throw new Error(
-        `[furin] Plugin "${runtimePlugin.name}" could not be registered for server-side route imports: ${err instanceof Error ? err.message : String(err)}\n` +
-          "If it only transforms the client bundle (for example bun-plugin-tailwind), mark it build-only in furin.config.ts:\n" +
-          "  plugins: [{ ...plugin, buildOnly: true }]",
-        { cause: err }
-      );
-    }
-  }
-  registerIsomorphicRuntimePlugin();
-
   const appSpecs = await resolveAppSpecs(options, serverEntry, rootDir);
   const duplicatePrefix = appSpecs.find(
     (spec, index) => appSpecs.findIndex((other) => other.prefix === spec.prefix) !== index
@@ -162,14 +122,10 @@ async function scanApps(
   // one's — reject before any target writes output.
   assertNoPrefixSlugCollisions(appSpecs.map((spec) => spec.prefix));
 
-  // scanPages throws if root.tsx is missing, so root is always defined per app.
-  const apps: RuntimeTargetApp[] = [];
   for (const spec of appSpecs) {
     assertValidRouteConfig(spec);
-    const { root, routes } = await scanPages(spec.pagesDir);
-    apps.push({ pagesDir: spec.pagesDir, prefix: spec.prefix, root, routes });
   }
-  return apps;
+  return discoverPages(appSpecs, rootDir, options.plugins ?? []);
 }
 
 /** `RouteMap` for the root-mounted app, `FileRoutes` for every app. */

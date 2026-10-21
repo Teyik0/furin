@@ -1,9 +1,12 @@
 import type { AdapterTargetManifest } from "../adapter/types.ts";
 import type { FurinTarget, StaticExportConfig } from "../config";
+import type { RouteRegistrySnapshot } from "../plugin/route-registry.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import type { ClientBoundary } from "../rsc/build/discover.ts";
 
 export interface BuildClientOptions {
+  /** Route registry evaluated in the discovery process. */
+  routeRegistry?: RouteRegistrySnapshot;
   /**
    * Sub-path prefix for the deployment (e.g. "/furin" for GitHub Pages).
    * Passed through to the generated hydrate entry so SPA navigation uses

@@ -4,15 +4,19 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildClient } from "../build/client.ts";
 import type { EntryAppContext } from "../build/entry-template.ts";
+import {
+  type BuildRoot,
+  type BuildRouteInput,
+  rootHasRequestLoader,
+  routeBuildInfo,
+} from "../build/route-metadata.ts";
 import { toPosixPath } from "../build/shared.ts";
 import type { BuildAppOptions } from "../build/types.ts";
+import type { RouteRegistrySnapshot } from "../plugin/route-registry.ts";
 import { composableRouteModuleSpecifier } from "../plugin/route-registry.ts";
 import { routeSourcePaths } from "../plugin/route-tree.ts";
-import { hasMixedLoaderModes } from "../server/render/loaders.ts";
-import { hasRequestLoader } from "../server/render/request-loaders.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
-import { resolveDocumentMode } from "../server/router/patterns.ts";
-import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
+import type { RootLayout } from "../server/router/types.ts";
 import { clientDirNameForPrefix } from "../shared/prefix.ts";
 
 // import.meta.resolve() runs at runtime (not inlined at bundle time), resolves
@@ -113,8 +117,8 @@ function nearestFingerprintFile(
 export async function createBuildFingerprint(
   entryChunk: string,
   cssChunks: string[],
-  routes: ResolvedRoute[],
-  root: RootLayout,
+  routes: BuildRouteInput[],
+  root: BuildRoot | RootLayout,
   serverEntry: string | null,
   routeSources: string[],
   projectRoot: string
@@ -259,7 +263,7 @@ function stableFingerprintPath(path: string, projectRoot: string): string {
   return `external/${toPosixPath(projectPath)}`;
 }
 
-export function buildCompileMetadata(root: RootLayout, routes: ResolvedRoute[]) {
+export function buildCompileMetadata(root: BuildRoot | RootLayout, routes: BuildRouteInput[]) {
   const rootConventions =
     root.errorPath || root.notFoundPath
       ? {
@@ -289,8 +293,9 @@ export function buildCompileMetadata(root: RootLayout, routes: ResolvedRoute[]) 
 export interface RuntimeTargetApp {
   pagesDir: string;
   prefix: string;
-  root: RootLayout;
-  routes: ResolvedRoute[];
+  root: BuildRoot | RootLayout;
+  routeRegistry?: RouteRegistrySnapshot;
+  routes: BuildRouteInput[];
 }
 
 /** Avoid loading React's resumable renderer in applications without PPR routes. */
@@ -298,8 +303,8 @@ export function pprRuntimePlugin(apps: RuntimeTargetApp[]): Bun.BunPlugin {
   const enabled = apps.some((app) =>
     app.routes.some(
       (route) =>
-        resolveDocumentMode(route) !== "ssr" &&
-        (app.root.route.requestLoader !== undefined || hasRequestLoader(route))
+        routeBuildInfo(route).documentMode !== "ssr" &&
+        (rootHasRequestLoader(app.root) || routeBuildInfo(route).hasRequestLoader)
     )
   );
   const pprPath = resolve(_pkgSrcDir, "server/render/ppr-route.ts");
@@ -341,7 +346,7 @@ export const runPprPublicLoaders = renderPprRoute;`,
 
 /** Keep mixed-mode cache code out of builds whose route graph cannot use it. */
 export function mixedRuntimePlugin(apps: RuntimeTargetApp[]): Bun.BunPlugin {
-  const enabled = apps.some((app) => app.routes.some(hasMixedLoaderModes));
+  const enabled = apps.some((app) => app.routes.some((route) => routeBuildInfo(route).mixed));
   const mixedPath = resolve(_pkgSrcDir, "server/render/mixed-cache.ts");
   return {
     name: "furin-mixed-runtime",
@@ -408,6 +413,7 @@ export async function buildRuntimeApp(
     optimizeImports: options.optimizeImports,
     outDir: targetDir,
     pagesDir: app.pagesDir,
+    routeRegistry: app.routeRegistry,
     plugins: options.plugins,
     preloadRouteChunks: options.preload?.routeChunks,
     publicPath: `${prefix}/_client/`,

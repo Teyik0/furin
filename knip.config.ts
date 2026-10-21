@@ -53,6 +53,7 @@ const config: KnipConfig = {
         "src/adapter/vercel/handler.ts",
         // Spawned by the build to evaluate the server entry.
         "src/build/discover-mounts-process.ts",
+        "src/build/discover-pages-process.ts",
         "src/rsc/bundled-client-codec.ts",
         // Built as the browser `@teyik0/furin/rsc` entry, `dist/rsc-client.js`.
         "src/rsc-client.ts",

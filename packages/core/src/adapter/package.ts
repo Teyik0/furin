@@ -57,6 +57,7 @@ export async function buildPackageTarget(
     optimizeImports: options.optimizeImports,
     outDir: targetDir,
     pagesDir,
+    routeRegistry: app.routeRegistry,
     plugins: options.plugins,
     preloadRouteChunks: options.preload?.routeChunks,
     publicPath: `${prefix}/_client/`,

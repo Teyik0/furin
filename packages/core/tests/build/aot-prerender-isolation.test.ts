@@ -1,9 +1,187 @@
+import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
 import { join } from "node:path";
+import { generateRouteTypes } from "../../src/build/index.ts";
 import { createTmpApp, keyPagesForPrefix, writeAppFile } from "../support/app-fixtures.ts";
 import { getFreePort } from "../support/hmr.ts";
 import { waitForHttp } from "../support/http.ts";
-import { runCli, startProcess } from "../support/process.ts";
+import { runCli, runProcess, startProcess } from "../support/process.ts";
+
+test.each(["bun", "vercel"] as const)(
+  "%s releases import-time database locks before AOT and prerenders an in-memory Eden app",
+  async (target) => {
+    const app = createApiPrerenderApp("ssg");
+    try {
+      writeAppFile(
+        app.path,
+        "src/api.ts",
+        `import Elysia from "elysia";
+import { Database } from "bun:sqlite";
+const database = new Database(${JSON.stringify(join(app.path, "exclusive.db"))});
+database.exec("PRAGMA locking_mode = EXCLUSIVE; CREATE TABLE IF NOT EXISTS messages (message TEXT); BEGIN EXCLUSIVE");
+export const api = new Elysia({ name: "locked-api" })
+  .get("/api/message", () => database.query("SELECT 'In-memory API' AS message").get());`
+      );
+      writeAppFile(
+        app.path,
+        "src/server.ts",
+        `import Elysia from "elysia";
+import { furin } from "@teyik0/furin";
+import { api } from "./api";
+export default new Elysia({ name: "served-app" }).use(api).use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+      );
+      writeAppFile(
+        app.path,
+        "src/eden.ts",
+        `import { treaty } from "@elysia/eden";
+import { api } from "./api";
+export const client = treaty(api);`
+      );
+      writeAppFile(
+        app.path,
+        "src/pages/index.tsx",
+        `import { defineRoute } from "@teyik0/furin";
+import { client } from "../eden";
+export const route = defineRoute("/")
+  .config({ mode: "ssg", tags: ["locked"] })
+  .staticParams(() => [{}])
+  .loader(async () => {
+    const { data, error } = await client.api.message.get();
+    if (error) throw error;
+    return data;
+  })
+  .page(({ message }) => <main>{message}</main>);`
+      );
+      writeAppFile(
+        app.path,
+        "src/pages/live.tsx",
+        `import { defineRoute } from "@teyik0/furin";
+import { client } from "../eden";
+export const route = defineRoute("/live")
+  .config({ mode: "ssr" })
+  .loader(async () => {
+    const { data, error } = await client.api.message.get();
+    if (error) throw error;
+    return data;
+  })
+  .page(({ message }) => <main>{message}</main>);`
+      );
+
+      const build = await runCli(
+        ["build", "--target", target, ...(target === "bun" ? ["--output", "app"] : [])],
+        { cwd: app.path }
+      );
+      expect(build.exitCode, `${build.stderr}\n${build.stdout}`).toBe(0);
+      const snapshot = await Bun.file(
+        join(
+          app.path,
+          target === "bun"
+            ? ".furin/build/bun/furin-prerender.json"
+            : ".vercel/output/functions/index-ssg.prerender-fallback.html"
+        )
+      ).text();
+      expect(snapshot).toContain("In-memory API");
+      const manifest = await Bun.file(join(app.path, ".furin/build/manifest.json")).json();
+      expect(manifest.routes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            pattern: "/",
+            mode: "ssg",
+            hasLayout: true,
+            hasStaticParams: true,
+          }),
+        ])
+      );
+      expect(await Bun.file(join(app.path, "furin-env.d.ts")).text()).toContain("locked");
+      const runtime = await runProcess(
+        [
+          process.execPath,
+          "-e",
+          `
+const { default: app } = await import(process.argv[1]);
+for (const path of ["/", "/live", "/api/message"]) {
+  const request = new Request("http://localhost" + path);
+  const response = await (app.handle ? app.handle(request) : app.fetch(request));
+  const body = await response.text();
+  if (response.status !== 200 || !body.includes("In-memory API")) throw new Error(path + ": " + response.status + " " + body);
+}
+process.exit(0);`,
+          join(
+            app.path,
+            target === "bun"
+              ? ".furin/build/bun/app.js"
+              : ".vercel/output/functions/__server.func/index.js"
+          ),
+        ],
+        {
+          cwd: app.path,
+          env: { NODE_ENV: "production" },
+          timeoutMs: 10_000,
+        }
+      );
+      expect(runtime.exitCode, `${runtime.stderr}\n${runtime.stdout}`).toBe(0);
+    } finally {
+      app.cleanup();
+    }
+  },
+  30_000
+);
+
+test("failed route discovery releases import-time locks before rejecting and can run again", async () => {
+  const app = createApiPrerenderApp("ssg");
+  const databasePath = join(app.path, "failed-discovery.db");
+  try {
+    writeAppFile(
+      app.path,
+      "src/api.ts",
+      `import Elysia from "elysia";
+import { Database } from "bun:sqlite";
+const database = new Database(${JSON.stringify(databasePath)});
+database.exec("CREATE TABLE IF NOT EXISTS messages (message TEXT); BEGIN EXCLUSIVE");
+export const api = new Elysia().get("/api/message", () => ({ message: "In-memory API" }));`
+    );
+    const pagePath = join(app.path, "src/pages/index.tsx");
+    const page = await Bun.file(pagePath).text();
+    writeAppFile(
+      app.path,
+      "src/pages/index.tsx",
+      `${page}\nthrow new Error("discovery regression");`
+    );
+    const options = { pagesDir: "src/pages", rootDir: app.path };
+    await expect(generateRouteTypes(options)).rejects.toThrow("discovery regression");
+    writeAppFile(app.path, "src/pages/index.tsx", page);
+    await generateRouteTypes(options);
+    const database = new Database(databasePath);
+    try {
+      expect(() => database.exec("BEGIN EXCLUSIVE")).not.toThrow();
+    } finally {
+      database.close();
+    }
+  } finally {
+    app.cleanup();
+  }
+});
+
+test("typegen accepts a page acquiring an exclusive database lock at module scope", async () => {
+  const app = createTmpApp("cli-app-ssr");
+  try {
+    writeAppFile(
+      app.path,
+      "src/pages/index.tsx",
+      `import { defineRoute } from "@teyik0/furin";
+import { Database } from "bun:sqlite";
+const database = new Database(${JSON.stringify(join(app.path, "page.db"))});
+database.exec("CREATE TABLE IF NOT EXISTS messages (message TEXT); BEGIN EXCLUSIVE");
+export const route = defineRoute("/").config({ mode: "ssr" })
+  .loader(() => database.query("SELECT 'page lock' AS message").get())
+  .page(({ message }) => <main>{message}</main>);`
+    );
+    await generateRouteTypes({ pagesDir: "src/pages", rootDir: app.path });
+    expect(await Bun.file(join(app.path, "furin-env.d.ts")).text()).toContain('"/":');
+  } finally {
+    app.cleanup();
+  }
+});
 
 function createApiPrerenderApp(mode: "isr" | "ssg") {
   const app = createTmpApp("cli-app-ssr");

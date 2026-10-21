@@ -7,16 +7,16 @@ import {
   movePrivateServerSourceMaps,
   privateServerSourceMapDir,
 } from "../build/private-server-sourcemaps.ts";
+import {
+  type BuildRouteInput,
+  rootHasRequestLoader,
+  routeBuildInfo,
+} from "../build/route-metadata.ts";
 import { materializeServerAppEntry } from "../build/server-app-entry.ts";
 import { copyDirRecursive, ensureDir, toPosixPath, writeBuildMetafile } from "../build/shared.ts";
 import type { BuildAppOptions } from "../build/types.ts";
 import { buildRscGraph, type ClientReference } from "../rsc/build/index.ts";
 import type { AppPrerender } from "../server/prerender.ts";
-import { hasRequestLoader } from "../server/render/request-loaders.ts";
-import { resolveDocumentMode, resolveDocumentRevalidate } from "../server/router/patterns.ts";
-import { mergeRouteSchemas } from "../server/router/schema-merge.ts";
-import type { ResolvedRoute } from "../server/router/types.ts";
-import { isTypeBoxObjectSchema } from "../shared/elysia-contract.ts";
 import { clientDirNameForPrefix } from "../shared/prefix.ts";
 import { prerenderFromBundle } from "./prerender.ts";
 import { buildRuntimeApp, type RuntimeAppBuild, type RuntimeTargetApp } from "./runtime-build.ts";
@@ -103,22 +103,15 @@ function withAssetContexts(
   });
 }
 
-function queryKeys(route: ResolvedRoute): string[] | null {
-  const schema = mergeRouteSchemas(route.routeChain, "query");
-  if (schema === undefined) {
-    return [];
-  }
-  return isTypeBoxObjectSchema(schema) ? Object.keys(schema.properties).toSorted() : null;
-}
-
-function adapterRoute(app: RuntimeTargetApp, route: ResolvedRoute): AdapterRoute {
-  const mode = resolveDocumentMode(route);
+function adapterRoute(app: RuntimeTargetApp, route: BuildRouteInput): AdapterRoute {
+  const info = routeBuildInfo(route);
+  const mode = info.documentMode;
   return {
     mode,
     pattern: route.pattern,
-    ppr: mode !== "ssr" && (app.root.route.requestLoader !== undefined || hasRequestLoader(route)),
-    queryKeys: queryKeys(route),
-    revalidate: resolveDocumentRevalidate(route),
+    ppr: mode !== "ssr" && (rootHasRequestLoader(app.root) || info.hasRequestLoader),
+    queryKeys: info.queryKeys,
+    revalidate: info.documentRevalidate,
     tags: route.tags ?? [],
   };
 }
