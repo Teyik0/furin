@@ -1,6 +1,5 @@
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parentPort, workerData } from "node:worker_threads";
 import { aotFactory } from "elysia/plugin/aot/unplugin";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
 import { collectFurinRegistrations, type FurinRegistration } from "../server/registrations.ts";
@@ -23,11 +22,13 @@ export type AotWorkerResponse =
   | (AotWorkerResult & { id: number; ok: true })
   | { error: Error; id: number; ok: false; registrations?: FurinRegistration[] };
 
-const port = parentPort;
-if (!port) {
-  throw new Error("[furin] Elysia AOT worker requires a parent port.");
+const send = process.send?.bind(process);
+if (!send) {
+  throw new Error("[furin] Elysia AOT process requires IPC.");
 }
-const { entry } = workerData as { entry: string };
+// A dead build parent must not leave its evaluation and native locks behind.
+process.on("disconnect", () => process.exit(0));
+const entry = process.argv[2] as string;
 const hooks = aotFactory({ entry, strip: false, target: "bun" });
 Bun.plugin(isomorphicTransformPlugin("server"));
 const registrations = collectFurinRegistrations(false);
@@ -99,7 +100,7 @@ async function exportInMemoryApps(): Promise<void> {
   );
 }
 
-port.on("message", async (request: AotWorkerRequest) => {
+process.on("message", async (request: AotWorkerRequest) => {
   try {
     let code: string | undefined;
     let virtualType: string | undefined;
@@ -115,7 +116,7 @@ port.on("message", async (request: AotWorkerRequest) => {
     } else {
       hooks.buildEnd?.();
     }
-    port.postMessage({
+    send({
       code,
       id: request.id,
       ok: true,
@@ -123,7 +124,7 @@ port.on("message", async (request: AotWorkerRequest) => {
       virtualType,
     } satisfies AotWorkerResponse);
   } catch (error) {
-    port.postMessage({
+    send({
       error: error instanceof Error ? error : new Error(String(error)),
       id: request.id,
       ok: false,

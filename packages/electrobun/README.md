@@ -121,8 +121,10 @@ runtime as `desktopApp()` is registered, before the entry can listen. It awaits
 the listen callback and `onReady` before opening a window or publishing readiness.
 For example, the entry can finish with `app.listen({ hostname: "127.0.0.1", port: 3000 })`
 instead of the export and `import.meta.main` block above. An inert default export
-remains supported: the host then starts its listener. Production packaging keeps
-using Furin's inert app artifact.
+remains supported: the host then starts its listener. Production builds also accept
+the entry-owned `.listen()` form: Furin captures the app for AOT without running
+that listener or its callback. The emitted app artifact stays inert on import;
+the desktop host starts its protected listener and owns lifecycle cleanup.
 
 The functional plugin preserves the original Elysia identity, prefix, decorators
 and route inference. Installing it after a wrapper or after listening is rejected.

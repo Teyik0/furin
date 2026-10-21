@@ -40,19 +40,12 @@ function serverEntryLoader(serverEntry: string): "js" | "jsx" | "ts" | "tsx" {
 }
 
 /**
- * Fails before building: Elysia AOT and every runtime module consume the
- * default export, and a platform serving assets never deploys the files an
- * application static mount would read.
+ * A platform serving assets never deploys the files an application static
+ * mount would read. The generated entry normalizes the application for AOT.
  */
 function assertServerEntry(serverEntry: string, adapter: FurinAdapter): void {
   const transpiler = new Bun.Transpiler({ loader: serverEntryLoader(serverEntry) });
-  const { exports, imports } = transpiler.scan(readFileSync(serverEntry, "utf8"));
-  if (!exports.includes("default")) {
-    throw new Error(
-      `[furin] Server entry "${toPosixPath(serverEntry)}" must export the Elysia app as default. ` +
-        "Guard app.listen() with `if (import.meta.main)` so the same entry also runs locally."
-    );
-  }
+  const { imports } = transpiler.scan(readFileSync(serverEntry, "utf8"));
   if (
     adapter.capabilities.assets === "platform" &&
     imports.some(({ path }) => path === "@elysia/static")

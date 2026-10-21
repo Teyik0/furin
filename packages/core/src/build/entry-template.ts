@@ -18,6 +18,7 @@ const _ext = _pkgSrcDir.endsWith("/src") ? ".ts" : ".js";
 const INTERNAL_MODULE_PATH = `${_pkgSrcDir}/server/internal${_ext}`;
 const RUNTIME_ENV_MODULE_PATH = `${_pkgSrcDir}/server/runtime-env${_ext}`;
 const STATIC_EXPORT_MODULE_PATH = `${_pkgSrcDir}/server/static-export${_ext}`;
+const SERVER_ENTRY_MODULE_PATH = `${_pkgSrcDir}/server/server-entry${_ext}`;
 /** Sidecar holding the SSG documents the production bundle rendered at build time. */
 export const PRERENDER_SNAPSHOT_FILE = "furin-prerender.json";
 
@@ -229,6 +230,9 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
   const lines = [
     headerComment,
     `import { __setCompileContext } from ${JSON.stringify(internalSpecifier)};`,
+    ...(serverEntry && mode === "app"
+      ? [`import { loadServerEntry } from ${JSON.stringify(SERVER_ENTRY_MODULE_PATH)};`]
+      : []),
     ...(productionMode
       ? [`import { __setDevMode } from ${JSON.stringify(RUNTIME_ENV_MODULE_PATH)};`]
       : []),
@@ -268,7 +272,7 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
         ]
       : serverEntry && mode === "app"
         ? [
-            `const __serverModule = await import(${JSON.stringify(serverEntry.replace(/\\/g, "/"))});`,
+            `const __serverModule = await loadServerEntry(() => import(${JSON.stringify(serverEntry.replace(/\\/g, "/"))}));`,
             "export const app = __serverModule.default;",
             "export const port = __serverModule.port;",
             "export const idleTimeout = __serverModule.idleTimeout;",

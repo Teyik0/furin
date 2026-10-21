@@ -330,7 +330,7 @@ export const route = defineRoute("/catalog")
     runScenario().then(() => done(), done);
   });
 
-  test("requires the Vercel server entry to export its Elysia app as default", async () => {
+  test("rejects a server entry that neither exports its app nor calls listen", async () => {
     const app = createTmpApp("cli-app");
     tmpApps.push(app);
     const serverPath = join(app.path, "src/server.ts");

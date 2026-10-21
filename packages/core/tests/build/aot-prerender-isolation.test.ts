@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
 import { join } from "node:path";
-import { generateRouteTypes } from "../../src/build/index.ts";
+import { buildApp, generateRouteTypes } from "../../src/build/index.ts";
 import { createTmpApp, keyPagesForPrefix, writeAppFile } from "../support/app-fixtures.ts";
 import { getFreePort } from "../support/hmr.ts";
 import { waitForHttp } from "../support/http.ts";
@@ -182,6 +182,144 @@ export const route = defineRoute("/").config({ mode: "ssr" })
     app.cleanup();
   }
 });
+
+function createNativeLeaseApp() {
+  const app = createTmpApp("cli-app-ssr");
+  writeAppFile(
+    app.path,
+    "src/lease.ts",
+    `
+import { dlopen, FFIType } from "bun:ffi";
+import { Database } from "bun:sqlite";
+import { openSync } from "node:fs";
+const library = dlopen(process.platform === "darwin" ? "libSystem.B.dylib" : "libc.so.6", {
+  flock: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 },
+});
+const fd = openSync(${JSON.stringify(join(app.path, "instance.lock"))}, "a+");
+if (library.symbols.flock(fd, 6) !== 0) throw new Error("The data directory is already in use by another instance");
+export const database = new Database(${JSON.stringify(join(app.path, "exclusive.db"))});
+database.exec("CREATE TABLE IF NOT EXISTS lease (value TEXT); BEGIN EXCLUSIVE");
+`
+  );
+  writeAppFile(
+    app.path,
+    "src/server.ts",
+    `
+import { Elysia } from "elysia";
+import { furin } from "@teyik0/furin";
+import { database } from "./lease";
+const app = new Elysia().get("/lease", () => database.query("SELECT 1").get())
+  .use(await furin({ pagesDir: import.meta.dir + "/pages" }));
+export default app;
+`
+  );
+  writeAppFile(
+    app.path,
+    "src/pages/index.tsx",
+    `
+import { defineRoute } from "@teyik0/furin";
+export const route = defineRoute("/").config({ mode: "ssg" })
+  .staticParams(() => [{}])
+  .loader(() => ({ message: "Native lease released" }))
+  .page(({ message }) => <main>{message}</main>);
+`
+  );
+  return app;
+}
+
+test.skipIf(process.platform === "win32")(
+  "AOT releases native flock and SQLite locks before production prerender",
+  async () => {
+    const app = createNativeLeaseApp();
+    try {
+      await buildApp({ rootDir: app.path, target: "bun" });
+      expect(
+        await Bun.file(join(app.path, ".furin/build/bun/furin-prerender.json")).text()
+      ).toContain("Native lease released");
+    } finally {
+      app.cleanup();
+    }
+  },
+  30_000
+);
+
+test
+  .skipIf(process.platform === "win32")
+  .each(["evaluation", "registrations", "bundle", "exit"] as const)(
+  "failed AOT %s releases native locks before rejecting",
+  async (stage) => {
+    const app = createNativeLeaseApp();
+    try {
+      const server = await Bun.file(join(app.path, "src/server.ts")).text();
+      if (stage === "registrations") {
+        writeAppFile(
+          app.path,
+          "src/server.ts",
+          server.replace(
+            'await furin({ pagesDir: import.meta.dir + "/pages" })',
+            'process.env.ELYSIA_AOT_BUILD ? new Elysia() : await furin({ pagesDir: import.meta.dir + "/pages" })'
+          )
+        );
+      } else if (stage !== "bundle") {
+        writeAppFile(
+          app.path,
+          "src/server.ts",
+          `${server}
+if (process.env.ELYSIA_AOT_BUILD) {
+  ${stage === "exit" ? "process.exit(37);" : 'throw new TypeError("native evaluation regression");'}
+}
+`
+        );
+      }
+      const plugins: Bun.BunPlugin[] =
+        stage === "bundle"
+          ? [
+              {
+                name: "failed-native-bundle",
+                setup(build) {
+                  build.onLoad({ filter: /\/server\.ts$/ }, () => {
+                    throw new Error("native bundling regression");
+                  });
+                },
+              },
+            ]
+          : [];
+      const build = buildApp({ rootDir: app.path, target: "bun", plugins });
+      if (stage === "bundle") {
+        await expect(build).rejects.toMatchObject({
+          errors: expect.arrayContaining([
+            expect.objectContaining({
+              message: expect.stringContaining("native bundling regression"),
+            }),
+          ]),
+        });
+      } else if (stage === "evaluation") {
+        await expect(build).rejects.toMatchObject({
+          name: "TypeError",
+          message: "native evaluation regression",
+          stack: expect.stringContaining("src/server.ts"),
+        });
+      } else {
+        await expect(build).rejects.toThrow(
+          stage === "exit" ? "Elysia AOT process exited (37)" : 'built but not mounted: prefix "/"'
+        );
+      }
+      const probe = await runProcess(
+        [
+          process.execPath,
+          "-e",
+          'await import("./src/lease.ts"); console.log("native lease available"); process.exit(0);',
+        ],
+        { cwd: app.path, timeoutMs: 5_000 }
+      );
+      expect(probe.exitCode, probe.stderr).toBe(0);
+      expect(probe.stdout).toContain("native lease available");
+    } finally {
+      app.cleanup();
+    }
+  },
+  30_000
+);
 
 function createApiPrerenderApp(mode: "isr" | "ssg") {
   const app = createTmpApp("cli-app-ssr");
