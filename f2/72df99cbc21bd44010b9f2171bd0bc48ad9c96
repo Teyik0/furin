@@ -1,0 +1,94 @@
+packages/core/src/adapter/build.ts
+  s_fad2737ff7c5ff::t_b60a632e2f2107 106-108,112-114
+  s_fad2737ff7c5ff::t_4882095acf0447 10-14
+packages/core/src/adapter/package.ts
+  s_fad2737ff7c5ff::t_22b7aa7c3fb086 60
+packages/core/src/plugin/route-registry.ts
+  s_fad2737ff7c5ff::t_343f2a8a1e3a92 35,39-51,128,133-136,140,165,189-192,206-209,228,232-245,326-328
+  s_fad2737ff7c5ff::t_4882095acf0447 137-139,229-231
+packages/core/tests/build/plugin-registration.test.ts
+  s_fad2737ff7c5ff::t_00a71cc75d9497 7-8,39,43
+  s_fad2737ff7c5ff::t_d4316534feef0f 40-41,44-45,50-53,55-56
+  s_fad2737ff7c5ff::t_91d7ab9033f226 2,4-5,32-38,42,46-49,57-64
+  s_fad2737ff7c5ff::t_530ae6cf1c6d0e 54
+  s_fad2737ff7c5ff::t_dde1409687f27c 6,65-68
+packages/core/src/build/hydrate.ts
+  s_fad2737ff7c5ff::t_66bc9930bd3892 45,60,71,101
+  s_fad2737ff7c5ff::t_9c00e450beff3b 9
+packages/core/src/rsc/build/index.ts
+  s_fad2737ff7c5ff::t_00a71cc75d9497 5,31
+  s_fad2737ff7c5ff::t_66bc9930bd3892 32
+packages/core/src/build/route-types.ts
+  s_fad2737ff7c5ff::t_66bc9930bd3892 98
+packages/core/src/build/preload-manifest.ts
+  s_fad2737ff7c5ff::t_66bc9930bd3892 4,17,44
+packages/core/src/build/shared.ts
+  s_fad2737ff7c5ff::t_b60a632e2f2107 4,37
+  s_fad2737ff7c5ff::t_9c00e450beff3b 40,45-47
+packages/core/src/adapter/static.ts
+  s_fad2737ff7c5ff::t_4882095acf0447 9-14,409
+  s_fad2737ff7c5ff::t_b60a632e2f2107 23,293,296-297,307,320,325,404,406
+  s_fad2737ff7c5ff::t_22b7aa7c3fb086 502
+packages/core/src/build/client.ts
+  s_fad2737ff7c5ff::t_22b7aa7c3fb086 58,140
+  s_fad2737ff7c5ff::t_66bc9930bd3892 6-7,44
+  s_fad2737ff7c5ff::t_9c00e450beff3b 76-77
+knip.config.ts
+  s_fad2737ff7c5ff::t_365e9a8aefc021 56
+packages/core/tests/build/aot-prerender-isolation.test.ts
+  s_fad2737ff7c5ff::t_91d7ab9033f226 1,4,129-133,138-140,143-144,150-163
+  s_fad2737ff7c5ff::t_30a160ee014c7a 8,59-66,101-107
+  s_fad2737ff7c5ff::t_7888e4f4752bea 165-167,172-176,179-184
+  s_fad2737ff7c5ff::t_d5afaf2b4b2755 19-22,29-30,37,44-52,69,164
+  s_fad2737ff7c5ff::t_d4316534feef0f 10-18,23-28,31-36,38-43,53-58,67-68,70-100,108-128,134-137,141-142,145-149,168-171,177-178
+  s_fad2737ff7c5ff::t_ea5b38ecc04397 9
+packages/core/src/build/discover-pages-process.ts
+  s_fad2737ff7c5ff::t_5263ed38942b04 2-4,49-51,54-70,89
+  s_fad2737ff7c5ff::t_d04a7eaaeedb4f 1,7-9,15-22,30-39,42-44,46-48,71-75,80-81,86-88,90-100,108-112
+  s_fad2737ff7c5ff::t_e45435efed4c4c 6,10-14,23-29,76-79,82-85,102-107
+  s_fad2737ff7c5ff::t_698700ac0b0f30 40-41,45,52-53
+  s_fad2737ff7c5ff::t_343f2a8a1e3a92 5,101
+packages/core/src/build/index.ts
+  s_fad2737ff7c5ff::t_d7f20f7a9ca5d5 11,17,128
+  s_fad2737ff7c5ff::t_698700ac0b0f30 102-103
+packages/core/src/build/discover-pages.ts
+  s_fad2737ff7c5ff::t_5263ed38942b04 3
+  s_fad2737ff7c5ff::t_e45435efed4c4c 7-8,14,29-55
+  s_fad2737ff7c5ff::t_343f2a8a1e3a92 6
+  s_fad2737ff7c5ff::t_d04a7eaaeedb4f 2,4-5,9-13,15-28,56-69
+  s_fad2737ff7c5ff::t_698700ac0b0f30 1
+packages/core/src/build/route-metadata.ts
+  s_fad2737ff7c5ff::t_698700ac0b0f30 51-54,64
+  s_fad2737ff7c5ff::t_1c97a4161010e9 1-24,30-50,55-59,63,65-77,88-90
+  s_fad2737ff7c5ff::t_e45435efed4c4c 25-29,60-62,78-87
+packages/core/src/adapter/runtime-build.ts
+  s_fad2737ff7c5ff::t_4882095acf0447 7-12,297
+  s_fad2737ff7c5ff::t_b60a632e2f2107 19,120-121,266,296,298,306-307,349
+  s_fad2737ff7c5ff::t_343f2a8a1e3a92 15
+  s_fad2737ff7c5ff::t_22b7aa7c3fb086 416
+packages/core/src/build/discovery-plugins.ts
+  s_fad2737ff7c5ff::t_e45435efed4c4c 6-10,27-29,41-44,46-55,60-63,93-97
+  s_fad2737ff7c5ff::t_5263ed38942b04 17
+  s_fad2737ff7c5ff::t_643b71ded14ec6 14
+  s_fad2737ff7c5ff::t_698700ac0b0f30 1,4-5,11
+  s_fad2737ff7c5ff::t_d04a7eaaeedb4f 2-3,12-13,15-16,18-26,30-40,45,56-59,64-92,98-101
+packages/core/src/build/types.ts
+  s_fad2737ff7c5ff::t_00a71cc75d9497 3,9
+  s_fad2737ff7c5ff::t_22b7aa7c3fb086 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f272df99cbc21bd44010b9f2171bd0bc48ad9c96",
+  "prompts": {},
+  "sessions": {
+    "s_fad2737ff7c5ff": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a15df9-1a4c-7e13-8aee-538873468f80",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
