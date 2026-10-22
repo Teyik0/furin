@@ -5,6 +5,22 @@ import { sync } from "../src/sync";
 
 afterAll(() => app.stop(true));
 
+test("web mode exposes desktop availability and rejects native actions", async () => {
+  const available = await app.handle(new Request("http://localhost/api/desktop"));
+  expect(available.status).toBe(200);
+  expect(await available.json()).toEqual({ available: false });
+
+  await Promise.all(
+    ["minimize", "open"].map(async (action) => {
+      const response = await app.handle(
+        new Request(`http://localhost/api/desktop/${action}`, { method: "POST" })
+      );
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({ error: "Desktop unavailable" });
+    })
+  );
+});
+
 function create(title: string) {
   return app.handle(
     new Request("http://localhost/api/todos", {

@@ -4,17 +4,22 @@ import { Elysia, status } from "elysia";
 export const desktopApi = new Elysia({ name: "relay-desktop", prefix: "/desktop" })
   .use(desktopContext)
   .get("/", ({ desktop }) => ({ available: desktop !== null }))
+  .macro({
+    desktopOnly: {
+      derive({ desktop }) {
+        if (!desktop) {
+          return status(409, { error: "Desktop unavailable" });
+        }
+        return { desktop };
+      },
+    },
+  })
+  .guard({ desktopOnly: true })
   .post("/minimize", ({ desktop }) => {
-    if (!desktop) {
-      return status(409, { error: "Desktop unavailable" });
-    }
     desktop.window?.minimize();
     return { ok: true };
   })
   .post("/open", ({ desktop }) => {
-    if (!desktop) {
-      return status(409, { error: "Desktop unavailable" });
-    }
     desktop.open();
     return { ok: true };
   });
