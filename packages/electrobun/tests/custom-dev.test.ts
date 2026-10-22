@@ -4,8 +4,9 @@ import { mkdir, mkdtemp, realpath, rename, rm, writeFile } from "node:fs/promise
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { desktopCommand } from "../src/cli";
+import { installSdk, sdkRunHeader } from "./fixtures/sdk";
 
-test("custom dev hosts retain their backend for frontend edits and drain before backend replacement", async () => {
+test("native customization modules use the SDK without starting a host and restart only for native or backend edits", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin custom dev "));
   let dev: Promise<void> | undefined;
   let failure: unknown;
@@ -40,7 +41,7 @@ test("custom dev hosts retain their backend for frontend edits and drain before 
       join(root, "furin.config.ts"),
       `export default { desktop: {
       app: { name: "Fixture", identifier: "local.furin.custom" },
-      window: { width: 800, height: 600 }, hostEntry: "src/host.ts",
+      window: { width: 800, height: 600 }, build: { bun: { entrypoint: "src/host.ts" } },
       dataDir: ${JSON.stringify(join(root, ".data"))}
     } };`
     );
@@ -63,31 +64,15 @@ test("custom dev hosts retain their backend for frontend edits and drain before 
       })).get("/", () => ({ value, pid: process.pid, cwd: process.cwd(), args: process.execArgv }));
     `
     );
+    await writeFile(join(root, "tsconfig.json"), '{"extends":"./.furin/electrobun/tsconfig.json"}');
     await writeFile(
-      join(root, "src/host.ts"),
-      `
-      import { runDesktopHost } from ${JSON.stringify(join(import.meta.dir, "../src/host.ts"))};
-      const sdk = {
-        Utils: { paths: { appData: ${JSON.stringify(root)} }, quit: process.exit },
-        default: { events: { on() {} } }
-      };
-      await runDesktopHost(sdk, async ({ startBackend }) => { await startBackend(); });
-    `
+      join(root, "src/native-events.ts"),
+      'import Electrobun from "electrobun/main"; Electrobun.events.on("reopen", () => {});'
     );
+    await writeFile(join(root, "src/host.ts"), 'import "./native-events";');
+    await installSdk(root);
     const sdk = join(root, "node_modules/electrobun");
-    await mkdir(join(sdk, "bin"), { recursive: true });
-    await writeFile(
-      join(sdk, "package.json"),
-      '{"name":"electrobun","exports":{"./package.json":"./package.json"}}'
-    );
-    await writeFile(
-      join(sdk, "bin/electrobun.cjs"),
-      `
-      if (process.argv[2] !== "run") process.exit(0);
-      const config = (await import(process.cwd() + "/electrobun.config.ts")).default;
-      await import(config.build.bun.entrypoint);
-    `
-    );
+    await writeFile(join(sdk, "bin/electrobun.cjs"), sdkRunHeader(root));
     await writeFile(join(root, "bunfig.toml"), "smol = true\n");
     dev = desktopCommand("dev", root).catch((error) => {
       failure = error;
@@ -106,6 +91,7 @@ test("custom dev hosts retain their backend for frontend edits and drain before 
       args: string[];
     };
     expect(original.value).toBe("first");
+    expect(await Bun.file(join(root, "window-url")).exists()).toBe(true);
     expect(original.args).toContain(`--config=${join(root, "bunfig.toml")}`);
     expect(await realpath(original.cwd)).toBe(await realpath(root));
     await writeFile(join(root, "src/page.tsx"), "export default () => <p>Updated</p>;");
@@ -153,6 +139,12 @@ test("custom dev hosts retain their backend for frontend edits and drain before 
     expect(
       await (await fetch(fifth.origin, { headers: { cookie: fifthCookie } })).json()
     ).toHaveProperty("value", "fifth");
+    await writeFile(
+      join(root, "src/native-events.ts"),
+      'import Electrobun from "electrobun/main"; Electrobun.events.on("focus", () => {});'
+    );
+    const nativeChange = await ready(fifth.url);
+    expect(nativeChange.url).not.toBe(fifth.url);
   } finally {
     if (dev) {
       process.emit("SIGTERM");

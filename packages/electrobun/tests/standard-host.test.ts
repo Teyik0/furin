@@ -26,6 +26,7 @@ test("standard host lifecycle and successful update handoff", async () => {
   let background = true;
   let quit: number | undefined;
   let authenticated: { origin: string; cookie: string } | undefined;
+  let windowRequests = 0;
   const identity = {
     name: "Fixture",
     identifier: "local.furin.standard",
@@ -157,10 +158,17 @@ test("standard host lifecycle and successful update handoff", async () => {
           expect(runtime.kind).toBe("desktop");
           if (runtime.kind === "desktop") {
             expect(await runtime.desktop.dialogs.selectDirectory()).toBe(root);
+            const { open } = runtime.desktop.window;
+            runtime.desktop.window.open = () => {
+              windowRequests += 1;
+              return open();
+            };
           }
           phases.push("start");
         },
         onReady() {
+          expect(windowRequests).toBe(0);
+          expect(windows).toHaveLength(0);
           phases.push("ready");
         },
         onShutdown() {
@@ -210,6 +218,7 @@ test("standard host lifecycle and successful update handoff", async () => {
       throw new Error("Expected the primary native instance.");
     }
     expect(typeof desktop.restart).toBe("function");
+    expect(windowRequests).toBe(1);
     expect(phases).toEqual(["start", "ready", "fixture://early"]);
     emit("open-url", { data: { url: "fixture://broken" } });
     await Bun.sleep(10);

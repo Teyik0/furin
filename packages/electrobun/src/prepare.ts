@@ -1,5 +1,5 @@
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
-import { join, posix, resolve, win32 } from "node:path";
+import { join, posix, relative, resolve, win32 } from "node:path";
 import type { DesktopConfig } from "./config";
 import { copyExternalPackages } from "./external";
 
@@ -12,11 +12,11 @@ export interface DesktopPreparation {
   serverEntry: string;
 }
 
-export function renderRuntime(): string {
+export function renderRuntime(nativeEntry: string | undefined): string {
   return `import * as sdk from "./.hutch/devkit/api/sdks/main/index.ts";
 import { runStandardDesktopHost } from ${JSON.stringify(join(SOURCES, "standard-host.ts"))};
 
-await runStandardDesktopHost(sdk);
+await runStandardDesktopHost(sdk${nativeEntry ? `, undefined, () => import(${JSON.stringify(nativeEntry)})` : ""});
 `;
 }
 
@@ -61,7 +61,14 @@ export async function prepareDesktop(
       JSON.stringify({ config, root: options.root, serverEntry: options.serverEntry })
     );
   }
-  await writeFile(join(generated, "main.ts"), renderRuntime());
+  await writeFile(
+    join(generated, "main.ts"),
+    renderRuntime(
+      config.build?.bun?.entrypoint
+        ? `./${relative(generated, resolve(options.root, config.build.bun.entrypoint)).split(win32.sep).join(posix.sep)}`
+        : undefined
+    )
+  );
   const helper = await Bun.build({
     entrypoints: [join(SOURCES, "native-open.ts")],
     target: "bun",
@@ -86,9 +93,8 @@ export async function prepareDesktop(
     'export default { electrobun: { version: "2.0.2" } };\n'
   );
   const platform = { bundleCEF: false, bundleWGPU: false, defaultRenderer: "native" };
-  const additions = config.sdk;
   const copy = Object.fromEntries(
-    Object.entries(additions?.build?.copy ?? {}).map(([source, destination]) => {
+    Object.entries(config.build?.copy ?? {}).map(([source, destination]) => {
       const target = posix.normalize(destination.replaceAll("\\", "/"));
       const reserved = target.toLowerCase();
       if (
@@ -108,26 +114,24 @@ export async function prepareDesktop(
       return [resolve(options.root, source), target];
     })
   );
-  const mac = additions?.build?.mac;
-  const win = additions?.build?.win;
-  const linux = additions?.build?.linux;
+  const mac = config.build?.mac;
+  const win = config.build?.win;
+  const linux = config.build?.linux;
   const sdkConfig = {
     app: {
       ...config.app,
-      urlSchemes: additions?.app?.urlSchemes,
+      urlSchemes: config.app?.urlSchemes,
       // The SDK packages macOS document types; mimeType is Furin's Linux registration input.
-      fileAssociations: additions?.app?.fileAssociations?.map(
-        ({ mimeType: _, ...association }) => ({
-          ...association,
-          ...(association.icon ? { icon: resolve(options.root, association.icon) } : {}),
-        })
-      ),
+      fileAssociations: config.app?.fileAssociations?.map(({ mimeType: _, ...association }) => ({
+        ...association,
+        ...(association.icon ? { icon: resolve(options.root, association.icon) } : {}),
+      })),
     },
     build: {
       mainProcess: "bun",
       bun: {
-        entrypoint: config.hostEntry ? resolve(options.root, config.hostEntry) : "main.ts",
-        external: additions?.build?.bun?.external,
+        entrypoint: "main.ts",
+        external: config.build?.bun?.external,
       },
       copy: {
         ...(options.mode === "build" ? { furin: "furin" } : {}),
@@ -149,7 +153,7 @@ export async function prepareDesktop(
       },
     },
     runtime: { exitOnLastWindowClosed: false },
-    release: additions?.release,
+    release: config.release,
   };
   await writeFile(
     join(generated, "electrobun.config.ts"),

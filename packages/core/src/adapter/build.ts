@@ -122,6 +122,7 @@ async function bundleServer(
   const build = await runBunBuild({
     define: PRODUCTION_DEFINE,
     entrypoints: [adapter.runtimeModule, appEntry],
+    external: options.serverExternalPackages,
     format: "esm",
     metafile: options.analyze,
     minify: true,
@@ -197,7 +198,13 @@ export async function buildAdapterTarget(
   );
   const rootIndex = apps.findIndex((app) => app.prefix === "");
   const { buildId } = builds[rootIndex === -1 ? 0 : rootIndex] as RuntimeAppBuild;
-  const rscManifest = await buildRscGraph(apps, targetDir, buildId, options.plugins);
+  const rscManifest = await buildRscGraph(
+    apps,
+    targetDir,
+    buildId,
+    options.plugins,
+    options.serverExternalPackages
+  );
 
   const projectPublicDir = join(rootDir, "public");
   const publicDir = existsSync(projectPublicDir) ? projectPublicDir : undefined;

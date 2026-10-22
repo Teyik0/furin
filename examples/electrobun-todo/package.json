@@ -10,7 +10,7 @@
     "fix": "ultracite fix",
     "start": "PORT=3004 bun .furin/build/bun/server.js",
     "test": "bun test --isolate --bail tests",
-    "tscheck": "tsc --noEmit -p tsconfig.json"
+    "tscheck": "furin-electrobun prepare && tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@elysia/eden": "2.0.0-beta.5",

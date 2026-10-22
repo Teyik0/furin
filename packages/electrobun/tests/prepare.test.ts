@@ -40,7 +40,7 @@ test("desktop build keeps the whole Furin artifact outside the SDK main bundle",
   }
 });
 
-test("a custom native host preserves packaging ownership and platform integrations", async () => {
+test("native customization preserves packaging ownership and platform integrations", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-host-"));
   try {
     await mkdir(join(root, ".furin/build/bun"), { recursive: true });
@@ -48,27 +48,31 @@ test("a custom native host preserves packaging ownership and platform integratio
     const generated = await prepareDesktop(
       root,
       {
-        app: { name: "Tofu", identifier: "app.tofu.dev", version: "0.2.1" },
-        window: { width: 1400, height: 940 },
-        hostEntry: "src/desktop.ts",
-        sdk: {
-          app: {
-            urlSchemes: ["tofu-dev"],
-            fileAssociations: [
-              { ext: ["torrent"], name: "Torrent", mimeType: "application/x-bittorrent" },
-            ],
-          },
-          build: {
-            mac: { icons: "assets/tofu.iconset", codesign: false },
-            copy: { "runtime/helper.js": "bun/helper.js" },
-          },
-          release: { baseUrl: "https://example.com/releases" },
+        app: {
+          name: "Tofu",
+          identifier: "app.tofu.dev",
+          version: "0.2.1",
+          urlSchemes: ["tofu-dev"],
+          fileAssociations: [
+            { ext: ["torrent"], name: "Torrent", mimeType: "application/x-bittorrent" },
+          ],
         },
+        window: { width: 1400, height: 940 },
+        build: {
+          mainProcess: "bun",
+          bun: { entrypoint: "src/desktop.ts" },
+          mac: { icons: "assets/tofu.iconset", codesign: false },
+          copy: { "runtime/helper.js": "bun/helper.js" },
+        },
+        release: { baseUrl: "https://example.com/releases" },
       },
       { mode: "build", root, serverEntry: join(root, "src/server.ts") }
     );
     const { default: sdk } = await import(join(generated, "electrobun.config.ts"));
-    expect(sdk.build.bun.entrypoint).toBe(join(root, "src/desktop.ts"));
+    expect(sdk.build.bun.entrypoint).toBe("main.ts");
+    expect(await readFile(join(generated, "main.ts"), "utf8")).toContain(
+      `() => import(${JSON.stringify("./../../src/desktop.ts")})`
+    );
     expect(sdk.build.copy).toEqual({
       furin: "furin",
       "host.json": "bun/furin-host.json",
@@ -81,6 +85,8 @@ test("a custom native host preserves packaging ownership and platform integratio
     expect(sdk.app.fileAssociations).toEqual([{ ext: ["torrent"], name: "Torrent" }]);
     expect(sdk.build.mac.icons).toBe(join(root, "assets/tofu.iconset"));
     expect(sdk.build.mac.defaultRenderer).toBe("native");
+    expect(sdk.build.mac.bundleCEF).toBe(false);
+    expect(sdk.build.mainProcess).toBe("bun");
     expect(sdk.release.baseUrl).toBe("https://example.com/releases");
     expect(await Bun.file(join(generated, "furin/app.js")).exists()).toBe(true);
   } finally {
@@ -111,7 +117,7 @@ test("SDK copy destinations cannot alias or escape the reserved artifact", async
           {
             app: { name: "Fixture", identifier: "local.furin.fixture", version: "1.0.0" },
             window: { width: 800, height: 600 },
-            sdk: { build: { copy: { asset: destination } } },
+            build: { copy: { asset: destination } },
           },
           { mode: "dev", root, serverEntry: join(root, "server.ts") }
         )

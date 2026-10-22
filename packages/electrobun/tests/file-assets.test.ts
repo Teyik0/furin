@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { installSdk, sdkRunHeader } from "./fixtures/sdk";
 
 test("file assets survive dependency scanning and restart their owning server or host", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-file-assets-"));
@@ -50,7 +51,7 @@ test("file assets survive dependency scanning and restart their owning server or
       `export default { desktop: {
         app: { name: "Assets", identifier: "local.furin.assets" },
         window: { width: 800, height: 600 },
-        hostEntry: "src/host.ts", dataDir: ${JSON.stringify(join(root, ".data"))}
+        build: { bun: { entrypoint: "src/host.ts" } }, dataDir: ${JSON.stringify(join(root, ".data"))}
       } };`
     );
     await writeFile(
@@ -75,25 +76,11 @@ test("file assets survive dependency scanning and restart their owning server or
     );
     await writeFile(
       join(root, "src/host.ts"),
-      `import { runDesktopHost } from ${JSON.stringify(join(import.meta.dir, "../src/host.ts"))};
-      import icon from "../runtime/host-icon.bin" with { type: "file" };
-      const sdk = { Utils: { paths: { appData: ${JSON.stringify(root)} }, quit: process.exit },
-        default: { events: { on() {} } } };
-      await Bun.write(${JSON.stringify(join(root, ".host-icon"))}, await Bun.file(icon).text());
-      await runDesktopHost(sdk, async ({ startBackend }) => { await startBackend(); });`
+      `import icon from "../runtime/host-icon.bin" with { type: "file" };
+      await Bun.write(${JSON.stringify(join(root, ".host-icon"))}, await Bun.file(icon).text());`
     );
-    const sdk = join(root, "node_modules/electrobun");
-    await mkdir(join(sdk, "bin"), { recursive: true });
-    await writeFile(
-      join(sdk, "package.json"),
-      '{"name":"electrobun","exports":{"./package.json":"./package.json"}}'
-    );
-    await writeFile(
-      join(sdk, "bin/electrobun.cjs"),
-      `if (process.argv[2] !== "run") process.exit(0);
-      const config = (await import(process.cwd() + "/electrobun.config.ts")).default;
-      await import(config.build.bun.entrypoint);`
-    );
+    await installSdk(root);
+    await writeFile(join(root, "node_modules/electrobun/bin/electrobun.cjs"), sdkRunHeader(root));
     const runner = join(root, ".runner.ts");
     await writeFile(
       runner,

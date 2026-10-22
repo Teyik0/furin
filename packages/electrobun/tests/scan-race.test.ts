@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { desktopCommand } from "../src/cli";
+import { installSdk, sdkRunHeader } from "./fixtures/sdk";
 
 test("dependency scans reconcile importer edits without writing build artifacts", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-scan-race-"));
@@ -73,7 +74,7 @@ test("dependency scans reconcile importer edits without writing build artifacts"
       join(root, "furin.config.ts"),
       `export default {
       serverEntry:"server.ts", desktop:{
-        app:{name:"Race",identifier:"local.furin.race"},hostEntry:"host.ts",
+        app:{name:"Race",identifier:"local.furin.race"},build: { bun: { entrypoint: "host.ts" } },
         window:{width:800,height:600},dataDir:${JSON.stringify(join(root, ".data"))}
       }};`
     );
@@ -88,26 +89,9 @@ test("dependency scans reconcile importer edits without writing build artifacts"
       import {value} from "./value";
       export default new Elysia().use(desktopApp()).get("/",()=>value);`
     );
-    await writeFile(
-      join(root, "host.ts"),
-      `
-      import {runDesktopHost} from ${JSON.stringify(join(import.meta.dir, "../src/host.ts"))};
-      const sdk={Utils:{paths:{appData:${JSON.stringify(root)}},quit:process.exit},default:{events:{on(){}}}};
-      await runDesktopHost(sdk,async({startBackend})=>{await startBackend();});`
-    );
-    const sdk = join(root, "node_modules/electrobun");
-    await mkdir(join(sdk, "bin"), { recursive: true });
-    await writeFile(
-      join(sdk, "package.json"),
-      '{"name":"electrobun","exports":{"./package.json":"./package.json"}}'
-    );
-    await writeFile(
-      join(sdk, "bin/electrobun.cjs"),
-      `
-      if(process.argv[2]!=="run")process.exit(0);
-      const config=(await import(process.cwd()+"/electrobun.config.ts")).default;
-      await import(config.build.bun.entrypoint);`
-    );
+    await writeFile(join(root, "host.ts"), "export {};");
+    await installSdk(root);
+    await writeFile(join(root, "node_modules/electrobun/bin/electrobun.cjs"), sdkRunHeader(root));
     // Delay completion of the real compiler at its public boundary; do not fake its graph.
     Bun.build = async (options) => {
       const result = await original(options);

@@ -11,7 +11,7 @@ test("one Furin configuration preserves typed desktop settings for both CLIs", a
   const desktop = defineDesktopConfig({
     app: { name: "Unified", identifier: "local.furin.unified" },
     window: { width: 900, height: 700 },
-    hostEntry: "src/host.ts",
+    build: { bun: { entrypoint: "src/host.ts" } },
   });
   const config = defineConfig({ rootDir: "app", serverEntry: "server.ts", desktop });
   expectTypeOf(config.desktop?.app.name).toEqualTypeOf<string | undefined>();

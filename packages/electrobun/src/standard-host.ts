@@ -118,7 +118,8 @@ function trayPlatform(): "mac" | "win" | "linux" {
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Startup coordinates the single SDK/controller owner and its failure cleanup in one scope.
 export async function runStandardDesktopHost(
   sdk: DesktopSdk,
-  supplied?: StandardHostOptions
+  supplied?: StandardHostOptions,
+  loadNativeEntry?: () => Promise<unknown>
 ): Promise<DesktopCapabilities | undefined> {
   const queued: OpenEvent[] = [];
   let flush = () => Promise.resolve();
@@ -150,6 +151,7 @@ export async function runStandardDesktopHost(
   let startupError: string | undefined;
   let state: DesktopState | undefined;
   let window: NativeWindow | undefined;
+  let windowRequested = false;
   let tray: NativeTray | undefined;
   let closing: Promise<void> | undefined;
   let installing: Promise<void> | undefined;
@@ -210,6 +212,11 @@ export async function runStandardDesktopHost(
     }
   };
   const open = (): DesktopSnapshot => {
+    // The Elysia plugin requests its window after readiness; native setup finishes first.
+    if (phase === "starting") {
+      windowRequested = true;
+      return desktop.snapshot();
+    }
     clearTimeout(backgroundTimer);
     const active = requireBackend();
     if (window) {
@@ -591,11 +598,9 @@ export async function runStandardDesktopHost(
       openExternal: (url) => sdk.Utils.openExternal(url),
     });
     if (
-      (config.protocols ?? []).some(
-        (scheme) => !(config.sdk?.app?.urlSchemes ?? []).includes(scheme)
-      )
+      (config.protocols ?? []).some((scheme) => !(config.app?.urlSchemes ?? []).includes(scheme))
     ) {
-      throw new Error("Registered protocols must also be declared in sdk.app.urlSchemes.");
+      throw new Error("Registered protocols must also be declared in app.urlSchemes.");
     }
     const initial = process.env.FURIN_NATIVE_OPEN;
     delete process.env.FURIN_NATIVE_OPEN;
@@ -605,8 +610,8 @@ export async function runStandardDesktopHost(
     queued.push(
       ...nativeLaunchEvents(
         Bun.argv.slice(2),
-        config.sdk?.app?.urlSchemes ?? [],
-        config.sdk?.app?.fileAssociations?.flatMap((item) =>
+        config.app?.urlSchemes ?? [],
+        config.app?.fileAssociations?.flatMap((item) =>
           item.ext.map((extension) => extension.toLowerCase())
         ) ?? [],
         options.root
@@ -615,9 +620,9 @@ export async function runStandardDesktopHost(
     instance = await openNativeInstance({
       dataDir: options.dataDir,
       identity,
-      schemes: config.sdk?.app?.urlSchemes ?? [],
+      schemes: config.app?.urlSchemes ?? [],
       extensions:
-        config.sdk?.app?.fileAssociations?.flatMap((item) =>
+        config.app?.fileAssociations?.flatMap((item) =>
           item.ext.map((extension) => extension.toLowerCase())
         ) ?? [],
       onOpen(event) {
@@ -639,8 +644,8 @@ export async function runStandardDesktopHost(
     }
     await association.registerHandlers({
       protocols: config.protocols ?? [],
-      schemes: config.sdk?.app?.urlSchemes ?? [],
-      files: (config.sdk?.app?.fileAssociations ?? []).map((item) => ({
+      schemes: config.app?.urlSchemes ?? [],
+      files: (config.app?.fileAssociations ?? []).map((item) => ({
         name: item.name,
         extensions: item.ext,
         mimeType: item.mimeType,
@@ -659,6 +664,7 @@ export async function runStandardDesktopHost(
       try {
         starting = startDesktopBackend(
           async () => {
+            await loadNativeEntry?.();
             const module = await options.load();
             state = module.default ? getDesktopState(module.default) : getDesktopEntry()?.state;
             return module;
@@ -740,7 +746,7 @@ export async function runStandardDesktopHost(
     phase = "ready";
     await flush();
     await options.manager?.({ ...context(), backend, startupError });
-    if (backend) {
+    if (backend && windowRequested) {
       open();
     }
     if (options.openBrowser && backend) {

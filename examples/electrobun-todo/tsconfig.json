@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": ["./.furin/electrobun/tsconfig.json", "../../tsconfig.base.json"],
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",

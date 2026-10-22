@@ -1,9 +1,10 @@
 # Standard native host
 
 The generated entry is a small bootstrap importing the canonical Electrobun
-2.0.2 Bun SDK and `runStandardDesktopHost`. The application artifact remains
+2.0.2 Bun SDK and the internal host controller. The application artifact remains
 separate; the host does not bundle a second Elysia graph or create a new RPC API
-for business routes. `hostEntry` remains an advanced alternative.
+for business routes. `build.bun.entrypoint` optionally selects a native
+customization module loaded before the server, without any host launch call.
 
 ## One development command
 
@@ -33,8 +34,9 @@ tests, builds, unrelated hot entries and the managed SDK do not launch desktop.
 only native; `--web` runs a server without the SDK. `--port` applies only to that
 web mode. The source entry can call `.listen()` and register Elysia `onStop`
 cleanup directly, without a default export. `desktopApp()` installs the native
-runtime and session protection before listening; the host awaits Elysia's listen
-callback and application `onReady` before opening the window. Inert default
+runtime and session protection before listening. After Elysia's listen callback
+and application `onReady`, the plugin requests its native window; the generated
+host fulfills that request once native setup finishes. Inert default
 exports remain supported and are used by Furin's production app artifact.
 Startup errors are printed before cleanup and SDK `quit(1)`, so an immediate
 native exit preserves the original cause in development diagnostics.
@@ -45,7 +47,7 @@ Keep static packaging in `furin.config.ts`:
 
 ```ts
 desktop: defineDesktopConfig({
-  app: { name: "Example", identifier: "app.example.desktop" },
+  app: { name: "Example", identifier: "app.example.desktop", urlSchemes: ["example"] },
   window: { width: 1200, height: 800 },
   tray: {
     mac: { image: "public/tray-template.png", template: true },
@@ -53,7 +55,6 @@ desktop: defineDesktopConfig({
     linux: { image: "public/icon.png" },
   },
   protocols: ["example"],
-  sdk: { app: { urlSchemes: ["example"] } },
 })
 ```
 

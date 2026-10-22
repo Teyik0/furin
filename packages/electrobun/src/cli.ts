@@ -6,13 +6,15 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { prepareDesktop } from "./prepare";
 import { initDesktop, loadDesktopConfig, loadFurinProject } from "./project";
 import { withShutdownDeadline } from "./runtime";
+import { prepareSdkResolution } from "./sdk-resolution";
 import { resolveDesktopDataDir } from "./storage";
 
 const MODULE_PATH = /.*/;
 
 async function backendDependencies(
   root: string,
-  entries: string[]
+  entries: string[],
+  sdkAliases: { [specifier: string]: string }
 ): Promise<Set<string> | undefined> {
   const files = new Set(entries);
   // Each build gets fresh resolution state; Bun.resolveSync caches renamed
@@ -30,6 +32,10 @@ async function backendDependencies(
         name: "desktop-backend-ownership",
         setup(builder) {
           builder.onResolve({ filter: MODULE_PATH }, (args) => {
+            const sdkPath = sdkAliases[args.path];
+            if (sdkPath) {
+              return { path: sdkPath, external: true };
+            }
             if (isAbsolute(args.path) && !resolve(args.path).startsWith(`${root}${sep}`)) {
               return { path: args.path, external: true };
             }
@@ -110,8 +116,8 @@ export async function desktopCommand(
     console.log("Desktop scripts configured through furin.config.ts.");
     return;
   }
-  if (command !== "dev" && command !== "build") {
-    throw new Error("Usage: furin-electrobun init | dev | build");
+  if (command !== "dev" && command !== "build" && command !== "prepare") {
+    throw new Error("Usage: furin-electrobun init | prepare | dev | build");
   }
   const config = await loadDesktopConfig(cwd);
   const project = await loadFurinProject(cwd);
@@ -124,13 +130,29 @@ export async function desktopCommand(
   const channel = command === "build" ? (buildEnvironment ?? "stable") : "dev";
   if (command === "build") {
     await run(
-      [process.execPath, await coreCli(cwd), "build", "--target", "bun", "--output", "app"],
+      [
+        process.execPath,
+        await coreCli(cwd),
+        "build",
+        "--target",
+        "bun",
+        "--output",
+        "app",
+        ...(config.external ?? []).flatMap((name) => ["--external", name]),
+      ],
       cwd,
       env
     );
   }
-  const generated = await prepareDesktop(cwd, config, { ...project, mode: command });
+  const generated = await prepareDesktop(cwd, config, {
+    ...project,
+    mode: command === "build" ? "build" : "dev",
+  });
   await run([process.execPath, sdk, "prepare", `--env=${channel}`], generated, env);
+  const sdkAliases = await prepareSdkResolution(generated);
+  if (command === "prepare") {
+    return;
+  }
   if (command === "build") {
     await run([process.execPath, sdk, "build", `--env=${channel}`], generated, env);
   }
@@ -152,7 +174,8 @@ export async function desktopCommand(
     generated,
     sdk,
     env,
-    config.hostEntry ? resolve(project.root, config.hostEntry) : join(generated, "main.ts")
+    join(generated, "main.ts"),
+    sdkAliases
   );
 }
 
@@ -252,7 +275,8 @@ function watchBackend(
   serverEntry: string,
   dataDir: string | undefined,
   customHost: string | undefined,
-  onChange: () => void
+  onChange: () => void,
+  sdkAliases: { [specifier: string]: string }
 ) {
   const canonicalRoot = realpathSync(root);
   const entries = [serverEntry, ...(customHost ? [customHost] : [])].map((path) =>
@@ -305,7 +329,7 @@ function watchBackend(
           sourceChanged = Promise.withResolvers<void>();
           changed.clear();
           scanning = true;
-          const next = await backendDependencies(canonicalRoot, entries);
+          const next = await backendDependencies(canonicalRoot, entries, sdkAliases);
           scanning = false;
           if (canceled) {
             return false;
@@ -416,7 +440,8 @@ async function runDesktopDev(
   generated: string,
   sdk: string,
   env: NodeJS.ProcessEnv,
-  customHost: string | undefined
+  customHost: string | undefined,
+  sdkAliases: { [specifier: string]: string }
 ): Promise<void> {
   // No signal-based hot reload: managed SDK Bun does not implement SIGUSR.
   // A file command asks the running window to use the public close/quit APIs.
@@ -430,13 +455,20 @@ async function runDesktopDev(
   const requestStop = async () => {
     await writeFile(control, crypto.randomUUID());
   };
-  const watcher = watchBackend(root, serverEntry, dataDir, customHost, () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      restart = true;
-      requestStop().catch(console.error);
-    }, 150);
-  });
+  const watcher = watchBackend(
+    root,
+    serverEntry,
+    dataDir,
+    customHost,
+    () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        restart = true;
+        requestStop().catch(console.error);
+      }, 150);
+    },
+    sdkAliases
+  );
   const stop = () => {
     stopping = true;
     signalStop();
@@ -501,14 +533,14 @@ async function runDesktopDev(
 if (import.meta.main) {
   const [command, ...extra] = process.argv.slice(2);
   try {
-    const [environment] = extra;
+    const environment = extra.at(0);
     if (
       !command ||
       extra.length > 1 ||
       (environment !== undefined &&
         (command !== "build" || !["--env=dev", "--env=stable"].includes(environment)))
     ) {
-      throw new Error("Usage: furin-electrobun init | dev | build [--env=dev|stable]");
+      throw new Error("Usage: furin-electrobun init | prepare | dev | build [--env=dev|stable]");
     }
     await desktopCommand(command, process.cwd(), environment === "--env=dev" ? "dev" : undefined);
   } catch (error) {

@@ -64,7 +64,8 @@ export async function buildRscGraph(
   apps: RscBuildApp[],
   outDir: string,
   buildId: string,
-  userPlugins: Bun.BunPlugin[] | undefined
+  userPlugins: Bun.BunPlugin[] | undefined,
+  external?: string[]
 ): Promise<RscManifest> {
   await assertInstalledRscVersions();
   const graphDir = join(outDir, "rsc");
@@ -96,6 +97,7 @@ export async function buildRscGraph(
   const result = await runBunBuild({
     ...reactServerBuild,
     entrypoints,
+    external,
     metafile: true,
     outdir: graphDir,
     splitting: true,

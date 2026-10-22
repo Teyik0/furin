@@ -123,6 +123,7 @@ if (command === "dev") {
       options: {
         analyze: { type: "boolean" },
         config: { type: "string" },
+        external: { type: "string", multiple: true },
         output: { type: "string" },
         pagesDir: { type: "string" },
         prefix: { type: "string" },
@@ -136,6 +137,7 @@ if (command === "dev") {
 
   const values = rawValues as {
     analyze?: boolean;
+    external?: string[];
     output?: string;
     target?: string;
     pagesDir?: string;
@@ -178,6 +180,9 @@ if (command === "dev") {
   if (values.output !== undefined && targetLabel !== "bun") {
     bail("--output requires --target bun");
   }
+  if (values.external !== undefined && targetLabel !== "bun") {
+    bail("--external requires --target bun");
+  }
 
   log(`Building Furin for ${targetLabel}…`);
 
@@ -202,6 +207,7 @@ if (command === "dev") {
     optimizeImports: config.optimizeImports,
     pagesDir: undefined,
     plugins: config.plugins,
+    serverExternalPackages: values.external,
     preload: config.preload,
     reactCompiler: config.reactCompiler,
     rootDir: config.rootDir,
@@ -257,6 +263,7 @@ BUILD OPTIONS
   --config    Config file path
   --compile   server | embed  Compile to binary: "server" keeps client on disk, "embed" is self-contained
   --output    app | server  Bun only: inert app.js or listening server.js (default: server)
+  --external  Bun only: package to exclude from server/RSC bundles (repeatable)
   --analyze   Write complete bundle metafiles to .furin/build/analysis
 
 TYPEGEN OPTIONS

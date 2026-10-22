@@ -5,5 +5,6 @@ export default defineConfig({
   desktop: defineDesktopConfig({
     app: { identifier: "local.furin.relay", name: "Relay" },
     window: { width: 1100, height: 780 },
+    build: { mainProcess: "bun", bun: { entrypoint: "src/desktop.ts" } },
   }),
 });

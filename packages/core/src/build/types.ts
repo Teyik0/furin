@@ -122,6 +122,8 @@ export interface BuildAppOptions {
   reactCompiler?: boolean;
   rootDir?: string;
   serverEntry?: string;
+  /** Runtime packages excluded from server and RSC bundles, including their subpaths. */
+  serverExternalPackages?: string[];
   /** Emit server source maps outside deployable output directories. */
   serverSourceMaps?: boolean;
   /** Configuration for the `static` build target. */

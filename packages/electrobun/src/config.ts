@@ -30,7 +30,8 @@ export interface DesktopSdkConfig {
     }[];
   };
   build?: {
-    bun?: { external?: string[] };
+    mainProcess?: "bun";
+    bun?: { entrypoint?: string; external?: string[] };
     copy?: { [source: string]: string };
     mac?: { icons?: string; codesign?: boolean; notarize?: boolean; createDmg?: boolean };
     win?: { icon?: string };
@@ -39,17 +40,18 @@ export interface DesktopSdkConfig {
   release?: { baseUrl?: string; generatePatch?: boolean };
 }
 
-export interface DesktopConfig {
-  app: { name: string; identifier: string; version?: string };
+export interface DesktopConfig extends Omit<DesktopSdkConfig, "app"> {
+  app: NonNullable<DesktopSdkConfig["app"]> & {
+    name: string;
+    identifier: string;
+    version?: string;
+  };
   /** Absolute override or runtime user-data policy; omitted preserves the SDK default. */
   dataDir?: string | RuntimeDataDirectory;
-  /** Server-only packages kept outside the SDK main bundle. */
+  /** Runtime packages excluded from Furin server/RSC bundles and copied with their dependencies. */
   external?: string[];
-  /** Project-relative or absolute Bun entrypoint for an application-owned native host. */
-  hostEntry?: string;
   /** Explicit per-user registration of app-private schemes, never inferred from shared associations. */
   protocols?: string[];
-  sdk?: DesktopSdkConfig;
   tray?: {
     mac?: { image: string; template?: boolean };
     win?: { image: string };
@@ -153,24 +155,26 @@ function validateNativeConfig(value: { [key: string]: unknown }) {
 }
 
 function validateHost(value: { [key: string]: unknown }) {
-  if (
-    value.hostEntry !== undefined &&
-    (typeof value.hostEntry !== "string" || !value.hostEntry.trim())
-  ) {
-    throw new Error("hostEntry must be a nonempty path.");
-  }
-  if (value.sdk !== undefined && !object(value.sdk)) {
-    throw new Error("sdk must be an object.");
-  }
-  if (value.sdk !== undefined) {
-    validateSdkConfig(value.sdk);
+  validateSdkConfig(value);
+  if (object(value.build)) {
+    const { build } = value;
+    if (build.mainProcess !== undefined && build.mainProcess !== "bun") {
+      throw new Error('build.mainProcess must be "bun" for Furin.');
+    }
+    if (
+      object(build.bun) &&
+      build.bun.entrypoint !== undefined &&
+      (typeof build.bun.entrypoint !== "string" || !build.bun.entrypoint.trim())
+    ) {
+      throw new Error("build.bun.entrypoint must be a nonempty path.");
+    }
   }
 }
 
 function validateSdkConfig(sdk: { [key: string]: unknown }) {
   for (const section of ["app", "build", "release"]) {
     if (sdk[section] !== undefined && !object(sdk[section])) {
-      throw new Error(`sdk.${section} must be an object.`);
+      throw new Error(`${section} must be an object.`);
     }
   }
   validateSdkApp(sdk.app);
@@ -189,7 +193,7 @@ function validateSdkApp(app: unknown) {
     (!Array.isArray(app.urlSchemes) ||
       app.urlSchemes.some((scheme: unknown) => typeof scheme !== "string" || !SCHEME.test(scheme)))
   ) {
-    throw new Error("sdk.app.urlSchemes must contain URL schemes without colons.");
+    throw new Error("app.urlSchemes must contain URL schemes without colons.");
   }
   if (
     app.fileAssociations !== undefined &&
@@ -211,7 +215,7 @@ function validateSdkApp(app: unknown) {
       ))
   ) {
     throw new Error(
-      "sdk.app.fileAssociations must contain valid extensions, names, roles, icons and MIME types."
+      "app.fileAssociations must contain valid extensions, names, roles, icons and MIME types."
     );
   }
 }
@@ -224,7 +228,7 @@ function validateSdkBuild(build: { [key: string]: unknown }) {
         ([source, target]) => !source || typeof target !== "string" || !target
       ))
   ) {
-    throw new Error("sdk.build.copy must map source paths to destination paths.");
+    throw new Error("build.copy must map source paths to destination paths.");
   }
   for (const name of ["mac", "win", "linux", "bun"]) {
     const platform = build[name];
@@ -232,16 +236,16 @@ function validateSdkBuild(build: { [key: string]: unknown }) {
       continue;
     }
     if (!object(platform)) {
-      throw new Error(`sdk.build.${name} must be an object.`);
+      throw new Error(`build.${name} must be an object.`);
     }
     for (const flag of ["codesign", "notarize", "createDmg"]) {
       if (platform[flag] !== undefined && typeof platform[flag] !== "boolean") {
-        throw new Error(`sdk.build.${name}.${flag} must be boolean.`);
+        throw new Error(`build.${name}.${flag} must be boolean.`);
       }
     }
     for (const icon of ["icon", "icons"]) {
       if (platform[icon] !== undefined && typeof platform[icon] !== "string") {
-        throw new Error(`sdk.build.${name}.${icon} must be a path.`);
+        throw new Error(`build.${name}.${icon} must be a path.`);
       }
     }
   }
@@ -255,7 +259,7 @@ function validateSdkRelease(release: unknown) {
       !URL.canParse(release.baseUrl) ||
       !["http:", "https:"].includes(new URL(release.baseUrl).protocol))
   ) {
-    throw new Error("sdk.release.baseUrl must be an HTTP(S) URL.");
+    throw new Error("release.baseUrl must be an HTTP(S) URL.");
   }
 }
 

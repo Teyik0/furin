@@ -49,8 +49,21 @@ test("desktop config rejects invalid dimensions and identifiers", () => {
   ).toThrow("width");
 });
 
+test("desktop configuration rejects unsupported main processes and empty entrypoints", () => {
+  const config = {
+    app: { name: "Relay", identifier: "local.furin.relay" },
+    window: { width: 960, height: 720 },
+  };
+  expect(() => validateDesktopConfig({ ...config, build: { mainProcess: "cottontail" } })).toThrow(
+    'must be "bun"'
+  );
+  expect(() => validateDesktopConfig({ ...config, build: { bun: { entrypoint: "" } } })).toThrow(
+    "nonempty path"
+  );
+});
+
 test("SDK additions reject malformed schemes, copy paths and signing flags", () => {
-  for (const sdk of [
+  for (const settings of [
     { app: { urlSchemes: "tofu" } },
     { app: { fileAssociations: [null] } },
     { app: { fileAssociations: [{ ext: "torrent", name: "Torrent" }] } },
@@ -65,8 +78,8 @@ test("SDK additions reject malformed schemes, copy paths and signing flags", () 
       validateDesktopConfig({
         app: { name: "Tofu", identifier: "app.tofu.dev" },
         window: { width: 1400, height: 940 },
-        sdk,
+        ...settings,
       })
-    ).toThrow("sdk");
+    ).toThrow();
   }
 });

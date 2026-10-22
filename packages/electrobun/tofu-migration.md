@@ -26,7 +26,7 @@ application to the merged core before switching hosts:
 ## Preserve historical storage
 
 Keep Tofu's existing build-time identity, packaging, protocols and icons, remove
-`hostEntry`, and add this literal policy inside `desktop: defineDesktopConfig(...)`:
+the custom `build.bun.entrypoint` when using the standard host, and add this literal policy inside `desktop: defineDesktopConfig(...)`:
 
 ```ts
 dataDir: {
@@ -70,7 +70,7 @@ marker, legacy-instance checks and download-directory policy.
 ## Migration checklist
 
 1. Keep the original Elysia root and ordinary `.use(apiPlugin)` composition.
-2. Remove `hostEntry` after moving runtime policies to `desktopApp`.
+2. Remove `build.bun.entrypoint` after moving runtime policies to `desktopApp`.
 3. Keep `dev` as `bun run codegen && TOFU_PROFILE=dev bun --hot src/server.ts`.
    Register `@teyik0/furin-electrobun/preload` in the top-level Bun preload array,
    preserving existing `[serve.static]` plugins. No launch function is added to

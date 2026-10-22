@@ -157,6 +157,9 @@ export function desktopApp(hooks?: DesktopAppOptions) {
             runtime: state.runtime ?? { kind: "server" },
           });
           available = true;
+          if (state.runtime?.kind === "desktop") {
+            state.runtime.desktop.window.open();
+          }
         });
         return ready;
       },

@@ -33,7 +33,7 @@ const config: KnipConfig = {
       project: ["src/**/*.{ts,tsx,css}"],
     },
     "examples/electrobun-todo": {
-      entry: ["src/server.ts", "furin.config.ts", "src/pages/**/*.{ts,tsx}"],
+      entry: ["src/server.ts", "src/desktop.ts", "furin.config.ts", "src/pages/**/*.{ts,tsx}"],
       // Font packages are loaded by CSS @import, which Knip does not compile.
       ignoreDependencies: ["@fontsource-variable/manrope", "@fontsource/ibm-plex-mono"],
       project: ["src/**/*.{ts,tsx}"],

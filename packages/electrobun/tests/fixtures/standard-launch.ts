@@ -86,7 +86,12 @@ export async function standardLaunchFixture(options: {
     await writeFile(join(root, "native-test.js"), script);
     await writeFile(join(cwd, "native-test.js"), script);
     const config: DesktopConfig & { app: DesktopConfig["app"] & { version: string } } = {
-      app: { name: "Fixture", identifier: "local.furin.launch", version: "1.0.0" },
+      app: {
+        name: "Fixture",
+        identifier: "local.furin.launch",
+        version: "1.0.0",
+        urlSchemes: ["fixture"],
+      },
       window: { width: 800, height: 600 },
       dataDir: options.dataDir,
       tray: {
@@ -94,7 +99,6 @@ export async function standardLaunchFixture(options: {
         win: { image: "icon.png" },
         linux: { image: "icon.png" },
       },
-      sdk: { app: { urlSchemes: ["fixture"] } },
     };
     // Packaging executes under another user home; no launch directory is supplied.
     const builder = Bun.spawn(

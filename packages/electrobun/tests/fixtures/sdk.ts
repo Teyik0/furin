@@ -128,6 +128,10 @@ export async function installSdk(
   const projection = join(root, ".furin/electrobun/.hutch/devkit/api/sdks/main");
   await mkdir(projection, { recursive: true });
   await writeFile(
+    join(root, ".furin/electrobun/.hutch/devkit/package.json"),
+    '{"exports":{".":"./api/sdks/main/index.ts","./main":"./api/sdks/main/index.ts"}}'
+  );
+  await writeFile(
     join(projection, "index.ts"),
     `export * from ${JSON.stringify(join(directory, "main.ts"))};\nexport {default} from ${JSON.stringify(join(directory, "main.ts"))};\n`
   );

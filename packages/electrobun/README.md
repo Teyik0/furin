@@ -269,10 +269,11 @@ export default defineConfig({
 });
 ```
 
-**This is a packaging declaration, not automatic bundler externalization.**
-Keep your existing server-only externalization in `furin.config.ts` Bun
-plugins. A package bundled into `app.js` cannot recover file-relative native
-resources merely because it was also copied.
+`build:desktop` uses this single declaration to exclude the packages and their
+subpaths from Furin's server and RSC bundles, then copy their runtime dependencies
+and assets alongside `app.js`. No additional externalization plugin is needed.
+Client bundles and ordinary web builds are unchanged. `build.bun.external`
+only affects the separate SDK host bundle; it does not replace `desktop.external`.
 
 The packager follows installed runtime dependencies, optional dependencies
 when present, and peers, resolving each from its actual importing package.
@@ -368,89 +369,94 @@ HttpOnly, SameSite=Strict cookie before creating the window. A system browser ca
 receive that session, so `desktop.browser.open()` returns `false` in TLS mode. The
 operating system must trust the certificate for the native WebView.
 
-## Application-owned native hosts
+## Native customization
 
-Applications that already manage trays, menus, background windows or updates can
-set `hostEntry` to their own Bun entrypoint. Furin still builds and copies the
-inert app and its external dependency closure; the SDK bundles the custom host.
-The standard generated host remains the default.
+Set `build.bun.entrypoint` to a Bun module that registers native events or other
+SDK customizations. Furin bundles it into the generated host and keeps the inert
+application artifact and its external dependencies separate. The module is optional;
+`.use(desktopApp())` is sufficient to request the standard window.
 
 ```ts
 export default defineConfig({
   desktop: defineDesktopConfig({
-    app: { name: "Tofu", identifier: "app.tofu.torrents", version: "0.2.1" },
-    window: { width: 1400, height: 940 },
-    hostEntry: "src/desktop-host.ts",
-    external: ["webtorrent", "parse-torrent"],
-    sdk: {
-      app: { urlSchemes: ["magnet", "tofu"] },
-      build: { mac: { icons: "assets/tofu.iconset", codesign: true } },
-      release: { baseUrl: "https://example.com/releases" },
+    app: {
+      name: "Tofu", identifier: "app.tofu.torrents", version: "0.2.1",
+      urlSchemes: ["magnet", "tofu"],
     },
+    window: { width: 1400, height: 940 },
+    external: ["webtorrent", "parse-torrent"],
+    build: {
+      mainProcess: "bun",
+      bun: { entrypoint: "src/desktop-host.ts" },
+      mac: { icons: "assets/tofu.iconset", codesign: true },
+    },
+    release: { baseUrl: "https://example.com/releases" },
   }),
 });
 ```
 
 On macOS the SDK declares schemes and file types in the bundle. On Windows and
 Linux, the standard host lists the app at startup as a handler for
-`sdk.app.fileAssociations` and shared `sdk.app.urlSchemes` (per-user ProgIDs and
+`app.fileAssociations` and shared `app.urlSchemes` (per-user ProgIDs and
 registered capabilities on Windows, the `.desktop` entry on Linux, where each
 file association needs a `mimeType`). This never changes a default:
 `associations.requestDefault()` confirms the change on macOS and Linux, and
 opens the app's Default Apps page on Windows, which reserves that choice for the user.
 
-`sdk` accepts typed additions for schemes, file associations, platform icons,
+The SDK's `app`, `build` and `release` keys accept typed settings for schemes, file associations, platform icons,
 macOS signing, helper-file copies, Bun externals and the update feed. Source
 paths are resolved from the application's root. Copy destinations cannot replace
 Furin's `furin` artifact. Furin retains Bun entrypoint, renderer and runtime
-ownership in the generated SDK configuration.
+ownership in the generated SDK configuration. Only the Bun main process is supported;
+CEF remains disabled.
 
-Custom entrypoints can use `runDesktopHost(sdk, setup)` from
-`@teyik0/furin-electrobun/host`. Import the canonical SDK in the application
-entrypoint and pass it explicitly, preserving its complete inferred types:
+Prepare the SDK without launching a window or building the web app:
+
+```sh
+bunx --bun @teyik0/furin-electrobun prepare
+```
+
+For TypeScript, extend the generated SDK paths alongside your existing config:
+
+```json
+{
+  "extends": ["./.furin/electrobun/tsconfig.json", "./tsconfig.base.json"]
+}
+```
+
+Replace `./tsconfig.base.json` with your existing base, or omit it if none exists.
+Existing `compilerOptions.paths` must be merged explicitly if they override the
+inherited paths. Run `prepare` before typechecking a fresh checkout; `dev` and
+`build` also prepare these paths automatically. The mappings come from Hutch's
+export map without inheriting the SDK 2.0.2 `baseUrl` removed by TypeScript 7.
+Native source imports use `electrobun/main` and its public subpaths; neither
+source files nor native event modules need paths into `.furin`. The dependency
+scanner resolves the same exports while keeping SDK internals external.
+
+The generated SDK bootstrap starts the application. `.use(desktopApp())` requests
+its native window after Elysia and application readiness complete. No host launch
+function is required in application code. In web mode the plugin opens no window.
+
+`desktop.build.bun.entrypoint` optionally selects a native customization module,
+loaded before the server in the same SDK process. Its imports can use the SDK too:
 
 ```ts
-import * as sdk from "electrobun/main";
-import { runDesktopHost } from "@teyik0/furin-electrobun/host";
+// src/desktop.ts
+import "./native-events";
+```
 
-await runDesktopHost(sdk, async ({ startBackend }) => {
-  // Set application native capabilities before startup callbacks run.
-  const { backend } = await startBackend();
-  await createApplicationNativeController({ sdk, backend });
+```ts
+// src/native-events.ts
+import Electrobun from "electrobun/main";
+
+Electrobun.events.on("reopen", () => {
+  // Handle native activation here.
 });
 ```
 
-The wrapper chooses source or packaged `app.js`, resolves data storage, handles
-supervisor readiness and drains the backend on setup failure, process signals
-and non-vetoed SDK quit events. It never constructs a window. Existing native
-quit vetoes are respected; once draining starts, every further quit request is
-vetoed until the backend has stopped. Closing a window does not itself stop the backend.
-`startBackend({ dataDir })` accepts an application-owned absolute storage path.
-Only one backend may be started. Await startup inside the callback.
-
-The backend provides `origin`, `bootstrapOrigin`, `stop()` and
-`createWindowUrl(destination?)`. Create a fresh bootstrap for each opened native
-window or OS browser; it is single-use and can target only the application origin.
-Multiple independently single-use bootstraps coexist, so opening a browser does
-not invalidate a pending native window. Tokens expire after sixty seconds; at
-most 128 are retained. Keep navigation sandboxed and restricted to these origins, and call
-`stop()` when quitting. Closing only a window may leave the backend running.
-
-The native host owns menus, native events, updates and explicit test-script
-injection. It may use the private `cookie` for authenticated HTTP requests or an
-owner-only native helper descriptor; never log or serialize it into browser data.
-SSR loaders using `treaty(app)` do not need it. Loaders that deliberately
-call the HTTP API instead must forward the incoming request cookie only to the
-same application origin. The default host never exposes the cookie.
-
-The lower-level `startDesktopBackend` and development context remain available.
-Custom hosts also support `dev`. After importing the SDK, call
-`getDesktopDevelopment()` from `@teyik0/furin-electrobun/host`. When present,
-import its `serverEntry` instead of the packaged artifact and pass `"dev"` to
-`startDesktopBackend()`. Construct your native controller, then call
-`await development.ready(backend, shutdown)`, where `shutdown` drains the backend
-and quits through the SDK. The context restores the consuming root as CWD and
-handles supervisor control and readiness; it is absent in packaged builds.
+Do not import these native modules from browser code or a server shared with web
+mode. Furin retains the actual generated SDK entrypoint so startup, local session
+protection, window creation and Elysia shutdown remain coordinated.
 
 Custom development keeps the backend and native SDK in one managed Bun process,
 so native APIs share the application runtime without a new RPC transport. The
