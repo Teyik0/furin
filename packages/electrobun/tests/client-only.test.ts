@@ -44,6 +44,7 @@ test("client-only host keeps the manager and lifecycle without importing a backe
       },
     },
     BrowserView: { getAll: () => [] },
+    Tray: { getAll: () => [] },
     ApplicationMenu: {
       setApplicationMenu() {
         /* No OS menu in the SDK fixture. */
@@ -55,7 +56,7 @@ test("client-only host keeps the manager and lifecycle without importing a backe
   } as unknown as DesktopSdk;
   try {
     const host = await runStandardDesktopHost(sdk, {
-      config: { app: identity, window: { width: 800, height: 600 } },
+      config: { app: identity },
       root,
       dataDir: root,
       mode: "build",
@@ -74,6 +75,7 @@ test("client-only host keeps the manager and lifecycle without importing a backe
     expect(loaded).toBe(false);
     expect(host?.snapshot().phase).toBe("ready");
     events.get("reopen")?.({});
+    await Bun.sleep(0);
     expect(managers).toBe(2);
     await host?.quit();
     expect(code).toBe(0);

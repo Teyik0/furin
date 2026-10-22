@@ -35,18 +35,17 @@ for (const scenario of [
           entry,
           `import { appendFileSync } from "node:fs";
 import { createDesktopApp } from ${JSON.stringify(Bun.resolveSync("@teyik0/furin-electrobun/server", import.meta.dir))};
-export default createDesktopApp().get("/", () => "ready");
-export async function onShutdown() {
+export default createDesktopApp().get("/", () => "ready").onStop(async () => {
   appendFileSync(${JSON.stringify(join(root, "stopped"))}, "stop\\n");
   await Bun.sleep(300);
   ${scenario.failure}
-}`
+});
+`
         );
         const generated = await prepareDesktop(
           root,
           {
             app: { name: "Fixture", identifier: "local.furin.fixture", version: "1.0.0" },
-            window: { width: 800, height: 600 },
             dataDir: join(root, "data"),
           },
           { mode: "dev", root, serverEntry: entry }

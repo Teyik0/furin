@@ -152,11 +152,12 @@ test("spent bootstrap remains bound while cleanup drains and both listeners clos
   const backend = await startDesktopBackend(
     () =>
       Promise.resolve({
-        default: createDesktopApp().get("/", () => "app"),
-        onShutdown: () => {
-          entered.resolve();
-          return cleanup.promise;
-        },
+        default: createDesktopApp()
+          .get("/", () => "app")
+          .onStop(() => {
+            entered.resolve();
+            return cleanup.promise;
+          }),
       }),
     data,
     "build"

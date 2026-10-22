@@ -15,18 +15,17 @@ test("generated SDK host closes the window and quits with failure when cleanup h
       join(output, "app.js"),
       `
       import { createDesktopApp } from ${JSON.stringify(Bun.resolveSync("@teyik0/furin-electrobun/server", import.meta.dir))};
-      export default createDesktopApp().get("/", () => "ready");
-      export function onShutdown() {
+      export default createDesktopApp().get("/", () => "ready").onStop(() => {
         setInterval(() => {}, 1000);
         return new Promise(() => {});
-      }
+      });
+
     `
     );
     const generated = await prepareDesktop(
       root,
       {
         app: { name: "Fixture", identifier: "local.furin.fixture", version: "1.0.0" },
-        window: { width: 800, height: 600 },
         dataDir: join(root, "data"),
       },
       { mode: "build", root, serverEntry: join(root, "server.ts") }

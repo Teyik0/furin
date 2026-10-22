@@ -1,7 +1,9 @@
-import { chmod, rm } from "node:fs/promises";
+import { chmod, cp, rm } from "node:fs/promises";
 import { join } from "node:path";
 
 const root = import.meta.dir;
+await import("./prepare-sdk");
+await rm(join(root, ".furin/declarations"), { recursive: true, force: true });
 await rm(join(root, "dist"), { recursive: true, force: true });
 const declarations = Bun.spawn(
   [process.execPath, "x", "--no-install", "tsc", "-p", "tsconfig.dts.json"],
@@ -10,6 +12,7 @@ const declarations = Bun.spawn(
 if ((await declarations.exited) !== 0) {
   throw new Error("Desktop declarations failed.");
 }
+await cp(join(root, ".furin/declarations/src"), join(root, "dist"), { recursive: true });
 const result = await Bun.build({
   entrypoints: [
     join(root, "src/config.ts"),

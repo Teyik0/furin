@@ -44,7 +44,7 @@ test("desktop.external alone preserves package-relative assets after relocation"
     );
     await writeFile(
       join(fixture.path, "furin.config.ts"),
-      'export default { desktop: { app: { name: "Fixture", identifier: "local.furin.externals" }, window: { width: 800, height: 600 }, external: ["native-fixture", "@fixture/native"] } };'
+      'export default { desktop: { app: { name: "Fixture", identifier: "local.furin.externals" }, external: ["native-fixture", "@fixture/native"] } };'
     );
     await writeFile(
       join(fixture.path, "src/server.ts"),

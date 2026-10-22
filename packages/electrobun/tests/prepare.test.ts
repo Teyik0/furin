@@ -17,7 +17,6 @@ test("desktop build keeps the whole Furin artifact outside the SDK main bundle",
       root,
       {
         app: { name: "Relay", identifier: "local.furin.relay", version: "1.2.3" },
-        window: { width: 960, height: 720 },
       },
       { mode: "build", root, serverEntry: join(root, "src/server.ts") }
     );
@@ -57,7 +56,6 @@ test("native customization preserves packaging ownership and platform integratio
             { ext: ["torrent"], name: "Torrent", mimeType: "application/x-bittorrent" },
           ],
         },
-        window: { width: 1400, height: 940 },
         build: {
           mainProcess: "bun",
           bun: { entrypoint: "src/desktop.ts" },
@@ -86,6 +84,7 @@ test("native customization preserves packaging ownership and platform integratio
     expect(sdk.build.mac.icons).toBe(join(root, "assets/tofu.iconset"));
     expect(sdk.build.mac.defaultRenderer).toBe("native");
     expect(sdk.build.mac.bundleCEF).toBe(false);
+    expect(sdk.build.mac.bundleWGPU).toBe(false);
     expect(sdk.build.mainProcess).toBe("bun");
     expect(sdk.release.baseUrl).toBe("https://example.com/releases");
     expect(await Bun.file(join(generated, "furin/app.js")).exists()).toBe(true);
@@ -109,6 +108,9 @@ test("SDK copy destinations cannot alias or escape the reserved artifact", async
       "bun",
       "bun/furin-host.json",
       "bun/furin-host.json/child",
+      "bun/index.js",
+      "bun/native-open.js",
+      "bun/native-restart.js",
     ]) {
       // biome-ignore lint/performance/noAwaitInLoops: Each case writes the same generated project.
       await expect(
@@ -116,13 +118,63 @@ test("SDK copy destinations cannot alias or escape the reserved artifact", async
           root,
           {
             app: { name: "Fixture", identifier: "local.furin.fixture", version: "1.0.0" },
-            window: { width: 800, height: 600 },
             build: { copy: { asset: destination } },
           },
           { mode: "dev", root, serverEntry: join(root, "server.ts") }
         )
       ).rejects.toThrow("SDK copy destinations");
     }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("packaging preserves SDK options and explicit CEF/WGPU opt-ins", async () => {
+  const root = await mkdtemp(join(tmpdir(), "furin-sdk-options-"));
+  try {
+    const generated = await prepareDesktop(
+      root,
+      {
+        app: { name: "Fixture", identifier: "local.furin.options", version: "1.0.0" },
+        build: {
+          bun: {
+            alias: { "native-helper": "./src/native-helper.ts", react: "preact/compat" },
+            define: { SDK_OPTION: '"kept"' },
+            minify: true,
+          },
+          mac: {
+            bundleCEF: true,
+            bundleWGPU: true,
+            defaultRenderer: "cef",
+            entitlements: { "com.apple.security.network.client": true },
+          },
+          win: { bundleCEF: true, bundleWGPU: true },
+          linux: { bundleCEF: true, bundleWGPU: true },
+          views: { options: { entrypoint: "views/options.ts", minify: true } },
+        },
+        scripts: { postBuild: "scripts/package.ts" },
+        runtime: { applicationSetting: true },
+        release: { generatePatch: false },
+      },
+      { mode: "dev", root, serverEntry: join(root, "server.ts") }
+    );
+    const { default: config } = await import(join(generated, "electrobun.config.ts"));
+    for (const platform of ["mac", "win", "linux"]) {
+      expect(config.build[platform].bundleCEF).toBe(true);
+      expect(config.build[platform].bundleWGPU).toBe(true);
+    }
+    expect(config.build.mac.defaultRenderer).toBe("cef");
+    expect(config.build.bun.define).toEqual({ SDK_OPTION: '"kept"' });
+    expect(config.build.bun.minify).toBe(true);
+    expect(config.build.bun.alias).toEqual({
+      "native-helper": join(root, "src/native-helper.ts"),
+      react: "preact/compat",
+    });
+    expect(config.build.bun.entrypoint).toBe("main.ts");
+    expect(config.build.views.options.entrypoint).toBe(join(root, "views/options.ts"));
+    expect(config.scripts.postBuild).toBe(join(root, "scripts/package.ts"));
+    expect(config.runtime).toEqual({ applicationSetting: true, exitOnLastWindowClosed: false });
+    expect(config.release.generatePatch).toBe(false);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

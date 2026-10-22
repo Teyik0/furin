@@ -40,28 +40,41 @@ test.each(["default", "listen"] as const)(
       import {Elysia,t} from "elysia";
       import {appendFileSync} from "node:fs";
       import {furin} from "@teyik0/furin";
+      import {furinSync,PollingSyncNotifier} from "@teyik0/furin/sync";
+      import {migrateSqliteSync,sqliteSyncAdapter} from "@teyik0/furin/sync/sqlite";
+      import {Database} from "bun:sqlite";
       import {desktopApp} from "@teyik0/furin-electrobun/server";
       const values=["SSR internal"];
+      const observed=[];
+      const database=new Database("sync.sqlite");
+      migrateSqliteSync(database);
+      const adapter=sqliteSyncAdapter({database,namespace:"desktop-aot"});
+      const sync={adapter,notifier:new PollingSyncNotifier(adapter,1000),principal:()=>"test"};
+      const apiPlugin=new Elysia()
+        .use(furinSync(sync))
+        .wrap((next)=>(request,...rest)=>{
+          observed.push("wrapper");
+          if(new URL(request.url).pathname==="/wrapper-shortcut") return new Response("shortcut");
+          return next(request,...rest);
+        })
+        .get("/api/values",()=>{observed.push("read");return values;})
+        .post("/api/values",{body:t.Object({value:t.String()})},({body})=>{observed.push("write");values.push(body.value);return values;});
       let starts=0;
       let stops=0;
       let timer;
-      export const app=new Elysia().use(desktopApp({restrictWebToLoopback:true,
-        onStartup(){
+      export const app=new Elysia().use(apiPlugin).use(desktopApp({restrictWebToLoopback:true})).onStart(() => {
           starts++;
           timer=setInterval(()=>{},1000);
           appendFileSync(process.env.FIXTURE_LIFECYCLE,"start\\n");
-        },
-        onReady(){if(process.env.FIXTURE_FAIL_READY) throw new Error("fixture ready failed");},
-        onShutdown(){
+        }).onStart(() => {if(process.env.FIXTURE_FAIL_READY) throw new Error("fixture ready failed");}).onStop(() => {
           stops++;
           clearInterval(timer);
+          database.close();
           appendFileSync(process.env.FIXTURE_LIFECYCLE,"stop\\n");
-        }
-      }))
-        .get("/lifecycle",()=>({starts,stops}))
-        .get("/api/values",()=>values)
-        .post("/api/values",{body:t.Object({value:t.String()})},({body})=>{values.push(body.value);return values;});
-      app.use(await furin({pagesDir:import.meta.dir+"/pages"}));
+        })
+        .get("/lifecycle",()=>({starts,stops}));
+      app.use(await furin({pagesDir:import.meta.dir+"/pages",sync}));
+      Object.assign(app,{getObserved:()=>observed});
       `
       );
       writeAppFile(
@@ -129,7 +142,7 @@ test.each(["default", "listen"] as const)(
         try {
           await startDesktopBackend(loadArtifact,${JSON.stringify(join(fixture.path, "data"))},"build");
           throw new Error("Expected readiness failure");
-        } catch(error){if(error.message!=="fixture ready failed") throw error;}
+        } catch(error){if(error.message!=="fixture ready failed") throw error; process.exitCode=0;}
         if(await Bun.file(process.env.FIXTURE_LIFECYCLE).text()!=="start\\nstop\\n") throw new Error("Failure did not clean resources once");
         console.log("failed startup cleaned resources");
         return;
@@ -141,8 +154,12 @@ test.each(["default", "listen"] as const)(
         const first=await client.values.get();
         if(first.status!==200) throw new Error("Bundled Eden read failed: "+first.status);
         const mutation=await client.values.post({value:"AOT mutation"});
-        if(mutation.status!==200) throw new Error("Bundled Eden mutation failed: "+mutation.status);
-        if((await fetch(backend.origin)).status!==403) throw new Error("HTTP guard bypassed");
+        if(mutation.status!==200) throw new Error("Bundled Eden mutation failed: "+JSON.stringify(mutation.error));
+        const before=app.getObserved().length;
+        for(const path of ["/","/wrapper-shortcut","/api/values"]){
+          if((await fetch(backend.origin+path)).status!==403) throw new Error("HTTP guard bypassed: "+path);
+        }
+        if(app.getObserved().length!==before) throw new Error("Rejected HTTP reached application wrappers or routes");
         const html=await(await fetch(backend.origin,{headers:{cookie:backend.cookie,origin:backend.origin}})).text();
         if(!html.includes("SSR internal,AOT mutation")) throw new Error("SSR loader failed: "+html);
         console.log("one AOT root: Eden read/write and SSR passed");

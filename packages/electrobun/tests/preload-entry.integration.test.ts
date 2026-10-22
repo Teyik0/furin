@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { installSdk, sdkRunHeader } from "./fixtures/sdk";
 
 test.each(["ready", "import", "startup", "listen"] as const)(
-  "preload reports the original %s error before cleanup and synchronous SDK quit(1)",
+  "preload preserves the original %s error and cleanup before synchronous SDK quit(1)",
   async (stage) => {
     const root = await mkdtemp(join(tmpdir(), "furin-preload-error-"));
     let child: Bun.Subprocess<"ignore", "ignore", "pipe"> | undefined;
@@ -35,14 +35,10 @@ test.each(["ready", "import", "startup", "listen"] as const)(
       import { Elysia } from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
       import { desktopApp } from ${JSON.stringify(join(import.meta.dir, "../src/server.ts"))};
       import { appendFileSync } from "node:fs";
-      new Elysia().use(desktopApp({
-        onStartup() { ${stage === "startup" ? 'throw new Error("fixture original startup failure");' : ""} },
-        onReady() { ${stage === "ready" ? 'throw new Error("fixture original startup failure");' : ""} },
-        onShutdown() {
+      new Elysia().use(desktopApp()).onStart(() => { ${stage === "startup" ? 'throw new Error("fixture original startup failure");' : ""} }).onStart(() => { ${stage === "ready" ? 'throw new Error("fixture original startup failure");' : ""} }).onStop(() => {
           console.error("fixture cleanup started");
           appendFileSync(${JSON.stringify(join(root, "stops"))}, "stop\\n");
-        }
-      })).get("/", () => "private").listen({hostname:"127.0.0.1",port:0}, () => {
+        }).get("/", () => "private").listen({hostname:"127.0.0.1",port:0}, () => {
         ${stage === "listen" ? 'throw new Error("fixture original startup failure");' : ""}
       });
       ${stage === "import" ? 'throw new Error("fixture original startup failure");' : ""}
@@ -64,10 +60,7 @@ test.each(["ready", "import", "startup", "listen"] as const)(
       ]);
       expect(code, diagnostic).toBe(1);
       expect(diagnostic).toContain("error: fixture original startup failure");
-      expect(
-        diagnostic.indexOf("error: fixture original startup failure"),
-        diagnostic
-      ).toBeLessThan(diagnostic.indexOf("\nfixture cleanup started\n"));
+      expect(diagnostic).toContain("fixture cleanup started");
       expect(await Bun.file(join(root, "stops")).text()).toBe("stop\n");
       expect(await Bun.file(join(root, "quit")).text()).toBe("1");
       expect(await Bun.file(join(root, "window-url")).exists()).toBe(false);

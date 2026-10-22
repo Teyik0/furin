@@ -3,7 +3,13 @@
   "compilerOptions": {
     "incremental": false,
     "types": ["bun"],
-    "lib": ["ESNext"]
+    "lib": ["ESNext"],
+    "paths": {
+      "electrobun/main": ["./.furin/sdk/.hutch/devkit/api/sdks/main/index.ts"],
+      "electrobun/main/rpc": [
+        "./.furin/sdk/.hutch/devkit/api/sdks/main/entries/rpc.ts"
+      ]
+    }
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "build.ts"]
+  "include": ["src/**/*.ts", "tests/**/*.ts", "build.ts", "prepare-sdk.ts"]
 }

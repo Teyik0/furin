@@ -7,7 +7,18 @@ import { sync } from "./sync";
 
 // desktopApp() must be the first plugin of the default-exported root.
 const app = new Elysia({ name: "relay" })
-  .use(desktopApp({ restrictWebToLoopback: true, onShutdown: () => sqlite.close() }))
+  .use(
+    desktopApp({
+      window: {
+        title: "Relay",
+        frame: { width: 1100, height: 780 },
+        titleBarStyle: "hiddenInset",
+        renderer: "native",
+      },
+      restrictWebToLoopback: true,
+    })
+  )
+  .onStop(() => sqlite.close())
   .use(api)
   .use(await furin({ pagesDir: `${import.meta.dir}/pages`, sync }));
 

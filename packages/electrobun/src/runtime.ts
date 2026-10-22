@@ -191,8 +191,6 @@ export interface DesktopApp {
 
 export interface DesktopAppModule {
   default?: DesktopApp;
-  onShutdown?: () => void | Promise<void>;
-  onStartup?: (signal: AbortSignal) => void | Promise<void>;
 }
 
 /** In-process host capabilities. Never expose the cookie to browser scripts or logs. */
@@ -355,11 +353,7 @@ export async function startDesktopBackend(
         try {
           await (app ?? entry.app)?.stop(true);
         } finally {
-          try {
-            await (app ? getDesktopState(app) : entry.state)?.stop();
-          } finally {
-            await module?.onShutdown?.();
-          }
+          await (app ? getDesktopState(app) : entry.state)?.stop();
         }
       })()
     ).finally(async () => {
@@ -405,7 +399,13 @@ export async function startDesktopBackend(
     const activeApp = app;
     const loaded = module;
     // The plugin registered cleanup before any request could seal Elysia.
-    state?.closed?.then(() => {
+    state?.closed?.then(async () => {
+      try {
+        await activeApp.stop(true);
+      } catch (error) {
+        listeningReady.reject(error);
+        return;
+      }
       listeningReady.reject(
         new Error("Elysia stopped before desktop startup completed; check source setup errors.")
       );
@@ -416,14 +416,11 @@ export async function startDesktopBackend(
         (async () => {
           const validate = await activateDesktopApp(activeApp, guard, mode);
           startup.signal.throwIfAborted();
-          await state?.start(startup.signal);
           nativeSignal?.throwIfAborted();
-          startup.signal.throwIfAborted();
-          await loaded.onStartup?.(startup.signal);
           startup.signal.throwIfAborted();
           const ownsListening = !!state?.listening && (!!activeApp.server || !loaded.default);
           if (!ownsListening && activeApp.server) {
-            throw new Error("onStartup must not open a listener; the desktop host owns listening.");
+            throw new Error("The desktop host owns listening.");
           }
           if (ownsListening) {
             await Promise.race([state.listening, listeningReady.promise]);
@@ -441,7 +438,7 @@ export async function startDesktopBackend(
             bootstrap = startSessionBootstrap(session, origin);
           }
           const backend = createBackend(origin, session, bootstrap, stop, () => !!stopped);
-          await state?.ready?.(backend);
+          await state?.ready?.();
           startup.signal.throwIfAborted();
           nativeSignal?.throwIfAborted();
           return backend;

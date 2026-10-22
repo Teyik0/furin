@@ -1,5 +1,6 @@
 import { isAbsolute } from "node:path";
 import type { FurinConfig } from "@teyik0/furin/config";
+import type { ElectrobunConfig } from "electrobun/main";
 import { isPackageName } from "./package-name";
 
 const IDENTIFIER = /^[a-zA-Z][a-zA-Z0-9-]*(?:\.[a-zA-Z0-9-]+)+$/;
@@ -16,48 +17,25 @@ export interface RuntimeDataDirectory {
   name: string;
 }
 
-/** SDK additions; Furin retains ownership of the main process and app artifact. */
-export interface DesktopSdkConfig {
-  app?: {
-    urlSchemes?: string[];
-    fileAssociations?: {
-      ext: string[];
-      name: string;
-      role?: "Editor" | "Viewer" | "Shell" | "None";
-      icon?: string;
-      /** Lists the app for this type on Linux, which matches files by MIME type. */
-      mimeType?: string;
-    }[];
-  };
-  build?: {
-    mainProcess?: "bun";
-    bun?: { entrypoint?: string; external?: string[] };
-    copy?: { [source: string]: string };
-    mac?: { icons?: string; codesign?: boolean; notarize?: boolean; createDmg?: boolean };
-    win?: { icon?: string };
-    linux?: { icon?: string };
-  };
-  release?: { baseUrl?: string; generatePatch?: boolean };
-}
+/** SDK-derived packaging settings. Furin reserves the generated main entry and runtime lifecycle. */
+export type DesktopSdkConfig = Omit<ElectrobunConfig, "app" | "build" | "runtime"> & {
+  runtime?: Omit<NonNullable<ElectrobunConfig["runtime"]>, "exitOnLastWindowClosed">;
+  build?: Omit<NonNullable<ElectrobunConfig["build"]>, "mainProcess"> & { mainProcess?: "bun" };
+};
 
-export interface DesktopConfig extends Omit<DesktopSdkConfig, "app"> {
-  app: NonNullable<DesktopSdkConfig["app"]> & {
-    name: string;
-    identifier: string;
+type SdkApp = ElectrobunConfig["app"];
+type FileAssociation = NonNullable<SdkApp["fileAssociations"]>[number];
+
+export interface DesktopConfig extends DesktopSdkConfig {
+  app: Omit<SdkApp, "version" | "fileAssociations"> & {
     version?: string;
+    fileAssociations?: (FileAssociation & { mimeType?: string })[];
   };
   /** Absolute override or runtime user-data policy; omitted preserves the SDK default. */
   dataDir?: string | RuntimeDataDirectory;
-  /** Runtime packages excluded from Furin server/RSC bundles and copied with their dependencies. */
+  /** Runtime packages copied with their dependencies into the Furin artifact. */
   external?: string[];
-  /** Explicit per-user registration of app-private schemes, never inferred from shared associations. */
   protocols?: string[];
-  tray?: {
-    mac?: { image: string; template?: boolean };
-    win?: { image: string };
-    linux?: { image: string };
-  };
-  window: { width: number; height: number };
 }
 
 declare module "@teyik0/furin/config" {
@@ -71,20 +49,14 @@ function object(value: unknown): value is { [key: string]: unknown } {
 }
 
 export function validateDesktopConfig(value: unknown): asserts value is DesktopConfig {
-  if (!(object(value) && object(value.app) && object(value.window))) {
-    throw new Error("Desktop config requires app and window.");
+  if (!(object(value) && object(value.app))) {
+    throw new Error("Desktop config requires app.");
   }
   if (typeof value.app.name !== "string" || !value.app.name.trim()) {
     throw new Error("app.name must be nonempty.");
   }
   if (typeof value.app.identifier !== "string" || !IDENTIFIER.test(value.app.identifier)) {
     throw new Error("app.identifier must be a reverse-domain identifier.");
-  }
-  for (const dimension of ["width", "height"] as const) {
-    const size = value.window[dimension];
-    if (typeof size !== "number" || !Number.isSafeInteger(size) || size <= 0) {
-      throw new Error(`window.${dimension} must be a positive integer.`);
-    }
   }
   if (
     value.app.version !== undefined &&
@@ -134,23 +106,6 @@ function validateNativeConfig(value: { [key: string]: unknown }) {
       value.protocols.some((scheme: unknown) => typeof scheme !== "string" || !SCHEME.test(scheme)))
   ) {
     throw new Error("protocols must contain valid app-private schemes.");
-  }
-  if (value.tray !== undefined) {
-    if (!object(value.tray)) {
-      throw new Error("tray must be an object.");
-    }
-    for (const name of ["mac", "win", "linux"]) {
-      const icon = value.tray[name];
-      if (
-        icon !== undefined &&
-        (!object(icon) ||
-          typeof icon.image !== "string" ||
-          !icon.image.trim() ||
-          (icon.template !== undefined && typeof icon.template !== "boolean"))
-      ) {
-        throw new Error(`tray.${name} must contain an image path and an optional template flag.`);
-      }
-    }
   }
 }
 
@@ -231,22 +186,28 @@ function validateSdkBuild(build: { [key: string]: unknown }) {
     throw new Error("build.copy must map source paths to destination paths.");
   }
   for (const name of ["mac", "win", "linux", "bun"]) {
-    const platform = build[name];
-    if (platform === undefined) {
-      continue;
+    validateSdkPlatform(name, build[name]);
+  }
+}
+
+function validateSdkPlatform(name: string, platform: unknown) {
+  if (platform === undefined) {
+    return;
+  }
+  if (!object(platform)) {
+    throw new Error(`build.${name} must be an object.`);
+  }
+  for (const flag of ["codesign", "notarize", "createDmg", "bundleCEF", "bundleWGPU"]) {
+    if (platform[flag] !== undefined && typeof platform[flag] !== "boolean") {
+      throw new Error(`build.${name}.${flag} must be boolean.`);
     }
-    if (!object(platform)) {
-      throw new Error(`build.${name} must be an object.`);
-    }
-    for (const flag of ["codesign", "notarize", "createDmg"]) {
-      if (platform[flag] !== undefined && typeof platform[flag] !== "boolean") {
-        throw new Error(`build.${name}.${flag} must be boolean.`);
-      }
-    }
-    for (const icon of ["icon", "icons"]) {
-      if (platform[icon] !== undefined && typeof platform[icon] !== "string") {
-        throw new Error(`build.${name}.${icon} must be a path.`);
-      }
+  }
+  if (platform.defaultRenderer === "cef" && platform.bundleCEF !== true) {
+    throw new Error(`build.${name}.defaultRenderer requires bundleCEF: true.`);
+  }
+  for (const icon of ["icon", "icons"]) {
+    if (platform[icon] !== undefined && typeof platform[icon] !== "string") {
+      throw new Error(`build.${name}.${icon} must be a path.`);
     }
   }
 }

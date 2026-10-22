@@ -9,7 +9,7 @@ test("package build removes stale outputs and emits config and server exports", 
   const root = await mkdtemp(join(packageRoot, ".build-output-"));
   try {
     await cp(join(packageRoot, "src"), join(root, "src"), { recursive: true });
-    for (const name of ["build.ts", "tsconfig.json", "tsconfig.dts.json"]) {
+    for (const name of ["build.ts", "prepare-sdk.ts", "tsconfig.json", "tsconfig.dts.json"]) {
       // biome-ignore lint/performance/noAwaitInLoops: Copy the build inputs before invoking the build.
       await cp(join(packageRoot, name), join(root, name));
     }
@@ -46,6 +46,44 @@ test("package build removes stale outputs and emits config and server exports", 
       // biome-ignore lint/performance/noAwaitInLoops: Verify each public output exists.
       expect(await Bun.file(join(root, "dist", name)).exists()).toBe(true);
     }
+    // A consumer resolves original SDK types using the prepared export map.
+    await writeFile(
+      join(root, "consumer.ts"),
+      `
+      import { Elysia } from "elysia";
+      import { desktopApp, desktopContext } from "./dist/server";
+      import type { BrowserWindow } from "electrobun/main";
+      const api = new Elysia().use(desktopContext).get("/native", ({ desktop }) => {
+        const window: BrowserWindow | undefined = desktop?.window;
+        window?.minimize();
+        return { available: desktop !== null };
+      });
+      export const app = new Elysia().use(desktopApp({ window: { title: "Consumer", titleBarStyle: "hiddenInset" } })).use(api);
+    `
+    );
+    await writeFile(
+      join(root, "consumer.tsconfig.json"),
+      JSON.stringify({
+        extends: ["./base.json", "./.furin/sdk/tsconfig.json"],
+        compilerOptions: { incremental: false, types: ["bun"] },
+        files: ["consumer.ts"],
+        include: [],
+      })
+    );
+    const compiler = Bun.spawn(
+      [process.execPath, "x", "--no-install", "tsc", "-p", "consumer.tsconfig.json"],
+      { cwd: root, stdout: "pipe", stderr: "pipe" }
+    );
+    const [consumerCode, consumerOutput, consumerError] = await Promise.all([
+      compiler.exited,
+      new Response(compiler.stdout).text(),
+      new Response(compiler.stderr).text(),
+    ]);
+    expect(consumerCode, consumerOutput + consumerError).toBe(0);
+    expect(await Bun.file(join(root, "dist/capabilities.d.ts")).text()).toContain(
+      'from "electrobun/main"'
+    );
+    expect(await Bun.file(join(root, "dist/capabilities.d.ts")).text()).not.toContain(root);
     // Built entrypoints bundle the generator: it must still find its shipped assets.
     const probe = await Bun.build({
       entrypoints: [join(root, "src/prepare.ts")],

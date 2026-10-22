@@ -18,7 +18,11 @@ export async function installSdk(
     JSON.stringify({
       name: "electrobun",
       version: "2.0.2",
-      exports: { "./package.json": "./package.json", "./main": "./main.ts" },
+      exports: {
+        "./package.json": "./package.json",
+        "./main": "./main.ts",
+        "./main/browser-window": "./main.ts",
+      },
     })
   );
   await writeFile(
@@ -34,7 +38,12 @@ export async function installSdk(
     export default { events };
     const views = new Set();
     export class BrowserWindow {
-      webviewId = views.size + 1;
+      static getById(id) { return [...views].find(window => window.id === id); }
+      id = views.size + 1;
+      webviewId = this.id;
+      options;
+      minimized = false;
+      minimize() { this.minimized = true; }
       closed;
       webview = {
         on(name, callback) { if(name === "dom-ready") setTimeout(() => callback({}), 0); },
@@ -44,6 +53,8 @@ export async function installSdk(
         }
       };
       constructor(options) {
+        this.options = options;
+        this.webview.rpc = options.rpc;
         ${mode === "failed-window" ? 'throw new Error("constructor failed");' : ""}
         require("node:fs").writeFileSync(${JSON.stringify(join(root, "window-url"))}, options.url, {mode:0o600});
         views.add(this);
@@ -75,6 +86,7 @@ export async function installSdk(
       }
     };
     export class Tray {
+      static getAll() { return []; }
       visible = true; setMenu() {} on() {} remove() { this.visible = false; }
     }
     export const ApplicationMenu = { setApplicationMenu() {}, on() {} };

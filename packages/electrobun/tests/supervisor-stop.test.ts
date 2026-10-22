@@ -71,7 +71,6 @@ async function fixture(
     join(root, "furin.config.ts"),
     `export default { serverEntry: "server.ts", desktop: {
       app: { name: "Fixture", identifier: "local.furin.fixture" },
-      window: { width: 800, height: 600 },
       dataDir: ${JSON.stringify(join(root, ".data"))}
     } };`
   );
@@ -90,8 +89,7 @@ async function fixture(
       await new Promise(() => {});`
         : ""
     }
-    export default createDesktopApp().get("/", () => "ready");
-    export async function onShutdown() {
+    export default createDesktopApp().get("/", () => "ready").onStop(async () => {
       await Bun.write(${JSON.stringify(join(root, ".cleanup"))}, "closed");
       ${
         mode === "backend-signal"
@@ -104,7 +102,8 @@ async function fixture(
           : ""
       }
       ${mode === "failed" ? 'throw new Error("fixture cleanup failed");' : ""}
-    }
+    });
+
   `
   );
   const sdk = join(root, "node_modules/electrobun");

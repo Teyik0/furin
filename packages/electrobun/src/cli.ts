@@ -14,7 +14,8 @@ const MODULE_PATH = /.*/;
 async function backendDependencies(
   root: string,
   entries: string[],
-  sdkAliases: { [specifier: string]: string }
+  sdkAliases: { [specifier: string]: string },
+  nativeAliases: { [specifier: string]: string }
 ): Promise<Set<string> | undefined> {
   const files = new Set(entries);
   // Each build gets fresh resolution state; Bun.resolveSync caches renamed
@@ -35,6 +36,17 @@ async function backendDependencies(
             const sdkPath = sdkAliases[args.path];
             if (sdkPath) {
               return { path: sdkPath, external: true };
+            }
+            const target = nativeAliases[args.path];
+            if (target) {
+              const canonicalSdk = sdkAliases[target];
+              if (canonicalSdk) {
+                return { path: canonicalSdk, external: true };
+              }
+              if (isAbsolute(target) || target.startsWith(".")) {
+                return { path: resolve(root, target) };
+              }
+              return { path: target, external: true };
             }
             if (isAbsolute(args.path) && !resolve(args.path).startsWith(`${root}${sep}`)) {
               return { path: args.path, external: true };
@@ -59,7 +71,7 @@ async function backendDependencies(
   // Bun reports them relative to the canonical working directory, not `root`.
   const base = realpathSync(process.cwd());
   for (const path of Object.keys(result.metafile.inputs)) {
-    files.add(resolve(base, path));
+    files.add(realpathSync(resolve(base, path)));
   }
   return files;
 }
@@ -175,7 +187,13 @@ export async function desktopCommand(
     sdk,
     env,
     join(generated, "main.ts"),
-    sdkAliases
+    sdkAliases,
+    Object.fromEntries(
+      Object.entries(config.build?.bun?.alias ?? {}).map(([name, target]) => [
+        name,
+        target.startsWith(".") ? resolve(project.root, target) : target,
+      ])
+    )
   );
 }
 
@@ -276,7 +294,8 @@ function watchBackend(
   dataDir: string | undefined,
   customHost: string | undefined,
   onChange: () => void,
-  sdkAliases: { [specifier: string]: string }
+  sdkAliases: { [specifier: string]: string },
+  nativeAliases: { [specifier: string]: string }
 ) {
   const canonicalRoot = realpathSync(root);
   const entries = [serverEntry, ...(customHost ? [customHost] : [])].map((path) =>
@@ -329,7 +348,7 @@ function watchBackend(
           sourceChanged = Promise.withResolvers<void>();
           changed.clear();
           scanning = true;
-          const next = await backendDependencies(canonicalRoot, entries, sdkAliases);
+          const next = await backendDependencies(canonicalRoot, entries, sdkAliases, nativeAliases);
           scanning = false;
           if (canceled) {
             return false;
@@ -441,7 +460,8 @@ async function runDesktopDev(
   sdk: string,
   env: NodeJS.ProcessEnv,
   customHost: string | undefined,
-  sdkAliases: { [specifier: string]: string }
+  sdkAliases: { [specifier: string]: string },
+  nativeAliases: { [specifier: string]: string }
 ): Promise<void> {
   // No signal-based hot reload: managed SDK Bun does not implement SIGUSR.
   // A file command asks the running window to use the public close/quit APIs.
@@ -467,7 +487,8 @@ async function runDesktopDev(
         requestStop().catch(console.error);
       }, 150);
     },
-    sdkAliases
+    sdkAliases,
+    nativeAliases
   );
   const stop = () => {
     stopping = true;

@@ -2,18 +2,15 @@
 
 export type {
   ApplicationRuntime,
-  DesktopCapabilities,
+  DesktopContext,
   DesktopIdentity,
   DesktopSnapshot,
   NativeActionContext,
-  NativeMenuItem,
   OpenEvent,
-  ReadyContext,
-  StartupContext,
 } from "./capabilities";
 export { getDesktopDevelopment } from "./development";
 export type { DesktopSdk } from "./native-sdk";
-export { type DesktopHostContext, type NativeHostSdk, runDesktopHost } from "./run-host";
+export { getDesktopHost } from "./registry";
 export {
   type DesktopAppModule,
   type DesktopBackend,

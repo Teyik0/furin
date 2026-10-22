@@ -56,8 +56,7 @@ test("init preserves an existing unified config and refuses to rewrite applicati
     const configured = join(root, "configured");
     await mkdir(configured);
     const settings = `export default { desktop: {
-      app: {name:"Existing",identifier:"local.furin.existing"},
-      window: {width:900,height:700}
+      app: {name:"Existing",identifier:"local.furin.existing"}
     }};`;
     await writeFile(join(configured, "furin.config.ts"), settings);
     await writeFile(join(configured, "package.json"), manifest);
@@ -79,7 +78,6 @@ test("desktop app version comes from the consuming package when omitted", async 
       join(root, "furin.config.ts"),
       `export default { desktop: {
       app: { name: "Relay", identifier: "local.furin.relay" },
-      window: { width: 960, height: 720 }
     } };`
     );
     expect((await loadDesktopConfig(root)).app.version).toBe("1.2.3");

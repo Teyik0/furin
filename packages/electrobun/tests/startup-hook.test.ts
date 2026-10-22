@@ -16,15 +16,15 @@ test("desktop initializes application resources before serving authenticated req
     backend = await startDesktopBackend(
       () =>
         Promise.resolve({
-          default: app,
-          onStartup: async () => {
-            expect(app.server).toBeUndefined();
-            await Bun.sleep(10);
-            ready = true;
-          },
-          onShutdown: () => {
-            shutdowns += 1;
-          },
+          default: app
+            .onStart(async () => {
+              expect(app.server?.port).toBeGreaterThan(0);
+              await Bun.sleep(10);
+              ready = true;
+            })
+            .onStop(() => {
+              shutdowns += 1;
+            }),
         }),
       data,
       "build"

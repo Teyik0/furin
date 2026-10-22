@@ -57,19 +57,15 @@ for (const mode of ["web", "desktop"] as const) {
     let stops = 0;
     let ready = false;
     const app = new Elysia()
-      .use(
-        desktopApp({
-          async onStartup({ signal }) {
-            expect(signal.aborted).toBe(false);
-            starts += 1;
-            await Bun.sleep(10);
-            ready = true;
-          },
-          onShutdown() {
-            stops += 1;
-          },
-        })
-      )
+      .use(desktopApp())
+      .onStart(async () => {
+        starts += 1;
+        await Bun.sleep(10);
+        ready = true;
+      })
+      .onStop(() => {
+        stops += 1;
+      })
       .get("/", () => (ready ? "ready" : "cold"));
     let backend: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
     try {
@@ -143,36 +139,40 @@ test("optional web protection rejects real HTTP foreign hosts and origins but tr
   expect((await ordinary.handle("https://ordinary.test/")).status).toBe(200);
 });
 
-test("installing the desktop plugin after a wrapper is rejected", () => {
-  expect(() => new Elysia().wrap(() => () => new Response("bypass")).use(desktopApp())).toThrow(
-    "before application wrappers"
-  );
+test("installing the desktop plugin after listening is rejected", async () => {
+  const app = new Elysia().get("/", () => "listening");
+  try {
+    await new Promise<void>((resolve) =>
+      app.listen({ hostname: "127.0.0.1", port: 0 }, () => resolve())
+    );
+    expect(() => app.use(desktopApp())).toThrow("sealed");
+    expect(() => desktopApp()(app)).toThrow("before listening");
+  } finally {
+    await app.stop(true);
+  }
 });
 
-test("plugin startup failure cleans resources once before any listener opens", async () => {
+test("Elysia startup failure cleans resources once and stops the listener", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-plugin-failure-"));
   const previousData = process.env.FURIN_APP_DATA_DIR;
-  let signal: AbortSignal | undefined;
+  const previousExitCode = process.exitCode ?? 0;
   let stops = 0;
-  const app = new Elysia().use(
-    desktopApp({
-      onStartup(value) {
-        ({ signal } = value);
-        throw new Error("Initialization failed");
-      },
-      onShutdown() {
-        stops += 1;
-      },
+  const app = new Elysia()
+    .use(desktopApp())
+    .onStart(() => {
+      throw new Error("Initialization failed");
     })
-  );
+    .onStop(() => {
+      stops += 1;
+    });
   try {
     await expect(
       startDesktopBackend(() => Promise.resolve({ default: app }), data, "build")
     ).rejects.toThrow("Initialization failed");
     expect(stops).toBe(1);
-    expect(signal?.aborted).toBe(true);
     expect(app.server).toBeUndefined();
   } finally {
+    process.exitCode = previousExitCode;
     if (previousData === undefined) {
       delete process.env.FURIN_APP_DATA_DIR;
     } else {
@@ -191,10 +191,7 @@ test("web restriction fails closed for a non-loopback listener", async () => {
       `
       import { Elysia } from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
       import { desktopApp } from ${JSON.stringify(join(import.meta.dir, "../src/server.ts"))};
-      new Elysia().use(desktopApp({
-        restrictWebToLoopback: true,
-        onStartup() { throw new Error("Initialization must not run"); }
-      })).get("/", () => "private").listen({hostname:"0.0.0.0",port:0});
+      new Elysia().use(desktopApp({restrictWebToLoopback: true})).get("/", () => "private").listen({hostname:"0.0.0.0",port:0});
     `
     );
     const child = Bun.spawn([process.execPath, entry], {
@@ -208,7 +205,6 @@ test("web restriction fails closed for a non-loopback listener", async () => {
     ]);
     expect(status, diagnostic).toBe(1);
     expect(diagnostic).toContain("loopback listener hostname");
-    expect(diagnostic).not.toContain("Initialization must not run");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

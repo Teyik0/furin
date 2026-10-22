@@ -1,524 +1,149 @@
 # @teyik0/furin-electrobun
 
-Official desktop packaging for Furin, using **Electrobun 2.0.2**, one Bun main
-process and a single system-native WebView. Your existing React DOM UI, SSR,
-RSC, routes, API, `useQuery` and sync code remain web code. No custom React
-renderer, native UI framework, generic RPC bridge or CEF is installed in the
-web app or Furin core.
+Furin desktop packaging with Electrobun 2.0.2 and one Bun main process. Your React DOM pages, SSR, API, Eden client and sync code serve both web and desktop.
 
 ## Setup
-
-From the consuming Furin app:
 
 ```sh
 bun add -d @teyik0/furin-electrobun
 bunx --bun @teyik0/furin-electrobun init
 ```
 
-Desktop settings live in the `desktop` section of `furin.config.ts`.
-`init` creates that file if absent, adds `build:desktop`, and defaults `dev` to
-`bun --hot src/server.ts` (using your configured server entry). Existing dev
-commands are preserved, including application setup/codegen hooks.
-It registers the desktop launcher in `bunfig.toml` without rewriting existing
-tables or plugins. If a top-level preload array already exists, add
-`"@teyik0/furin-electrobun/preload"` to it before initialization.
-If a Furin config already exists, add its desktop section first: `init` does
-not parse and rewrite application plugins or functions. Existing desktop scripts
-are refused. Manifest replacement and new configuration publication are atomic.
-The former standalone `furin.desktop.config.ts` is not read.
-
-Update the server constructor as described below, then run:
-
-```sh
-bun run dev
-bun run build:desktop
-```
+Declare packaging in `furin.config.ts`. The primary window belongs in the Elysia root:
 
 ```ts
+// furin.config.ts
 import { defineConfig } from "@teyik0/furin/config";
 import { defineDesktopConfig } from "@teyik0/furin-electrobun";
 
 export default defineConfig({
   desktop: defineDesktopConfig({
     app: { name: "Relay", identifier: "local.furin.relay" },
-    window: { width: 1024, height: 768 },
+    build: { mainProcess: "bun", bun: { entrypoint: "src/desktop.ts" } },
   }),
 });
 ```
 
-`app.version` is optional and otherwise comes from the consuming `package.json`.
-Dimensions must be positive integers, and `identifier` must be a reverse-domain
-identifier. `dataDir` accepts an absolute path or a serializable runtime policy:
-
 ```ts
-dataDir: {
-  name: "Tofu",
-  developmentName: "Tofu-dev",
-  env: "TOFU_DATA_DIR",
-}
-```
-
-The policy resolves the launching user's home/environment, not the build user's:
-macOS `~/Library/Application Support/<name>`, Linux `~/.local/share/<name>`,
-Windows `%APPDATA%/<name>` with `~/AppData/Roaming` as the unset-APPDATA fallback.
-SDK channel `dev` selects `developmentName`, including packaged dev apps.
-The optional environment variable overrides the path at launch. Relative source
-development overrides resolve from the actual project directory; packaged
-relative overrides resolve from launch CWD. No directories or user data are moved.
-Dev policy overrides into the default release tree are rejected, including
-existing symbolic-link aliases. Tofu's profile markers and legacy-instance checks
-remain application-owned.
-
-The SDK bootstrap is an optional, exactly pinned package dependency. If your
-installation omitted optional dependencies, run `bun add -d electrobun@2.0.2`.
-The CLI runs its CJS entry through the current Bun executable, not Node or npm.
-Hutch prepares the matching SDK projection automatically. First preparation
-requires network access; subsequent builds reuse the toolchain cache.
-
-Hutch is Electrobun's toolchain manager. Its SDK projection is the generated
-API and native toolchain under `.furin/electrobun/.hutch/devkit`, not another
-application framework or a directory developers maintain by hand.
-The generated standard host imports that canonical Hutch SDK projection and
-loads its launch-CWD-dependent metadata before restoring the project CWD.
-
-## Server contract
-
-Furin detects the existing `furin.config.ts` / `.js` / `.mjs`, `rootDir` and
-`serverEntry` conventions. With no explicit server entry, it uses `src/server.ts`.
-Install `desktopApp()` as the first plugin of the server root, before wrappers
-or application plugins. The inert-root form below also supports Furin's
-production app artifact:
-
-```ts
+// src/server.ts
 import { furin } from "@teyik0/furin";
 import { desktopApp } from "@teyik0/furin-electrobun/server";
 import { Elysia } from "elysia";
+import { api } from "./api";
 
 const app = new Elysia()
   .use(desktopApp({
-    restrictWebToLoopback: true,
-    async onStartup({ signal, runtime }) {
-      // Native capabilities are available when runtime.kind is "desktop".
-      await database.open(signal);
-    },
-    async onShutdown() {
-      await database.close();
+    window: {
+      title: "Relay",
+      frame: { width: 1100, height: 780 },
+      titleBarStyle: "hiddenInset",
+      renderer: "native",
     },
   }))
-  .use(furin({ pagesDir: "src/pages" }));
+  .onStart(async () => { await database.open(); })
+  .onStop(async () => { await database.close(); })
+  .use(api)
+  .use(await furin({ pagesDir: "src/pages" }));
 
 export default app;
+if (import.meta.main) app.listen({ hostname: "127.0.0.1", port: 3000 });
+```
 
-// Normal web boot remains unchanged when this file is executed directly.
-if (import.meta.main) {
-  app.listen({ hostname: "127.0.0.1", port: 3000 });
+The generated host opens the window after every Elysia startup hook succeeds. No application launch function is required. Source entries may also own `.listen()` without a default export; Furin's production app artifact remains inert on import. Install `desktopApp` before listening. It preserves the original root identity, prefixes, decorators, routes and Eden inference.
+
+## Independent API plugins
+
+```ts
+import { desktopContext } from "@teyik0/furin-electrobun/server";
+import { Elysia, status } from "elysia";
+
+export const api = new Elysia({ prefix: "/api" })
+  .use(desktopContext)
+  .post("/minimize", ({ desktop }) => {
+    if (!desktop) return status(409, { error: "Desktop unavailable" });
+    desktop.window?.minimize();
+    return { ok: true };
+  });
+```
+
+`desktopContext` is a named, deduplicated dependency provider. It only injects the live `DesktopContext | null`; it does not register another root, listener or window. `desktopApp` installs it automatically. Independent plugins explicitly `.use(desktopContext)` to get their own static types. Web mode gets `null` without loading native SDK code.
+
+`desktop.window` is a readonly getter returning the current **original SDK BrowserWindow**, or `undefined` after it closes. It includes every native method and the original `webview`/RPC types. `desktop.open()` reactivates main or creates it again and returns that real instance. Before native readiness, it throws immediately; do not call it at native-module top level or await it during startup.
+
+```ts
+const options = desktop.windows.create("options", {
+  path: "/options",
+  title: "Options",
+  frame: { width: 640, height: 480 },
+  rpc,
+});
+// BrowserWindow<typeof rpc>, including BrowserView<typeof rpc>.
+options.webview.rpc;
+desktop.windows.get("options"); // BrowserWindow | undefined
+```
+
+Each additional window gets its own one-use authenticated bootstrap URL. Names are dynamic strings; a lookup cannot infer a schema from an unrelated string declaration. Keep the inferred result of `create` when exact RPC typing matters. The ambient main getter uses the SDK's default RPC type. No generated named-window declarations are involved.
+
+Furin reserves managed window URLs, HTML, views root and navigation rules. Other SDK options pass through. Managed windows without RPC default to sandboxed; supplying RPC enables its SDK transport unless you explicitly choose sandbox mode. Trusted native code can use original SDK methods to change a window later. Raw SDK windows/views are also available and are outside Furin's managed authentication and ownership.
+
+## Native modules use the original SDK
+
+The optional `build.bun.entrypoint` module registers native integrations. It runs internally after the application module loads, before Elysia startup/listening. It must not start the backend or declare a primary window.
+
+```ts
+// src/desktop.ts
+import { ApplicationMenu } from "electrobun/main";
+import { getDesktopHost } from "@teyik0/furin-electrobun/host";
+
+ApplicationMenu.setApplicationMenu([
+  { label: "Relay", submenu: [{ label: "Open Relay", action: "open" }, { role: "quit" }] },
+]);
+ApplicationMenu.on("application-menu-clicked", () => {
+  Promise.resolve().then(() => getDesktopHost()?.open())
+    .catch(() => console.error("Native action failed"));
+});
+```
+
+`getDesktopHost()` returns the same controller as route context, or `null` outside the managed host. Original `electrobun/main` and all devkit public subpaths remain available: ApplicationMenu, ContextMenu, Tray, Utils, GlobalShortcut, Screen, Session, BrowserWindow, BrowserView/RPC, GpuWindow, WGPUView and WebGPU. Use SDK menus with their original tooltip/hidden/data/roles/actions; create and update SDK trays directly. Furin installs no replacement menus or tray.
+
+Native callbacks run outside HTTP; catch both synchronous errors and rejected promises there. Elysia `.onError()` handles HTTP errors. Application resource lifecycle uses Elysia `.onStart()`/`.onStop()`. Keep native SDK value imports confined to native modules; shared server modules use context and type-only imports.
+
+Furin retains `desktop.browser.open(path)`, coordinated `quit()`/`restart()`, `updates.install()`, association helpers, identity/instance ownership, queued normalized `onOpen` inputs and background/listen/admission policy. Use original SDK Updater for checking, downloading and status. Installation drains the backend before SDK handoff. Quit/restart guard all managed windows and run backend cleanup once. `background: () => true` permits the app to stay alive after the last managed window closes; native menus/trays remain application-owned.
+
+## Packaging and types
+
+`DesktopConfig` derives compatible options from the original SDK `ElectrobunConfig`: platform settings, permissions, signing, views, copy, bundler options, scripts and release settings. `app.version` defaults to the consuming package version. Furin owns the generated main entry, inert app artifact, required helpers/copy destinations and `exitOnLastWindowClosed`; `mainProcess` must be `"bun"` for this in-process backend.
+
+CEF and WGPU are off by default. Explicit `build.mac`, `build.win` or `build.linux` `bundleCEF: true` / `bundleWGPU: true` opt in. A CEF managed window requires CEF enabled for the current platform; `defaultRenderer: "cef"` likewise requires it. Native remains the default renderer. Packaging assets and renderer selection must agree.
+
+The npm Electrobun package is a launcher, not its API declarations. Prepare the pinned devkit and extend its generated paths before checking native code:
+
+```sh
+bunx --bun furin-electrobun prepare
+```
+
+```json
+{
+  "extends": ["./.furin/electrobun/tsconfig.json", "../../tsconfig.base.json"]
 }
 ```
 
-In source development, the entry may own `.listen()` and its Elysia `onStop`
-cleanup without exporting an app. The host installs the desktop session and
-runtime as `desktopApp()` is registered, before the entry can listen. It awaits
-the listen callback and `onReady` before opening a window or publishing readiness.
-For example, the entry can finish with `app.listen({ hostname: "127.0.0.1", port: 3000 })`
-instead of the export and `import.meta.main` block above. An inert default export
-remains supported: the host then starts its listener. Production builds also accept
-the entry-owned `.listen()` form: Furin captures the app for AOT without running
-that listener or its callback. The emitted app artifact stays inert on import;
-the desktop host starts its protected listener and owns lifecycle cleanup.
+Preserve your existing compiler options instead of copying the example's second extends path. `prepare`, `dev` and desktop builds regenerate exact aliases from the SDK export map; rerun preparation after relocating a checkout. Published Furin declarations reference original `electrobun/main` types, never a build machine's absolute paths. No GUI is needed to prepare/typecheck. First preparation needs network access; later runs reuse Hutch's cache. The optional SDK dependency is pinned to 2.0.2; install it explicitly if optional dependencies were omitted. All tools run through Bun.
 
-The functional plugin preserves the original Elysia identity, prefix, decorators
-and route inference. Installing it after a wrapper or after listening is rejected.
-Application routes remain ordinary Elysia plugins.
+## Development and production
 
-`onStartup` and `onShutdown` run once per process in web and desktop modes.
-Installing an update drains the whole backend (Elysia `onStop`, `onShutdown`,
-listener) before handing off to the new version.
-`onError({ operation, error })` receives native failures that no HTTP response
-can carry: open-event delivery, menu actions, update listeners and quit. The
-error is unredacted (open events can carry OAuth URLs); sanitize before persisting.
-`onReady({ runtime, backend, signal })` is awaited after listening and bootstrap
-creation, before windows/dev readiness. An update failure shows a native error
-dialog and restarts through the native launcher in a fresh process. Services
-are never reopened in the old process; the replacement obtains new HTTP sessions.
-Web uses Elysia onStart/onStop; an application-owned desktop listener also awaits
-startup before serving application requests. Callbacks are options, not required
-named module exports.
-They must tolerate partial initialization and honor startup cancellation.
-
-The desktop session is always mandatory. `restrictWebToLoopback` optionally adds
-local-host and mutation-origin checks to ordinary web requests, and refuses a web
-listener bound to a non-loopback hostname. It does not disable desktop protection.
-With this option omitted, ordinary web requests are not session-protected.
-
-The desktop host loads that same root and coordinates its listener; it does not
-remount the application inside another Elysia instance. Change the original constructor,
-rather than wrapping a complete existing Furin app in a new parent. Rehosting
-changes final-root ownership: apps using sync must bind `furinSync(sync)` on the
-new final root too, as described in the
-[sync composition contract](../../apps/docs/src/content/docs/sync.mdx).
-
-## Development
-
-Keep the usual command `bun --hot src/server.ts`, with a top-level Bun preload:
+`init` adds `build:desktop`, preserves existing dev commands and config, and registers this launcher in `bunfig.toml`:
 
 ```toml
 preload = ["@teyik0/furin-electrobun/preload"]
 ```
 
-The preload starts the standard SDK host with the backend in that same managed
-Bun process, opening desktop and an authenticated browser on one backend. It
-only intercepts a hot launch of the configured server entry; ordinary imports,
-tests/builds and SDK startup stay inert. The launcher does not evaluate the app
-or initialize a second set of services. No additional server code is needed.
-
-`furin dev` is an optional alternative, with `--desktop` to omit the browser or
-`--web` to run without the SDK. The supervising Bun process remains separate.
-Both paths reuse the same orchestration. This preserves the
-original `bunfig.toml` `[serve.static]` plugins, public environment filtering,
-Tailwind and Furin's frontend Fast Refresh without copying configs or changing
-SDK directories. There is no Vite process or replacement frontend.
-
-Frontend edits use Furin frontend HMR. The supervisor follows literal runtime
-imports from the server and custom host, including backend JSX/TSX and transitive
-imports; type-only imports and frontend-only TS helpers do not restart the backend.
-The graph uses a non-writing Bun build before each worker launch, so renaming an
-extensionless import target refreshes ownership without runtime resolver caches.
-Modules loaded through computed paths are outside this source graph.
-A backend compilation error prints Bun's diagnostics and leaves the supervisor
-waiting for another source save, including when an imported file is invalid at
-startup. It retains the last valid dependency graph and temporarily observes all
-eligible source changes so newly imported files can be repaired. A successful
-scan restores graph-based watching and starts a fresh host through the normal
-application lifecycle. Ctrl-C cancels the wait; SDK and cleanup failures remain fatal.
-A real macOS WKWebView test
-verified both kinds of update while preserving a React-controlled draft,
-document identity and native-host PID.
-
-Changes to backend source trigger controlled shutdown and relaunch. A separate
-real WKWebView test verified old-host termination, a new native host and document,
-sync readiness, and a task persisted before the restart. Backend changes replace
-the window/document; preservation of unsaved React state is not promised.
-Stopping the CLI drains/reaps the managed native process. Window close follows
-the runtime background policy in [Native host capabilities](native-host.md).
-Production dynamically imports `app.js` in-process too.
-
-## Production
-
-`build` invokes `furin build --target bun --output app`, copies the **whole**
-Bun output (including all client directories and public resources) under
-`.furin/electrobun`, then prepares and builds Electrobun. The user does not write
-SDK setup scripts or copy assets manually.
-
-The SDK main dynamically imports the copied `app.js` **as a separate file**.
-It is not bundled into the SDK entry, avoiding multiple AOT application graphs
-and duplicate native ABI state. The app listens once on `127.0.0.1`, port `0`;
-the native window opens that same origin. There is no child backend Bun process.
-Output is in `.furin/electrobun/build` and distribution artifacts in
-`.furin/electrobun/artifacts`.
-
-The host sets `FURIN_APP_DATA_DIR` **before importing server code**, creates
-the directory, and leaves production CWD unchanged. By default it is the OS
-app-data directory joined with `app.identifier`, or `<identifier>.dev` for the
-SDK `dev` channel, so development never opens release data. Your ordinary server-side
-database factory can read that environment variable:
-
-```ts
-const databasePath = process.env.FURIN_APP_DATA_DIR
-  ? `${process.env.FURIN_APP_DATA_DIR}/todos.sqlite`
-  : ".furin/todos.sqlite";
-```
-
-No existing user data is moved. Omitting `dataDir` uses the SDK app-data
-directory joined with `app.identifier` (`<identifier>.dev` on the `dev` channel). An absolute string remains compatible;
-a runtime policy preserves named legacy locations without embedding a build
-machine home path. Resolution happens before native instance ownership, and
-one resolved path is used for forwarding, startup and `FURIN_APP_DATA_DIR`.
-Advanced hosts can use `resolveDesktopDataDir(policy, { channel, mode, root })`
-from `@teyik0/furin-electrobun/host`; this resolver is read-only.
-
-The plugin may provide `onStartup({ signal, runtime })` to initialize resources
-before the private listener opens. Startup failure calls its cleanup; the signal
-is aborted on cancellation, so initialization must honor it and release any late
-resources. The hook must not call `listen()`.
-
-App quit stops the server and calls cleanup once,
-then use the SDK's public window close and quit APIs. Startup diagnostics print
-the identifier, private origin and data path. SIGUSR-based reload is not used:
-the SDK-managed Bun currently does not implement it.
-
-Cleanup has a fixed five-second grace period. On timeout, the host reports the
-failure and quits unsuccessfully; the dev supervisor kills and reaps its owned
-helper rather than leaving it running indefinitely.
-
-Desktop startup waits up to thirty seconds, from importing the application
-module through Elysia's async plugins and setup. Timeout closes the owned backend and runs `onShutdown`; a plugin
-that finishes after cancellation cannot open a late listener.
-
-## External packages and native addons
-
-Use `external` to declare runtime packages that must be copied alongside the
-inert app, for example:
-
-```ts
-export default defineConfig({
-  desktop: defineDesktopConfig({
-    app: { name: "Tofu", identifier: "app.tofu.torrents" },
-    window: { width: 1200, height: 800 },
-    external: ["webtorrent", "parse-torrent"],
-  }),
-});
-```
-
-`build:desktop` uses this single declaration to exclude the packages and their
-subpaths from Furin's server and RSC bundles, then copy their runtime dependencies
-and assets alongside `app.js`. No additional externalization plugin is needed.
-Client bundles and ordinary web builds are unchanged. `build.bun.external`
-only affects the separate SDK host bundle; it does not replace `desktop.external`.
-
-The packager follows installed runtime dependencies, optional dependencies
-when present, and peers, resolving each from its actual importing package.
-It materializes package files, assets and binaries as real directories/files,
-preserves distinct installed versions and reconstructs each importer's dependency
-resolution. No directory or asset symlink is passed to the SDK archive builder:
-links escaping the declared package, cyclic asset links and links into the
-source `node_modules` are rejected. Ordinary dependency cycles and materializable
-package aliases are supported. Conflicting-version cycles that cannot form a
-finite, symlink-free Node-resolvable tree are rejected explicitly.
-It does not copy the entire project `node_modules` or development dependencies.
-
-This is minimum coherent native-package support, **not a guarantee that any
-N-API addon works**. The addon must support the SDK's Bun version and target
-OS/architecture; binaries must already be installed or built by the consuming
-project. Platform-specific signing and addon compatibility require testing
-the packaged application on the target machine.
-
-## Security and scope
-
-The native navigation policy denies all origins except the private app origin
-and a package-owned loopback bootstrap origin.
-External HTTP(S) and mail links are handed to the OS browser. The window is
-sandboxed, with `views:` / `appData:` protocols and RPC capabilities disabled.
-A dedicated listener issues a uniquely named `HttpOnly; SameSite=Strict`
-session cookie and redirects to the app. Its independent bootstrap nonce is
-accepted once; the spent listener remains bound until shutdown to prevent
-port rebinding. Bootstrap credentials never enter the user application's
-request hooks or access logs. This adds a listener, not a production process.
-
-`desktopApp()` registers the session wrapper first, outside application
-request hooks, cache wrappers and plugin wrappers. The host activates that
-specific root's guard before listening. Missing credentials, cross-origin and
-cross-site requests are rejected before user middleware can return an early
-response. No Elysia modification or extra proxy is needed.
-
-### Internal API calls and SSR
-
-`treaty(app)` and `treaty(app).use(furinSync).api` dispatch directly through the same
-listening Elysia application. They do not send HTTP requests and do not require a
-session cookie. SSR loaders can use this client without copying credentials,
-opening another listener or mounting a second router.
-
-The supported Bun adapter passes its `Server` object to network dispatch;
-Elysia's `app.handle()` supplies only the `Request`. The desktop wrapper checks
-this calling convention, not the URL, hostname or headers. Network dispatch must
-carry the active application's exact server object and pass the session/origin
-guard. A forged `http://e.ly` host or "internal" header cannot bypass HTTP checks.
-Unexpected adapter context is rejected rather than treated as internal.
-
-Startup (including `onReady`), update pause and shutdown still gate both
-transports with `503`. Missing or invalid HTTP credentials return `403` before
-application hooks. Direct dispatch is a trusted in-process capability: do not
-expose `app.handle()` as an unguarded proxy for external requests. No opt-in
-option is required, and this is not isolation from code already running inside
-the application process.
-
-Native Bun routes can bypass Elysia dispatch, so desktop startup rejects
-`serve.routes` and custom adapters, and disables promoted static responses.
-Production also rejects native HTMLBundle handlers. Development permits only
-GET `.../_bun_hmr_entry[/index.html]` frontend assets and Bun's native HMR
-infrastructure: these development assets are public and must not contain
-secrets. Native-route policy is checked before listening and again after all
-setup hooks, before bootstrap readiness.
-
-This guards application HTTP and WebSocket dispatch, not hostile code running
-inside the application's own Bun process. Do not replace native server handlers
-to bypass the factory. Loopback is not a substitute for application authorization.
-
-### Network admission and listener configuration
-
-Applications that share their desktop backend beyond the native window pass an
-`admission(request, context)` hook to `desktopApp()`. It runs for every request
-received by the application's own listener, after the listener identity check and
-before availability gating and routing. `context.desktopSession` is `true` only when
-the native window session cookie, origin checks and a loopback TCP peer all passed;
-`context.peerAddress` comes from Bun, never from headers. Return a `Response` to
-reject the request. Without `admission`, a missing desktop session is rejected as
-before. `restrictWebToLoopback` rejections remain final.
-
-`dispatchKind(request)` reports `"network"` for requests received by the listener
-and `"in-process"` for Eden/`app.handle()` dispatch and framework-created requests,
-such as Furin's synthetic navigation data request. Use it to keep privileged or
-mutating endpoints unreachable from in-process rendering.
-
-`listen()` lets the application choose the desktop listener before it opens:
-`hostname` (`127.0.0.1`, `0.0.0.0` or `::`), a stable `port`, and `tls` PEM
-material. The native window always uses `127.0.0.1`. With TLS, the HTTP bootstrap
-listener is not started, because its cross-scheme redirect is cross-site; the
-backend exposes `session`, and the standard host installs it with
-`Session.fromPartition("persist:default").cookies.set(...)` as a host-only, Secure,
-HttpOnly, SameSite=Strict cookie before creating the window. A system browser cannot
-receive that session, so `desktop.browser.open()` returns `false` in TLS mode. The
-operating system must trust the certificate for the native WebView.
-
-## Native customization
-
-Set `build.bun.entrypoint` to a Bun module that registers native events or other
-SDK customizations. Furin bundles it into the generated host and keeps the inert
-application artifact and its external dependencies separate. The module is optional;
-`.use(desktopApp())` is sufficient to request the standard window.
-
-```ts
-export default defineConfig({
-  desktop: defineDesktopConfig({
-    app: {
-      name: "Tofu", identifier: "app.tofu.torrents", version: "0.2.1",
-      urlSchemes: ["magnet", "tofu"],
-    },
-    window: { width: 1400, height: 940 },
-    external: ["webtorrent", "parse-torrent"],
-    build: {
-      mainProcess: "bun",
-      bun: { entrypoint: "src/desktop-host.ts" },
-      mac: { icons: "assets/tofu.iconset", codesign: true },
-    },
-    release: { baseUrl: "https://example.com/releases" },
-  }),
-});
-```
-
-On macOS the SDK declares schemes and file types in the bundle. On Windows and
-Linux, the standard host lists the app at startup as a handler for
-`app.fileAssociations` and shared `app.urlSchemes` (per-user ProgIDs and
-registered capabilities on Windows, the `.desktop` entry on Linux, where each
-file association needs a `mimeType`). This never changes a default:
-`associations.requestDefault()` confirms the change on macOS and Linux, and
-opens the app's Default Apps page on Windows, which reserves that choice for the user.
-
-The SDK's `app`, `build` and `release` keys accept typed settings for schemes, file associations, platform icons,
-macOS signing, helper-file copies, Bun externals and the update feed. Source
-paths are resolved from the application's root. Copy destinations cannot replace
-Furin's `furin` artifact. Furin retains Bun entrypoint, renderer and runtime
-ownership in the generated SDK configuration. Only the Bun main process is supported;
-CEF remains disabled.
-
-Prepare the SDK without launching a window or building the web app:
-
 ```sh
-bunx --bun @teyik0/furin-electrobun prepare
+bun --hot src/server.ts       # native and authenticated browser, one backend
+bunx --bun furin dev --web    # web mode, no SDK initialization
+bun run build:desktop        # package the native app
 ```
 
-For TypeScript, extend the generated SDK paths alongside your existing config:
+The preload only activates for the configured hot server entry. Frontend edits use Bun HMR/React Fast Refresh and retain the window. Backend/native dependency edits cause a controlled full process restart; native modules are never hot-reloaded and backend state is not promised to survive. External packages/assets/native dependencies stay with the relocatable Furin artifact. Compiled/AOT dispatch preserves app identity and the in-process Eden security boundary.
 
-```json
-{
-  "extends": ["./.furin/electrobun/tsconfig.json", "./tsconfig.base.json"]
-}
-```
-
-Replace `./tsconfig.base.json` with your existing base, or omit it if none exists.
-Existing `compilerOptions.paths` must be merged explicitly if they override the
-inherited paths. Run `prepare` before typechecking a fresh checkout; `dev` and
-`build` also prepare these paths automatically. The mappings come from Hutch's
-export map without inheriting the SDK 2.0.2 `baseUrl` removed by TypeScript 7.
-Native source imports use `electrobun/main` and its public subpaths; neither
-source files nor native event modules need paths into `.furin`. The dependency
-scanner resolves the same exports while keeping SDK internals external.
-
-The generated SDK bootstrap starts the application. `.use(desktopApp())` requests
-its native window after Elysia and application readiness complete. No host launch
-function is required in application code. In web mode the plugin opens no window.
-
-`desktop.build.bun.entrypoint` optionally selects a native customization module,
-loaded before the server in the same SDK process. Its imports can use the SDK too:
-
-```ts
-// src/desktop.ts
-import "./native-events";
-```
-
-```ts
-// src/native-events.ts
-import Electrobun from "electrobun/main";
-
-Electrobun.events.on("reopen", () => {
-  // Handle native activation here.
-});
-```
-
-Do not import these native modules from browser code or a server shared with web
-mode. Furin retains the actual generated SDK entrypoint so startup, local session
-protection, window creation and Elysia shutdown remain coordinated.
-
-Custom development keeps the backend and native SDK in one managed Bun process,
-so native APIs share the application runtime without a new RPC transport. The
-supervisor starts it with the consuming `bunfig.toml`, preserving frontend
-plugins and public environment filtering. Frontend-only edits retain the window
-and use Furin Fast Refresh. Backend or host dependency edits drain the old host, rebuild the
-SDK entry and open a replacement window; durable state survives, while unsaved
-React state across a backend restart is not promised. The standard host uses
-the same in-process topology. This follows the frontend/state distinction in
-[Next.js Fast Refresh](https://nextjs.org/docs/architecture/fast-refresh); using
-Bun server `--hot` alone would also replace native SDK module identities.
-
-`furin-electrobun build --env=dev` packages a development identity; the build output
-is still production output with session protection. Omit the flag for stable SDK
-packaging. No stable package publication is implied.
-
-PR previews publish core and Electrobun together using Bun packing to resolve
-workspace/catalog references. Repository-qualified preview URLs avoid compact
-name ambiguity. Fresh consumers should verify a frozen installation of both.
-
-## Architectural decision
-
-The recommended approach is an inert Furin server artifact, hosted in-process
-by the SDK. A second backend process simplifies development isolation but adds
-production memory, process supervision and another lifecycle. Bundling the
-whole Furin app into the SDK entry appears simpler but duplicates build/AOT
-ownership and makes resource relocation and native dependencies brittle.
-Neither alternative is used for production.
-
-Creating the Elysia root through the package factory is the deliberate backend
-integration seam. It needs a constructor/import change, but preserves the web UI
-and Elysia lifecycle without changing Elysia itself. A private-socket backend plus
-HTTP/WebSocket proxy could enforce a separate boundary, but adds transport,
-backpressure and platform-specific IPC work that this integration does not need.
-
-[Next.js standalone output](https://nextjs.org/docs/app/api-reference/config/next-config-js/output)
-traces a deployable server closure, while
-[TanStack Start deployment](https://tanstack.com/start/latest/docs/framework/react/guide/hosting)
-uses server artifacts and hosting adapters. Furin already has a Bun artifact
-and Elysia lifecycle; reusing those contracts is smaller and more maintainable
-than introducing another server DSL or an SDK dependency into core.
-
-## Package development
-
-See [Native host capabilities](native-host.md) for the standard controller and
-[Tofu migration](tofu-migration.md) for the application-specific migration.
-
-```sh
-bun run test
-bun run tscheck
-bun run fix
-bun run build
-```
-
-Headless tests cover configuration, safe initialization, full artifact copying,
-version-preserving external dependency closure, real in-process Elysia HTTP
-requests on port `0`, session bootstrap and idempotent cleanup. GUI validation
-is separate and must be performed by someone allowed to launch native apps.
-
-The factory integration was also verified in a real macOS WKWebView session:
-unauthenticated API calls returned `403` before and after restart, authenticated
-UI CRUD succeeded, JSX/CSS updates preserved the draft and document, and backend
-restart preserved a task while replacing and reaping the native host. That
-validation used the original application root, not a test-only parent remount.
-Windows and Linux native behavior require their own platform verification.
+See [native-host.md](./native-host.md) for session, listener, storage and lifecycle details, and [the todo example](../../examples/electrobun-todo) for working code.

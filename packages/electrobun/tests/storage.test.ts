@@ -8,7 +8,6 @@ test("runtime storage policy is declarative and absolute overrides remain valid"
   const dataDir = { name: "Example", developmentName: "Example-dev", env: "EXAMPLE_DATA_DIR" };
   const config = defineDesktopConfig({
     app: { name: "Example", identifier: "app.example.desktop" },
-    window: { width: 800, height: 600 },
     dataDir,
   });
   expect(JSON.parse(JSON.stringify(config)).dataDir).toEqual(dataDir);

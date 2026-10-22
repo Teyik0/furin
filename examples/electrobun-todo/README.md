@@ -4,8 +4,8 @@ A small task app demonstrating Furin's desktop integration: **the same pages, Re
 
 ```text
 src/
-  desktop.ts                 Native customization: imports electrobun/main and registers events
-  server.ts                  Elysia root: desktopApp() first, then the API and furin()
+  desktop.ts                 Native SDK menus/tray and getDesktopHost coordination
+  server.ts                  Elysia root: desktopApp({window}) first, then the typed API and furin()
   sync.ts                    Furin Sync runtime (Drizzle adapter, single local principal)
   db/                        bun:sqlite + Drizzle client and schema
   api/                       /api plugin; modules/todos/{index,model,service}.ts
@@ -28,11 +28,10 @@ bun run dev
 ```
 
 The `@teyik0/furin-electrobun/preload` registered in `bunfig.toml` opens the desktop window and an
-authenticated browser on one backend. Desktop settings live in the
-`desktop` section of `furin.config.ts`.
+authenticated browser on one backend. Packaging settings live in `furin.config.ts`; the primary window lives in `server.ts`.
 
 `desktop.build.bun.entrypoint` selects `src/desktop.ts` using Electrobun's keys.
-The generated bootstrap loads it before the server. `.use(desktopApp())` opens
+The generated bootstrap loads it after the app module and before Elysia startup. `.use(desktopApp({ window: ... }))` opens
 the native window after readiness; no host launch call is needed.
 This optional module imports the SDK through `electrobun/main`; server and browser modules
 remain independent of native imports. `bun run tscheck` prepares the SDK and its
@@ -61,3 +60,5 @@ bun run test
 ```
 
 See the [integration package](../../packages/electrobun/README.md) for the server contract, packaging and limitations.
+
+The independent `/api/desktop` plugin installs `desktopContext`. Its minimize action calls the original SDK window method and returns a typed 409 in web mode. Native menus/tray use the SDK directly; `/host` returns the same live controller. No native launch call or window declaration module is required.

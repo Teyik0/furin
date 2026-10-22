@@ -138,7 +138,7 @@ test("ordinary web use stays inactive and preserves Elysia prefix and decorator 
   });
 });
 
-test("unbranded roots fail before listen and clean source-owned resources", async () => {
+test("unbranded roots fail before initializing resources or listening", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-unbranded-"));
   const previousData = process.env.FURIN_APP_DATA_DIR;
   const app = new Elysia().get("/", () => "plain");
@@ -148,17 +148,16 @@ test("unbranded roots fail before listen and clean source-owned resources", asyn
       startDesktopBackend(
         () =>
           Promise.resolve({
-            default: app,
-            onShutdown: () => {
+            default: app.onStop(() => {
               closed = true;
-            },
+            }),
           }),
         data,
         "build"
       )
     ).rejects.toThrow("@teyik0/furin-electrobun/server");
     expect(app.server).toBeUndefined();
-    expect(closed).toBe(true);
+    expect(closed).toBe(false);
   } finally {
     if (previousData === undefined) {
       delete process.env.FURIN_APP_DATA_DIR;

@@ -50,7 +50,6 @@ test("file assets survive dependency scanning and restart their owning server or
       join(root, "furin.config.ts"),
       `export default { desktop: {
         app: { name: "Assets", identifier: "local.furin.assets" },
-        window: { width: 800, height: 600 },
         build: { bun: { entrypoint: "src/host.ts" } }, dataDir: ${JSON.stringify(join(root, ".data"))}
       } };`
     );

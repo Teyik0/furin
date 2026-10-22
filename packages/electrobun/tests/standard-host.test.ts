@@ -1,10 +1,11 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { BrowserWindow } from "electrobun/main";
 import { Elysia } from "elysia";
-import type { DesktopSdk, NativeWindow } from "../src/native-sdk";
-import { desktopApp } from "../src/server";
+import type { DesktopSdk } from "../src/native-sdk";
+import { desktopApp, getApplicationRuntime } from "../src/server";
 import { runStandardDesktopHost } from "../src/standard-host";
 
 test("standard host lifecycle and successful update handoff", async () => {
@@ -16,17 +17,16 @@ test("standard host lifecycle and successful update handoff", async () => {
       handler(event);
     }
   };
-  const windows: { url: string; window: NativeWindow }[] = [];
+  const windows: { url: string; window: BrowserWindow }[] = [];
   const closed = Promise.withResolvers<void>();
   const phases: string[] = [];
   const scripts: string[] = [];
   const documents: (() => void)[] = [];
   const browserUrls: string[] = [];
-  const errors: { operation: string; message: string }[] = [];
+  const errors = spyOn(console, "error");
   let background = true;
   let quit: number | undefined;
   let authenticated: { origin: string; cookie: string } | undefined;
-  let windowRequests = 0;
   const identity = {
     name: "Fixture",
     identifier: "local.furin.standard",
@@ -40,15 +40,15 @@ test("standard host lifecycle and successful update handoff", async () => {
     updateReady: true,
     error: "",
   };
-  const sdk: DesktopSdk = {
+  const sdk = {
     default: {
       events: {
-        on(name, callback) {
+        on(name: string, callback: (event: unknown) => void) {
           const handlers = events.get(name) ?? [];
           handlers.push(callback);
           events.set(name, handlers);
         },
-        off(name, callback) {
+        off(name: string, callback: (event: unknown) => void) {
           events.set(
             name,
             (events.get(name) ?? []).filter((fn) => fn !== callback)
@@ -74,7 +74,7 @@ test("standard host lifecycle and successful update handoff", async () => {
       };
       constructor(options: { url: string }) {
         expect(phases).toContain("ready");
-        windows.push({ url: options.url, window: this });
+        windows.push({ url: options.url, window: this as unknown as BrowserWindow });
       }
       on(_name: "close", callback: () => void) {
         this.closeHandler = callback;
@@ -98,6 +98,9 @@ test("standard host lifecycle and successful update handoff", async () => {
       fromPartition: () => ({ cookies: { set: () => true, get: () => [], remove: () => true } }),
     },
     Tray: class {
+      static getAll() {
+        return [];
+      }
       visible = true;
       setMenu() {
         /* No native tray in this SDK boundary fixture. */
@@ -112,7 +115,7 @@ test("standard host lifecycle and successful update handoff", async () => {
     ApplicationMenu: { setApplicationMenu: () => undefined, on: () => undefined },
     Utils: {
       paths: { appData: root },
-      openExternal(url) {
+      openExternal(url: string) {
         browserUrls.push(url);
         return true;
       },
@@ -121,7 +124,7 @@ test("standard host lifecycle and successful update handoff", async () => {
       openFileDialog: async () => [root],
       showMessageBox: async () => ({ response: 0 }),
       showNotification: () => undefined,
-      quit(code) {
+      quit(code: number) {
         quit = code;
       },
     },
@@ -150,30 +153,10 @@ test("standard host lifecycle and successful update handoff", async () => {
       ],
       onStatusChange: () => undefined,
     },
-  };
+  } as unknown as DesktopSdk;
   const app = new Elysia()
     .use(
       desktopApp({
-        async onStartup({ runtime }) {
-          expect(runtime.kind).toBe("desktop");
-          if (runtime.kind === "desktop") {
-            expect(await runtime.desktop.dialogs.selectDirectory()).toBe(root);
-            const { open } = runtime.desktop.window;
-            runtime.desktop.window.open = () => {
-              windowRequests += 1;
-              return open();
-            };
-          }
-          phases.push("start");
-        },
-        onReady() {
-          expect(windowRequests).toBe(0);
-          expect(windows).toHaveLength(0);
-          phases.push("ready");
-        },
-        onShutdown() {
-          phases.push("stop");
-        },
         background: () => background,
         onOpen({ event }) {
           if (event.type === "url" && event.url === "fixture://broken") {
@@ -181,11 +164,19 @@ test("standard host lifecycle and successful update handoff", async () => {
           }
           phases.push(event.type === "url" ? event.url : event.path);
         },
-        onError({ operation, error }) {
-          errors.push({ operation, message: error instanceof Error ? error.message : "" });
-        },
       })
     )
+    .onStart((instance) => {
+      const runtime = getApplicationRuntime(instance);
+      expect(runtime.kind).toBe("desktop");
+      phases.push("start");
+
+      expect(windows).toHaveLength(0);
+      phases.push("ready");
+    })
+    .onStop(() => {
+      phases.push("stop");
+    })
     .get("/", () => "private")
     .onStop(() => {
       phases.push("elysia-stop");
@@ -195,21 +186,14 @@ test("standard host lifecycle and successful update handoff", async () => {
     desktop = await runStandardDesktopHost(sdk, {
       config: {
         app: identity,
-        window: { width: 800, height: 600 },
-        tray: {
-          mac: { image: "icon.png" },
-          win: { image: "icon.png" },
-          linux: { image: "icon.png" },
-        },
       },
       root,
       dataDir: root,
       mode: "build",
       load: async () => ({
-        default: app,
-        onShutdown() {
+        default: app.onStop(() => {
           phases.push("module-stop");
-        },
+        }),
       }),
       testScript: "explicit native test",
       openBrowser: true,
@@ -218,11 +202,10 @@ test("standard host lifecycle and successful update handoff", async () => {
       throw new Error("Expected the primary native instance.");
     }
     expect(typeof desktop.restart).toBe("function");
-    expect(windowRequests).toBe(1);
     expect(phases).toEqual(["start", "ready", "fixture://early"]);
     emit("open-url", { data: { url: "fixture://broken" } });
     await Bun.sleep(10);
-    expect(errors).toEqual([{ operation: "open", message: "broken open" }]);
+    expect(errors).toHaveBeenCalledWith("[furin-electrobun] Native open failed.");
     documents[0]?.();
     expect(scripts).toEqual(["explicit native test"]);
     const [first] = windows;
@@ -253,16 +236,16 @@ test("standard host lifecycle and successful update handoff", async () => {
       );
       expect((await fetch(url, { redirect: "manual" })).status).toBe(410);
     }
-    await desktop.window.background();
+    desktop.window?.requestClose();
     await closed.promise;
     expect(desktop.snapshot().background).toBe(true);
-    desktop.window.open();
+    desktop.open();
     documents[1]?.();
     expect(scripts).toEqual(["explicit native test", "explicit native test"]);
     expect(windows).toHaveLength(2);
     expect(windows[1]?.url).not.toBe(first.url);
     background = false;
-    await expect(desktop.window.background()).rejects.toThrow("background");
+    expect(desktop.window).toBe(windows[1]?.window);
     await desktop.updates.install();
     expect(desktop.snapshot().phase).toBe("quitting");
     // The handoff itself drains the whole backend; the SDK may exit without another quit.
@@ -272,6 +255,7 @@ test("standard host lifecycle and successful update handoff", async () => {
     expect(quit).toBe(0);
     expect(phases.filter((phase) => phase === "stop")).toHaveLength(1);
   } finally {
+    errors.mockRestore();
     try {
       await desktop?.quit();
     } finally {

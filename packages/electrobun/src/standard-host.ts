@@ -1,23 +1,29 @@
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import type { BrowserWindow } from "electrobun/main";
+import type { RPCWithTransport } from "electrobun/main/rpc";
 import { createAssociations } from "./associations";
 import type {
-  DesktopCapabilities,
+  DesktopContext,
   DesktopIdentity,
   DesktopSnapshot,
+  DesktopWindowOptions,
   NativeActionContext,
-  NativeMenuItem,
-  NativeOperation,
-  NativeUpdateStatus,
   OpenEvent,
 } from "./capabilities";
 import type { DesktopConfig } from "./config";
 import { getDesktopDevelopment } from "./development";
 import { deliverToNativeOwner, openNativeInstance } from "./native-instance";
 import { armNativeRestart, nativeLauncherPath } from "./native-restart";
-import type { DesktopSdk, NativeTray, NativeWindow, SdkMenuItem } from "./native-sdk";
+import type { DesktopSdk } from "./native-sdk";
 import { nativeLaunchEvents } from "./open-events";
-import { type DesktopMode, type DesktopState, getDesktopEntry, getDesktopState } from "./registry";
+import {
+  type DesktopMode,
+  type DesktopState,
+  getDesktopEntry,
+  getDesktopState,
+  setDesktopHost,
+} from "./registry";
 import {
   type DesktopAppModule,
   type DesktopBackend,
@@ -104,14 +110,39 @@ async function forwardQueued(dataDir: string, identity: DesktopIdentity, queued:
   }
 }
 
-function trayPlatform(): "mac" | "win" | "linux" {
-  if (process.platform === "darwin") {
-    return "mac";
+function installWindowSession(sdk: DesktopSdk, active: DesktopBackend): void {
+  if (active.session) {
+    const session = sdk.Session.fromPartition("persist:default");
+    const cookie = {
+      name: active.session.name,
+      value: active.session.value,
+      domain: "127.0.0.1",
+      path: "/",
+      secure: true,
+      httpOnly: true,
+      sameSite: "strict" as const,
+    };
+    if (!session.cookies.set(cookie)) {
+      throw new Error("The native window session could not be installed.");
+    }
+    const installed = session.cookies
+      .get({ name: cookie.name })
+      .find((item) => item.value === cookie.value);
+    if (
+      !(
+        installed?.httpOnly &&
+        installed.secure &&
+        installed.path === "/" &&
+        installed.domain === "127.0.0.1" &&
+        installed.sameSite?.toLowerCase() === "strict"
+      )
+    ) {
+      session.cookies.remove(active.origin, cookie.name);
+      throw new Error(
+        "The native SDK cannot preserve HttpOnly, Secure, host-only and SameSite window cookies. Update the SDK before opening TLS windows."
+      );
+    }
   }
-  if (process.platform === "win32") {
-    return "win";
-  }
-  return "linux";
 }
 
 /** Composition of the public SDK, not a second native runtime or updater. */
@@ -120,7 +151,7 @@ export async function runStandardDesktopHost(
   sdk: DesktopSdk,
   supplied?: StandardHostOptions,
   loadNativeEntry?: () => Promise<unknown>
-): Promise<DesktopCapabilities | undefined> {
+): Promise<DesktopContext | undefined> {
   const queued: OpenEvent[] = [];
   let flush = () => Promise.resolve();
   const capture = (event: unknown) => {
@@ -145,21 +176,17 @@ export async function runStandardDesktopHost(
   let backend: DesktopBackend | undefined;
   let starting: Promise<DesktopBackend> | undefined;
   let instance: Awaited<ReturnType<typeof openNativeInstance>>;
-  let backgroundTimer: ReturnType<typeof setTimeout> | undefined;
   const lifetime = new AbortController();
   let failureCode = 0;
   let startupError: string | undefined;
   let state: DesktopState | undefined;
-  let window: NativeWindow | undefined;
-  let windowRequested = false;
-  let tray: NativeTray | undefined;
+  let window: BrowserWindow | undefined;
+  const windows = new Map<string, BrowserWindow>();
   let closing: Promise<void> | undefined;
   let installing: Promise<void> | undefined;
   let restarting: Promise<void> | undefined;
   let quitRequested = false;
   let allowUpdateQuit = false;
-  const actions = new Map<string, (context: NativeActionContext) => unknown>();
-  const listeners = new Set<(status: NativeUpdateStatus) => void>();
   let identity: DesktopIdentity;
   let options: StandardHostOptions;
   let development: Awaited<ReturnType<typeof getDesktopDevelopment>>;
@@ -170,117 +197,66 @@ export async function runStandardDesktopHost(
     return backend;
   };
   // The console never prints error details: native events can carry OAuth URLs.
-  const report = (operation: NativeOperation) => (error: unknown) => {
+  const report = (operation: "open" | "action" | "updates" | "quit") => (_error: unknown) => {
     console.error(`[furin-electrobun] Native ${operation} failed.`);
-    try {
-      state?.hooks?.onError?.({ operation, error });
-    } catch {
-      console.error("[furin-electrobun] Native error reporting failed.");
-    }
   };
   const context = (): NativeActionContext => ({ identity, desktop });
-  const menus = (items: NativeMenuItem[]): SdkMenuItem[] =>
-    items.map((item) => {
-      if ("type" in item) {
-        return { type: "divider" };
-      }
-      const { onSelect, submenu, ...fields } = item;
-      if (onSelect && item.role) {
-        throw new Error("A native menu item cannot combine a role and an action.");
-      }
-      let action: string | undefined;
-      if (onSelect) {
-        action = crypto.randomUUID();
-        actions.set(action, onSelect);
-      }
-      return {
-        ...fields,
-        type: "normal",
-        label: fields.label ?? "",
-        ...(action ? { action } : {}),
-        ...(submenu ? { submenu: menus(submenu) } : {}),
-      };
-    });
-  const dispatch = (event: unknown) => {
-    if (object(event) && object(event.data) && typeof event.data.action === "string") {
-      const action = actions.get(event.data.action);
-      if (action) {
-        Promise.resolve()
-          .then(() => action(context()))
-          .catch(report("action"));
-      }
-    }
-  };
-  const open = (): DesktopSnapshot => {
-    // The Elysia plugin requests its window after readiness; native setup finishes first.
-    if (phase === "starting") {
-      windowRequested = true;
-      return desktop.snapshot();
-    }
-    clearTimeout(backgroundTimer);
+  const createWindow = <T extends RPCWithTransport>(
+    name: string,
+    selected: DesktopWindowOptions<T>,
+    path: string
+  ): BrowserWindow<T> => {
     const active = requireBackend();
-    if (window) {
-      window.show();
-      window.activate();
-      return desktop.snapshot();
+    if (windows.has(name)) {
+      throw new Error(`Desktop window already exists: ${name}`);
+    }
+    let platform: "mac" | "win" | "linux" = "linux";
+    if (process.platform === "darwin") {
+      platform = "mac";
+    }
+    if (process.platform === "win32") {
+      platform = "win";
+    }
+    const packaged = options.config.build?.[platform];
+    const renderer = selected.renderer ?? packaged?.defaultRenderer ?? "native";
+    if (renderer === "cef" && !packaged?.bundleCEF) {
+      throw new Error(`CEF windows require build.${platform}.bundleCEF: true.`);
     }
     const origins = [active.origin, active.bootstrapOrigin].filter(Boolean);
-    if (active.session) {
-      const session = sdk.Session.fromPartition("persist:default");
-      const cookie = {
-        name: active.session.name,
-        value: active.session.value,
-        domain: "127.0.0.1",
-        path: "/",
-        secure: true,
-        httpOnly: true,
-        sameSite: "strict" as const,
-      };
-      if (!session.cookies.set(cookie)) {
-        throw new Error("The native window session could not be installed.");
-      }
-      const installed = session.cookies
-        .get({ name: cookie.name })
-        .find((item) => item.value === cookie.value);
-      if (
-        !(
-          installed?.httpOnly &&
-          installed.secure &&
-          installed.path === "/" &&
-          installed.domain === "127.0.0.1" &&
-          installed.sameSite?.toLowerCase() === "strict"
-        )
-      ) {
-        session.cookies.remove(active.origin, cookie.name);
-        throw new Error(
-          "The native SDK cannot preserve HttpOnly, Secure, host-only and SameSite window cookies. Update the SDK before opening TLS windows."
-        );
-      }
-    }
-    const created = new sdk.BrowserWindow({
+    installWindowSession(sdk, active);
+    const created = new sdk.BrowserWindow<T>({
       title: identity.name,
-      frame: options.config.window,
-      url: active.createWindowUrl(),
-      renderer: "native",
-      sandbox: true,
+      ...selected,
+      url: active.createWindowUrl(path),
+      html: null,
+      viewsRoot: null,
+      renderer,
+      sandbox: selected.sandbox ?? !selected.rpc,
       allowedProtocols: { views: false, appData: false },
       navigationRules: JSON.stringify(["^*", ...origins.map((origin) => `${origin}/*`)]),
     });
     const newWindowEvent = `new-window-open-${created.webviewId}`;
-    window = created;
+    windows.set(name, created);
+    if (name === "main") {
+      window = created;
+    }
     created.on("close", () => {
       sdk.default.events.off?.(newWindowEvent, external);
-      if (window !== created) {
+      windows.delete(name);
+      if (window === created) {
+        window = undefined;
+      }
+      if (phase !== "ready" || options.manager || windows.size !== 0) {
         return;
       }
-      window = undefined;
-      if (
-        phase === "ready" &&
-        !options.manager &&
-        !(state?.hooks?.background?.() && tray?.visible)
-      ) {
-        desktop.quit().catch(report("quit"));
+      try {
+        if (state?.hooks?.background?.()) {
+          return;
+        }
+      } catch (error) {
+        report("action")(error);
       }
+      desktop.quit().catch(report("quit"));
     });
     const external = (event: unknown) => {
       if (!(object(event) && object(event.data))) {
@@ -297,27 +273,83 @@ export async function runStandardDesktopHost(
       const script = options.testScript;
       created.webview?.on("dom-ready", () => created.webview?.executeJavascript(script));
     }
-    return desktop.snapshot();
+    return created;
   };
-  const desktop: DesktopCapabilities = {
-    window: {
-      open,
-      async background() {
-        requireBackend();
-        if (!state?.hooks?.background?.()) {
-          throw new Error("Enable background mode first.");
+  const open = (): BrowserWindow => {
+    requireBackend();
+    if (window) {
+      window.show();
+      window.activate();
+      return window;
+    }
+    return createWindow("main", state?.hooks?.window ?? {}, "/");
+  };
+  const closeWindows = () => {
+    const failures: unknown[] = [];
+    const attempt = (cleanup: () => void) => {
+      try {
+        cleanup();
+      } catch (error) {
+        failures.push(error);
+      }
+    };
+    try {
+      attempt(() => {
+        for (const tray of sdk.Tray.getAll()) {
+          attempt(() => tray.remove());
         }
-        if (!tray?.visible) {
-          throw new Error("The system tray is unavailable; the window stays open.");
+      });
+      for (const owned of windows.values()) {
+        attempt(() => owned.webview?.setNavigationRules(["^*"]));
+        attempt(() => owned.close());
+      }
+    } finally {
+      window = undefined;
+      windows.clear();
+      setDesktopHost(undefined);
+    }
+    if (failures.length) {
+      throw new AggregateError(failures, "Native window cleanup failed.");
+    }
+  };
+  const quitNative = (code: number) => {
+    const failures: unknown[] = [];
+    let exitCode = code;
+    try {
+      closeWindows();
+    } catch (error) {
+      failures.push(error);
+      exitCode = 1;
+    }
+    phase = "stopped";
+    try {
+      const result: unknown = sdk.Utils.quit(exitCode);
+      quitRequested = result !== false;
+    } catch (error) {
+      process.exitCode = 1;
+      failures.push(error);
+    }
+    if (failures.length) {
+      development?.reportFailure("shutdown-failure");
+      report("quit")(failures[0]);
+      if (failures.length === 1) {
+        throw failures[0];
+      }
+      throw new AggregateError(failures, "Native shutdown failed.");
+    }
+  };
+  const desktop: DesktopContext = {
+    get window() {
+      return window;
+    },
+    open,
+    windows: {
+      get: (name) => windows.get(name),
+      create(name, { path, ...selected }) {
+        if (name === "main") {
+          throw new Error("The main window is reserved; use desktop.open().");
         }
-        // Do not destroy the view before its HTTP action response can be delivered.
-        const target = window;
-        backgroundTimer = setTimeout(() => {
-          if (window === target && phase === "ready") {
-            target?.requestClose();
-          }
-        }, 100);
-        await Promise.resolve();
+        return createWindow(name, selected, path);
       },
     },
     browser: {
@@ -327,38 +359,11 @@ export async function runStandardDesktopHost(
         return !active.session && sdk.Utils.openExternal(active.createWindowUrl(destination));
       },
     },
-    shell: {
-      openExternal: (url) => sdk.Utils.openExternal(url),
-      openPath: (path) => sdk.Utils.openPath(path),
-      showItemInFolder: (path) => sdk.Utils.showItemInFolder(path),
-    },
-    dialogs: {
-      async selectDirectory(selected) {
-        const paths = await sdk.Utils.openFileDialog({
-          ...selected,
-          canChooseDirectory: true,
-          canChooseFiles: false,
-          allowsMultipleSelection: false,
-        });
-        return paths[0] ?? null;
-      },
-      message: (message) => sdk.Utils.showMessageBox(message),
-    },
-    notifications: { show: (notification) => sdk.Utils.showNotification(notification) },
     associations: {
       read: (target) => association.read(target),
       requestDefault: (target) => association.requestDefault(target),
     },
     updates: {
-      check: () => sdk.Updater.checkForUpdate(),
-      download: () => sdk.Updater.downloadUpdate(),
-      snapshot: () => sdk.Updater.updateInfo(),
-      subscribe(listener) {
-        listeners.add(listener);
-        return () => {
-          listeners.delete(listener);
-        };
-      },
       install() {
         if (installing) {
           return installing;
@@ -420,9 +425,9 @@ export async function runStandardDesktopHost(
     snapshot: () => ({
       phase,
       background: !window,
-      windows: window ? 1 : 0,
+      windows: windows.size,
       webviews: sdk.BrowserView.getAll().length,
-      trayVisible: tray?.visible ?? false,
+      trayVisible: sdk.Tray.getAll().some((tray) => tray.visible),
     }),
     restart() {
       if (restarting) {
@@ -496,7 +501,6 @@ export async function runStandardDesktopHost(
           }
           throw error;
         } finally {
-          clearTimeout(backgroundTimer);
           const backendCode = code;
           code = 1;
           try {
@@ -509,17 +513,8 @@ export async function runStandardDesktopHost(
             process.off("SIGINT", stop);
             process.off("SIGTERM", stop);
             sdk.Updater.onStatusChange(null);
-            listeners.clear();
-            actions.clear();
             queued.length = 0;
-            tray?.remove();
-            const previous = window;
-            window = undefined;
-            previous?.webview?.setNavigationRules(["^*"]);
-            previous?.close();
-            phase = "stopped";
-            const result = sdk.Utils.quit(code);
-            quitRequested = result !== false;
+            quitNative(code);
           }
         }
         if (!quitRequested) {
@@ -532,10 +527,15 @@ export async function runStandardDesktopHost(
   const reopen = () => {
     if (phase === "ready") {
       if (!backend && options.manager) {
-        // biome-ignore lint/complexity/noVoid: The native event does not await a manager callback.
-        void options.manager({ ...context(), backend, startupError });
+        Promise.resolve()
+          .then(() => options.manager?.({ ...context(), backend, startupError }))
+          .catch(report("action"));
       } else {
-        open();
+        try {
+          open();
+        } catch (error) {
+          report("open")(error);
+        }
       }
     }
   };
@@ -583,7 +583,7 @@ export async function runStandardDesktopHost(
     identity = await sdk.Updater.getLocalInfo();
     development = await getDesktopDevelopment();
     options = await resolveOptions(sdk, identity, supplied, development);
-    const { config, root } = options;
+    const { config } = options;
     lifetime.signal.throwIfAborted();
     if (identity.identifier !== config.app.identifier) {
       throw new Error("SDK identity does not match desktop configuration.");
@@ -651,22 +651,14 @@ export async function runStandardDesktopHost(
         mimeType: item.mimeType,
       })),
     });
-    sdk.Updater.onStatusChange((status) => {
-      for (const listener of listeners) {
-        try {
-          listener(status);
-        } catch (error) {
-          report("updates")(error);
-        }
-      }
-    });
+    setDesktopHost(desktop);
     if (options.startServer !== false) {
       try {
         starting = startDesktopBackend(
           async () => {
-            await loadNativeEntry?.();
             const module = await options.load();
             state = module.default ? getDesktopState(module.default) : getDesktopEntry()?.state;
+            await loadNativeEntry?.();
             return module;
           },
           options.dataDir,
@@ -683,70 +675,10 @@ export async function runStandardDesktopHost(
       }
     }
     lifetime.signal.throwIfAborted();
-    const image = config.tray?.[trayPlatform()];
-    if (image) {
-      tray = new sdk.Tray({
-        image: resolve(
-          options.mode === "dev" ? root : join(dirname(Bun.main), "../furin"),
-          image.image
-        ),
-        template: "template" in image && image.template === true,
-        title: identity.channel === "dev" ? "DEV" : "",
-        width: 18,
-        height: 18,
-      });
-      tray.setMenu(
-        menus([
-          ...(options.manager
-            ? [{ label: "Servers…", onSelect: () => options.manager?.({ ...context(), backend }) }]
-            : []),
-          ...((backend ? state?.hooks?.tray?.(context()) : undefined) ?? [
-            { label: `Open ${identity.name}`, onSelect: () => open() },
-            { label: "Open in browser", onSelect: () => desktop.browser.open() },
-            { type: "divider" },
-            { label: `Quit ${identity.name}`, onSelect: () => desktop.quit() },
-          ]),
-        ])
-      );
-      tray.on("tray-clicked", dispatch);
-    }
-    if (process.platform !== "linux") {
-      sdk.ApplicationMenu.setApplicationMenu(
-        menus([
-          ...(options.manager
-            ? [
-                {
-                  label: "Servers",
-                  submenu: [
-                    {
-                      label: "Servers…",
-                      accelerator: "CmdOrCtrl+Shift+S",
-                      onSelect: () => options.manager?.({ ...context(), backend }),
-                    },
-                  ],
-                },
-              ]
-            : []),
-          ...((backend ? state?.hooks?.menus?.(context()) : undefined) ?? [
-            {
-              label: identity.name,
-              submenu: [{ role: "about" }, { type: "divider" }, { role: "quit" }],
-            },
-            {
-              label: "Edit",
-              submenu: ["undo", "redo", "cut", "copy", "paste", "selectAll"].map((role) => ({
-                role,
-              })),
-            },
-          ]),
-        ])
-      );
-      sdk.ApplicationMenu.on("application-menu-clicked", dispatch);
-    }
     phase = "ready";
     await flush();
     await options.manager?.({ ...context(), backend, startupError });
-    if (backend && windowRequested) {
+    if (backend) {
       open();
     }
     if (options.openBrowser && backend) {

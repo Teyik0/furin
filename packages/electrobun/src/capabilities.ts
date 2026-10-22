@@ -1,44 +1,11 @@
+import type { BrowserWindow, WindowOptionsType } from "electrobun/main";
+import type { RPCWithTransport } from "electrobun/main/rpc";
+
 export interface DesktopIdentity {
   channel: string;
   identifier: string;
   name: string;
   version: string;
-}
-
-export interface DirectoryOptions {
-  startingFolder?: string;
-}
-
-export interface MessageOptions {
-  buttons?: string[];
-  cancelId?: number;
-  defaultId?: number;
-  detail?: string;
-  message: string;
-  title: string;
-  type: "info" | "warning" | "error" | "question";
-}
-
-export interface NotificationOptions {
-  body?: string;
-  silent?: boolean;
-  subtitle?: string;
-  title: string;
-}
-
-export interface NativeUpdateInfo {
-  error: string;
-  hash: string;
-  updateAvailable: boolean;
-  updateReady: boolean;
-  version: string;
-}
-
-export interface NativeUpdateStatus {
-  details?: { progress?: number; errorMessage?: string };
-  message: string;
-  status: string;
-  timestamp: number;
 }
 
 export type OpenEvent = { type: "url"; url: string } | { type: "file"; path: string };
@@ -55,33 +22,31 @@ export interface DesktopSnapshot {
   windows: number;
 }
 
-export interface DesktopCapabilities {
+/** SDK options for an authenticated local window. Furin owns its URL and navigation boundary. */
+export type DesktopWindowOptions<T extends RPCWithTransport = RPCWithTransport> = Omit<
+  Partial<WindowOptionsType<T>>,
+  "url" | "html" | "navigationRules" | "allowedProtocols" | "viewsRoot"
+>;
+
+export interface DesktopContext {
   associations: {
     read: (target: AssociationTarget) => Promise<AssociationResult>;
     requestDefault: (target: AssociationTarget) => Promise<AssociationResult>;
   };
   browser: { open: (destination?: string) => boolean };
-  dialogs: {
-    selectDirectory: (options?: DirectoryOptions) => Promise<string | null>;
-    message: (options: MessageOptions) => Promise<{ response: number }>;
-  };
-  notifications: { show: (options: NotificationOptions) => void };
+  open: () => BrowserWindow;
   quit: () => Promise<void>;
   restart: () => Promise<void>;
-  shell: {
-    openExternal: (url: string) => boolean;
-    openPath: (path: string) => boolean;
-    showItemInFolder: (path: string) => void;
-  };
   snapshot: () => DesktopSnapshot;
-  updates: {
-    check: () => Promise<NativeUpdateInfo>;
-    download: () => Promise<void>;
-    install: () => Promise<void>;
-    snapshot: () => NativeUpdateInfo;
-    subscribe: (listener: (status: NativeUpdateStatus) => void) => () => void;
+  updates: { install: () => Promise<void> };
+  readonly window: BrowserWindow | undefined;
+  windows: {
+    get: (name: string) => BrowserWindow | undefined;
+    create: <T extends RPCWithTransport>(
+      name: string,
+      options: DesktopWindowOptions<T> & { path: string }
+    ) => BrowserWindow<T>;
   };
-  window: { open: () => DesktopSnapshot; background: () => Promise<void> };
 }
 
 export type ApplicationRuntime =
@@ -89,44 +54,14 @@ export type ApplicationRuntime =
   | {
       kind: "desktop";
       identity: DesktopIdentity;
-      desktop: DesktopCapabilities;
+      desktop: DesktopContext;
       signal?: AbortSignal;
     };
 
-export interface StartupContext {
-  runtime: ApplicationRuntime;
-  signal: AbortSignal;
-}
-
-export interface ReadyBackend {
-  /** Trusted backend hooks only; never serialize this into browser data. */
-  cookie?: string;
-  origin: string;
-}
-
-export interface ReadyContext extends StartupContext {
-  backend: ReadyBackend;
-}
-
 export interface NativeActionContext {
-  desktop: DesktopCapabilities;
+  desktop: DesktopContext;
   identity: DesktopIdentity;
 }
-
-export type NativeMenuItem =
-  | { type: "divider" }
-  | {
-      label?: string;
-      role?: string;
-      accelerator?: string;
-      enabled?: boolean;
-      checked?: boolean;
-      submenu?: NativeMenuItem[];
-      onSelect?: (context: NativeActionContext) => unknown | Promise<unknown>;
-    };
-
-/** Native work that failed outside a request: open events, menu actions, update listeners, quit. */
-export type NativeOperation = "open" | "action" | "updates" | "quit";
 
 /** Facts the listener establishes before an application authenticates a network request. */
 export interface AdmissionContext {
@@ -155,16 +90,7 @@ export interface DesktopAppOptions {
   background?: () => boolean;
   /** Read once by the desktop host after startup hooks and before it listens. */
   listen?: () => DesktopListen;
-  menus?: (context: NativeActionContext) => NativeMenuItem[];
-  /**
-   * Receives native failures that have no HTTP response to carry them. The error
-   * is unredacted: it may contain open-event URLs, so sanitize before persisting.
-   */
-  onError?: (context: { operation: NativeOperation; error: unknown }) => void;
   onOpen?: (context: NativeActionContext & { event: OpenEvent }) => void | Promise<void>;
-  onReady?: (context: ReadyContext) => void | Promise<void>;
-  onShutdown?: (context: StartupContext) => void | Promise<void>;
-  onStartup?: (context: StartupContext) => void | Promise<void>;
   restrictWebToLoopback?: boolean;
-  tray?: (context: NativeActionContext) => NativeMenuItem[];
+  window?: DesktopWindowOptions;
 }

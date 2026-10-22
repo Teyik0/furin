@@ -20,11 +20,10 @@ test("startup preserves native policy and cleanup failures while closing the lis
     const failure: unknown = await startDesktopBackend(
       () =>
         Promise.resolve({
-          default: app,
-          onShutdown: () => {
+          default: app.onStop(() => {
             shutdowns += 1;
             throw cleanupError;
-          },
+          }),
         }),
       data,
       "build"

@@ -8,7 +8,6 @@ test("desktop versions accept prerelease and build metadata together", () => {
       identifier: "local.furin.relay",
       version: "1.2.3-beta.1+build.42",
     },
-    window: { width: 960, height: 720 },
   };
   expect(defineDesktopConfig(config)).toEqual(config);
 });
@@ -18,41 +17,31 @@ test("desktop config rejects dot package segments", () => {
     expect(() =>
       defineDesktopConfig({
         app: { name: "Relay", identifier: "local.furin.relay" },
-        window: { width: 960, height: 720 },
         external: [name],
       })
     ).toThrow("package names");
   }
 });
 
-test("desktop config preserves the public single-window contract", () => {
+test("desktop config preserves the SDK packaging without a window declaration", () => {
   const config = {
     app: { name: "Relay", identifier: "local.furin.relay" },
-    window: { width: 960, height: 720 },
     external: ["@fixture/package", "alias-a", "package.name", "_private"],
   };
   expect(defineDesktopConfig(config)).toEqual(config);
 });
 
-test("desktop config rejects invalid dimensions and identifiers", () => {
+test("desktop config rejects invalid identifiers", () => {
   expect(() =>
     defineDesktopConfig({
       app: { name: "Relay", identifier: "../relay" },
-      window: { width: 960, height: 720 },
     })
   ).toThrow("identifier");
-  expect(() =>
-    defineDesktopConfig({
-      app: { name: "Relay", identifier: "local.furin.relay" },
-      window: { width: 0, height: 720 },
-    })
-  ).toThrow("width");
 });
 
 test("desktop configuration rejects unsupported main processes and empty entrypoints", () => {
   const config = {
     app: { name: "Relay", identifier: "local.furin.relay" },
-    window: { width: 960, height: 720 },
   };
   expect(() => validateDesktopConfig({ ...config, build: { mainProcess: "cottontail" } })).toThrow(
     'must be "bun"'
@@ -77,7 +66,6 @@ test("SDK additions reject malformed schemes, copy paths and signing flags", () 
     expect(() =>
       validateDesktopConfig({
         app: { name: "Tofu", identifier: "app.tofu.dev" },
-        window: { width: 1400, height: 940 },
         ...settings,
       })
     ).toThrow();

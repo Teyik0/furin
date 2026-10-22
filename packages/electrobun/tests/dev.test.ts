@@ -73,7 +73,6 @@ for (const rootData of [false, true]) {
         join(root, "furin.config.ts"),
         `export default { serverEntry: "src/server/index.tsx", desktop: {
         app: { name: "Fixture", identifier: "local.furin.fixture" },
-        window: { width: 800, height: 600 },
         dataDir: ${JSON.stringify(rootData ? root : join(root, "storage/database"))}
       } };`
       );
@@ -190,10 +189,10 @@ test("dev helper keeps consuming CWD and drains through the control file without
     import { createDesktopApp } from ${JSON.stringify(Bun.resolveSync("@teyik0/furin-electrobun/server", import.meta.dir))};
     export default createDesktopApp().get("/", () => ({
       cwd: process.cwd(), data: process.env.FURIN_APP_DATA_DIR
-    }));
-    export async function onShutdown() {
+    })).onStop(async () => {
       await Bun.write(${JSON.stringify(join(root, "closed"))}, "closed");
-    }
+    });
+
   `
   );
   const dataDir = join(root, "data");
@@ -201,7 +200,6 @@ test("dev helper keeps consuming CWD and drains through the control file without
     root,
     {
       app: { name: "Fixture", identifier: "local.furin.fixture", version: "1.0.0" },
-      window: { width: 800, height: 600 },
       dataDir,
     },
     { mode: "dev", root, serverEntry: entry }
@@ -251,7 +249,7 @@ test("dev helper keeps consuming CWD and drains through the control file without
   }
 });
 
-test("dev supervisor terminates its ready worker when onShutdown holds an active handle", async () => {
+test("dev supervisor terminates its ready worker when Elysia cleanup holds an active handle", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-dev-hung-"));
   let pid: number | undefined;
   try {
@@ -260,7 +258,6 @@ test("dev supervisor terminates its ready worker when onShutdown holds an active
       join(root, "furin.config.ts"),
       `export default { serverEntry: "server.ts", desktop: {
       app: { name: "Fixture", identifier: "local.furin.fixture" },
-      window: { width: 800, height: 600 },
       dataDir: ${JSON.stringify(join(root, ".data"))}
     } };`
     );
@@ -270,12 +267,12 @@ test("dev supervisor terminates its ready worker when onShutdown holds an active
       import { writeFileSync } from "node:fs";
       import { createDesktopApp } from ${JSON.stringify(Bun.resolveSync("@teyik0/furin-electrobun/server", import.meta.dir))};
       writeFileSync(${JSON.stringify(join(root, ".worker.pid"))}, String(process.pid));
-      export default createDesktopApp().get("/", () => "ready");
-      export function onShutdown() {
+      export default createDesktopApp().get("/", () => "ready").onStop(() => {
         writeFileSync(${JSON.stringify(join(root, ".cleanup"))}, "started");
         setInterval(() => {}, 1000);
         return new Promise(() => {});
-      }
+      });
+
     `
     );
     // The SDK command boundary exits like a closed window; no GUI is launched.
@@ -314,15 +311,14 @@ test("dev helper reports cleanup failure and exits with status one", async () =>
     entry,
     `
     import { createDesktopApp } from ${JSON.stringify(Bun.resolveSync("@teyik0/furin-electrobun/server", import.meta.dir))};
-    export default createDesktopApp().get("/", () => "ready");
-    export function onShutdown() { throw new Error("resource close failed"); }
+    export default createDesktopApp().get("/", () => "ready").onStop(() => { throw new Error("resource close failed"); });
+
   `
   );
   const generated = await prepareDesktop(
     root,
     {
       app: { name: "Fixture", identifier: "local.furin.fixture", version: "1.0.0" },
-      window: { width: 800, height: 600 },
       dataDir: join(root, "data"),
     },
     { mode: "dev", root, serverEntry: entry }

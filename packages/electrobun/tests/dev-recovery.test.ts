@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installSdk, sdkRunHeader } from "./fixtures/sdk";
 
-async function fixture(initialValue: string) {
+async function fixture(initialValue: string, nativeAlias?: boolean) {
   const root = await mkdtemp(join(tmpdir(), "furin-dev-recovery-"));
   await mkdir(join(root, "src"));
   await mkdir(join(root, "node_modules/@teyik0"), { recursive: true });
@@ -27,7 +27,8 @@ async function fixture(initialValue: string) {
     join(root, "furin.config.ts"),
     `export default {desktop:{
       app:{name:"Recovery",identifier:"local.furin.recovery"},
-      window:{width:800,height:600},dataDir:${JSON.stringify(join(root, ".data"))}
+      ${nativeAlias ? `build:{bun:{entrypoint:"src/desktop.ts",alias:{"native-helper":${JSON.stringify(join(root, "src/native-helper.ts"))}}}},` : ""}
+      dataDir:${JSON.stringify(join(root, ".data"))}
     }};`
   );
   await writeFile(join(root, "src/value.ts"), initialValue);
@@ -38,14 +39,33 @@ async function fixture(initialValue: string) {
     import {appendFileSync} from "node:fs";
     import {value} from "./value";
     let started = false;
-    export default new Elysia().use(desktopApp({
-      onStartup(){started=true;appendFileSync(${JSON.stringify(join(root, ".starts"))}, "start\\n");},
-      onShutdown(){appendFileSync(${JSON.stringify(join(root, ".stops"))}, "stop\\n");}
-    })).get("/",()=>({value,started,pid:process.pid}));
+    export default new Elysia().use(desktopApp()).onStart(() => {started=true;appendFileSync(${JSON.stringify(join(root, ".starts"))}, "start\\n");}).onStop(() => {appendFileSync(${JSON.stringify(join(root, ".stops"))}, "stop\\n");}).get("/",()=>({value,started,pid:process.pid}));
     if(import.meta.main) throw new Error("Launcher evaluated the application");`
   );
   await installSdk(root);
   await writeFile(join(root, "node_modules/electrobun/bin/electrobun.cjs"), sdkRunHeader(root));
+  if (nativeAlias) {
+    await writeFile(join(root, "src/native-helper.ts"), 'export const value = "native first";');
+    await writeFile(
+      join(root, "src/desktop.ts"),
+      `import {value} from "native-helper";
+      import {ApplicationMenu} from "electrobun/main";
+      import {appendFileSync} from "node:fs";
+      ApplicationMenu.setApplicationMenu([]);
+      appendFileSync(${JSON.stringify(join(root, ".native-values"))}, value+"\\n");`
+    );
+    // Exercise the SDK command boundary with its actual Bun alias build option.
+    await writeFile(
+      join(root, "node_modules/electrobun/bin/electrobun.cjs"),
+      sdkRunHeader(root).replace(
+        'await import(require("node:path").resolve(generated, config.build.bun.entrypoint));',
+        `const result = await Bun.build({entrypoints:[generated+"/main.ts"],target:"bun",plugins:[{name:"sdk-alias",setup(build){build.onResolve({filter:/.*/},args=>{const target=config.build.bun.alias?.[args.path];if(target)return {path:target};});}}]});
+        if (!result.success) throw new AggregateError(result.logs);
+        await Bun.write(generated+"/native-bundle.js",result.outputs[0]);
+        await import(generated+"/native-bundle.js");`
+      )
+    );
+  }
   const child = Bun.spawn([process.execPath, "--hot", "src/server.ts"], {
     cwd: root,
     stdin: "ignore",
@@ -183,6 +203,35 @@ test("Ctrl-C stops the supervisor while it waits for a compilation repair", asyn
     await dev.compilationFailed("value.ts");
     await dev.stop();
     expect(dev.child.signalCode).toBeNull();
+  } finally {
+    await dev.close();
+  }
+}, 25_000);
+
+test("native aliased helper edits restart once while frontend edits retain the process", async () => {
+  const dev = await fixture('export const value = "first";', true);
+  try {
+    const first = await dev.ready(undefined);
+    await writeFile(join(dev.root, "src/frontend.ts"), "export const label = 1;");
+    await Bun.sleep(500);
+    expect(await Bun.file(join(dev.root, ".starts")).text()).toBe("start\n");
+    const unchanged = await (
+      await fetch(first.origin, { headers: { cookie: first.cookie } })
+    ).json();
+    expect(unchanged).toHaveProperty("pid", first.pid);
+    await writeFile(
+      join(dev.root, "src/native-helper.ts"),
+      'export const value = "native changed";'
+    );
+    const next = await dev.ready(first.url);
+    expect(next.pid).not.toBe(first.pid);
+    await Bun.sleep(500);
+    expect(await Bun.file(join(dev.root, ".native-values")).text()).toBe(
+      "native first\nnative changed\n"
+    );
+    expect(await Bun.file(join(dev.root, ".starts")).text()).toBe("start\nstart\n");
+    expect(await Bun.file(join(dev.root, ".stops")).text()).toBe("stop\n");
+    await dev.stop();
   } finally {
     await dev.close();
   }

@@ -10,7 +10,6 @@ import { loadCliConfig } from "./support/core";
 test("one Furin configuration preserves typed desktop settings for both CLIs", async () => {
   const desktop = defineDesktopConfig({
     app: { name: "Unified", identifier: "local.furin.unified" },
-    window: { width: 900, height: 700 },
     build: { bun: { entrypoint: "src/host.ts" } },
   });
   const config = defineConfig({ rootDir: "app", serverEntry: "server.ts", desktop });
@@ -42,7 +41,6 @@ test("the former standalone desktop configuration is not a supported input", asy
       join(root, "furin.desktop.config.ts"),
       `export default {
       app: { name: "Old", identifier: "local.furin.old" },
-      window: { width: 900, height: 700 }
     };`
     );
     await expect(loadDesktopConfig(root)).rejects.toThrow("furin.config.ts");

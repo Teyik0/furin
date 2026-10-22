@@ -1,5 +1,5 @@
 /** Shared across the separately bundled app artifact and SDK host. No Elysia import. */
-import type { ApplicationRuntime, DesktopAppOptions, ReadyBackend } from "./capabilities";
+import type { ApplicationRuntime, DesktopAppOptions, DesktopContext } from "./capabilities";
 import type { DesktopApp } from "./runtime";
 
 export type DesktopMode = "dev" | "build";
@@ -11,9 +11,8 @@ export interface DesktopState {
   hooks?: DesktopAppOptions;
   listening?: Promise<void>;
   paused?: boolean;
-  ready?: (backend: ReadyBackend) => Promise<void>;
+  ready?: () => Promise<void>;
   runtime?: ApplicationRuntime;
-  start: (signal?: AbortSignal) => Promise<void>;
   stop: () => Promise<void>;
   validate: (mode: DesktopMode) => Promise<() => void>;
 }
@@ -78,4 +77,16 @@ export function activateDesktopApp(
   }
   state.guard = guard;
   return state.validate(mode);
+}
+
+const hostKey: unique symbol = Symbol.for("@teyik0/furin-electrobun/host/v1");
+const hostShared = globalThis as typeof globalThis & { [hostKey]?: DesktopContext };
+
+export function setDesktopHost(desktop: DesktopContext | undefined): void {
+  hostShared[hostKey] = desktop;
+}
+
+/** The live controller is shared by native modules and separately bundled Elysia plugins. */
+export function getDesktopHost(): DesktopContext | null {
+  return hostShared[hostKey] ?? null;
 }

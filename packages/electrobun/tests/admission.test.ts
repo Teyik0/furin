@@ -205,13 +205,11 @@ test("the host refuses to open when the native cookie API drops HttpOnly", async
 test("headless TLS readiness retains the listener scheme", async () => {
   const ready = Promise.withResolvers<string>();
   const app = new Elysia()
-    .use(
-      desktopApp({
-        onReady({ backend }) {
-          ready.resolve(backend.origin);
-        },
-      })
-    )
+    .use(desktopApp())
+    .onStart((instance) => {
+      const backend = { origin: instance.server?.url.origin ?? "" };
+      ready.resolve(backend.origin);
+    })
     .get("/", () => "ready");
   try {
     app.listen({

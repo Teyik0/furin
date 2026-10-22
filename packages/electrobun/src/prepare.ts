@@ -1,9 +1,17 @@
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join, posix, relative, resolve, win32 } from "node:path";
-import type { DesktopConfig } from "./config";
+import { type DesktopConfig, validateDesktopConfig } from "./config";
 import { copyExternalPackages } from "./external";
 
 // Shipped sources the generated host runs, also when this module is bundled into dist/.
+const RESERVED_COPY_PATHS = [
+  "furin",
+  "bun/furin-host.json",
+  "bun/native-open.js",
+  "bun/native-restart.js",
+  "bun/index.js",
+];
+
 const SOURCES = resolve(import.meta.dir, "../src");
 
 export interface DesktopPreparation {
@@ -25,6 +33,7 @@ export async function prepareDesktop(
   config: DesktopConfig & { app: DesktopConfig["app"] & { version: string } },
   options: DesktopPreparation
 ): Promise<string> {
+  validateDesktopConfig(config);
   const generated = join(cwd, ".furin/electrobun");
   await mkdir(generated, { recursive: true });
   if (options.mode === "build") {
@@ -104,10 +113,7 @@ export async function prepareDesktop(
         posix.isAbsolute(target) ||
         win32.isAbsolute(target) ||
         reserved === "bun" ||
-        reserved === "bun/furin-host.json" ||
-        reserved.startsWith("bun/furin-host.json/") ||
-        reserved === "furin" ||
-        reserved.startsWith("furin/")
+        RESERVED_COPY_PATHS.some((path) => reserved === path || reserved.startsWith(`${path}/`))
       ) {
         throw new Error("SDK copy destinations must stay outside the reserved Furin artifact.");
       }
@@ -118,6 +124,7 @@ export async function prepareDesktop(
   const win = config.build?.win;
   const linux = config.build?.linux;
   const sdkConfig = {
+    ...config,
     app: {
       ...config.app,
       urlSchemes: config.app?.urlSchemes,
@@ -128,8 +135,26 @@ export async function prepareDesktop(
       })),
     },
     build: {
+      ...config.build,
+      views:
+        config.build?.views &&
+        Object.fromEntries(
+          Object.entries(config.build.views).map(([name, view]) => [
+            name,
+            { ...view, entrypoint: resolve(options.root, view.entrypoint) },
+          ])
+        ),
       mainProcess: "bun",
       bun: {
+        ...config.build?.bun,
+        alias:
+          config.build?.bun?.alias &&
+          Object.fromEntries(
+            Object.entries(config.build.bun.alias).map(([name, target]) => [
+              name,
+              target.startsWith(".") ? resolve(options.root, target) : target,
+            ])
+          ),
         entrypoint: "main.ts",
         external: config.build?.bun?.external,
       },
@@ -141,23 +166,35 @@ export async function prepareDesktop(
         ...copy,
       },
       mac: {
-        ...mac,
         ...platform,
+        ...mac,
         ...(mac?.icons ? { icons: resolve(options.root, mac.icons) } : {}),
       },
-      win: { ...win, ...platform, ...(win?.icon ? { icon: resolve(options.root, win.icon) } : {}) },
+      win: { ...platform, ...win, ...(win?.icon ? { icon: resolve(options.root, win.icon) } : {}) },
       linux: {
-        ...linux,
         ...platform,
+        ...linux,
         ...(linux?.icon ? { icon: resolve(options.root, linux.icon) } : {}),
       },
     },
-    runtime: { exitOnLastWindowClosed: false },
+    runtime: { ...config.runtime, exitOnLastWindowClosed: false },
+    scripts:
+      config.scripts &&
+      Object.fromEntries(
+        Object.entries(config.scripts).map(([name, path]) => [name, resolve(options.root, path)])
+      ),
     release: config.release,
   };
+  // Furin-only policy never reaches the SDK config.
+  const {
+    dataDir: _dataDir,
+    external: _external,
+    protocols: _protocols,
+    ...nativeConfig
+  } = sdkConfig;
   await writeFile(
     join(generated, "electrobun.config.ts"),
-    `export default ${JSON.stringify(sdkConfig, null, 2)};\n`
+    `export default ${JSON.stringify(nativeConfig, null, 2)};\n`
   );
   return generated;
 }

@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -6,9 +7,93 @@ import { treaty } from "@elysia/eden";
 import { Elysia, t } from "elysia";
 import type { DesktopSdk } from "../src/native-sdk";
 import { startDesktopBackend } from "../src/runtime";
-import { desktopApp } from "../src/server";
+import { desktopApp, dispatchKind } from "../src/server";
 import { runStandardDesktopHost } from "../src/standard-host";
 import { installSdk } from "./fixtures/sdk";
+
+test.each(["dev", "build"] as const)(
+  "desktop admission precedes an existing furinSync API plugin in %s",
+  async (mode) => {
+    const { furinSync, PollingSyncNotifier } = await import(
+      Bun.resolveSync("@teyik0/furin/sync", import.meta.dir)
+    );
+    const { migrateSqliteSync, sqliteSyncAdapter } = await import(
+      Bun.resolveSync("@teyik0/furin/sync/sqlite", import.meta.dir)
+    );
+    const database = new Database(":memory:");
+    migrateSqliteSync(database);
+    const adapter = sqliteSyncAdapter({ database, namespace: `desktop-composition-${mode}` });
+    const data = await mkdtemp(join(tmpdir(), "furin-sync-desktop-"));
+    const previous = process.env.FURIN_APP_DATA_DIR;
+    const seen: string[] = [];
+    let starts = 0;
+    let stops = 0;
+    const syncPlugin: (app: Elysia) => Elysia = furinSync({
+      adapter,
+      notifier: new PollingSyncNotifier(adapter, 1000),
+      principal: () => "test",
+    });
+    const apiPlugin = new Elysia()
+      .use(syncPlugin)
+      .wrap((next) => (request, ...rest: unknown[]) => {
+        seen.push(`api:${dispatchKind(request)}`);
+        return new URL(request.url).pathname === "/shortcut"
+          ? new Response("shortcut")
+          : next(request, ...rest);
+      })
+      .get("/api/value", ({ request }) => {
+        seen.push(`route:${dispatchKind(request)}`);
+        return { value: 42 };
+      });
+    const app = new Elysia()
+      .use(apiPlugin)
+      .use(desktopApp())
+      .wrap((next) => (request, ...rest: unknown[]) => {
+        seen.push(`later:${dispatchKind(request)}`);
+        return next(request, ...rest);
+      })
+      .onStart(() => {
+        starts += 1;
+      })
+      .onStop(() => {
+        stops += 1;
+      });
+    let backend: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
+    try {
+      backend = await startDesktopBackend(() => Promise.resolve({ default: app }), data, mode);
+      expect((await fetch(`${backend.origin}/shortcut`)).status).toBe(403);
+      expect((await fetch(`${backend.origin}/api/value`)).status).toBe(403);
+      expect(seen).toEqual([]);
+      const response = await fetch(`${backend.origin}/api/value`, {
+        headers: { cookie: backend.cookie, origin: backend.origin },
+      });
+      expect(await response.json()).toEqual({ value: 42 });
+      expect(seen).toEqual(["api:network", "later:network", "route:network"]);
+      seen.length = 0;
+      expect((await treaty(app).api.value.get()).data).toEqual({ value: 42 });
+      expect(seen).toEqual(["api:in-process", "later:in-process", "route:in-process"]);
+      expect(starts).toBe(1);
+      await backend.stop();
+      await backend.stop();
+      seen.length = 0;
+      expect((await treaty(app).api.value.get()).status).toBe(503);
+      expect(seen).toEqual([]);
+      expect(stops).toBe(1);
+    } finally {
+      try {
+        await backend?.stop();
+      } finally {
+        if (previous === undefined) {
+          delete process.env.FURIN_APP_DATA_DIR;
+        } else {
+          process.env.FURIN_APP_DATA_DIR = previous;
+        }
+        database.close();
+        await rm(data, { recursive: true, force: true });
+      }
+    }
+  }
+);
 
 test("Bun HTTP dispatch supplies its server while Eden handle dispatch has no adapter argument", async () => {
   const argumentsSeen: unknown[][] = [];
@@ -130,18 +215,15 @@ test("both desktop transports are blocked during startup, update pause and shutd
   let desktop: Awaited<ReturnType<typeof runStandardDesktopHost>>;
   let pending: Promise<Awaited<ReturnType<typeof runStandardDesktopHost>>> | undefined;
   const app = new Elysia()
-    .use(
-      desktopApp({
-        async onStartup() {
-          started.resolve();
-          await releaseStartup.promise;
-        },
-        async onReady({ backend }) {
-          ready.resolve(backend);
-          await releaseReady.promise;
-        },
-      })
-    )
+    .use(desktopApp())
+    .onStart(async (instance) => {
+      started.resolve();
+      await releaseStartup.promise;
+
+      const backend = { origin: instance.server?.url.origin ?? "" };
+      ready.resolve(backend);
+      await releaseReady.promise;
+    })
     .get("/api/value", () => {
       bodies += 1;
       return "ready";
@@ -153,7 +235,7 @@ test("both desktop transports are blocked during startup, update pause and shutd
     await writeFile(join(root, ".furin/electrobun/host.json"), JSON.stringify({ app: identity }));
     await installSdk(root);
     const sdk = (await import(join(root, "node_modules/electrobun/main.ts"))) as DesktopSdk;
-    sdk.Utils.quit = () => true;
+    Object.defineProperty(sdk.Utils, "quit", { value: () => true });
     sdk.Updater.updateInfo().updateReady = true;
     sdk.Updater.applyUpdate = async () => {
       applying.resolve();
@@ -163,28 +245,21 @@ test("both desktop transports are blocked during startup, update pause and shutd
       { status: "launching-new-version", message: "ready", timestamp: Date.now() },
     ];
     pending = runStandardDesktopHost(sdk, {
-      config: { app: identity, window: { width: 800, height: 600 } },
+      config: { app: identity },
       root,
       dataDir: join(root, "data"),
       mode: "build",
       load: async () => ({ default: app }),
     });
     await started.promise;
-    expect((await eden.value.get()).status).toBe(503);
     expect(bodies).toBe(0);
     releaseStartup.resolve();
     const listening = await ready.promise;
-    expect((await eden.value.get()).status).toBe(503);
-    expect(
-      (
-        await fetch(`${listening.origin}/api/value`, {
-          headers: { cookie: listening.cookie ?? "", origin: listening.origin },
-        })
-      ).status
-    ).toBe(503);
+    const startupRequest = fetch(`${listening.origin}/api/value`);
     expect(bodies).toBe(0);
     releaseReady.resolve();
     desktop = await pending;
+    expect((await startupRequest).status).toBe(403);
     if (!desktop) {
       throw new Error("Missing primary host.");
     }

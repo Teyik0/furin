@@ -17,16 +17,39 @@ test
     const old = fixture.launch();
     let replacement: { origin: string; cookie: string; pid: number; dataDir: string } | undefined;
     try {
+      const sessions = new Map<
+        number,
+        { origin: string; pid: number; dataDir: string; cookie: string }
+      >();
+      const consumedWindows = new Set<string>();
       const read = async () => {
         const file = Bun.file(join(fixture.root, "backend.json"));
-        return (await file.exists())
-          ? ((await file.json()) as {
-              origin: string;
-              cookie: string;
-              pid: number;
-              dataDir: string;
-            })
-          : undefined;
+        if (!(await file.exists())) {
+          return;
+        }
+        const value = (await file.json()) as { origin: string; pid: number; dataDir: string };
+        const cached = sessions.get(value.pid);
+        if (cached) {
+          return cached;
+        }
+        const windowUrl = Bun.file(join(fixture.root, "window-url"));
+        if (!(await windowUrl.exists())) {
+          return;
+        }
+        const url = await windowUrl.text();
+        if (consumedWindows.has(url)) {
+          return;
+        }
+        const bootstrap = await fetch(url, { redirect: "manual" });
+        const location = bootstrap.headers.get("location");
+        const cookie = bootstrap.headers.get("set-cookie")?.split(";")[0];
+        if (!(location && cookie) || new URL(location).origin !== value.origin) {
+          return;
+        }
+        const session = { ...value, cookie };
+        consumedWindows.add(url);
+        sessions.set(value.pid, session);
+        return session;
       };
       const first = await waitForFixture(read, (value) => value !== undefined);
       if (!first) {

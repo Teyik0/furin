@@ -1,20 +1,36 @@
 import { type AnyElysia, Elysia } from "elysia";
 import { BunAdapter, isHTMLBundle } from "elysia/adapter/bun";
-import type { ElysiaConfig, EventScope } from "elysia/types";
-import type { DesktopAppOptions } from "./capabilities";
+import type {
+  DefinitionBase,
+  ElysiaConfig,
+  EphemeralType,
+  EventScope,
+  MetadataBase,
+  RouteBase,
+  SingletonBase,
+} from "elysia/types";
+import type { ApplicationRuntime, DesktopAppOptions } from "./capabilities";
 import {
   type DesktopMode,
   type DesktopState,
   getDesktopEntry,
+  getDesktopHost,
+  getDesktopState,
   registerDesktopApp,
 } from "./registry";
 
 export type {
   AdmissionContext,
   DesktopAppOptions,
+  DesktopContext,
   DesktopListen,
-  NativeOperation,
+  DesktopWindowOptions,
 } from "./capabilities";
+
+/** Dependency-only provider: no root registration, listener or native SDK initialization. */
+export const desktopContext = new Elysia({
+  name: "@teyik0/furin-electrobun/desktop-context",
+}).derive("global", () => ({ desktop: getDesktopHost() }));
 
 const HMR_ENTRY = /(?:^|\/)_bun_hmr_entry(?:\/index\.html)?$/;
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -78,11 +94,22 @@ function protectNetworkDispatch(
   });
 }
 
-/** Install on the original root before application wrappers or plugins. */
+/** Install on the original root before listening, ahead of application dispatch. */
 export function desktopApp(hooks?: DesktopAppOptions) {
-  return <App extends AnyElysia>(app: App): App => {
-    if (app["~ext"]?.hoc?.length || app.server) {
-      throw new Error("Install desktopApp() before application wrappers and before listening.");
+  return <
+    const Prefix extends string,
+    const Scope extends EventScope,
+    const Singleton extends SingletonBase,
+    const Definitions extends DefinitionBase,
+    const Metadata extends MetadataBase,
+    const Routes extends RouteBase,
+    const Ephemeral extends EphemeralType,
+    const Volatile extends EphemeralType,
+  >(
+    app: Elysia<Prefix, Scope, Singleton, Definitions, Metadata, Routes, Ephemeral, Volatile>
+  ) => {
+    if (app.server) {
+      throw new Error("Install desktopApp() before listening.");
     }
     const { "~config": options } = app;
     const validate = (mode: DesktopMode): void => {
@@ -107,9 +134,6 @@ export function desktopApp(hooks?: DesktopAppOptions) {
         }
       }
     };
-    const controller = new AbortController();
-    let { signal } = controller;
-    let starting: Promise<void> | undefined;
     let stopping: Promise<void> | undefined;
     let ready: Promise<void> | undefined;
     let available = false;
@@ -122,44 +146,14 @@ export function desktopApp(hooks?: DesktopAppOptions) {
       hooks,
       listening: listening?.promise,
       runtime: entry?.runtime,
-      start(parent) {
-        starting ??= Promise.resolve().then(async () => {
-          const native = state.runtime?.kind === "desktop" ? state.runtime.signal : undefined;
-          signal = AbortSignal.any([
-            controller.signal,
-            ...(parent ? [parent] : []),
-            ...(native ? [native] : []),
-          ]);
-          signal.throwIfAborted();
-          await hooks?.onStartup?.({
-            signal,
-            runtime: state.runtime ?? { kind: "server" },
-          });
-        });
-        return starting;
-      },
       stop() {
         closed.resolve();
-        stopping ??= Promise.resolve().then(async () => {
-          controller.abort();
-          await hooks?.onShutdown?.({
-            signal: controller.signal,
-            runtime: state.runtime ?? { kind: "server" },
-          });
-        });
+        stopping ??= Promise.resolve();
         return stopping;
       },
-      ready(backend) {
-        ready ??= Promise.resolve().then(async () => {
-          await hooks?.onReady?.({
-            backend,
-            signal,
-            runtime: state.runtime ?? { kind: "server" },
-          });
+      ready() {
+        ready ??= Promise.resolve().then(() => {
           available = true;
-          if (state.runtime?.kind === "desktop") {
-            state.runtime.desktop.window.open();
-          }
         });
         return ready;
       },
@@ -176,7 +170,9 @@ export function desktopApp(hooks?: DesktopAppOptions) {
       listening.promise.catch(() => undefined);
       const { listen } = app;
       app.listen = (listenOptions, callback) => {
-        controller.signal.throwIfAborted();
+        if (stopping) {
+          throw new Error("Desktop application is stopped.");
+        }
         // Validate synchronous native routes before Bun can open the socket.
         validate(entry.mode);
         return listen.call(app, listenOptions, (server) => {
@@ -196,11 +192,16 @@ export function desktopApp(hooks?: DesktopAppOptions) {
       if (denied) {
         return denied;
       }
-      if (stopping || state.paused || ((state.guard || starting) && !available)) {
+      if (stopping || state.paused || (state.guard && !available)) {
         return new Response("Application unavailable", { status: 503 });
       }
       return next(request, ...rest);
     });
+    // Elysia applies the first HOC outermost. Keep its origin metadata paired
+    // when moving admission ahead of wrappers inherited from earlier plugins.
+    const { hoc, hocOrigin } = app["~ext"] ?? {};
+    hoc?.unshift(...hoc.splice(-1));
+    hocOrigin?.unshift(...hocOrigin.splice(-1));
     app
       .onStart(async () => {
         try {
@@ -214,9 +215,8 @@ export function desktopApp(hooks?: DesktopAppOptions) {
           ) {
             throw new Error("restrictWebToLoopback requires a loopback listener hostname.");
           }
-          await state.start();
           if (!state.guard && app.server) {
-            await state.ready?.({ origin: app.server.url.origin });
+            await state.ready?.();
           }
         } catch (error) {
           listening?.reject(error);
@@ -225,7 +225,7 @@ export function desktopApp(hooks?: DesktopAppOptions) {
       })
       .onStop(() => state.stop());
     registerDesktopApp(app, state);
-    return app;
+    return app.use(desktopContext);
   };
 }
 
@@ -233,6 +233,11 @@ export function desktopApp(hooks?: DesktopAppOptions) {
 export function createDesktopApp<
   const Prefix extends string = "",
   const Scope extends EventScope = "local",
->(options?: ElysiaConfig<Prefix, Scope>): Elysia<Prefix, Scope> {
+>(options?: ElysiaConfig<Prefix, Scope>) {
   return desktopApp()(new Elysia<Prefix, Scope>(options));
+}
+
+/** Read the managed native context from ordinary Elysia lifecycle hooks. */
+export function getApplicationRuntime(app: object): ApplicationRuntime {
+  return getDesktopState(app)?.runtime ?? { kind: "server" };
 }

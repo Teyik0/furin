@@ -12,8 +12,7 @@ test("prepare exposes the projected SDK to TypeScript without copying its obsole
     await writeFile(
       join(root, "furin.config.ts"),
       `export default {
-      desktop: { app: { name: "Types", identifier: "local.furin.types" },
-        window: { width: 800, height: 600 }, build: { bun: { entrypoint: "host.ts" } } }
+      desktop: { app: { name: "Types", identifier: "local.furin.types" }, build: { bun: { entrypoint: "host.ts" } } }
     };`
     );
     await installSdk(root);

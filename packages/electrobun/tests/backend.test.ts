@@ -20,10 +20,9 @@ test("in-process Elysia owns one ephemeral listener, session and shutdown", asyn
       () => {
         importedData = process.env.FURIN_APP_DATA_DIR;
         return Promise.resolve({
-          default: app,
-          onShutdown: () => {
+          default: app.onStop(() => {
             shutdowns += 1;
-          },
+          }),
         });
       },
       data,
@@ -62,17 +61,19 @@ test("in-process Elysia owns one ephemeral listener, session and shutdown", asyn
 test("desktop rejects and cleans a server that booted during import", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-data-"));
   const previousData = process.env.FURIN_APP_DATA_DIR;
-  const app = new Elysia().get("/", () => "web").listen({ hostname: "127.0.0.1", port: 0 });
   let shutdowns = 0;
+  const app = new Elysia()
+    .onStop(() => {
+      shutdowns += 1;
+    })
+    .get("/", () => "web")
+    .listen({ hostname: "127.0.0.1", port: 0 });
   try {
     await expect(
       startDesktopBackend(
         () =>
           Promise.resolve({
             default: app,
-            onShutdown: () => {
-              shutdowns += 1;
-            },
           }),
         data,
         "build"
@@ -99,17 +100,15 @@ test("shutdown rejects after five seconds when a resource cleanup hangs", async 
     /* Keep a resource handle alive during the hung cleanup. */
   }, 1000);
   let shutdowns = 0;
+  const release = Promise.withResolvers<void>();
   try {
     const backend = await startDesktopBackend(
       () =>
         Promise.resolve({
-          default: app,
-          onShutdown: () => {
+          default: app.onStop(() => {
             shutdowns += 1;
-            return new Promise<void>(() => {
-              /* Deliberately never settles. */
-            });
-          },
+            return release.promise;
+          }),
         }),
       data,
       "build"
@@ -125,9 +124,10 @@ test("shutdown rejects after five seconds when a resource cleanup hangs", async 
     expect(outcome).toContain("5 seconds");
     expect(backend.stop()).toBe(stopped);
     expect(shutdowns).toBe(1);
-    expect(app.server).toBeUndefined();
+    await expect(fetch(app.server?.url ?? "http://127.0.0.1:1")).rejects.toThrow();
   } finally {
     clearInterval(handle);
+    release.resolve();
     await app.stop(true);
     if (previousData === undefined) {
       delete process.env.FURIN_APP_DATA_DIR;
@@ -155,11 +155,10 @@ test("callback readiness times out after thirty seconds and closes the listener 
   const startup = startDesktopBackend(
     () =>
       Promise.resolve({
-        default: app,
-        onShutdown: () => {
+        default: app.onStop(() => {
           shutdowns += 1;
           clearInterval(handle);
-        },
+        }),
       }),
     data,
     "build"
@@ -202,13 +201,13 @@ test("one startup budget bounds async plugin activation and never listens after 
   const startup = startDesktopBackend(
     () =>
       Promise.resolve({
-        default: app,
-        onStartup: () => {
-          startups += 1;
-        },
-        onShutdown: () => {
-          shutdowns += 1;
-        },
+        default: app
+          .onStart(() => {
+            startups += 1;
+          })
+          .onStop(() => {
+            shutdowns += 1;
+          }),
       }),
     data,
     "build"
@@ -226,14 +225,14 @@ test("one startup budget bounds async plugin activation and never listens after 
       Bun.sleep(31_000).then(() => "startup never settled"),
     ]);
     expect(outcome).toContain("30 seconds");
-    expect(shutdowns).toBe(1);
+    expect(shutdowns).toBe(0);
     expect(app.server).toBeUndefined();
     pending.resolve(plugin);
     await app.modules;
     await Bun.sleep(20);
     expect(startups).toBe(0);
     expect(app.server).toBeUndefined();
-    expect(shutdowns).toBe(1);
+    expect(shutdowns).toBe(0);
   } finally {
     pending.resolve(plugin);
     await observed;

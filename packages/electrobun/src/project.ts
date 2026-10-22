@@ -95,7 +95,6 @@ export async function initDesktop(root: string): Promise<void> {
   const slug = name.replace(/[^a-zA-Z0-9-]/g, "-");
   const config: DesktopConfig = {
     app: { name, identifier: `local.furin.${slug}` },
-    window: { width: 1024, height: 768 },
   };
   validateDesktopConfig(config);
   const settings = await preloadSettings(root);

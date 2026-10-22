@@ -40,8 +40,7 @@ test("native customization modules use the SDK without starting a host and resta
     await writeFile(
       join(root, "furin.config.ts"),
       `export default { desktop: {
-      app: { name: "Fixture", identifier: "local.furin.custom" },
-      window: { width: 800, height: 600 }, build: { bun: { entrypoint: "src/host.ts" } },
+      app: { name: "Fixture", identifier: "local.furin.custom" }, build: { bun: { entrypoint: "src/host.ts" } },
       dataDir: ${JSON.stringify(join(root, ".data"))}
     } };`
     );
@@ -57,11 +56,9 @@ test("native customization modules use the SDK without starting a host and resta
       import { Elysia } from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
       import { desktopApp } from ${JSON.stringify(Bun.resolveSync("@teyik0/furin-electrobun/server", import.meta.dir))};
       import { value } from "./value";
-      export default new Elysia().use(desktopApp({
-        async onShutdown() {
+      export default new Elysia().use(desktopApp()).onStop(async () => {
           await Bun.write(${JSON.stringify(join(root, ".closed"))}, String(process.pid));
-        }
-      })).get("/", () => ({ value, pid: process.pid, cwd: process.cwd(), args: process.execArgv }));
+        }).get("/", () => ({ value, pid: process.pid, cwd: process.cwd(), args: process.execArgv }));
     `
     );
     await writeFile(join(root, "tsconfig.json"), '{"extends":"./.furin/electrobun/tsconfig.json"}');

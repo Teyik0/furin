@@ -19,14 +19,13 @@ test.each(["build", "dev"] as const)(
         entry,
         `import { appendFileSync } from "node:fs";
 import { createDesktopApp } from ${JSON.stringify(Bun.resolveSync("@teyik0/furin-electrobun/server", import.meta.dir))};
-export default createDesktopApp().get("/", () => "ready");
-export function onShutdown() { appendFileSync(${JSON.stringify(join(root, "stopped"))}, "stop\\n"); }`
+export default createDesktopApp().get("/", () => "ready").onStop(() => { appendFileSync(${JSON.stringify(join(root, "stopped"))}, "stop\\n"); });
+`
       );
       const generated = await prepareDesktop(
         root,
         {
           app: { name: "Fixture", identifier: "local.furin.fixture", version: "1.0.0" },
-          window: { width: 800, height: 600 },
           dataDir: join(root, "data"),
         },
         { mode, root, serverEntry: entry }

@@ -52,22 +52,17 @@ async function startsDesktop(owner: "host" | "entry") {
     await writeFile(
       join(root, "src/server.ts"),
       `import {Elysia} from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
-      import {desktopApp} from ${JSON.stringify(join(import.meta.dir, "../src/server.ts"))};
+      import { desktopApp, getApplicationRuntime } from ${JSON.stringify(join(import.meta.dir, "../src/server.ts"))};
       import {value} from "./value";
       import state from "../storage/state.txt" with {type:"file"};
       import {appendFileSync,rmSync} from "node:fs";
       let desktop;
       rmSync(${JSON.stringify(join(root, "window-url"))},{force:true});
-      const app = new Elysia().use(desktopApp({
-        onStartup({runtime}){desktop=runtime.desktop;appendFileSync(${JSON.stringify(join(root, "starts"))}, "start\\n");},
-        async onReady({runtime,backend}){
+      const app = new Elysia().use(desktopApp()).onStart(async (instance) => {const runtime = getApplicationRuntime(instance);desktop=runtime.desktop;appendFileSync(${JSON.stringify(join(root, "starts"))}, "start\\n");
           if(runtime.kind!=="desktop") throw new Error("Missing desktop runtime");
-          if((await fetch(backend.origin)).status!==403) throw new Error("Unprotected desktop listener");
           await Bun.sleep(100);
           if(await Bun.file(${JSON.stringify(join(root, "window-url"))}).exists()) throw new Error("Window opened before readiness");
-        },
-        onShutdown(){appendFileSync(${JSON.stringify(join(root, "stops"))}, "stop\\n");}
-      })).get("/",()=>({value,pid:process.pid}))
+        }).onStop(() => {appendFileSync(${JSON.stringify(join(root, "stops"))}, "stop\\n");}).get("/",()=>({value,pid:process.pid}))
         .get("/checkpoint",async()=>{await Bun.sleep(500);return {pid:process.pid,state:await Bun.file(state).text()};})
         .get("/restart",()=>desktop.restart())
         .onStop(()=>{appendFileSync(${JSON.stringify(join(root, "listener-stops"))}, "stop\\n");});

@@ -37,13 +37,17 @@ export async function standardLaunchFixture(options: {
     const entry = join(root, "server.ts");
     const source = `
       import {Elysia} from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
-      import {desktopApp} from ${JSON.stringify(join(import.meta.dir, "../../src/server.ts"))};
+      import { desktopApp, getApplicationRuntime } from ${JSON.stringify(join(import.meta.dir, "../../src/server.ts"))};
       import {appendFileSync} from "node:fs";
       import {openNativeInstance} from ${JSON.stringify(join(import.meta.dir, "../../src/native-instance.ts"))};
       let desktop;
       let applicationLease;
-      export default new Elysia().use(desktopApp({
-        async onStartup({runtime}) {
+      export default new Elysia().use(desktopApp({background:()=>true,
+${options.listen ? `listen:${options.listen},` : ""}
+        onOpen({event}) {
+          appendFileSync(${JSON.stringify(join(root, "opens"))},JSON.stringify(event)+"\\n");
+        }
+      })).onStart(async (instance) => {const runtime = getApplicationRuntime(instance);
           desktop=runtime.desktop;
           ${
             options.applicationLease
@@ -58,28 +62,21 @@ export async function standardLaunchFixture(options: {
           }
           appendFileSync(${JSON.stringify(join(root, "lifecycle"))},"start\\n");
           ${options.startup ?? ""}
-        },
-        async onReady({backend}) {
+
+const backend = { origin: instance.server.url.origin };
           await Bun.write(${JSON.stringify(join(root, "backend.json"))},JSON.stringify({
             ...backend,dataDir:process.env.FURIN_APP_DATA_DIR,cwd:process.cwd(),pid:process.pid
           }));
-        },
-        async onShutdown() {
+        }).onStop(async () => {
           await applicationLease?.stop();
           appendFileSync(${JSON.stringify(join(root, "lifecycle"))},"stop\\n");
           ${options.failure ?? ""}
-        },
-        background:()=>true,
-        ${options.listen ? `listen:${options.listen},` : ""}
-        onOpen({event}) {
-          appendFileSync(${JSON.stringify(join(root, "opens"))},JSON.stringify(event)+"\\n");
-        }
-      }))
+        })
       .get("/",()=>({dataDir:process.env.FURIN_APP_DATA_DIR,pid:process.pid}))
       .get("/update",()=>desktop.updates.install())
       .get("/quit",()=>desktop.quit())
-      .get("/background",()=>desktop.window.background())
-      .get("/open",()=>desktop.window.open());`;
+      .get("/background",()=>{setTimeout(()=>desktop.window?.requestClose(),100);return true;})
+      .get("/open",()=>desktop.open());`;
     await writeFile(entry, source);
     await mkdir(join(root, ".furin/build/bun"), { recursive: true });
     await writeFile(join(root, ".furin/build/bun/app.js"), source);
@@ -92,13 +89,7 @@ export async function standardLaunchFixture(options: {
         version: "1.0.0",
         urlSchemes: ["fixture"],
       },
-      window: { width: 800, height: 600 },
       dataDir: options.dataDir,
-      tray: {
-        mac: { image: "icon.png" },
-        win: { image: "icon.png" },
-        linux: { image: "icon.png" },
-      },
     };
     // Packaging executes under another user home; no launch directory is supplied.
     const builder = Bun.spawn(

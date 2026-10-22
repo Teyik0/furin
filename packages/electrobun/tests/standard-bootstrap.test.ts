@@ -37,15 +37,15 @@ test("standard dev bootstrap loads SDK metadata before changing CWD and owns rea
     const backend = (await Bun.file(join(fixture.root, "backend.json")).json()) as {
       dataDir: string;
       cwd: string;
-      cookie: string;
     };
     const root = await realpath(fixture.root);
     expect(backend.dataDir).toBe(join(root, "state"));
     expect(await realpath(backend.cwd)).toBe(root);
     expect(await Bun.file(join(fixture.root, "opens")).text()).toContain("fixture://early");
     expect((await fetch(ready.origin)).status).toBe(403);
-    const call = (path: string) =>
-      fetch(ready.origin + path, { headers: { cookie: backend.cookie } });
+    const bootstrap = await fetch(ready.url, { redirect: "manual" });
+    const cookie = bootstrap.headers.get("set-cookie")?.split(";")[0] ?? "";
+    const call = (path: string) => fetch(ready.origin + path, { headers: { cookie } });
     expect(((await (await call("/")).json()) as { dataDir: string }).dataDir).toBe(backend.dataDir);
     await waitForFixture(() => Bun.file(join(fixture.root, "test-scripts")).exists(), Boolean);
     expect(await Bun.file(join(fixture.root, "test-scripts")).text()).toBe(
@@ -137,7 +137,6 @@ test.each([
         dataDir: string;
         cwd: string;
         origin: string;
-        cookie: string;
       };
       expect(backend.dataDir).toBe(expected);
       expect(await Bun.file(join(expected, "existing-data")).text()).toBe("preserved");
@@ -160,9 +159,11 @@ test.each([
           (value) => value.split("\n").length === 3
         );
         expect(await Bun.file(join(fixture.root, "lifecycle")).text()).toBe("start\n");
-        expect((await fetch(backend.origin, { headers: { cookie: backend.cookie } })).status).toBe(
-          200
-        );
+        const bootstrap = await fetch(await Bun.file(join(fixture.root, "window-url")).text(), {
+          redirect: "manual",
+        });
+        const cookie = bootstrap.headers.get("set-cookie")?.split(";")[0] ?? "";
+        expect((await fetch(backend.origin, { headers: { cookie } })).status).toBe(200);
       } finally {
         await secondary.stop("SIGTERM");
       }

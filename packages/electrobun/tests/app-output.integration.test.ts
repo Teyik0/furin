@@ -15,8 +15,7 @@ import { desktopApp } from ${JSON.stringify(resolve(import.meta.dir, "../src/ser
 
 const observed: string[] = [];
 const lifecycle = { setup: 0, cleanup: 0, shutdown: 0 };
-const app = new Elysia()
-  .use(desktopApp({ onShutdown: () => { lifecycle.shutdown += 1; } }))
+const app = new Elysia().use(desktopApp()).onStop(() => { lifecycle.shutdown += 1; })
   .wrap((next) => (request, server) => {
     const path = new URL(request.url).pathname;
     observed.push(path);
