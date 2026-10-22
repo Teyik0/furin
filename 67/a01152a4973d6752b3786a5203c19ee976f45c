@@ -1,0 +1,22 @@
+examples/electrobun-todo/tests/server.test.ts
+  s_530114f694e0f3::t_0f5a5cc9db4a40 8-12,22-23
+  s_530114f694e0f3::t_807f1fa3447ac9 13-21
+examples/electrobun-todo/src/api/modules/desktop/index.ts
+  s_530114f694e0f3::t_38be31032296a6 7-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "67a01152a4973d6752b3786a5203c19ee976f45c",
+  "prompts": {},
+  "sessions": {
+    "s_530114f694e0f3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1602d-6162-7d90-b458-1aea32cbf17b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
