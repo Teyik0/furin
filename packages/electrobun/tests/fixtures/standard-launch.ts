@@ -44,9 +44,6 @@ export async function standardLaunchFixture(options: {
       let applicationLease;
       export default new Elysia().use(desktopApp({background:()=>true,
 ${options.listen ? `listen:${options.listen},` : ""}
-        onOpen({event}) {
-          appendFileSync(${JSON.stringify(join(root, "opens"))},JSON.stringify(event)+"\\n");
-        }
       })).onStart(async (instance) => {const runtime = getApplicationRuntime(instance);
           desktop=runtime.desktop;
           ${
@@ -78,6 +75,14 @@ const backend = { origin: instance.server.url.origin };
       .get("/background",()=>{setTimeout(()=>desktop.window?.requestClose(),100);return true;})
       .get("/open",()=>desktop.open());`;
     await writeFile(entry, source);
+    await writeFile(
+      join(root, "desktop.ts"),
+      `import {appendFileSync} from "node:fs";
+      import Electrobun from "electrobun/main";
+      Electrobun.events.on("open-url", event => {
+        appendFileSync(${JSON.stringify(join(root, "opens"))},JSON.stringify(event.data)+"\\n");
+      });`
+    );
     await mkdir(join(root, ".furin/build/bun"), { recursive: true });
     await writeFile(join(root, ".furin/build/bun/app.js"), source);
     await writeFile(join(root, "native-test.js"), script);
@@ -90,6 +95,7 @@ const backend = { origin: instance.server.url.origin };
         urlSchemes: ["fixture"],
       },
       dataDir: options.dataDir,
+      build: { mainProcess: "bun", bun: { entrypoint: "desktop.ts" } },
     };
     // Packaging executes under another user home; no launch directory is supplied.
     const builder = Bun.spawn(
@@ -198,6 +204,7 @@ const backend = { origin: instance.server.url.origin };
             FIXTURE_APP_DATA: join(launchHome, "sdk-data"),
             FURIN_DESKTOP_DEV: options.mode === "dev" ? join(generated, "dev.json") : "",
             FURIN_NATIVE_TEST_SCRIPT: "",
+            FURIN_NATIVE_OPEN: "fixture://launch",
             ...env,
           },
         });

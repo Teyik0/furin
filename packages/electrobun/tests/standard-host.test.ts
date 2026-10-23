@@ -1,9 +1,11 @@
-import { expect, spyOn, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import type { BrowserWindow } from "electrobun/main";
 import { Elysia } from "elysia";
+import { forwardNativeOpen } from "../src/native-instance";
 import type { DesktopSdk } from "../src/native-sdk";
 import { desktopApp, getApplicationRuntime } from "../src/server";
 import { runStandardDesktopHost } from "../src/standard-host";
@@ -23,7 +25,6 @@ test("standard host lifecycle and successful update handoff", async () => {
   const scripts: string[] = [];
   const documents: (() => void)[] = [];
   const browserUrls: string[] = [];
-  const errors = spyOn(console, "error");
   let background = true;
   let quit: number | undefined;
   let authenticated: { origin: string; cookie: string } | undefined;
@@ -43,6 +44,10 @@ test("standard host lifecycle and successful update handoff", async () => {
   const sdk = {
     default: {
       events: {
+        events: { app: { openUrl: (data: { url: string }) => ({ name: "open-url", data }) } },
+        emitEvent(event: { name: string; data: { url: string } }) {
+          emit(event.name, event);
+        },
         on(name: string, callback: (event: unknown) => void) {
           const handlers = events.get(name) ?? [];
           handlers.push(callback);
@@ -158,19 +163,12 @@ test("standard host lifecycle and successful update handoff", async () => {
     .use(
       desktopApp({
         background: () => background,
-        onOpen({ event }) {
-          if (event.type === "url" && event.url === "fixture://broken") {
-            throw new Error("broken open");
-          }
-          phases.push(event.type === "url" ? event.url : event.path);
-        },
       })
     )
     .onStart((instance) => {
       const runtime = getApplicationRuntime(instance);
       expect(runtime.kind).toBe("desktop");
       phases.push("start");
-
       expect(windows).toHaveLength(0);
       phases.push("ready");
     })
@@ -183,29 +181,43 @@ test("standard host lifecycle and successful update handoff", async () => {
     });
   let desktop: Awaited<ReturnType<typeof runStandardDesktopHost>> | undefined;
   try {
-    desktop = await runStandardDesktopHost(sdk, {
-      config: {
-        app: identity,
-      },
-      root,
-      dataDir: root,
-      mode: "build",
-      load: async () => ({
-        default: app.onStop(() => {
-          phases.push("module-stop");
+    desktop = await runStandardDesktopHost(
+      sdk,
+      {
+        config: {
+          app: { ...identity, fileAssociations: [{ name: "Fixture", ext: ["tofu"] }] },
+        },
+        root,
+        dataDir: root,
+        mode: "build",
+        load: async () => ({
+          default: app.onStop(() => {
+            phases.push("module-stop");
+          }),
         }),
-      }),
-      testScript: "explicit native test",
-      openBrowser: true,
-    });
+        testScript: "explicit native test",
+        openBrowser: true,
+      },
+      () => {
+        expect(phases).toEqual([]);
+        sdk.default.events.on("open-url", (event: { data: { url: string } }) => {
+          phases.push(event.data.url);
+        });
+        return Promise.resolve();
+      }
+    );
     if (!desktop) {
       throw new Error("Expected the primary native instance.");
     }
     expect(typeof desktop.restart).toBe("function");
-    expect(phases).toEqual(["start", "ready", "fixture://early"]);
-    emit("open-url", { data: { url: "fixture://broken" } });
-    await Bun.sleep(10);
-    expect(errors).toHaveBeenCalledWith("[furin-electrobun] Native open failed.");
+    expect(phases).toEqual(["start", "ready"]);
+    emit("open-url", { data: { url: "fixture://native" } });
+    expect(phases).toEqual(["start", "ready", "fixture://native"]);
+    await Bun.sleep(0);
+    expect(phases).toEqual(["start", "ready", "fixture://native"]);
+    const path = join(root, "Some file.tofu");
+    expect(await forwardNativeOpen(root, identity, { type: "file", path })).toBe(true);
+    expect(phases.at(-1)).toBe(pathToFileURL(path).href);
     documents[0]?.();
     expect(scripts).toEqual(["explicit native test"]);
     const [first] = windows;
@@ -245,7 +257,7 @@ test("standard host lifecycle and successful update handoff", async () => {
     expect(windows).toHaveLength(2);
     expect(windows[1]?.url).not.toBe(first.url);
     background = false;
-    expect(desktop.window).toBe(windows[1]?.window);
+    expect(desktop.window).toBe(windows.at(1)?.window);
     await desktop.updates.install();
     expect(desktop.snapshot().phase).toBe("quitting");
     // The handoff itself drains the whole backend; the SDK may exit without another quit.
@@ -255,7 +267,6 @@ test("standard host lifecycle and successful update handoff", async () => {
     expect(quit).toBe(0);
     expect(phases.filter((phase) => phase === "stop")).toHaveLength(1);
   } finally {
-    errors.mockRestore();
     try {
       await desktop?.quit();
     } finally {

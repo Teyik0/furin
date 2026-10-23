@@ -6,7 +6,7 @@ The shared cross-bundle registry exposes one live controller through `getDesktop
 
 ## Startup and shutdown
 
-The host resolves SDK identity and runtime storage before claiming single-instance ownership. It queues OS inputs before asynchronous work, normalizes URL/file inputs and delivers `onOpen` serially after readiness, isolating callback errors. Secondary instances forward inputs to the owner.
+The host resolves SDK identity and runtime storage before claiming single-instance ownership. Launch inputs and inputs forwarded by secondary instances are delivered through the original SDK's `open-url` event after readiness; files use `file:` URLs. Native modules subscribe directly with `Electrobun.events.on("open-url", handler)`. Direct OS events follow the SDK lifecycle; application startup dependencies and asynchronous handler ordering are application-owned. Furin does not inspect native-module exports or provide an `onOpen` callback.
 
 The host loads the app and optional native integrations, installs session guards, awaits Elysia modules and every `.onStart()` hook, then creates main using the original SDK constructor. Elysia's successful listen callback is the readiness boundary. No window opens after failed or cancelled startup. `desktop.open()` throws before readiness instead of queueing a promise that could deadlock initialization.
 

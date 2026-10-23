@@ -90,7 +90,6 @@ export interface DesktopAppOptions {
   background?: () => boolean;
   /** Read once by the desktop host after startup hooks and before it listens. */
   listen?: () => DesktopListen;
-  onOpen?: (context: NativeActionContext & { event: OpenEvent }) => void | Promise<void>;
   restrictWebToLoopback?: boolean;
   window?: DesktopWindowOptions;
 }

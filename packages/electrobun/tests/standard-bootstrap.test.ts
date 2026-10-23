@@ -41,7 +41,7 @@ test("standard dev bootstrap loads SDK metadata before changing CWD and owns rea
     const root = await realpath(fixture.root);
     expect(backend.dataDir).toBe(join(root, "state"));
     expect(await realpath(backend.cwd)).toBe(root);
-    expect(await Bun.file(join(fixture.root, "opens")).text()).toContain("fixture://early");
+    expect(await Bun.file(join(fixture.root, "opens")).text()).toContain("fixture://launch");
     expect((await fetch(ready.origin)).status).toBe(403);
     const bootstrap = await fetch(ready.url, { redirect: "manual" });
     const cookie = bootstrap.headers.get("set-cookie")?.split(";")[0] ?? "";

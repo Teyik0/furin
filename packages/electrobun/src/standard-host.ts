@@ -42,8 +42,6 @@ export interface StandardHostOptions {
     context: NativeActionContext & { backend?: DesktopBackend; startupError?: string }
   ) => void | Promise<void>;
   mode: DesktopMode;
-  /** Return true when an app-private native event was handled by the manager. */
-  onOpen?: (context: NativeActionContext & { event: OpenEvent }) => boolean | Promise<boolean>;
   openBrowser?: boolean;
   root: string;
   /** A client-only host must not load the application module. */
@@ -153,25 +151,6 @@ export async function runStandardDesktopHost(
   loadNativeEntry?: () => Promise<unknown>
 ): Promise<DesktopContext | undefined> {
   const queued: OpenEvent[] = [];
-  let flush = () => Promise.resolve();
-  const capture = (event: unknown) => {
-    if (!(object(event) && object(event.data)) || typeof event.data.url !== "string") {
-      return;
-    }
-    try {
-      const url = new URL(event.data.url);
-      queued.push(
-        url.protocol === "file:"
-          ? { type: "file", path: fileURLToPath(url) }
-          : { type: "url", url: url.href }
-      );
-      flush().catch(report("open"));
-    } catch {
-      console.error("[furin-electrobun] Invalid native open event.");
-    }
-  };
-  // Subscribe before any asynchronous config, SDK metadata or application loading.
-  sdk.default.events.on("open-url", capture);
   let phase: DesktopSnapshot["phase"] = "starting";
   let backend: DesktopBackend | undefined;
   let starting: Promise<DesktopBackend> | undefined;
@@ -507,7 +486,6 @@ export async function runStandardDesktopHost(
             await instance?.stop();
             code = backendCode;
           } finally {
-            sdk.default.events.off?.("open-url", capture);
             sdk.default.events.off?.("reopen", reopen);
             sdk.default.events.off?.("before-quit", beforeQuit);
             process.off("SIGINT", stop);
@@ -556,27 +534,21 @@ export async function runStandardDesktopHost(
   };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
-  let flushing: Promise<void> | undefined;
-  flush = () => {
-    flushing ??= (async () => {
-      while (phase === "ready" && queued.length) {
-        const event = queued.shift();
-        if (event) {
-          try {
-            // biome-ignore lint/performance/noAwaitInLoops: Deliver the next native event only after its predecessor settles.
-            const handled = await options.onOpen?.({ ...context(), event });
-            if (!handled) {
-              await state?.hooks?.onOpen?.({ ...context(), event });
-            }
-          } catch (error) {
-            report("open")(error);
-          }
+  const flush = () => {
+    while (phase === "ready" && queued.length) {
+      const event = queued.shift();
+      if (event) {
+        try {
+          sdk.default.events.emitEvent(
+            sdk.default.events.events.app.openUrl({
+              url: event.type === "url" ? event.url : pathToFileURL(event.path).href,
+            })
+          );
+        } catch (error) {
+          report("open")(error);
         }
       }
-    })().finally(() => {
-      flushing = undefined;
-    });
-    return flushing;
+    }
   };
   try {
     // SDK metadata resolves relative to native launch CWD and caches its result.
@@ -605,7 +577,16 @@ export async function runStandardDesktopHost(
     const initial = process.env.FURIN_NATIVE_OPEN;
     delete process.env.FURIN_NATIVE_OPEN;
     if (initial) {
-      capture({ data: { url: initial } });
+      try {
+        const url = new URL(initial);
+        queued.push(
+          url.protocol === "file:"
+            ? { type: "file", path: fileURLToPath(url) }
+            : { type: "url", url: url.href }
+        );
+      } catch {
+        console.error("[furin-electrobun] Invalid native open event.");
+      }
     }
     queued.push(
       ...nativeLaunchEvents(
@@ -627,13 +608,12 @@ export async function runStandardDesktopHost(
         ) ?? [],
       onOpen(event) {
         queued.push(event);
-        flush().catch(report("open"));
+        flush();
       },
       onActivate: reopen,
     });
     if (!instance) {
       await forwardQueued(options.dataDir, identity, queued);
-      sdk.default.events.off?.("open-url", capture);
       sdk.default.events.off?.("reopen", reopen);
       sdk.default.events.off?.("before-quit", beforeQuit);
       process.off("SIGINT", stop);
@@ -676,7 +656,7 @@ export async function runStandardDesktopHost(
     }
     lifetime.signal.throwIfAborted();
     phase = "ready";
-    await flush();
+    flush();
     await options.manager?.({ ...context(), backend, startupError });
     if (backend) {
       open();

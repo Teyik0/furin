@@ -104,11 +104,13 @@ ApplicationMenu.on("application-menu-clicked", () => {
 });
 ```
 
+Handle deep links and associated files directly with `Electrobun.events.on("open-url", handler)` in this native entrypoint, using the original SDK's `event.data.url` payload. Files arrive as `file:` URLs. Declare URL schemes/file associations in `desktop.app.urlSchemes` / `desktop.app.fileAssociations`. Furin forwards launch inputs and secondary-instance inputs to this SDK event after host readiness; direct OS events follow the SDK lifecycle. Coordinate application startup dependencies in your native handler when needed. Furin provides no `onOpen` option or native-module export contract.
+
 `getDesktopHost()` returns the same controller as route context, or `null` outside the managed host. Original `electrobun/main` and all devkit public subpaths remain available: ApplicationMenu, ContextMenu, Tray, Utils, GlobalShortcut, Screen, Session, BrowserWindow, BrowserView/RPC, GpuWindow, WGPUView and WebGPU. Use SDK menus with their original tooltip/hidden/data/roles/actions; create and update SDK trays directly. Furin installs no replacement menus or tray.
 
 Native callbacks run outside HTTP; catch both synchronous errors and rejected promises there. Elysia `.onError()` handles HTTP errors. Application resource lifecycle uses Elysia `.onStart()`/`.onStop()`. Keep native SDK value imports confined to native modules; shared server modules use context and type-only imports.
 
-Furin retains `desktop.browser.open(path)`, coordinated `quit()`/`restart()`, `updates.install()`, association helpers, identity/instance ownership, queued normalized `onOpen` inputs and background/listen/admission policy. Use original SDK Updater for checking, downloading and status. Installation drains the backend before SDK handoff. Quit/restart guard all managed windows and run backend cleanup once. `background: () => true` permits the app to stay alive after the last managed window closes; native menus/trays remain application-owned.
+Furin retains `desktop.browser.open(path)`, coordinated `quit()`/`restart()`, `updates.install()`, association helpers, identity/instance ownership, native input forwarding and background/listen/admission policy. Use original SDK Updater for checking, downloading and status. Installation drains the backend before SDK handoff. Quit/restart guard all managed windows and run backend cleanup once. `background: () => true` permits the app to stay alive after the last managed window closes; native menus/trays remain application-owned.
 
 ## Packaging and types
 
