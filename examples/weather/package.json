@@ -17,6 +17,7 @@
     "@teyik0/furin": "workspace:*",
     "bun-plugin-tailwind": "^0.1.2",
     "elysia": "catalog:",
+    "evlog": "catalog:",
     "exact-mirror": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",

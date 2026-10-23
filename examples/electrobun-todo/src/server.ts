@@ -1,9 +1,12 @@
 import { furin } from "@teyik0/furin";
 import { desktopApp } from "@teyik0/furin-electrobun/server";
 import { Elysia } from "elysia";
+import { initLogger } from "evlog";
 import { api } from "./api";
 import { sqlite } from "./db";
 import { sync } from "./sync";
+
+initLogger({ env: { service: "relay" } });
 
 // desktopApp() must be the first plugin of the default-exported root.
 const app = new Elysia({ name: "relay" })

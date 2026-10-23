@@ -26,8 +26,11 @@ function createVercelApp(): TmpApp {
     [
       'import { furin, revalidatePath, revalidateTag } from "@teyik0/furin";',
       'import { Elysia } from "elysia";',
+      'import { initLogger } from "evlog";',
       'import * as ReactDomServer from "react-dom/server";',
       'import { userHydrate } from "./build/hydrate";',
+      "",
+      'initLogger({ env: { service: "vercel-test" } });',
       "",
       "const app = new Elysia()",
       '  .get("/api/health", () => userHydrate)',
