@@ -1,0 +1,52 @@
+examples/electrobun-todo/src/server.ts
+  s_1a7c356629ae36::t_6db92e4dee4025 4,9
+  s_1a7c356629ae36::t_c3ba332d54f09e 10
+CHANGELOG.md
+  s_1a7c356629ae36::t_3d4dca025eb38a 10
+apps/docs/src/content/docs/configuration.mdx
+  s_1a7c356629ae36::t_e2b7ab6154c30c 162
+apps/docs/src/content/docs/logging.mdx
+  s_1a7c356629ae36::t_e5227312631516 3,12-14,31-35,67-76
+apps/docs/src/server.ts
+  s_1a7c356629ae36::t_2a7e1287155a26 3,10-11
+apps/scaffolder/templates/full/src/server.ts.ejs
+  s_1a7c356629ae36::t_9998049a199985 3,6-7
+apps/scaffolder/templates/simple/src/server.ts.ejs
+  s_1a7c356629ae36::t_20013e7f78ab72 3,6-7
+bun.lock
+  s_1a7c356629ae36::t_5e0ee7d89aceb4 123
+examples/task-manager/src/server.ts
+  s_1a7c356629ae36::t_a2ff4b5349048f 3,7-14
+examples/weather/package.json
+  s_1a7c356629ae36::t_1fb448e960666d 20
+examples/weather/src/server.ts
+  s_1a7c356629ae36::t_0157b17e89cee1 3-5
+packages/core/src/furin.ts
+  s_1a7c356629ae36::t_34aa1dde09579a 120
+packages/core/src/server/logging/ingest-plugin.ts
+  s_1a7c356629ae36::t_5dd393f96c4dce 2,11,81
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_1a7c356629ae36::t_d04e9a1013c726 29,33-34
+packages/core/tests/contract/furin-plugin-types.type.test.ts
+  s_1a7c356629ae36::t_5bc5f1b114b707 8,97
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_1a7c356629ae36::t_5d4eed7505e46c 1
+packages/core/tests/runtime/plugin/logger-config.integration.test.ts
+  s_1a7c356629ae36::t_0a798fce888365 1-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "49a5663ddb8b038d5b784d92cb547b1f78ce8033",
+  "prompts": {},
+  "sessions": {
+    "s_1a7c356629ae36": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16880-94ae-7220-9ce2-1ba05ec73fdc",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
