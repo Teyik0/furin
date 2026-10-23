@@ -1,0 +1,43 @@
+packages/electrobun/tofu-migration.md
+  s_e7a95a538842bf::t_39cf7d057e00c8 7
+packages/electrobun/tests/standard-bootstrap.test.ts
+  s_e7a95a538842bf::t_44ef298b7f8c28 44
+packages/electrobun/native-host.md
+  s_e7a95a538842bf::t_39cf7d057e00c8 9
+packages/electrobun/tests/standard-host.test.ts
+  s_e7a95a538842bf::t_8429078de81889 201
+  s_e7a95a538842bf::t_f26556243299dd 1,203-208,213-217
+  s_e7a95a538842bf::t_c4e0669337b21c 260
+  s_e7a95a538842bf::t_fd33a0e8597954 189-190,202
+  s_e7a95a538842bf::t_6c69480b07db66 5,8,47-50,184-188,218-220
+  s_e7a95a538842bf::t_f183acb16e8315 191-193
+  s_e7a95a538842bf::t_5b24d5be99b778 198-200
+  s_e7a95a538842bf::t_cfa8c404ba2a35 194-196
+packages/electrobun/src/standard-host.ts
+  s_e7a95a538842bf::t_657b332163e8b7 537-548,551,611,659
+  s_e7a95a538842bf::t_6c69480b07db66 580-589
+packages/electrobun/tests/fixtures/sdk.ts
+  s_e7a95a538842bf::t_657b332163e8b7 34-35
+packages/electrobun/tests/fixtures/standard-launch.ts
+  s_e7a95a538842bf::t_44ef298b7f8c28 81-84,207
+  s_e7a95a538842bf::t_7d537207c7f093 78-80,85,98
+packages/electrobun/README.md
+  s_e7a95a538842bf::t_8fe9db38d5419b 108
+  s_e7a95a538842bf::t_39cf7d057e00c8 107,113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "05cbdc800fa6dba2e14a0eb672180b084fe0e8a5",
+  "prompts": {},
+  "sessions": {
+    "s_e7a95a538842bf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16880-6b99-7522-be60-00723a6efd76",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
