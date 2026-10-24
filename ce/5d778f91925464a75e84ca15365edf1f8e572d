@@ -1,0 +1,148 @@
+packages/core/build.ts
+  s_c2fdda007d520f::t_1c4c1cb506f8ab 56-60
+packages/core/tests/client/sync/standalone-sync.test.ts
+  s_c2fdda007d520f::t_a34b0433eef1f8 42,47,52-55,96-116,123-128,130-148
+  s_c2fdda007d520f::t_a02d359a16d7b7 60
+  s_c2fdda007d520f::t_146e05ddb27d30 1-8,10,15,26-32,34-37,40-41,44-45,67-72,78-79,81-90,92,94-95,558
+  s_c2fdda007d520f::t_58bdb3c63e4d90 232-234
+  s_c2fdda007d520f::t_daa094f1010f74 16-25,91,93
+  s_c2fdda007d520f::t_d4e9c559f80d33 340
+  s_c2fdda007d520f::t_075993848b92cc 216-231,235-238,407-410
+  s_c2fdda007d520f::t_a89a9a1d6e8504 283-308,310-316
+  s_c2fdda007d520f::t_959999867d4893 497
+  s_c2fdda007d520f::t_64d578b7894d01 43,59,65-66,77
+  s_c2fdda007d520f::t_9c811b5bc532e3 11-14,159,191
+  s_c2fdda007d520f::t_2036519c9fd513 239-240,242-244,249-253,257-265,269-270,274-282
+  s_c2fdda007d520f::t_1c28e5e6a249ab 33,46,48-51,149-150,529-546,553-554,556-557
+  s_c2fdda007d520f::t_e81383342c7728 80,393-394,514
+  s_c2fdda007d520f::t_1c4c1cb506f8ab 9,38-39,56-58,117-122,163-165,172-173,175-177,192-195,201-203,248,254-256,266-268,271-273,355-357,366-372,378-380,471-496,498-513,515-527
+  s_c2fdda007d520f::t_0a6093ae82c939 241,245-247
+  s_c2fdda007d520f::t_9c1b3dca7f6d80 317-339,341-350
+  s_c2fdda007d520f::t_ad8cb03a28c955 444-470
+  s_c2fdda007d520f::t_a654fb1f4498d3 61-64,73-76,129,171
+  s_c2fdda007d520f::t_f6a05d337f8268 395-406,411-420
+  s_c2fdda007d520f::t_1733a3be91837a 309
+  s_c2fdda007d520f::t_28eb76f726f4e8 151-158,160-162,166-170,174,178-190,196-200,204-215,351-353,365,373-377,381-383,385-392,528
+  s_c2fdda007d520f::t_9c3888630baaa2 354,358-364,384,547-552,555
+  s_c2fdda007d520f::t_efe4149f896685 421-443
+packages/core/package.json
+  s_c2fdda007d520f::t_56bd33e5a60d0a 80-84
+packages/core/tests/contract/standalone-sync-types.type.test.ts
+  s_c2fdda007d520f::t_2cd85a50554c89 6,9-31,33
+  s_c2fdda007d520f::t_2a4e2d87d9e52d 1-5,7-8,32,39-48,50-58
+  s_c2fdda007d520f::t_0c92c84d218506 49
+  s_c2fdda007d520f::t_1c4c1cb506f8ab 34-38
+packages/core/src/client/sync-catch-up.ts
+  s_c2fdda007d520f::t_2a4e2d87d9e52d 1-154,156-159,168-194
+  s_c2fdda007d520f::t_a654fb1f4498d3 155,160-167
+packages/core/src/client/sync.ts
+  s_c2fdda007d520f::t_b8927f820ffcf2 312
+  s_c2fdda007d520f::t_4e8158e70e43bd 115,142-148,150-151
+packages/core/src/sync-client.ts
+  s_c2fdda007d520f::t_56bd33e5a60d0a 1,5-11,13
+  s_c2fdda007d520f::t_ecdc0ef1c7f7bc 12
+  s_c2fdda007d520f::t_1c4c1cb506f8ab 2-4
+packages/core/src/server/sync/index.ts
+  s_c2fdda007d520f::t_b8927f820ffcf2 9
+  s_c2fdda007d520f::t_18fa42cd648f57 12
+packages/core/src/client/router/use-fetch-interception.ts
+  s_c2fdda007d520f::t_1c4c1cb506f8ab 2
+packages/core/src/client/router/provider.tsx
+  s_c2fdda007d520f::t_1c4c1cb506f8ab 21
+packages/core/README.md
+  s_c2fdda007d520f::t_2cd85a50554c89 38-39
+  s_c2fdda007d520f::t_abed4ce29893a0 34-37,40
+packages/core/src/furin.ts
+  s_c2fdda007d520f::t_0a6093ae82c939 383
+  s_c2fdda007d520f::t_1836df29c2290f 376,381
+packages/core/tests/client/sync/sync-catch-up.test.ts
+  s_c2fdda007d520f::t_9c1b3dca7f6d80 14-19,29-56
+  s_c2fdda007d520f::t_5dc6e7813a7d82 22-27
+  s_c2fdda007d520f::t_1c4c1cb506f8ab 8
+  s_c2fdda007d520f::t_0a6093ae82c939 21,28
+  s_c2fdda007d520f::t_4f70f3fec019a2 20
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  s_c2fdda007d520f::t_1836df29c2290f 79-80,91-112
+  s_c2fdda007d520f::t_0a6093ae82c939 82-88
+  s_c2fdda007d520f::t_dfe58c0372369b 12-14,89-90,113-136
+  s_c2fdda007d520f::t_4cac0c3b42a059 81
+packages/core/tests/fixtures/sync-bundles/standalone.ts
+  s_c2fdda007d520f::t_4f70f3fec019a2 1-3
+packages/core/src/client/sync-client.ts
+  s_41aa7d2df44930::t_2d1bceef8df488 1-7,116-120,132-133,138-139,161-165,307-310,312-314,320-326,329-331
+  s_c2fdda007d520f::t_2a4e2d87d9e52d 8
+  s_c2fdda007d520f::t_959999867d4893 262,264
+  s_c2fdda007d520f::t_99781ff76a965c 107-115,121-127,143-160,166-181,188-203,209,233,249-251,260,298,302-306,327-328,332-338,352,430,452
+  s_c2fdda007d520f::t_1a5883a61940a6 263,265,269-271,280,285-287,402-404,429,439-441
+  s_c2fdda007d520f::t_7d1fcf8e386927 185-186
+  s_c2fdda007d520f::t_97e30186671784 205,311,315-319,400,456
+  s_c2fdda007d520f::t_f6a05d337f8268 25,42-56
+  s_c2fdda007d520f::t_a654fb1f4498d3 10-11,130,135,281-284,288,359,374,381
+  s_c2fdda007d520f::t_1c4c1cb506f8ab 80-86,96-99,137,140,220-225,229-232,234-246,356-358,360-367,371-373,375-378,382-384,386-388,420-422
+  s_c2fdda007d520f::t_56bd33e5a60d0a 9,57-59,65-78,87-95,100-106,128-129,136,141-142,204,206-208,210-219,226-228,247-248,252-259,261,266,268,272-279,289-297,299-301,339-351,353-355,389-399,405-419,423-428,431-438,442-451,453-455,457-459,461-463
+  s_c2fdda007d520f::t_d4d26f0b5e58f7 21-22,27-28,34-39
+  s_c2fdda007d520f::t_2c1a207467eb28 60,62-64
+  s_c2fdda007d520f::t_ecdc0ef1c7f7bc 12-20,23-24,26,29-33,40-41,79,380
+  s_c2fdda007d520f::t_87da32e254781f 61
+  s_c2fdda007d520f::t_c8dbd1691e6a7a 182-184,187
+  s_c2fdda007d520f::t_6a605e1236305a 131,134,368-370
+  s_c2fdda007d520f::t_1e68909ccc19ef 267,379,385,401,460
+packages/core/src/client/query-store.ts
+  s_c2fdda007d520f::t_56bd33e5a60d0a 358-365,367-373,479-482
+  s_c2fdda007d520f::t_16e28bffe60540 366,439,457-459,471-472
+  s_c2fdda007d520f::t_b8927f820ffcf2 22
+  s_c2fdda007d520f::t_1e68909ccc19ef 374-390
+packages/core/src/client.ts
+  s_c2fdda007d520f::t_ecdc0ef1c7f7bc 36
+  s_c2fdda007d520f::t_2a4e2d87d9e52d 29-35,37
+packages/core/src/client/router/use-sync-stream.ts
+  s_c2fdda007d520f::t_56bd33e5a60d0a 127
+  s_c2fdda007d520f::t_1c4c1cb506f8ab 7-10
+  s_c2fdda007d520f::t_e41ee7fa53ccf4 6
+apps/docs/src/content/docs/sync.mdx
+  s_c2fdda007d520f::t_2cd85a50554c89 380-425
+  s_c2fdda007d520f::t_96d6fca6167e3d 196,300
+  s_c2fdda007d520f::t_abed4ce29893a0 189-195,197,296-299,301-378,641
+  s_c2fdda007d520f::t_a7513109e99803 198
+  s_c2fdda007d520f::t_e431176545acf2 379,426
+packages/core/tests/client/sync/local-sync.test.ts
+  s_c2fdda007d520f::t_5349635d85cc51 126-131,135,139-148
+  s_c2fdda007d520f::t_8123d06b138b9a 198-199,201-202,207,211-219,226-232,238-240,246,252-261,264-267,273-282
+  s_41aa7d2df44930::t_2d1bceef8df488 5-9,12-15,29-31,45-47,53-59,63-64,66,78-81,85-88,92-95,104-111,113-115,132-134,136-138,166-168,170-172,174-176,192-194,203-206,208-210,233-237,241-245,247-251,268-272,289-293,297-301,303-307,321-323,326-329,331-333
+  s_c2fdda007d520f::t_a2320ed41426ad 16,37,40-44,48-52,60-61,65,69,73-77,82-84,96,149-150,163-165,169,173,177-180
+  s_c2fdda007d520f::t_1836df29c2290f 101,156,262-263
+  s_c2fdda007d520f::t_5a0324d4f71020 182-191,195-197
+  s_c2fdda007d520f::t_87da32e254781f 200,220,224-225
+  s_c2fdda007d520f::t_c10ba5854667a4 1-4,10-11,17-28,32-36,38-39,62,67-68,70-72,89-91,97-100,102-103,112,116-120,122-125,181
+  s_c2fdda007d520f::t_dc614ad0859199 221-223
+  s_c2fdda007d520f::t_eb66b768cfa0f0 151-155,157-162
+  s_c2fdda007d520f::t_f4839a46b24daa 121
+  s_c2fdda007d520f::t_c7d4b437e98375 283-288,294-296,302,308-320,324-325,330,334-338
+packages/core/src/server/sync/local-client.ts
+  s_c2fdda007d520f::t_b8927f820ffcf2 1,7-10,13-19,24-36
+  s_41aa7d2df44930::t_2d1bceef8df488 2-6,11-12,20-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ce5d778f91925464a75e84ca15365edf1f8e572d",
+  "prompts": {},
+  "sessions": {
+    "s_41aa7d2df44930": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16e34-ebe8-7c61-93be-a1f9d36f4543",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_c2fdda007d520f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16dbf-9b6e-7911-8315-943b5502f765",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
