@@ -28,7 +28,9 @@ The root plugin installs admission ahead of application wrappers and disables na
 
 Loopback and in-process dispatch are distinct. Eden/app.handle calls stay in process; listener calls are marked using Bun's actual server argument and checked before application dispatch, including compiled/AOT builds. `admission(request, facts)` can authenticate external traffic without trusting headers for peer identity. Facts include verified desktop session and the TCP peer reported by Bun. `restrictWebToLoopback` optionally constrains ordinary web listeners too.
 
-Each HTTP managed window receives a fresh, one-use bootstrap token and HttpOnly/SameSite cookie on a private loopback listener. The backend verifies origin, cookie and navigation provenance. Tokens expire and are bounded; paths cannot leave the app origin. The bootstrap stays bound until backend cleanup finishes to prevent port reuse during draining. Browser-open uses its own token.
+Managed windows use the application's listener hostname, scheme and port. Wildcard addresses map to their local destination (`0.0.0.0` to `127.0.0.1`, `::` to `[::1]`); explicit hostnames are preserved. Unix sockets cannot provide a WebView HTTP(S) destination.
+
+Each HTTP managed window receives a fresh, one-use bootstrap token and HttpOnly/SameSite cookie on a separate ephemeral listener bound to the same hostname as the window destination. Matching hostnames keep the cookie valid across the bootstrap redirect, including for IPv6 and LAN listeners. The backend verifies origin, cookie and navigation provenance. Tokens expire and are bounded; paths cannot leave the app origin. The bootstrap stays bound until backend cleanup finishes to prevent port reuse during draining. Browser-open uses its own token.
 
 TLS windows receive a verified HttpOnly/Secure/SameSite cookie through the original SDK Session before navigation. SDKs that cannot preserve the required cookie attributes fail closed. A system browser cannot receive this native TLS session; `browser.open` returns false for that listener. Main and additional windows share the secured application session while using independently issued navigation tokens.
 

@@ -114,7 +114,7 @@ function installWindowSession(sdk: DesktopSdk, active: DesktopBackend): void {
     const cookie = {
       name: active.session.name,
       value: active.session.value,
-      domain: "127.0.0.1",
+      domain: new URL(active.origin).hostname,
       path: "/",
       secure: true,
       httpOnly: true,
@@ -131,7 +131,7 @@ function installWindowSession(sdk: DesktopSdk, active: DesktopBackend): void {
         installed?.httpOnly &&
         installed.secure &&
         installed.path === "/" &&
-        installed.domain === "127.0.0.1" &&
+        installed.domain === cookie.domain &&
         installed.sameSite?.toLowerCase() === "strict"
       )
     ) {

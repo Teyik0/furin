@@ -66,7 +66,7 @@ export default app;
 
 Both web and desktop use port `4242`. Pass `tls` to `.listen(...)` for HTTPS; advanced Elysia `serve` defaults remain available and explicit listener options override them. Builds capture the listener options without opening a socket or running startup hooks, and the desktop host starts the built application with those options. Put shared startup work in `.onStart()`.
 
-An entry that only default-exports its application remains supported: without a configured hostname or port, the desktop host uses `127.0.0.1` and a free port. To accept network clients, use `0.0.0.0` or `::` and configure `desktopApp.admission` to authenticate requests. Managed windows always connect through `127.0.0.1`; Unix sockets and hostnames that exclude that interface are rejected. Existing `restrictWebToLoopback` checks still apply.
+An entry that only default-exports its application remains supported: without a configured hostname or port, the desktop host uses `127.0.0.1` and a free port. Managed windows use the application's listener hostname, scheme and port. Wildcard listeners use a local destination: `0.0.0.0` becomes `127.0.0.1`, and `::` becomes `[::1]`. Explicit hostnames, including `localhost`, IPv6 and LAN addresses, are preserved. To accept network clients, configure `desktopApp.admission` to authenticate requests. Unix sockets are rejected because the WebView requires an HTTP(S) address. Existing `restrictWebToLoopback` checks still apply.
 
 ## Configuration from Elysia services
 

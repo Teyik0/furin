@@ -38,7 +38,15 @@ export interface DesktopSession {
   value: string;
 }
 
-const LISTEN_HOSTS = new Set(["127.0.0.1", "0.0.0.0", "::"]);
+function desktopOrigin(serverUrl: URL): string {
+  const url = new URL(serverUrl);
+  if (url.hostname === "0.0.0.0") {
+    url.hostname = "127.0.0.1";
+  } else if (url.hostname === "[::]") {
+    url.hostname = "[::1]";
+  }
+  return url.origin;
+}
 
 export function createSessionGuard(
   session: DesktopSession,
@@ -92,6 +100,7 @@ export function createSessionGuard(
 }
 
 function startSessionBootstrap(session: DesktopSession, appOrigin: string) {
+  const { hostname } = new URL(appOrigin);
   const path = `/${crypto.randomUUID()}`;
   let origin = "";
   let stopped = false;
@@ -111,7 +120,7 @@ function startSessionBootstrap(session: DesktopSession, appOrigin: string) {
     }
   };
   const server = Bun.serve({
-    hostname: "127.0.0.1",
+    hostname: hostname.startsWith("[") ? hostname.slice(1, -1) : hostname,
     port: 0,
     fetch(request) {
       prune();
@@ -143,7 +152,7 @@ function startSessionBootstrap(session: DesktopSession, appOrigin: string) {
       });
     },
   });
-  origin = `http://127.0.0.1:${server.port}`;
+  origin = `http://${hostname}:${server.port}`;
   return {
     origin,
     url: `${origin}${path}`,
@@ -293,7 +302,7 @@ function createBackend(
   };
 }
 
-/** Opens the application's own listener; the native window always connects through loopback. */
+/** Opens the application's own listener using its configured interface. */
 function listenDesktop(
   app: DesktopApp,
   mode: DesktopMode,
@@ -302,8 +311,8 @@ function listenDesktop(
 ): string {
   const serve = app["~config"]?.serve;
   const hostname = serve?.hostname ?? "127.0.0.1";
-  if (serve?.unix !== undefined || !LISTEN_HOSTS.has(hostname)) {
-    throw new Error("The desktop listener must include the loopback interface.");
+  if (serve?.unix !== undefined) {
+    throw new Error("Desktop requires a TCP listener with a port.");
   }
   const listening = app.listen(
     {
@@ -326,7 +335,7 @@ function listenDesktop(
   if (!listening.server?.port) {
     throw new Error("Elysia did not create a desktop server.");
   }
-  return `${listening.server.url.protocol}//127.0.0.1:${listening.server.port}`;
+  return desktopOrigin(listening.server.url);
 }
 
 export async function startDesktopBackend(
@@ -424,10 +433,10 @@ export async function startDesktopBackend(
           if (ownsListening) {
             await Promise.race([state.listening, listeningReady.promise]);
             const { server } = activeApp;
-            if (!(server?.port && LISTEN_HOSTS.has(server.hostname ?? ""))) {
-              throw new Error("The desktop listener must include the loopback interface.");
+            if (!server?.port) {
+              throw new Error("Desktop requires a TCP listener with a port.");
             }
-            origin = `${server.url.protocol}//127.0.0.1:${server.port}`;
+            origin = desktopOrigin(server.url);
           } else {
             origin = listenDesktop(activeApp, mode, validate, listeningReady);
             await listeningReady.promise;

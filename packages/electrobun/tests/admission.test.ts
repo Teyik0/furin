@@ -108,53 +108,58 @@ test("the application chooses a stable desktop port and TLS; TLS windows receive
   }
 });
 
-test("the standard host installs the TLS window session in the default partition before opening", async () => {
-  const fixtureCertificate = join(import.meta.dir, "fixtures/tls-cert.pem");
-  const fixtureKey = join(import.meta.dir, "fixtures/tls-key.pem");
-  const fixture = await standardLaunchFixture({
-    mode: "build",
-    listen: `({ hostname: "127.0.0.1", port: 0, tls: {
+test.each(["127.0.0.1", "localhost", "::1"])(
+  "the standard host installs the TLS window session for %s before opening",
+  async (hostname) => {
+    const fixtureCertificate = join(import.meta.dir, "fixtures/tls-cert.pem");
+    const fixtureKey = join(import.meta.dir, "fixtures/tls-key.pem");
+    const fixture = await standardLaunchFixture({
+      mode: "build",
+      listen: `({ hostname: ${JSON.stringify(hostname)}, port: 0, tls: {
       cert: require("node:fs").readFileSync(${JSON.stringify(fixtureCertificate)}, "utf8"),
       key: require("node:fs").readFileSync(${JSON.stringify(fixtureKey)}, "utf8"),
     } })`,
-  });
-  const host = fixture.launch();
-  try {
-    const backend = await waitForFixture(
-      async () => {
-        if (host.child.exitCode !== null) {
-          throw new Error((await host.output).join("\n"));
-        }
-        const file = Bun.file(join(fixture.root, "backend.json"));
-        return (await file.exists()) ? ((await file.json()) as { origin: string }) : undefined;
-      },
-      (value) => value !== undefined
-    );
-    await waitForFixture(() => Bun.file(join(fixture.root, "window-url")).exists(), Boolean);
-    expect(backend?.origin.startsWith("https://127.0.0.1:")).toBe(true);
-    expect(await Bun.file(join(fixture.root, "window-url")).text()).toBe(`${backend?.origin}/`);
-    const [cookie] = (await Bun.file(join(fixture.root, "native-cookies")).text())
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line));
-    expect(cookie).toMatchObject({
-      partition: "persist:default",
-      domain: "127.0.0.1",
-      path: "/",
-      secure: true,
-      httpOnly: true,
-      sameSite: "strict",
     });
-    const response = await fetch(`${backend?.origin}/`, {
-      headers: { cookie: `${cookie.name}=${cookie.value}` },
-      tls: { ca: await Bun.file(fixtureCertificate).text() },
-    });
-    expect(response.status).toBe(200);
-  } finally {
-    await host.stop("SIGTERM");
-    await fixture.close();
-  }
-}, 20_000);
+    const host = fixture.launch();
+    try {
+      const backend = await waitForFixture(
+        async () => {
+          if (host.child.exitCode !== null) {
+            throw new Error((await host.output).join("\n"));
+          }
+          const file = Bun.file(join(fixture.root, "backend.json"));
+          return (await file.exists()) ? ((await file.json()) as { origin: string }) : undefined;
+        },
+        (value) => value !== undefined
+      );
+      await waitForFixture(() => Bun.file(join(fixture.root, "window-url")).exists(), Boolean);
+      const domain = hostname === "::1" ? "[::1]" : hostname;
+      expect(backend?.origin.startsWith(`https://${domain}:`)).toBe(true);
+      expect(await Bun.file(join(fixture.root, "window-url")).text()).toBe(`${backend?.origin}/`);
+      const [cookie] = (await Bun.file(join(fixture.root, "native-cookies")).text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+      expect(cookie).toMatchObject({
+        partition: "persist:default",
+        domain,
+        path: "/",
+        secure: true,
+        httpOnly: true,
+        sameSite: "strict",
+      });
+      const response = await fetch(`${backend?.origin}/`, {
+        headers: { cookie: `${cookie.name}=${cookie.value}` },
+        tls: { ca: await Bun.file(fixtureCertificate).text() },
+      });
+      expect(response.status).toBe(200);
+    } finally {
+      await host.stop("SIGTERM");
+      await fixture.close();
+    }
+  },
+  20_000
+);
 
 test("headless admission sees every listener request and rejects forged listener identities", async () => {
   const seen: string[] = [];
