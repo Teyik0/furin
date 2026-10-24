@@ -72,7 +72,7 @@ export function activateDesktopApp(
   const state = roots.get(app);
   if (!state) {
     throw new Error(
-      'Desktop root must use desktopApp() from "@teyik0/furin-electrobun/server" as its first plugin.'
+      'Desktop root must use desktopApp() from "@teyik0/furin-electrobun/server" before listening.'
     );
   }
   state.guard = guard;

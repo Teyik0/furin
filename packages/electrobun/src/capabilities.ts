@@ -73,14 +73,6 @@ export interface AdmissionContext {
   peerAddress: string | undefined;
 }
 
-/** Desktop listener chosen by the application; omitted fields keep the private loopback default. */
-export interface DesktopListen {
-  /** Loopback or wildcard address; the native window always connects through 127.0.0.1. */
-  hostname?: "127.0.0.1" | "0.0.0.0" | "::";
-  port?: number;
-  tls?: { cert: string; key: string };
-}
-
 export interface DesktopAppOptions {
   /**
    * Authenticates every listener request before routing, including requests without the
@@ -88,8 +80,6 @@ export interface DesktopAppOptions {
    */
   admission?: (request: Request, context: AdmissionContext) => Response | undefined;
   background?: () => boolean;
-  /** Read once by the desktop host after startup hooks and before it listens. */
-  listen?: () => DesktopListen;
   restrictWebToLoopback?: boolean;
   window?: DesktopWindowOptions;
 }

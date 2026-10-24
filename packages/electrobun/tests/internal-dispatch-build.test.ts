@@ -9,6 +9,9 @@ test.each(["default", "listen"] as const)(
     const fixture = createTmpApp("cli-app");
     let child: Bun.Subprocess<"ignore", "pipe", "pipe"> | undefined;
     try {
+      const probe = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() });
+      const { port } = probe;
+      await probe.stop(true);
       writeAppFile(
         fixture.path,
         "package.json",
@@ -81,7 +84,7 @@ test.each(["default", "listen"] as const)(
         fixture.path,
         "src/server.ts",
         `import {app} from "./api";
-      ${entry === "default" ? "export default app;" : 'app.listen({hostname:"127.0.0.1",port:0},()=>{throw new Error("Source listener must not run");});'} `
+      ${entry === "default" ? "export default app;" : `app.listen({hostname:"127.0.0.1",port:${port}},()=>{throw new Error("Source listener must not run");});`} `
       );
       writeAppFile(
         fixture.path,
@@ -149,6 +152,7 @@ test.each(["default", "listen"] as const)(
       }
       const backend=await startDesktopBackend(loadArtifact,${JSON.stringify(join(fixture.path, "data"))},"build");
       try {
+        ${entry === "listen" ? `if(backend.origin!=="http://127.0.0.1:${port}") throw new Error("Source listen port was lost: "+backend.origin);` : ""}
         if((await(await app.handle("/lifecycle")).json()).starts!==1) throw new Error("Startup must run once");
         const client=treaty(app).api;
         const first=await client.values.get();

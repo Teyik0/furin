@@ -13,7 +13,7 @@ export async function standardLaunchFixture(options: {
   handoff?: "reported" | "throw" | "cancelled";
   nativeLauncher?: boolean;
   applicationLease?: boolean;
-  /** JavaScript expression returning the desktopApp listen option. */
+  /** JavaScript expression for Elysia's listen options. */
   listen?: string;
 }) {
   const directory = await mkdtemp(join(tmpdir(), "furin-standard-launch-"));
@@ -42,9 +42,8 @@ export async function standardLaunchFixture(options: {
       import {openNativeInstance} from ${JSON.stringify(join(import.meta.dir, "../../src/native-instance.ts"))};
       let desktop;
       let applicationLease;
-      export default new Elysia().use(desktopApp({background:()=>true,
-${options.listen ? `listen:${options.listen},` : ""}
-      })).onStart(async (instance) => {const runtime = getApplicationRuntime(instance);
+      export default new Elysia()
+      .use(desktopApp({background:()=>true})).onStart(async (instance) => {const runtime = getApplicationRuntime(instance);
           desktop=runtime.desktop;
           ${
             options.applicationLease
@@ -73,7 +72,7 @@ const backend = { origin: instance.server.url.origin };
       .get("/update",()=>desktop.updates.install())
       .get("/quit",()=>desktop.quit())
       .get("/background",()=>{setTimeout(()=>desktop.window?.requestClose(),100);return true;})
-      .get("/open",()=>desktop.open());`;
+      .get("/open",()=>desktop.open())${options.listen ? `.listen(${options.listen})` : ""};`;
     await writeFile(entry, source);
     await writeFile(
       join(root, "desktop.ts"),

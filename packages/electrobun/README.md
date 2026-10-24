@@ -43,13 +43,66 @@ const app = new Elysia()
   .onStart(async () => { await database.open(); })
   .onStop(async () => { await database.close(); })
   .use(api)
-  .use(await furin({ pagesDir: "src/pages" }));
+  .use(await furin({ pagesDir: "src/pages" }))
+  .listen({ hostname: "127.0.0.1", port: 4242 });
 
 export default app;
-if (import.meta.main) app.listen({ hostname: "127.0.0.1", port: 3000 });
 ```
 
 The generated host opens the window after every Elysia startup hook succeeds. No application launch function is required. Source entries may also own `.listen()` without a default export; Furin's production app artifact remains inert on import. Install `desktopApp` before listening. It preserves the original root identity, prefixes, decorators, routes and Eden inference.
+
+## Listener configuration
+
+Use Elysia's `.listen(...)` as the source of truth for the application server. The desktop window and browser clients share that server in the same Bun process:
+
+```ts
+const app = new Elysia()
+  .use(desktopApp({ window: { title: "Relay" } }))
+  .use(api)
+  .listen({ hostname: "127.0.0.1", port: 4242 });
+
+export default app;
+```
+
+Both web and desktop use port `4242`. Pass `tls` to `.listen(...)` for HTTPS; advanced Elysia `serve` defaults remain available and explicit listener options override them. Builds capture the listener options without opening a socket or running startup hooks, and the desktop host starts the built application with those options. Put shared startup work in `.onStart()`.
+
+An entry that only default-exports its application remains supported: without a configured hostname or port, the desktop host uses `127.0.0.1` and a free port. To accept network clients, use `0.0.0.0` or `::` and configure `desktopApp.admission` to authenticate requests. Managed windows always connect through `127.0.0.1`; Unix sockets and hostnames that exclude that interface are rejected. Existing `restrictWebToLoopback` checks still apply.
+
+## Configuration from Elysia services
+
+`desktopApp` accepts a configuration object, an inline factory, or the application and a factory. A factory receives the decorators registered before it and the shared `store`, with their inferred types:
+
+```ts
+import { desktopApp } from "@teyik0/furin-electrobun/server";
+import { Elysia } from "elysia";
+import { services } from "./services";
+
+new Elysia()
+  .use(services)
+  .use(desktopApp(({ access, torrents, instance }) => ({
+    admission: access.admit.bind(access),
+    background: () => torrents.settings.runInBackground === true,
+    window: {
+      frame: { height: 940, width: 1400 },
+      renderer: "native",
+      title: instance.name,
+    },
+  })));
+```
+
+Here, `services` is an Elysia plugin that decorates `access`, `torrents`, and `instance`. The explicit application form provides the same context:
+
+```ts
+new Elysia()
+  .use(services)
+  .state("background", false)
+  .use((app) => desktopApp(app, ({ instance, store }) => ({
+    background: () => store.background,
+    window: { title: instance.name },
+  })));
+```
+
+The factory runs synchronously once when the plugin is installed, before listening. Its services must already be registered and usable; it does not wait for `.onStart()` or pending async plugins. Values such as `window.title` are read then. `admission` and `background` remain callbacks and read shared services when invoked. The configuration context contains no HTTP request fields or per-request `.derive()` values.
 
 ## Independent API plugins
 
@@ -110,7 +163,7 @@ Handle deep links and associated files directly with `Electrobun.events.on("open
 
 Native callbacks run outside HTTP; catch both synchronous errors and rejected promises there. Elysia `.onError()` handles HTTP errors. Application resource lifecycle uses Elysia `.onStart()`/`.onStop()`. Keep native SDK value imports confined to native modules; shared server modules use context and type-only imports.
 
-Furin retains `desktop.browser.open(path)`, coordinated `quit()`/`restart()`, `updates.install()`, association helpers, identity/instance ownership, native input forwarding and background/listen/admission policy. Use original SDK Updater for checking, downloading and status. Installation drains the backend before SDK handoff. Quit/restart guard all managed windows and run backend cleanup once. `background: () => true` permits the app to stay alive after the last managed window closes; native menus/trays remain application-owned.
+Furin retains `desktop.browser.open(path)`, coordinated `quit()`/`restart()`, `updates.install()`, association helpers, identity/instance ownership, native input forwarding and background/admission policy. Use original SDK Updater for checking, downloading and status. Installation drains the backend before SDK handoff. Quit/restart guard all managed windows and run backend cleanup once. `background: () => true` permits the app to stay alive after the last managed window closes; native menus/trays remain application-owned.
 
 ## Packaging and types
 

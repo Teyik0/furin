@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
-import type { ApplicationRuntime, DesktopListen } from "./capabilities";
+import type { ElysiaConfig } from "elysia/types";
+import type { ApplicationRuntime } from "./capabilities";
 import {
   activateDesktopApp,
   type DesktopEntry,
@@ -175,12 +176,12 @@ function startSessionBootstrap(session: DesktopSession, appOrigin: string) {
 }
 
 export interface DesktopApp {
+  "~config"?: Pick<ElysiaConfig<string, "local">, "serve">;
   listen: (
     options: {
       hostname: string;
       port: number;
       development: boolean;
-      tls?: { cert: string; key: string };
     },
     callback: (server: { port?: number; stop: (force: boolean) => void | Promise<void> }) => void
   ) => DesktopApp;
@@ -295,22 +296,20 @@ function createBackend(
 /** Opens the application's own listener; the native window always connects through loopback. */
 function listenDesktop(
   app: DesktopApp,
-  listen: DesktopListen,
   mode: DesktopMode,
   validate: () => void,
   listeningReady: PromiseWithResolvers<void>
 ): string {
-  const hostname = listen.hostname ?? "127.0.0.1";
-  if (!LISTEN_HOSTS.has(hostname)) {
+  const serve = app["~config"]?.serve;
+  const hostname = serve?.hostname ?? "127.0.0.1";
+  if (serve?.unix !== undefined || !LISTEN_HOSTS.has(hostname)) {
     throw new Error("The desktop listener must include the loopback interface.");
   }
-  const scheme = listen.tls ? "https" : "http";
   const listening = app.listen(
     {
       hostname,
-      port: listen.port ?? 0,
+      port: Number(serve?.port ?? 0),
       development: mode === "dev",
-      ...(listen.tls ? { tls: listen.tls } : {}),
     },
     (server) => {
       try {
@@ -327,7 +326,7 @@ function listenDesktop(
   if (!listening.server?.port) {
     throw new Error("Elysia did not create a desktop server.");
   }
-  return `${scheme}://127.0.0.1:${listening.server.port}`;
+  return `${listening.server.url.protocol}//127.0.0.1:${listening.server.port}`;
 }
 
 export async function startDesktopBackend(
@@ -430,8 +429,7 @@ export async function startDesktopBackend(
             }
             origin = `${server.url.protocol}//127.0.0.1:${server.port}`;
           } else {
-            const listen = state?.hooks?.listen?.() ?? {};
-            origin = listenDesktop(activeApp, listen, mode, validate, listeningReady);
+            origin = listenDesktop(activeApp, mode, validate, listeningReady);
             await listeningReady.promise;
           }
           if (origin.startsWith("http:")) {

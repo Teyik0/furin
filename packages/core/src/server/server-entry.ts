@@ -17,6 +17,10 @@ export async function loadServerEntry<Module extends object>(
       throw new Error("[furin] Server entry must listen on only one Elysia app.");
     }
     captured = this;
+    const [options] = args;
+    const serve = { ...this["~config"]?.serve };
+    Object.assign(serve, typeof options === "object" ? options : { port: Number(options) });
+    this["~config"] = { ...this["~config"], serve };
     return this;
   };
   try {

@@ -30,6 +30,7 @@ test("in-process Elysia owns one ephemeral listener, session and shutdown", asyn
     );
     expect(importedData).toBe(data);
     expect(app.server?.port).toBeGreaterThan(0);
+    expect(app.server?.hostname).toBe("127.0.0.1");
     expect(backend.origin).toStartWith("http://127.0.0.1:");
     expect((await fetch(`${backend.origin}/api/resource`)).status).toBe(403);
     const bootstrap = await fetch(backend.url, { redirect: "manual" });

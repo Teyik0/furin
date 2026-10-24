@@ -4,9 +4,44 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Elysia } from "elysia";
 import { WebStandardAdapter } from "elysia/adapter/web-standard";
+import { loadServerEntry } from "../../core/src/server/server-entry.ts";
 import { startDesktopBackend } from "../src/runtime";
 import { createDesktopApp } from "../src/server";
 import html from "./fixtures/hmr.html";
+
+test.each(["source", "captured"])(
+  "desktop rejects native routes in %s listen options before opening a socket",
+  async (mode) => {
+    const data = await mkdtemp(join(tmpdir(), "furin-listen-routes-"));
+    const previousData = process.env.FURIN_APP_DATA_DIR;
+    let app: ReturnType<typeof createDesktopApp> | undefined;
+    const load = () => {
+      app = createDesktopApp();
+      return Promise.resolve({
+        default: app.listen({
+          hostname: "127.0.0.1",
+          port: 0,
+          routes: { "/private": new Response("private") },
+        }),
+      });
+    };
+    try {
+      const module = mode === "captured" ? await loadServerEntry(load) : undefined;
+      await expect(
+        startDesktopBackend(() => (module ? Promise.resolve(module) : load()), data, "build")
+      ).rejects.toThrow("bypasses session dispatch");
+      expect(app?.server).toBeUndefined();
+    } finally {
+      await app?.stop(true);
+      if (previousData === undefined) {
+        delete process.env.FURIN_APP_DATA_DIR;
+      } else {
+        process.env.FURIN_APP_DATA_DIR = previousData;
+      }
+      await rm(data, { recursive: true, force: true });
+    }
+  }
+);
 
 test("startup preserves native policy and cleanup failures while closing the listener once", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-startup-errors-"));

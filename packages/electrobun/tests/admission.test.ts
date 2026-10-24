@@ -12,7 +12,7 @@ test("admission authenticates listener requests that lack the desktop session; i
   const data = await mkdtemp(join(tmpdir(), "furin-admission-"));
   const previous = process.env.FURIN_APP_DATA_DIR;
   const admitted: AdmissionContext[] = [];
-  const app = new Elysia()
+  const app = new Elysia({ serve: { hostname: "0.0.0.0" } })
     .use(
       desktopApp({
         admission(request, context) {
@@ -28,6 +28,8 @@ test("admission authenticates listener requests that lack the desktop session; i
   let backend: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
   try {
     backend = await startDesktopBackend(() => Promise.resolve({ default: app }), data, "build");
+    expect(app.server?.hostname).toBe("0.0.0.0");
+    expect(backend.origin).toStartWith("http://127.0.0.1:");
     const anonymous = await fetch(`${backend.origin}/api/kind`);
     expect(anonymous.status).toBe(401);
     expect(admitted.at(-1)).toEqual({
@@ -76,8 +78,10 @@ test("the application chooses a stable desktop port and TLS; TLS windows receive
   const probe = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() });
   const { port } = probe;
   await probe.stop(true);
-  const app = new Elysia()
-    .use(desktopApp({ listen: () => ({ hostname: "127.0.0.1", port, tls: { cert, key } }) }))
+  const app = new Elysia({
+    serve: { hostname: "127.0.0.1", port, tls: { cert, key } },
+  })
+    .use(desktopApp())
     .get("/api/scheme", ({ request }) => ({ protocol: new URL(request.url).protocol }));
   let backend: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
   try {
@@ -109,7 +113,7 @@ test("the standard host installs the TLS window session in the default partition
   const fixtureKey = join(import.meta.dir, "fixtures/tls-key.pem");
   const fixture = await standardLaunchFixture({
     mode: "build",
-    listen: `() => ({ tls: {
+    listen: `({ hostname: "127.0.0.1", port: 0, tls: {
       cert: require("node:fs").readFileSync(${JSON.stringify(fixtureCertificate)}, "utf8"),
       key: require("node:fs").readFileSync(${JSON.stringify(fixtureKey)}, "utf8"),
     } })`,
@@ -188,7 +192,7 @@ test("headless admission sees every listener request and rejects forged listener
 test("the host refuses to open when the native cookie API drops HttpOnly", async () => {
   const fixture = await standardLaunchFixture({
     mode: "build",
-    listen: `() => ({ tls: {cert: require("node:fs").readFileSync(${JSON.stringify(join(import.meta.dir, "fixtures/tls-cert.pem"))},"utf8"),key: require("node:fs").readFileSync(${JSON.stringify(join(import.meta.dir, "fixtures/tls-key.pem"))},"utf8")} })`,
+    listen: `({ hostname: "127.0.0.1", port: 0, tls: {cert: require("node:fs").readFileSync(${JSON.stringify(join(import.meta.dir, "fixtures/tls-cert.pem"))},"utf8"),key: require("node:fs").readFileSync(${JSON.stringify(join(import.meta.dir, "fixtures/tls-key.pem"))},"utf8")} })`,
   });
   const host = fixture.launch({ FURIN_FIXTURE_INSECURE_COOKIE: "1" });
   try {
