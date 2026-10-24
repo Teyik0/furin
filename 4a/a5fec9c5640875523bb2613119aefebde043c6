@@ -1,15 +1,23 @@
-packages/electrobun/README.md
-  s_41aa7d2df44930::t_93f823fc61b571 69
-packages/electrobun/native-host.md
-  s_41aa7d2df44930::t_f9c6f6ef0156e7 31-33
-packages/electrobun/src/runtime.ts
-  s_41aa7d2df44930::t_46c0fb420d51f8 41-49,103,123,155,305,314-315,338,436-437,439
 packages/electrobun/src/standard-host.ts
-  s_41aa7d2df44930::t_3418aeb2afdbab 117,134
+  s_41aa7d2df44930::t_189a60c717314c 117,134
+packages/electrobun/README.md
+  s_41aa7d2df44930::t_14675746f1a4f7 69
 packages/electrobun/tests/admission.test.ts
-  s_41aa7d2df44930::t_b3413a1e130539 111-118,123-162
+  s_41aa7d2df44930::t_28ef28f97a6844 111-113,160-162
+  s_41aa7d2df44930::t_6df2c18b5b15b4 114-118,123-159
+packages/electrobun/src/runtime.ts
+  s_41aa7d2df44930::t_3f3643e60b1b75 305,314-315
+  s_41aa7d2df44930::t_e17ee4f13c74ee 123,155,436-437
+  s_41aa7d2df44930::t_6aebdfbc706bae 103
+  s_41aa7d2df44930::t_1a08c41745a003 41-49,338,439
 packages/electrobun/tests/listener-origin.test.ts
-  s_41aa7d2df44930::t_8645c6b6bca6a4 1-128
+  s_41aa7d2df44930::t_fb212f5fec469c 3,9-26,30,34-39,41-43,45-50,58,76-83
+  s_41aa7d2df44930::t_7b2566b5c5104b 33,40,44,51,55,57
+  s_41aa7d2df44930::t_415a91250142e2 1-2,4-8,27-29,31-32,52-54,59-75,84-93
+  s_41aa7d2df44930::t_14675746f1a4f7 94-128
+  s_41aa7d2df44930::t_5651b5f192e64f 56
+packages/electrobun/native-host.md
+  s_41aa7d2df44930::t_14675746f1a4f7 31-33
 ---
 {
   "schema_version": "authorship/3.0.0",
