@@ -53,6 +53,10 @@ export async function prepareDesktop(
     await Bun.file(join(SOURCES, "runtime.ts")).text()
   );
   await writeFile(
+    join(generated, "desktop-bridge.ts"),
+    await Bun.file(join(SOURCES, "desktop-bridge.ts")).text()
+  );
+  await writeFile(
     join(generated, "registry.ts"),
     await Bun.file(join(SOURCES, "registry.ts")).text()
   );

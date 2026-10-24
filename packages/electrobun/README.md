@@ -202,3 +202,65 @@ bun run build:desktop        # package the native app
 The preload only activates for the configured hot server entry. Frontend edits use Bun HMR/React Fast Refresh and retain the window. Backend/native dependency edits cause a controlled full process restart; native modules are never hot-reloaded and backend state is not promised to survive. External packages/assets/native dependencies stay with the relocatable Furin artifact. Compiled/AOT dispatch preserves app identity and the in-process Eden security boundary.
 
 See [native-host.md](./native-host.md) for session, listener, storage and lifecycle details, and [the todo example](../../examples/electrobun-todo) for working code.
+
+## React host capabilities
+
+Import `useDesktop` from `@teyik0/furin-electrobun/client`. This entrypoint is safe to import and render during SSR; its Web bundle contains React and the small event-bridge client, with no server or native SDK imports. React is an optional peer, required only for this entrypoint. No provider, server action or application endpoint is required.
+
+```ts
+import { useDesktop, type DesktopClient, type OpenBrowserResult } from "@teyik0/furin-electrobun/client";
+
+// DesktopClient
+// status: "initializing" | "web" | "desktop" | "unavailable"
+// browser.open(url: string): Promise<OpenBrowserResult>
+//
+// OpenBrowserResult
+// { ok: true }
+// | { ok: false; reason: "unavailable" | "invalid-url" | "open-failed" }
+```
+
+`initializing` is the SSR/hydration snapshot and remains until the native handshake completes. `web` means the current page has no Electrobun event bridge. `desktop` means its managed native window acknowledged the handshake. `unavailable` means a present bridge did not acknowledge within five seconds, or stopped acknowledging an opening request. Availability describes the **current interface**, independently of where the backend runs: a remote browser connected to a desktop backend remains `web`.
+
+`browser.open` asks the operating system to open a URL in its associated application (the system browser for HTTP(S)). It resolves only after native acknowledgement. `ok: true` means `Utils.openExternal` accepted the request; it does not confirm that a page loaded or a download succeeded. Missing/closed/unresponsive bridges return `unavailable`; native false results and exceptions return `open-failed`. Requests time out after five seconds. A timeout cannot prove that an already dispatched native action never ran. Unmounting cancels pending waits and releases their listeners/timers; remount to retry a failed availability handshake.
+
+HTTP, HTTPS and `mailto:` are allowed, matching native external navigation. `javascript:`, `data:`, `file:`, custom schemes, malformed URLs and URLs with embedded username/password are refused. Relative URLs resolve against `window.location.href` **at the time of the call**, including the current pathname, not an HTML `<base>` or the backend's filesystem. The host independently validates the resulting absolute URL and refuses its private session-bootstrap origin. Same-origin application URLs are allowed for downloads; ordinary webview navigation retains its existing app-origin restrictions. The command and result are typed; URLs are plain strings, with no claim of application-route inference.
+
+The hook uses Electrobun's documented event-only `host-message` bridge and a native acknowledgement on the same window. Sandboxing stays enabled by default and existing application RPC objects/transports are preserved. Native SDK capabilities beyond `browser.open` remain in the native module or server context; they are not exposed to the page.
+
+### Download link with desktop behavior
+
+```tsx
+import { useState } from "react";
+import { useDesktop } from "@teyik0/furin-electrobun/client";
+
+export function DownloadLink({ url }: { url: string }) {
+  const desktop = useDesktop();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <>
+      <a
+        href={url}
+        onClick={(event) => {
+          if (desktop.status !== "desktop") return;
+          event.preventDefault();
+          setError(null);
+          void desktop.browser.open(url).then((result) => {
+            if (!result.ok) setError("Impossible d’ouvrir le navigateur système.");
+          });
+        }}
+      >
+        Télécharger la mise à jour
+      </a>
+      {error && <p role="alert">{error}</p>}
+    </>
+  );
+}
+
+// Same-origin URL or an application-provided HTTPS download URL:
+// <DownloadLink url="/api/updates/download" />
+```
+
+SSR and Web render a regular anchor. Once the desktop handshake succeeds, clicking uses the system browser. In Tofu, replace the call to `POST /api/updates/open-download` with this hook and delete that action endpoint; keep `GET /api/updates/download` solely to serve the file. These Tofu routes are not part of this repository.
+
+**Authentication:** the system browser does not necessarily share the webview's cookies, local storage or application session. This API opens the supplied URL without forwarding credentials, adding tokens, or issuing a session bootstrap. A protected download may therefore require browser sign-in or an application-issued, short-lived download URL with appropriate scope. Furin's private loopback listener also requires its desktop cookie, so opening its plain `/api/updates/download` URL in a separate browser may return 401. Use a download URL the system browser can legitimately access; do not expose the desktop bootstrap cookie or remove listener/authentication protections to make it work. The host-side `desktop.browser.open(path)` remains a separate existing operation for launching the application with its own session-bootstrap policy.

@@ -31,10 +31,14 @@ export async function installSdk(
     const generated = ${JSON.stringify(join(root, ".furin/electrobun"))};
     const handlers = new Map();
     const events = {
-      events: { app: { openUrl: data => ({name: "open-url", data}) } },
-      emitEvent(event) { this.emit(event.name, event); },
+      events: {
+        app: { openUrl: data => ({name: "open-url", data}) },
+        webview: { hostMessage: data => ({name: "host-message", data}) }
+      },
+      emitEvent(event, id) { this.emit(id ? event.name + "-" + id : event.name, event); },
       on(name, fn) { const list = handlers.get(name) ?? []; list.push(fn); handlers.set(name, list); },
       off(name, fn) { handlers.set(name, (handlers.get(name) ?? []).filter(item => item !== fn)); },
+      listenerCount(name) { return (handlers.get(name) ?? []).length; },
       emit(name, event) { for (const fn of handlers.get(name) ?? []) fn(event); }
     };
     export default { events };

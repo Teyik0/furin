@@ -5,6 +5,7 @@
     "types": ["bun"],
     "lib": ["ESNext"],
     "paths": {
+      "@teyik0/furin-electrobun/client": ["./src/client.ts"],
       "electrobun/main": ["./.furin/sdk/.hutch/devkit/api/sdks/main/index.ts"],
       "electrobun/main/rpc": [
         "./.furin/sdk/.hutch/devkit/api/sdks/main/entries/rpc.ts"

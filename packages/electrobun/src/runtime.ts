@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import type { ElysiaConfig } from "elysia/types";
 import type { ApplicationRuntime } from "./capabilities";
+import { getBrowserUrl } from "./desktop-bridge";
 import {
   activateDesktopApp,
   type DesktopEntry,
@@ -21,12 +22,9 @@ export function getExternalUrl(
     if (typeof candidate !== "string") {
       return undefined;
     }
-    const url = new URL(candidate);
-    if (
-      !localOrigins.includes(url.origin) &&
-      ["https:", "http:", "mailto:"].includes(url.protocol)
-    ) {
-      return url.href;
+    const resolved = getBrowserUrl(candidate, undefined);
+    if (resolved && !localOrigins.includes(new URL(resolved).origin)) {
+      return resolved;
     }
   } catch {
     // Malformed native event details cannot grant navigation capabilities.

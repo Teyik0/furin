@@ -29,4 +29,15 @@ const result = await Bun.build({
 if (!result.success) {
   throw new AggregateError(result.logs, "Desktop package build failed.");
 }
+const client = await Bun.build({
+  entrypoints: [join(root, "src/client.ts")],
+  banner: '"use client";',
+  external: ["react"],
+  target: "browser",
+  format: "esm",
+  outdir: join(root, "dist"),
+});
+if (!client.success) {
+  throw new AggregateError(client.logs, "Desktop client build failed.");
+}
 await chmod(join(root, "src/cli.ts"), 0o755);

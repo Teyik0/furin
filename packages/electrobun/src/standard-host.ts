@@ -12,6 +12,12 @@ import type {
   OpenEvent,
 } from "./capabilities";
 import type { DesktopConfig } from "./config";
+import {
+  DESKTOP_RESPONSE,
+  getBrowserUrl,
+  type OpenBrowserResult,
+  parseDesktopRequest,
+} from "./desktop-bridge";
 import { getDesktopDevelopment } from "./development";
 import { deliverToNativeOwner, openNativeInstance } from "./native-instance";
 import { armNativeRestart, nativeLauncherPath } from "./native-restart";
@@ -54,6 +60,22 @@ const PARENT_PID = /^[1-9]\d*$/;
 
 function object(value: unknown): value is { [key: string]: unknown } {
   return value !== null && typeof value === "object";
+}
+
+function openBrowserUrl(
+  sdk: DesktopSdk,
+  destination: string,
+  bootstrapOrigin: string
+): OpenBrowserResult {
+  const url = getBrowserUrl(destination, undefined);
+  if (!url || new URL(url).origin === bootstrapOrigin) {
+    return { ok: false, reason: "invalid-url" };
+  }
+  try {
+    return sdk.Utils.openExternal(url) ? { ok: true } : { ok: false, reason: "open-failed" };
+  } catch {
+    return { ok: false, reason: "open-failed" };
+  }
 }
 
 async function resolveOptions(
@@ -215,12 +237,14 @@ export async function runStandardDesktopHost(
       navigationRules: JSON.stringify(["^*", ...origins.map((origin) => `${origin}/*`)]),
     });
     const newWindowEvent = `new-window-open-${created.webviewId}`;
+    const hostMessageEvent = `host-message-${created.webviewId}`;
     windows.set(name, created);
     if (name === "main") {
       window = created;
     }
     created.on("close", () => {
       sdk.default.events.off?.(newWindowEvent, external);
+      sdk.default.events.off?.(hostMessageEvent, hostMessage);
       windows.delete(name);
       if (window === created) {
         window = undefined;
@@ -246,8 +270,28 @@ export async function runStandardDesktopHost(
         sdk.Utils.openExternal(url);
       }
     };
+    const hostMessage = (event: unknown) => {
+      if (!(object(event) && object(event.data))) {
+        return;
+      }
+      const message = parseDesktopRequest(event.data.detail);
+      if (!message) {
+        return;
+      }
+      let result: OpenBrowserResult = { ok: false, reason: "unavailable" };
+      if (phase === "ready" && windows.get(name) === created) {
+        result =
+          message.command === "available"
+            ? { ok: true }
+            : openBrowserUrl(sdk, message.url, active.bootstrapOrigin);
+      }
+      created.webview.executeJavascript(
+        `window.dispatchEvent(new CustomEvent(${JSON.stringify(DESKTOP_RESPONSE)}, {detail: ${JSON.stringify({ id: message.id, result })}}));`
+      );
+    };
     created.webview?.on("will-navigate", external);
     sdk.default.events.on(newWindowEvent, external);
+    sdk.default.events.on(hostMessageEvent, hostMessage);
     if (options.testScript) {
       const script = options.testScript;
       created.webview?.on("dom-ready", () => created.webview?.executeJavascript(script));

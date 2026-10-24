@@ -7,6 +7,10 @@ import { websocket } from "elysia/websocket";
 import { startDesktopBackend } from "../src/runtime";
 import { createDesktopApp } from "../src/server";
 
+const RuntimeWebSocket = WebSocket as typeof WebSocket & {
+  new (url: string | URL, options: Bun.WebSocketOptions): WebSocket;
+};
+
 for (const mode of ["web", "desktop"] as const) {
   test(`factory preserves public wrapper arguments for ${mode} requests`, async () => {
     const data = await mkdtemp(join(tmpdir(), "furin-wrap-arguments-"));
@@ -260,7 +264,7 @@ test("application WebSocket upgrades require the activated instance session", as
     if (!cookie) {
       throw new Error("Missing desktop cookie.");
     }
-    const socket = new WebSocket(url, { headers: { cookie, origin: backend.origin } });
+    const socket = new RuntimeWebSocket(url, { headers: { cookie, origin: backend.origin } });
     const message = Promise.withResolvers<unknown>();
     socket.onmessage = (event) => {
       message.resolve(event.data);
