@@ -1,0 +1,74 @@
+packages/electrobun/tofu-migration.md
+  s_c2fdda007d520f::t_e4893327462f5e 10-11
+packages/electrobun/build.ts
+  s_c2fdda007d520f::t_c89e6016b753c7 34
+  s_c2fdda007d520f::t_56765566073738 32-33,35-42
+packages/electrobun/src/standard-host.ts
+  s_c2fdda007d520f::t_1c0d3b3fb8bfc2 15-17,20,240,247,273-276,279-282,287,289-291,294
+  s_c2fdda007d520f::t_9fe10d3052b4a2 65-69,288
+  s_c2fdda007d520f::t_b03c48158da641 70-80
+  s_c2fdda007d520f::t_ef3ac7c14befa3 19,277-278,283-286
+  s_c2fdda007d520f::t_d84c3e5e8beb1e 18
+packages/electrobun/src/client.ts
+  s_c2fdda007d520f::t_56765566073738 2-3,112-115,119
+  s_c2fdda007d520f::t_b1a05b143a6036 122
+  s_c2fdda007d520f::t_1c0d3b3fb8bfc2 1,5-11,13-14,20-47,50-72,77,79-110,121
+  s_c2fdda007d520f::t_c288d375cf96db 4,12,15-18,73-76,78,120
+  s_c2fdda007d520f::t_b03c48158da641 48
+  s_c2fdda007d520f::t_0b70de1b5b1836 111,118
+  s_c2fdda007d520f::t_12b37f3ffe418d 19,49,116-117
+packages/electrobun/tests/server.test.ts
+  s_c2fdda007d520f::t_b03c48158da641 10-13,267
+packages/electrobun/src/prepare.ts
+  s_c2fdda007d520f::t_1c0d3b3fb8bfc2 56-58
+  s_c2fdda007d520f::t_2b0aec9dc6bb46 55
+packages/electrobun/tests/fixtures/sdk.ts
+  s_c2fdda007d520f::t_0b70de1b5b1836 41
+  s_c2fdda007d520f::t_225c7454f93da8 34-38
+packages/electrobun/tests/desktop-client.test.ts
+  s_c2fdda007d520f::t_98d3e1a66f41f2 1-2,15,33,252
+  s_c2fdda007d520f::t_ace5cf365edcdd 80-82
+  s_c2fdda007d520f::t_7092252fb8a0c4 3,16-18,20-23,25,27-32,34-35,37-45,47-53,55,78-79,83-87,89-92,99,110-137,140-141,143-180,182-183,190-225,227-242,247-251
+  s_c2fdda007d520f::t_0b70de1b5b1836 75,253-272,276-285,287-288
+  s_c2fdda007d520f::t_7f17a0c0a8f192 26,138-139
+  s_c2fdda007d520f::t_225c7454f93da8 4-8,11-14,46,56-74,77,88,100,102-109
+  s_c2fdda007d520f::t_0551f482bb22df 9
+  s_c2fdda007d520f::t_9fe10d3052b4a2 10,19,24,36,54,76,93-98,101,142,181,185-189,226,243-246,273-275,286
+  s_c2fdda007d520f::t_4a84113ecde23b 184
+packages/electrobun/tsconfig.json
+  s_c2fdda007d520f::t_b03c48158da641 8
+packages/electrobun/tests/build-output.integration.test.ts
+  s_c2fdda007d520f::t_56765566073738 47-54,58,61-66
+  s_c2fdda007d520f::t_35e1f80222657f 6-7,59
+  s_c2fdda007d520f::t_b03c48158da641 60
+  s_c2fdda007d520f::t_0b70de1b5b1836 73,75-83,161
+packages/electrobun/src/desktop-bridge.ts
+  s_c2fdda007d520f::t_1c0d3b3fb8bfc2 1-11,13-24,34-45
+  s_c2fdda007d520f::t_ef3ac7c14befa3 12,25-33
+packages/electrobun/README.md
+  s_c2fdda007d520f::t_e4893327462f5e 205-266
+packages/electrobun/package.json
+  s_c2fdda007d520f::t_6c6fa231b0369b 36-40,62-63,66,70-71
+  s_c2fdda007d520f::t_ef3ac7c14befa3 65
+  s_c2fdda007d520f::t_e4893327462f5e 64,72-76
+packages/electrobun/src/runtime.ts
+  s_c2fdda007d520f::t_1c0d3b3fb8bfc2 4,25-27
+bun.lock
+  s_c2fdda007d520f::t_a7f2d176ef98e3 189-190,192-193,201,203-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e2c37e99f9014bc99146d8cc43281b55bca94868",
+  "prompts": {},
+  "sessions": {
+    "s_c2fdda007d520f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16dbf-9b6e-7911-8315-943b5502f765",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}
