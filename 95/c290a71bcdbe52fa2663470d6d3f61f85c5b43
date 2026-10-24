@@ -1,0 +1,80 @@
+packages/core/src/server/server-entry.ts
+  s_056a2dfe3ceb31::t_4cb6bf0f0b08f7 20
+  s_056a2dfe3ceb31::t_b976500cb977a2 21-23
+examples/electrobun-todo/src/server.ts
+  s_1a7c356629ae36::t_35b519c139ece4 11
+  s_056a2dfe3ceb31::t_7c247ac85b010a 26-27
+packages/electrobun/tests/config-factory.test.ts
+  s_1a7c356629ae36::t_cb582bcf71f286 26-27,33-34,68-99
+  s_1a7c356629ae36::t_5f48ddd612de77 8,53
+  s_1a7c356629ae36::t_a2aeb65d4fa2a2 1-7,9-15,19,24-25,28,30-32,36-42,44-48,52,54-67,100
+  s_1a7c356629ae36::t_5b759454fa4a96 43
+  s_1a7c356629ae36::t_8cf793b7158587 16-18,20-23,35,49-51
+  s_1a7c356629ae36::t_eb6d96627c4235 29
+packages/electrobun/tests/native-routes.test.ts
+  s_056a2dfe3ceb31::t_f577167645bb0a 7,12-17,19,21-25,27-28,30-31,33-45
+  s_056a2dfe3ceb31::t_71596a90ab05a5 18,20,26,29,32
+packages/core/tests/runtime/server-entry.test.ts
+  s_056a2dfe3ceb31::t_71596a90ab05a5 13,15,22-26,28,36
+  s_056a2dfe3ceb31::t_7c247ac85b010a 29-35,37-41
+  s_056a2dfe3ceb31::t_23e965b1598061 1-12,14,16-21,27,42-45
+packages/electrobun/src/server.ts
+  s_1a7c356629ae36::t_0fa23523a58db5 34-82,84,86-98,102-114,116-117,120-124,188-198,200,203,289
+  s_1a7c356629ae36::t_b3248a5df3ddb0 99-101
+  s_1a7c356629ae36::t_c3f7ebee1ff7c3 115,118,199,224
+  s_1a7c356629ae36::t_5f48ddd612de77 85
+  s_056a2dfe3ceb31::t_66910878536652 208-216,218-221,268-274,276-277
+  s_1a7c356629ae36::t_c60fc157bac2a0 83,119,201-202,204-207,222-223,225-230,232,235-267,278-288,290-310,312-314,316,318-319,321-323,325-328
+packages/electrobun/src/registry.ts
+  s_1a7c356629ae36::t_35b519c139ece4 75
+packages/electrobun/src/runtime.ts
+  s_056a2dfe3ceb31::t_0c3bfe673b9a06 2-3,179,303-305,329,432
+  s_1a7c356629ae36::t_65ea62dab7781d 311
+packages/electrobun/tests/internal-dispatch-build.test.ts
+  s_056a2dfe3ceb31::t_3435df3ee3b92e 12-14,87,155
+packages/electrobun/tests/admission.test.ts
+  s_056a2dfe3ceb31::t_71596a90ab05a5 15,31-32
+  s_056a2dfe3ceb31::t_1ba06366eb0127 81-84
+  s_056a2dfe3ceb31::t_66910878536652 116,195
+CHANGELOG.md
+  s_056a2dfe3ceb31::t_7c247ac85b010a 10
+  s_056a2dfe3ceb31::t_2762b4d5f70c53 20
+packages/electrobun/tests/fixtures/standard-launch.ts
+  s_056a2dfe3ceb31::t_2762b4d5f70c53 46
+  s_056a2dfe3ceb31::t_66910878536652 16,45,75
+packages/core/src/adapter/bun/server.ts
+  s_056a2dfe3ceb31::t_7c247ac85b010a 10-11
+packages/electrobun/README.md
+  s_056a2dfe3ceb31::t_563992b26d2368 166
+  s_056a2dfe3ceb31::t_7c247ac85b010a 46-47,56,59,61-62,67-69
+  s_1a7c356629ae36::t_35b519c139ece4 71-81,83-92,94-104,106
+  s_056a2dfe3ceb31::t_2762b4d5f70c53 54-55,57-58,60,63-66,70,82,93,105
+packages/core/tests/build/server-entry.integration.test.ts
+  s_056a2dfe3ceb31::t_563992b26d2368 1-39
+packages/electrobun/tests/backend.test.ts
+  s_056a2dfe3ceb31::t_71596a90ab05a5 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "95c290a71bcdbe52fa2663470d6d3f61f85c5b43",
+  "prompts": {},
+  "sessions": {
+    "s_056a2dfe3ceb31": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16cff-276a-7422-9f6d-73c8402d5c50",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_1a7c356629ae36": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16880-94ae-7220-9ce2-1ba05ec73fdc",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
