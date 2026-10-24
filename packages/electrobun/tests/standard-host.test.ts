@@ -25,7 +25,6 @@ test("standard host lifecycle and successful update handoff", async () => {
   const scripts: string[] = [];
   const documents: (() => void)[] = [];
   const browserUrls: string[] = [];
-  let background = true;
   let quit: number | undefined;
   let authenticated: { origin: string; cookie: string } | undefined;
   const identity = {
@@ -162,7 +161,7 @@ test("standard host lifecycle and successful update handoff", async () => {
   const app = new Elysia()
     .use(
       desktopApp({
-        background: () => background,
+        background: true,
       })
     )
     .onStart((instance) => {
@@ -256,7 +255,6 @@ test("standard host lifecycle and successful update handoff", async () => {
     expect(scripts).toEqual(["explicit native test", "explicit native test"]);
     expect(windows).toHaveLength(2);
     expect(windows[1]?.url).not.toBe(first.url);
-    background = false;
     expect(desktop.window).toBe(windows.at(1)?.window);
     await desktop.updates.install();
     expect(desktop.snapshot().phase).toBe("quitting");

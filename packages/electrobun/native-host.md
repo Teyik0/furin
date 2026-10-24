@@ -12,7 +12,7 @@ The host loads the app and optional native integrations, installs session guards
 
 Application resources use Elysia `.onStart()`/`.onStop()`. Initialize resources during startup so Elysia owns their cleanup; cleanup does not execute for a root that never started. Request errors use `.onError()`. Native SDK events run outside HTTP and must catch synchronous errors and rejected promises themselves.
 
-Quitting aborts startup, drains the backend once under a five-second shutdown deadline, fences and closes all managed windows, releases single-instance ownership and calls SDK quit. Restart arms the native relaunch helper before coordinated shutdown. Update installation drains the backend before SDK handoff and guards concurrent quit/restart. Failed update handoff offers an error dialog and coordinated restart. Main close follows `background()` policy; additional windows keep the app alive until the last managed window closes. Original SDK trays are application-owned and are removed on final host shutdown.
+Quitting aborts startup, drains the backend once under a five-second shutdown deadline, fences and closes all managed windows, releases single-instance ownership and calls SDK quit. Restart arms the native relaunch helper before coordinated shutdown. Update installation drains the backend before SDK handoff and guards concurrent quit/restart. Failed update handoff offers an error dialog and coordinated restart. After the last managed window closes, `background: true` keeps the app alive; `false` or omission quits it. Original SDK trays are application-owned and are removed on final host shutdown.
 
 ## Windows and SDK identity
 

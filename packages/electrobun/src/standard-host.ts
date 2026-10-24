@@ -228,12 +228,8 @@ export async function runStandardDesktopHost(
       if (phase !== "ready" || options.manager || windows.size !== 0) {
         return;
       }
-      try {
-        if (state?.hooks?.background?.()) {
-          return;
-        }
-      } catch (error) {
-        report("action")(error);
+      if (state?.hooks?.background) {
+        return;
       }
       desktop.quit().catch(report("quit"));
     });
