@@ -1,7 +1,7 @@
 import { expect, expectTypeOf, test } from "bun:test";
 import { treaty } from "@elysia/eden";
 import { Elysia, t } from "elysia";
-import type { DesktopAppOptions, DesktopContext } from "../src/capabilities";
+import type { DesktopContext } from "../src/capabilities";
 import { desktopApp } from "../src/server";
 
 test("desktop configuration infers preceding service decorators and shared state", async () => {
@@ -71,8 +71,7 @@ test("explicit application configuration preserves services, shared references a
   const settings = { background: false };
   const services = new Elysia().decorate("instance", { name: "Relay" });
   const root = new Elysia().use(services).state("settings", settings);
-  let background: boolean | undefined;
-  let configuredSettings: typeof settings | undefined;
+  let background: (() => boolean) | undefined;
   let title: string | undefined;
   const app = root
     .use((parent) =>
@@ -80,8 +79,7 @@ test("explicit application configuration preserves services, shared references a
         expectTypeOf(instance.name).toEqualTypeOf<string>();
         expectTypeOf(store.settings.background).toEqualTypeOf<boolean>();
         title = instance.name;
-        ({ background } = store.settings);
-        configuredSettings = store.settings;
+        background = () => store.settings.background;
         return { background, window: { title } };
       })
     )
@@ -92,12 +90,9 @@ test("explicit application configuration preserves services, shared references a
 
   expect(Object.is(app, root)).toBe(true);
   expect(title).toBe("Relay");
-  expectTypeOf<DesktopAppOptions["background"]>().toEqualTypeOf<boolean | undefined>();
-  expect(configuredSettings).toBe(settings);
-  expect(background).toBe(false);
+  expect(background?.()).toBe(false);
   settings.background = true;
-  expect(configuredSettings?.background).toBe(true);
-  expect(background).toBe(false);
+  expect(background?.()).toBe(true);
   expect(await (await app.handle(new Request("http://localhost/"))).json()).toEqual({
     desktop: null,
     name: "Relay",
@@ -138,7 +133,7 @@ test("desktop configuration after an API plugin preserves macros, routes and lif
         expectTypeOf(torrents).toEqualTypeOf<typeof torrentsService>();
         return {
           admission: access.admit.bind(access),
-          background: torrents.settings.runInBackground,
+          background: () => torrents.settings.runInBackground === true,
         };
       })
     )

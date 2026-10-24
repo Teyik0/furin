@@ -43,7 +43,7 @@ export async function standardLaunchFixture(options: {
       let desktop;
       let applicationLease;
       export default new Elysia()
-      .use(desktopApp({background:true})).onStart(async (instance) => {const runtime = getApplicationRuntime(instance);
+      .use(desktopApp({background:()=>true})).onStart(async (instance) => {const runtime = getApplicationRuntime(instance);
           desktop=runtime.desktop;
           ${
             options.applicationLease

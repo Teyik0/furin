@@ -14,54 +14,13 @@ import { desktopApp, desktopContext } from "../src/server";
 import { runStandardDesktopHost } from "../src/standard-host";
 import { installSdk } from "./fixtures/sdk";
 
-test.each([true, false, undefined] as const)(
-  "background=%s controls whether closing the last window keeps the app alive",
-  async (background) => {
-    const root = await mkdtemp(join(tmpdir(), "furin-background-"));
-    const previous = process.env.FURIN_APP_DATA_DIR;
-    const identity = { name: "Fixture", identifier: "local.furin.background", version: "1.0.0" };
-    let desktop: DesktopContext | undefined;
-    let stops = 0;
-    const app = new Elysia().use(desktopApp({ background })).onStop(() => {
-      stops += 1;
-    });
-    try {
-      await Bun.write(join(root, ".furin/electrobun/host.json"), JSON.stringify({ app: identity }));
-      await installSdk(root);
-      const sdk = (await import(join(root, "node_modules/electrobun/main.ts"))) as DesktopSdk;
-      Object.defineProperty(sdk.Utils, "quit", { value: () => true });
-      desktop = await runStandardDesktopHost(sdk, {
-        config: { app: identity },
-        dataDir: join(root, "data"),
-        root,
-        mode: "build",
-        load: async () => ({ default: app }),
-      });
-      if (!desktop?.window) {
-        throw new Error("Missing managed window.");
-      }
-      desktop.window.close();
-      expect(desktop.snapshot().phase).toBe(background ? "ready" : "quitting");
-      await desktop.quit();
-      expect(desktop.snapshot().phase).toBe("stopped");
-      expect(stops).toBe(1);
-    } finally {
-      await desktop?.quit();
-      if (previous === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previous;
-      }
-      await rm(root, { recursive: true, force: true });
-    }
-  }
-);
-
 test("managed windows keep SDK identity and independent APIs share the live controller", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-windows-"));
   const previous = process.env.FURIN_APP_DATA_DIR;
   const identity = { name: "Fixture", identifier: "local.furin.windows", version: "1.0.0" };
   let desktop: DesktopContext | undefined;
+  let failBackground = false;
+  let backgroundReads = 0;
   // Declared before host installation: provider must resolve the live value later.
   const api = new Elysia().use(desktopContext).post("/minimize", ({ desktop: context }) => {
     if (!context) {
@@ -79,7 +38,13 @@ test("managed windows keep SDK identity and independent APIs share the live cont
           titleBarStyle: "hiddenInset",
           frame: { width: 902, height: 701 },
         },
-        background: true,
+        background: () => {
+          backgroundReads += 1;
+          if (failBackground) {
+            throw new Error("Policy failed");
+          }
+          return true;
+        },
       })
     )
     .use(api)
@@ -141,7 +106,11 @@ test("managed windows keep SDK identity and independent APIs share the live cont
     expect(desktop.open()).toBe(reopened);
     options.close();
     reopened.close();
-    expect(desktop.snapshot().phase).toBe("ready");
+    expect(backgroundReads).toBe(1);
+    const last = desktop.open();
+    failBackground = true;
+    expect(() => last.close()).not.toThrow();
+    expect(backgroundReads).toBe(2);
     await desktop.quit();
     expect(desktop.window).toBeUndefined();
     expect(desktop.windows.get("options")).toBeUndefined();

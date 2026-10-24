@@ -81,7 +81,7 @@ new Elysia()
   .use(services)
   .use(desktopApp(({ access, torrents, instance }) => ({
     admission: access.admit.bind(access),
-    background: torrents.settings.runInBackground,
+    background: () => torrents.settings.runInBackground === true,
     window: {
       frame: { height: 940, width: 1400 },
       renderer: "native",
@@ -97,12 +97,12 @@ new Elysia()
   .use(services)
   .state("background", false)
   .use((app) => desktopApp(app, ({ instance, store }) => ({
-    background: store.background,
+    background: () => store.background,
     window: { title: instance.name },
   })));
 ```
 
-The factory runs synchronously once when the plugin is installed, before listening. Its services must already be registered and usable; it does not wait for `.onStart()` or pending async plugins. Values such as `window.title` and the `background` boolean are read then. Later settings changes do not change this background choice. `admission` remains a callback and reads shared services when invoked. The configuration context contains no HTTP request fields or per-request `.derive()` values.
+The factory runs synchronously once when the plugin is installed, before listening. Its services must already be registered and usable; it does not wait for `.onStart()` or pending async plugins. Values such as `window.title` are read then. `admission` and `background` remain callbacks and read shared services when invoked. The configuration context contains no HTTP request fields or per-request `.derive()` values.
 
 ## Independent API plugins
 
@@ -163,7 +163,7 @@ Handle deep links and associated files directly with `Electrobun.events.on("open
 
 Native callbacks run outside HTTP; catch both synchronous errors and rejected promises there. Elysia `.onError()` handles HTTP errors. Application resource lifecycle uses Elysia `.onStart()`/`.onStop()`. Keep native SDK value imports confined to native modules; shared server modules use context and type-only imports.
 
-Furin retains `desktop.browser.open(path)`, coordinated `quit()`/`restart()`, `updates.install()`, association helpers, identity/instance ownership, native input forwarding and background/admission policy. Use original SDK Updater for checking, downloading and status. Installation drains the backend before SDK handoff. Quit/restart guard all managed windows and run backend cleanup once. `background: true` permits the app to stay alive after the last managed window closes; `false` or omission quits the app. Native menus/trays remain application-owned.
+Furin retains `desktop.browser.open(path)`, coordinated `quit()`/`restart()`, `updates.install()`, association helpers, identity/instance ownership, native input forwarding and background/admission policy. Use original SDK Updater for checking, downloading and status. Installation drains the backend before SDK handoff. Quit/restart guard all managed windows and run backend cleanup once. `background: () => true` permits the app to stay alive after the last managed window closes; native menus/trays remain application-owned.
 
 ## Packaging and types
 

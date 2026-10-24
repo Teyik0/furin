@@ -79,8 +79,7 @@ export interface DesktopAppOptions {
    * native window session. Return a Response to reject it. In-process dispatch never calls it.
    */
   admission?: (request: Request, context: AdmissionContext) => Response | undefined;
-  /** Keep the application running after its last managed window closes. */
-  background?: boolean;
+  background?: () => boolean;
   restrictWebToLoopback?: boolean;
   window?: DesktopWindowOptions;
 }

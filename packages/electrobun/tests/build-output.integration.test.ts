@@ -77,7 +77,7 @@ test("package build removes stale outputs and emits config and server exports", 
       export const configured = new Elysia().use(api)
         .use(desktopApp(({ access, torrents }) => ({
           admission: access.admit.bind(access),
-          background: torrents.settings.runInBackground,
+          background: () => torrents.settings.runInBackground === true,
         })))
         .onStop(() => {})
         .get("/after", { nativeOnly: true }, ({ desktop }) => {
