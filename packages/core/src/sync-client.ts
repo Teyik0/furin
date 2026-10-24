@@ -9,5 +9,6 @@ export {
   type SyncClientOptions,
   type SyncConnectionState,
   type SyncQueryState,
+  type SyncReconnectOptions,
   type SyncSocket,
 } from "./client/sync-client.ts";

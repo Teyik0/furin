@@ -40,7 +40,7 @@ const OPTIMISTIC_BOARD_REGEX = /^\/optimistic-board\/[^/]+$/;
 
 interface SyncBrowserEvent {
   channel: "sync";
-  data: { cursor: string };
+  data: { cursor: string } | { context: "changed" };
   version: 1;
 }
 
@@ -162,6 +162,292 @@ describe("RouterProvider sync refresh", () => {
     Reflect.deleteProperty(globalThis, BROWSER_EVENTS_RUNTIME_KEY);
     await uninstallDom();
   });
+
+  test("an access-context change refreshes live queries and loaders without journal invalidations", async () => {
+    let count = 0;
+    const app = new Elysia().get("/count", ({ set }) => {
+      set.headers["x-furin-query"] = JSON.stringify({ id: "count", scope: {}, session: "alice" });
+      return { count };
+    });
+    const api = treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    }).use(furinSync);
+    function Counter(props: PageProps) {
+      return <main>{`${props.message}:${useQuery(api.count.get.live()).data?.count}`}</main>;
+    }
+    globalThis.fetch = mock((input: RequestInfo | URL) => {
+      const url = new URL(String(input), window.location.origin);
+      return Promise.resolve(
+        url.pathname.endsWith("/changes")
+          ? Response.json({ cursor: "0", changes: [], hasMore: false, reset: false })
+          : makeNdjsonResponse({ message: "fresh" })
+      );
+    }) as unknown as typeof fetch;
+    const route = makeRoute("/board");
+    const initialMatch = await loadInitialMatch(route);
+    initialMatch.component = Counter;
+    route.load = async () => ({
+      default: { component: Counter, _route: { __type: "FURIN_ROUTE" } as never },
+    });
+    const { container, cleanup } = await renderRouter(route, initialMatch);
+    currentCleanup = cleanup;
+    await waitForDom(() => container.textContent === "stale:0", { timeoutMs: 500 });
+    await act(async () => {
+      browserEvents.emit("0");
+      await Bun.sleep(0);
+    });
+    count = 1;
+    await act(async () => {
+      browserEvents.listener?.({ channel: "sync", data: { context: "changed" }, version: 1 });
+      await Bun.sleep(0);
+    });
+    await waitForDom(() => container.textContent === "fresh:1", { timeoutMs: 500 });
+  });
+
+  test("revocation discards a pending navigation even when its fetch ignores cancellation", async () => {
+    const started = Promise.withResolvers<void>();
+    const response = Promise.withResolvers<Response>();
+    const refused = Promise.withResolvers<void>();
+    let signal: AbortSignal | null | undefined;
+    let router: ReturnType<typeof useRouter> | undefined;
+    globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), window.location.origin);
+      if (url.pathname.endsWith("/changes")) {
+        refused.resolve();
+        return Promise.resolve(new Response(null, { status: 401 }));
+      }
+      signal = init?.signal;
+      started.resolve();
+      return response.promise;
+    }) as unknown as typeof fetch;
+    function NavigablePage(props: PageProps) {
+      router = useRouter();
+      return Page(props);
+    }
+    const route = makeRoute("/board");
+    const initialMatch = await loadInitialMatch(route);
+    initialMatch.component = NavigablePage;
+    const { container, cleanup } = await renderRouter(route, initialMatch, { message: "public" }, [
+      route,
+      makeRoute("/private"),
+    ]);
+    currentCleanup = cleanup;
+    let navigation: Promise<void> | undefined;
+    try {
+      await act(async () => {
+        navigation = router?.navigate("/private" as string);
+        await started.promise;
+      });
+      await act(async () => {
+        browserEvents.listener?.({ channel: "sync", data: { context: "changed" }, version: 1 });
+        await refused.promise;
+      });
+      await act(async () => {
+        response.resolve(makeNdjsonResponse({ message: "PRIVATE_BEFORE_REVOCATION" }));
+        await navigation;
+      });
+      expect(container.textContent).toBe("public");
+      expect(window.location.pathname).toBe("/board");
+      expect(signal?.aborted).toBe(true);
+      expect(router?.isNavigating).toBe(false);
+    } finally {
+      response.resolve(makeNdjsonResponse({ message: "PRIVATE_BEFORE_REVOCATION" }));
+    }
+  });
+
+  test("a new access context refreshes before an obsolete navigation finishes", async () => {
+    const started = Promise.withResolvers<void>();
+    const oldResponse = Promise.withResolvers<Response>();
+    let router: ReturnType<typeof useRouter> | undefined;
+    globalThis.fetch = mock((input: RequestInfo | URL) => {
+      const url = new URL(String(input), window.location.origin);
+      if (url.pathname.endsWith("/changes")) {
+        return Promise.resolve(
+          Response.json({ cursor: "0", changes: [], hasMore: false, reset: false })
+        );
+      }
+      if (navigationDataPath(input, window.location.origin) === "/private") {
+        started.resolve();
+        return oldResponse.promise;
+      }
+      return Promise.resolve(makeNdjsonResponse({ message: "new-context" }));
+    }) as unknown as typeof fetch;
+    function NavigablePage(props: PageProps) {
+      router = useRouter();
+      return Page(props);
+    }
+    const route = makeRoute("/board");
+    const initialMatch = await loadInitialMatch(route);
+    initialMatch.component = NavigablePage;
+    route.load = async () => ({
+      default: { component: NavigablePage, _route: { __type: "FURIN_ROUTE" } as never },
+    });
+    const { container, cleanup } = await renderRouter(route, initialMatch, { message: "public" }, [
+      route,
+      makeRoute("/private"),
+    ]);
+    currentCleanup = cleanup;
+    let navigation: Promise<void> | undefined;
+    try {
+      await act(async () => {
+        navigation = router?.navigate("/private" as string);
+        await started.promise;
+      });
+      await act(async () => {
+        browserEvents.listener?.({ channel: "sync", data: { context: "changed" }, version: 1 });
+        await Bun.sleep(0);
+      });
+      await waitForDom(() => container.textContent === "new-context", { timeoutMs: 300 });
+      await act(async () => {
+        oldResponse.resolve(makeNdjsonResponse({ message: "PRIVATE_BEFORE_REVOCATION" }));
+        await navigation;
+      });
+      expect(container.textContent).toBe("new-context");
+    } finally {
+      oldResponse.resolve(makeNdjsonResponse({ message: "PRIVATE_BEFORE_REVOCATION" }));
+    }
+  });
+
+  test("revocation cancels a deferred transport adopted from a prefetched page", async () => {
+    const encoder = new TextEncoder();
+    let streamController: ReadableStreamDefaultController<Uint8Array> | undefined;
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        streamController = controller;
+        controller.enqueue(encoder.encode(serializeRouteFrames({}, ["slow"])));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    let router: ReturnType<typeof useRouter> | undefined;
+    function NavigablePage(props: PageProps) {
+      router = useRouter();
+      return Page(props);
+    }
+    function DeferredValue(props: PageProps) {
+      return <main>{use(props.slow as Promise<string>)}</main>;
+    }
+    function PrivatePage(props: PageProps) {
+      return (
+        <Suspense fallback="pending">
+          <DeferredValue {...props} />
+        </Suspense>
+      );
+    }
+    globalThis.fetch = mock((input: RequestInfo | URL) =>
+      Promise.resolve(
+        String(input).includes("/changes")
+          ? new Response(null, { status: 401 })
+          : new Response(stream, { headers: { "Content-Type": "application/x-ndjson" } })
+      )
+    ) as unknown as typeof fetch;
+    const route = makeRoute("/board");
+    const initialMatch = await loadInitialMatch(route);
+    initialMatch.component = NavigablePage;
+    const privateRoute = makeRoute("/private");
+    privateRoute.load = async () => ({
+      default: { component: PrivatePage, _route: { __type: "FURIN_ROUTE" } as never },
+    });
+    const { container, cleanup } = await renderRouter(route, initialMatch, { message: "public" }, [
+      route,
+      privateRoute,
+    ]);
+    currentCleanup = cleanup;
+    await act(async () => {
+      router?.prefetch("/private" as string);
+      await Bun.sleep(0);
+    });
+    await act(async () => {
+      await router?.navigate("/private" as string);
+    });
+    expect(container.textContent).toBe("pending");
+    await act(async () => {
+      browserEvents.listener?.({ channel: "sync", data: { context: "changed" }, version: 1 });
+      await Bun.sleep(0);
+    });
+    await act(async () => {
+      if (!cancelled) {
+        streamController?.enqueue(
+          encoder.encode(
+            serializeRouteFrame({
+              type: "defer-resolve",
+              key: "slow",
+              value: toCrossJSON("PRIVATE_AFTER_401"),
+            })
+          )
+        );
+        streamController?.close();
+      }
+      await Bun.sleep(0);
+    });
+    expect(container.textContent).not.toContain("PRIVATE_AFTER_401");
+    expect(cancelled).toBe(true);
+  });
+
+  test.each(["module", "request"])(
+    "context recovery releases a Sync refresh blocked on its old %s",
+    async (blocked) => {
+      const moduleGate = Promise.withResolvers<Awaited<ReturnType<ClientRoute["load"]>>>();
+      const responseGate = Promise.withResolvers<Response>();
+      const started = Promise.withResolvers<void>();
+      let pageRequests = 0;
+      let changesRequests = 0;
+      let obsoleteSignal: AbortSignal | null | undefined;
+      globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes("/changes")) {
+          changesRequests += 1;
+          return Promise.resolve(
+            Response.json({
+              cursor: String(changesRequests),
+              hasMore: false,
+              reset: false,
+              changes: changesRequests === 1 ? [{ cursor: "1", invalidations: ["/board"] }] : [],
+            })
+          );
+        }
+        pageRequests += 1;
+        if (pageRequests === 1) {
+          obsoleteSignal = init?.signal;
+          started.resolve();
+          return blocked === "request"
+            ? responseGate.promise
+            : Promise.resolve(makeNdjsonResponse({ message: "obsolete" }));
+        }
+        return Promise.resolve(makeNdjsonResponse({ message: "new-context" }));
+      }) as unknown as typeof fetch;
+      const route = makeRoute("/board");
+      const initialMatch = await loadInitialMatch(route);
+      const originalLoad = route.load;
+      let moduleRequests = 0;
+      route.load = () => {
+        moduleRequests += 1;
+        return blocked === "module" && moduleRequests === 1 ? moduleGate.promise : originalLoad();
+      };
+      const { container, cleanup } = await renderRouter(route, initialMatch, { message: "public" });
+      currentCleanup = cleanup;
+      try {
+        await act(async () => {
+          browserEvents.emit("1");
+          await started.promise;
+        });
+        await act(async () => {
+          browserEvents.listener?.({ channel: "sync", data: { context: "changed" }, version: 1 });
+          await Bun.sleep(0);
+        });
+        await waitForDom(() => container.textContent === "new-context", { timeoutMs: 300 });
+        expect(obsoleteSignal?.aborted).toBe(true);
+        expect(pageRequests).toBe(2);
+      } finally {
+        await act(async () => {
+          moduleGate.resolve(await originalLoad());
+          responseGate.resolve(makeNdjsonResponse({ message: "obsolete" }));
+          await Bun.sleep(0);
+        });
+      }
+    }
+  );
 
   test("one GET projection updates loader props and holds a scoped refresh until the write settles", async () => {
     const gate = Promise.withResolvers<void>();

@@ -17,12 +17,75 @@ interface BrowserEventEnvelope {
 }
 
 interface BrowserEventRuntime {
+  setSyncAuthentication: (authorized: boolean) => void;
   subscribe: (
     channel: BrowserEventEnvelope["channel"],
     listener: (event: BrowserEventEnvelope) => void
   ) => () => void;
   subscribeStatus: (listener: (status: string) => void) => () => void;
 }
+
+test.each(["ws", "sse"] as const)(
+  "%s pauses on global denial and resumes explicitly with HttpOnly cookie credentials",
+  async (transport) => {
+    installDom();
+    TestWebSocket.instances.length = 0;
+    TestEventSource.instances.length = 0;
+    const originalSocket = window.WebSocket;
+    const originalSource = window.EventSource;
+    const originalFetch = window.fetch;
+    window.WebSocket = TestWebSocket as unknown as typeof WebSocket;
+    window.EventSource = TestEventSource as unknown as typeof EventSource;
+    let valid = false;
+    const checks: RequestInit[] = [];
+    window.fetch = ((_input, init) => {
+      if (init) {
+        checks.push(init);
+      }
+      return Promise.resolve(new Response(null, { status: valid ? 200 : 401 }));
+    }) as typeof fetch;
+    try {
+      installBrowserEventsRuntime(
+        window,
+        "http://localhost:3000/_furin/events/client.js",
+        transport === "sse" ? "sse" : undefined,
+        true
+      );
+      const runtime = (window as typeof window & { [RUNTIME_KEY]: BrowserEventRuntime })[
+        RUNTIME_KEY
+      ];
+      const statuses: string[] = [];
+      runtime.subscribeStatus((status) => statuses.push(status));
+      await Bun.sleep(10);
+      expect(statuses.at(-1)).toBe("unauthorized");
+      expect(TestWebSocket.instances.length + TestEventSource.instances.length).toBe(0);
+      await Bun.sleep(300);
+      expect(checks).toHaveLength(1);
+      valid = true;
+      runtime.setSyncAuthentication(true);
+      await Bun.sleep(10);
+      expect(checks[1]?.credentials).toBe("same-origin");
+      expect(checks[1]?.method).toBe("HEAD");
+      const connection =
+        transport === "ws" ? TestWebSocket.instances[0] : TestEventSource.instances[0];
+      if (!connection) {
+        throw new Error("Expected an authenticated event connection");
+      }
+      connection.open();
+      const events: BrowserEventEnvelope[] = [];
+      runtime.subscribe("sync", (event) => events.push(event));
+      connection.receive({ channel: "sync", data: { context: "changed" }, version: 1 });
+      expect(events.at(-1)?.data).toEqual({ context: "changed" });
+    } finally {
+      window.dispatchEvent(new window.Event("pagehide"));
+      Reflect.deleteProperty(window, RUNTIME_KEY);
+      window.fetch = originalFetch;
+      window.WebSocket = originalSocket;
+      window.EventSource = originalSource;
+      await uninstallDom();
+    }
+  }
+);
 
 class TestWebSocket extends EventTarget {
   static readonly CLOSED = 3;
@@ -241,7 +304,7 @@ test("browser event client source is a self-contained module", () => {
 
   expect(() => transpiler.transformSync(source)).not.toThrow();
   expect(() => transpiler.transformSync(sseSource)).not.toThrow();
-  expect(source).toContain("(window, import.meta.url)");
-  expect(sseSource).toContain('(window, import.meta.url, "sse")');
+  expect(source).toContain("(window, import.meta.url, undefined, false)");
+  expect(sseSource).toContain('(window, import.meta.url, "sse", true)');
   expect(source).not.toContain("browser-events-client");
 });

@@ -3,6 +3,7 @@ import { afterEach, expect, test } from "bun:test";
 import { treaty } from "@elysia/eden";
 import { Elysia } from "elysia";
 import { createBrowserEventsPlugin } from "../../../src/server/browser-events/plugin.ts";
+import type { FurinSyncOptions } from "../../../src/server/sync/config.ts";
 import { furinSync as serverSync } from "../../../src/server/sync/plugin.ts";
 import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/sqlite/index.ts";
 import { closeSyncCursorStates, createSyncChangesPlugin } from "../../../src/server/sync/stream.ts";
@@ -30,19 +31,34 @@ afterEach(async () => {
   }
 });
 
-function fixture(onRead?: (value: number) => Promise<void>) {
+function fixture(
+  onRead?: (value: number) => Promise<void>,
+  auth?: Partial<Pick<FurinSyncOptions, "connection" | "principal">>
+) {
   const database = new Database(":memory:");
   migrateSqliteSync(database);
   const sync = {
     adapter: sqliteSyncAdapter({ database, namespace: "standalone" }),
-    principal: ({ headers }: { headers: { [name: string]: string | undefined } }) =>
-      headers.authorization === "deny" ? "" : (headers.authorization ?? "alice"),
+    connection: auth?.connection,
+    principal:
+      auth?.principal ??
+      (({ headers }: { headers: { [name: string]: string | undefined } }) =>
+        headers.authorization === "deny"
+          ? ""
+          : ((headers.authorization ?? "alice").split(":")[0] ?? "")),
   };
   let value = 0;
+  let permitted = true;
   const reads = { state: 0, other: 0 };
   const routes = new Elysia()
     .use(serverSync(sync))
     .use(createSyncChangesPlugin(sync))
+    .get("/login", () =>
+      Response.json(
+        { signedIn: true },
+        { headers: { "set-cookie": "session=alice; HttpOnly; SameSite=Lax; Path=/" } }
+      )
+    )
     .get("/state", async () => {
       reads.state += 1;
       const snapshot = value;
@@ -58,6 +74,9 @@ function fixture(onRead?: (value: number) => Promise<void>) {
     )
     .get("/identity", ({ headers }) => ({ principal: headers.authorization ?? "alice" }))
     .get("/denied", ({ status }) => status(403, { code: "DENIED" as const }))
+    .get("/restricted", ({ status }) =>
+      permitted ? { value } : status(403, { code: "RESOURCE_DENIED" as const })
+    )
     .post("/state", () => {
       value += 1;
       return { value };
@@ -77,7 +96,17 @@ function fixture(onRead?: (value: number) => Promise<void>) {
   const api = treaty<typeof routes>(url).use(furinSync);
   const client = createSyncClient({ url });
   cleanup.push(() => client.close());
-  return { api, client, url, reads, sync, routes };
+  return {
+    api,
+    client,
+    url,
+    reads,
+    sync,
+    routes,
+    setPermission: (allowed: boolean) => {
+      permitted = allowed;
+    },
+  };
 }
 
 test("a standalone subscriber receives the initial value and subsequent journaled changes", async () => {
@@ -260,6 +289,253 @@ test("a network interruption retries and reports a distinct connection state", a
   expect(client.getConnectionState().status).toBe("connected");
 });
 
+test("credential renewal preserves the same principal's cached data and journal cursor", async () => {
+  const { api, url } = fixture();
+  let token = "alice:1";
+  const cursors: string[] = [];
+  let recovered: string | undefined;
+  const client = createSyncClient({
+    url,
+    headers: () => ({ authorization: token }),
+    createWebSocket: (address, headers) => new RuntimeWebSocket(address, { headers }),
+    fetcher: (async (input, init) => {
+      cursors.push(new URL(String(input)).searchParams.get("after") ?? "missing");
+      const response = await fetch(input, init);
+      recovered = (await response.clone().json()).cursor;
+      return response;
+    }) as typeof fetch,
+  });
+  cleanup.push(() => client.close());
+  const values: (string | undefined)[] = [];
+  client.subscribe(api.identity.get.live(), ({ data }) => values.push(data?.principal));
+  await until(() => values.at(-1) === "alice:1");
+  await api.state.post(undefined, {});
+  await until(() => recovered === "1");
+  const index = values.length;
+  const requests = cursors.length;
+  token = "alice:2";
+  client.reconnect({ preserveCache: true });
+  expect(client.getConnectionState().reason).toBe("credentials");
+  expect(values.slice(index)).not.toContain(undefined);
+  await until(() => values.at(-1) === "alice:2");
+  expect(values.slice(index)).not.toContain(undefined);
+  expect(cursors[requests]).toBe("1");
+});
+
+test.each(["bob", "alice/tenant-two"])(
+  "server identity changes to %s clear retained snapshots before new reads",
+  async (nextPrincipal) => {
+    const { routes, url } = fixture();
+    let principal = "alice";
+    let snapshot: string | undefined;
+    const beforeNewRead: (string | undefined)[] = [];
+    const api = treaty<typeof routes>(url, {
+      fetcher: ((input, init) => {
+        if (new Headers(init?.headers).get("authorization") === nextPrincipal) {
+          beforeNewRead.push(snapshot);
+        }
+        return fetch(input, init);
+      }) as typeof fetch,
+    }).use(furinSync);
+    const client = createSyncClient({
+      url,
+      headers: () => ({ authorization: principal }),
+      createWebSocket: (address, headers) => new RuntimeWebSocket(address, { headers }),
+    });
+    cleanup.push(() => client.close());
+    const values: (string | undefined)[] = [];
+    client.subscribe(api.identity.get.live(), ({ data }) => {
+      snapshot = data?.principal;
+      values.push(snapshot);
+    });
+    await until(() => values.at(-1) === "alice");
+    const index = values.length;
+    principal = nextPrincipal;
+    client.reconnect({ preserveCache: true });
+    await until(() => values.at(-1) === nextPrincipal);
+    expect(values.slice(index)).toContain(undefined);
+    expect(beforeNewRead).toEqual([undefined]);
+  }
+);
+
+test("server access-context changes reacquire credentials and reevaluate reads without a journal write", async () => {
+  const leases: AbortController[] = [];
+  let releases = 0;
+  const { api, url, sync } = fixture(undefined, {
+    connection: () => {
+      const lease = new AbortController();
+      leases.push(lease);
+      return {
+        signal: lease.signal,
+        release: () => {
+          releases += 1;
+        },
+      };
+    },
+  });
+  let token = "alice:1";
+  const client = createSyncClient({
+    url,
+    headers: () => ({ authorization: token }),
+    createWebSocket: (address, headers) => new RuntimeWebSocket(address, { headers }),
+  });
+  cleanup.push(() => client.close());
+  const values: (string | undefined)[] = [];
+  client.subscribe(api.identity.get.live(), ({ data }) => values.push(data?.principal));
+  await until(() => values.at(-1) === "alice:1");
+  token = "alice:2";
+  const index = values.length;
+  leases[0]?.abort();
+  await until(() => values.at(-1) === "alice:2");
+  expect(values.slice(index)).toContain(undefined);
+  expect(await sync.adapter.currentCursor()).toBe("0");
+  expect(leases).toHaveLength(2);
+  expect(releases).toBe(1);
+});
+
+test("a permission change without a write removes forbidden data and keeps other queries live", async () => {
+  const leases: AbortController[] = [];
+  const { api, client, sync, setPermission } = fixture(undefined, {
+    connection: () => {
+      const lease = new AbortController();
+      leases.push(lease);
+      return { signal: lease.signal, release: () => undefined };
+    },
+  });
+  let restricted: number | undefined;
+  let errorCode: string | undefined;
+  let other: number | undefined;
+  client.subscribe(api.restricted.get.live(), ({ data, error }) => {
+    restricted = data?.value;
+    if (error && !(error instanceof SyncClientError) && error.status === 403) {
+      errorCode = error.value.code;
+    }
+  });
+  client.subscribe(api.state.get.live(), ({ data }) => {
+    other = data?.value;
+  });
+  await until(() => restricted === 0 && other === 0);
+  setPermission(false);
+  leases[0]?.abort();
+  await until(() => errorCode === "RESOURCE_DENIED");
+  expect(restricted).toBeUndefined();
+  expect(await sync.adapter.currentCursor()).toBe("0");
+  expect(client.getConnectionState().status).toBe("connected");
+  await api.state.post(undefined, {});
+  await until(() => other === 1);
+});
+
+test.each(["revocation", "expiration"])(
+  "%s without activity stops retries after reauthentication is denied",
+  async (reason) => {
+    const lease = new AbortController();
+    const sessions = new Set(["alice"]);
+    let checks = 0;
+    const { api, client } = fixture(undefined, {
+      principal: () => {
+        checks += 1;
+        return sessions.has("alice") ? "alice" : "";
+      },
+      connection: () => ({ signal: lease.signal, release: () => undefined }),
+    });
+    let value: number | undefined;
+    client.subscribe(api.state.get.live(), ({ data }) => {
+      value = data?.value;
+    });
+    await until(() => value === 0);
+    sessions.delete("alice");
+    lease.abort(reason);
+    await until(() => client.getConnectionState().status === "unauthorized");
+    const deniedChecks = checks;
+    await Bun.sleep(350);
+    expect(checks).toBe(deniedChecks);
+    expect(value).toBeUndefined();
+  }
+);
+
+test("a principal resolver rejecting a signed-out session produces an authentication refusal", async () => {
+  const { api, client } = fixture(undefined, {
+    principal: () => {
+      throw new Error("Session expired");
+    },
+  });
+  client.subscribe(api.state.get.live(), () => undefined);
+  await until(() => client.getConnectionState().status === "unauthorized");
+  expect(client.getConnectionState().error?.status).toBe(401);
+});
+
+test("HttpOnly session cookies authenticate recovery, event connections and subscribed reads", async () => {
+  let cookieAtConnection: string | null | undefined;
+  const { api, url } = fixture(undefined, {
+    principal: ({ request }) => (request.headers.get("cookie") === "session=alice" ? "alice" : ""),
+    connection: ({ request }) => {
+      cookieAtConnection = request.headers.get("cookie");
+    },
+  });
+  const login = await fetch(`${url}/login`);
+  expect(login.status).toBe(200);
+  const setCookie = login.headers.get("set-cookie") ?? "";
+  expect(setCookie).toContain("HttpOnly");
+  // Bun's host supplies the cookie jar; browsers send this cookie without exposing it to JS.
+  const cookie = setCookie.split(";")[0] ?? "";
+  const client = createSyncClient({
+    url,
+    headers: () => ({ cookie }),
+    createWebSocket: (address, headers) => new RuntimeWebSocket(address, { headers }),
+  });
+  cleanup.push(() => client.close());
+  let value: number | undefined;
+  client.subscribe(api.state.get.live(), ({ data }) => {
+    value = data?.value;
+  });
+  await until(() => value === 0);
+  expect(cookieAtConnection).toBe("session=alice");
+  expect(client.getConnectionState().status).toBe("connected");
+});
+
+test("a late recovery response cannot restore an old identity after ineffective cancellation", async () => {
+  const { api, url } = fixture();
+  let principal = "alice";
+  const started = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  let first = true;
+  let sockets = 0;
+  const client = createSyncClient({
+    url,
+    headers: () => ({ authorization: principal }),
+    createWebSocket: (address, headers) => {
+      sockets += 1;
+      return new RuntimeWebSocket(address, { headers });
+    },
+    fetcher: (async (input, init) => {
+      const response = await fetch(input, { ...init, signal: undefined });
+      if (first) {
+        first = false;
+        started.resolve();
+        await release.promise;
+      }
+      return response;
+    }) as typeof fetch,
+  });
+  cleanup.push(() => {
+    release.resolve();
+    client.close();
+  });
+  let value: string | undefined;
+  client.subscribe(api.identity.get.live(), ({ data }) => {
+    value = data?.principal;
+  });
+  await started.promise;
+  principal = "bob";
+  client.reconnect();
+  await until(() => value === "bob");
+  release.resolve();
+  await Bun.sleep(25);
+  expect(value).toBe("bob");
+  expect(sockets).toBe(1);
+  expect(client.getConnectionState().status).toBe("connected");
+});
+
 test("unsubscribe stops reads and a new observer immediately receives the shared cached value", async () => {
   const { api, client, reads } = fixture();
   let value: number | undefined;
@@ -314,19 +590,22 @@ test("reconnection retries an interrupted read even when the journal has no new 
   await until(() => value === 0);
 });
 
-test("a forbidden live read reports the typed denial and suspends the connection", async () => {
+test("a forbidden resource reports its typed denial while other subscriptions continue", async () => {
   const { api, client } = fixture();
   const errors: string[] = [];
+  let value: number | undefined;
+  client.subscribe(api.state.get.live(), ({ data }) => {
+    value = data?.value;
+  });
   client.subscribe(api.denied.get.live(), ({ error }) => {
     if (error && !(error instanceof SyncClientError) && error.status === 403) {
       errors.push(error.value.code);
     }
   });
   await until(() => errors.includes("DENIED"));
-  expect(client.getConnectionState().status).toBe("unauthorized");
-  expect(client.getConnectionState().error?.status).toBe(403);
-  await Bun.sleep(350);
-  expect(client.getConnectionState().status).toBe("unauthorized");
+  expect(client.getConnectionState().status).toBe("connected");
+  await api.state.post(undefined, {});
+  await until(() => value === 1);
 });
 
 test("one-shot live reads and creating an idle client do not start a persistent connection", async () => {
@@ -468,9 +747,14 @@ test("an asynchronous socket factory returning a closed socket triggers reconnec
   expect(client.getConnectionState().status).toBe("connected");
 });
 
-test.each([false, true])(
-  "credential changes fence old responses even when cancellation is ignored (old denial: %s)",
-  async (denied) => {
+test.each([
+  { denied: false, nextPrincipal: "bob" },
+  { denied: true, nextPrincipal: "bob" },
+  { denied: false, nextPrincipal: "alice/tenant-two" },
+  { denied: true, nextPrincipal: "alice/tenant-two" },
+])(
+  "changing to $nextPrincipal fences old responses despite ineffective cancellation (old denial: $denied)",
+  async ({ denied, nextPrincipal }) => {
     const { routes, url } = fixture();
     const reading = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
@@ -514,14 +798,14 @@ test.each([false, true])(
       }
     });
     await reading.promise;
-    token = "bob";
+    token = nextPrincipal;
     client.reconnect();
-    await until(() => values.at(-1) === "bob");
+    await until(() => values.at(-1) === nextPrincipal);
     release.resolve();
     await Bun.sleep(30);
     expect(cancelled).toBe(true);
     expect(values).not.toContain("alice");
-    expect(values.at(-1)).toBe("bob");
+    expect(values.at(-1)).toBe(nextPrincipal);
     expect(client.getConnectionState().status).toBe("connected");
   }
 );

@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { treaty } from "@elysia/eden";
 import { Elysia } from "elysia";
+import type { FurinSyncOptions, SyncConnectionLease } from "../../../src/server/sync/config.ts";
 import {
   createLocalSyncClient,
   invalidateSync,
@@ -34,7 +35,10 @@ async function until(check: () => boolean): Promise<void> {
   }
 }
 
-function fixture(onRead?: (value: number, signal: AbortSignal) => Promise<void>) {
+function fixture(
+  onRead?: (value: number, signal: AbortSignal) => Promise<void>,
+  connection?: FurinSyncOptions["connection"]
+) {
   const database = new Database(":memory:");
   migrateSqliteSync(database);
   const events = new Set<(cursor: string) => void>();
@@ -60,6 +64,7 @@ function fixture(onRead?: (value: number, signal: AbortSignal) => Promise<void>)
     },
   };
   const sync = {
+    connection,
     adapter: sqliteSyncAdapter({ database, namespace: "local" }),
     notifier,
     principal: ({ headers }: { headers: { [name: string]: string | undefined } }) =>
@@ -123,6 +128,73 @@ test("in-process subscriptions follow Eden live queries without a listener, fetc
     globalThis.fetch = fetch;
     globalThis.WebSocket = socket;
   }
+});
+
+test("local connections acquire a real authorized context and reauthenticate without journal writes", async () => {
+  const leases: AbortController[] = [];
+  let releases = 0;
+  const seen: string[] = [];
+  const { app, api, sync } = fixture(undefined, (context) => {
+    seen.push(context.request.headers.get("authorization") ?? "");
+    const lease = new AbortController();
+    leases.push(lease);
+    return {
+      signal: lease.signal,
+      release: () => {
+        releases += 1;
+      },
+    };
+  });
+  let token = "alice";
+  const client = createLocalSyncClient({ app, sync, headers: () => ({ authorization: token }) });
+  cleanup.push(() => client.close());
+  expect((await api.state.get.live()).data).toEqual({ value: 0 });
+  expect((await app.handle(new Request("http://e.ly/_furin/sync/changes"))).status).toBe(200);
+  expect(seen).toEqual([]);
+  let value: string | undefined;
+  client.subscribe(api.identity.get.live(), ({ data }) => {
+    value = data?.principal;
+  });
+  await until(() => value === "alice");
+  expect(seen).toEqual(["alice"]);
+  token = "bob";
+  leases[0]?.abort();
+  await until(() => value === "bob");
+  expect(seen).toEqual(["alice", "bob"]);
+  expect(await sync.adapter.currentCursor()).toBe("0");
+  expect(releases).toBe(1);
+  client.close();
+  expect(releases).toBe(2);
+});
+
+test("closing during asynchronous local validity acquisition releases the late lease exactly once", async () => {
+  const requested = Promise.withResolvers<void>();
+  const acquired = Promise.withResolvers<SyncConnectionLease>();
+  const released = Promise.withResolvers<void>();
+  const { api, client, subscriptions } = fixture(undefined, () => {
+    requested.resolve();
+    return acquired.promise;
+  });
+  const values: number[] = [];
+  let releases = 0;
+  client.subscribe(api.state.get.live(), ({ data }) => {
+    if (data) {
+      values.push(data.value);
+    }
+  });
+  await requested.promise;
+  client.close();
+  acquired.resolve({
+    signal: new AbortController().signal,
+    release: () => {
+      releases += 1;
+      released.resolve();
+    },
+  });
+  await released.promise;
+  expect(releases).toBe(1);
+  expect(subscriptions.started).toBe(0);
+  expect(values).toEqual([]);
 });
 
 test("queries share one notifier subscription and background invalidations stay targeted", async () => {

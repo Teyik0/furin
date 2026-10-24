@@ -71,6 +71,8 @@ export class SyncClientError extends Error {
 
 export interface SyncConnectionState {
   error: SyncClientError | null;
+  /** Why a connection is being restarted; absent when idle or connected. */
+  reason?: "network" | "credentials" | "context";
   status: "idle" | "connecting" | "connected" | "reconnecting" | "unauthorized" | "closed";
 }
 
@@ -95,8 +97,8 @@ export interface SyncQueryState<Result extends ReadResult> {
 export interface SyncClient {
   close: () => void;
   getConnectionState: () => SyncConnectionState;
-  /** Explicit credential/context change: cancel old reads, clear cache and restart recovery. */
-  reconnect: () => void;
+  /** Reauthenticate and reevaluate reads; clears snapshots and cursor unless preservation is explicit. */
+  reconnect: (options?: SyncReconnectOptions) => void;
   subscribe: <Result extends ReadResult>(
     query: LiveQuery<Result>,
     listener: (state: SyncQueryState<Result>) => void
@@ -104,10 +106,17 @@ export interface SyncClient {
   subscribeConnection: (listener: (state: SyncConnectionState) => void) => () => void;
 }
 
+export interface SyncReconnectOptions {
+  /** Only retain snapshots for renewal within the same identity and access scope. */
+  preserveCache?: boolean;
+}
+
 interface SyncTransportSubscription {
   headers: Headers;
+  onContextChange: () => void;
   onCursor: () => void;
   onError: (error: unknown) => void;
+  signal: AbortSignal;
 }
 
 /** @internal The local and remote adapters share one cache and recovery lifecycle. */
@@ -147,26 +156,34 @@ export function createSyncClient(options: SyncClientOptions): SyncClient {
       url.searchParams.set("after", after ?? "0");
       return (options.fetcher ?? globalThis.fetch)(url, { ...options.fetch, headers, signal });
     },
-    subscribe: async ({ headers, onCursor, onError: fail }) => {
+    subscribe: async ({ headers, onCursor, onContextChange, onError: fail }) => {
       const connection: SyncSocket = options.createWebSocket
         ? await options.createWebSocket(eventsUrl.href, headers)
         : new WebSocket(eventsUrl.href);
       const onMessage = (event: SyncSocketEvents["message"]) => {
-        let message: { version?: number; channel?: string; data?: { cursor?: unknown } };
+        let message: {
+          version?: number;
+          channel?: string;
+          data?: { cursor?: unknown; context?: unknown };
+        };
         try {
           message = JSON.parse(String(event.data));
         } catch {
           return;
         }
-        if (
-          message?.version === 1 &&
-          message.channel === "sync" &&
-          typeof message.data?.cursor === "string"
-        ) {
-          onCursor();
+        if (message?.version === 1 && message.channel === "sync") {
+          if (message.data?.context === "changed") {
+            onContextChange();
+          } else if (typeof message.data?.cursor === "string") {
+            onCursor();
+          }
         }
       };
       const onClose = (event: SyncSocketEvents["close"]) => {
+        if (event.code === 4410) {
+          onContextChange();
+          return;
+        }
         let status: number | undefined;
         if (event.code === 1008 || event.code === 4401) {
           status = 401;
@@ -210,9 +227,14 @@ export function createSyncClientRuntime(
   let timer: ReturnType<typeof setTimeout> | undefined;
   let attempt = 0;
   let generation = 0;
+  let session: string | undefined;
 
-  const publish = (status: SyncConnectionState["status"], error: SyncClientError | null) => {
-    state = { status, error };
+  const publish = (
+    status: SyncConnectionState["status"],
+    error: SyncClientError | null,
+    reason?: SyncConnectionState["reason"]
+  ) => {
+    state = { status, error, reason };
     for (const listener of listeners) {
       listener(state);
     }
@@ -230,11 +252,23 @@ export function createSyncClientRuntime(
     createSyncCatchUp({
       fetchPage: async (after) => {
         const { signal } = controller;
-        const response = await transport.fetchChanges(after, await headers(), signal);
+        const requestHeaders = await headers();
+        signal.throwIfAborted();
+        const response = await transport.fetchChanges(after, requestHeaders, signal);
+        signal.throwIfAborted();
         if (!response.ok) {
           throw new SyncClientError("Sync recovery refused", response.status);
         }
-        return (await response.json()) as SyncChangePagePayload;
+        const page = (await response.json()) as SyncChangePagePayload;
+        signal.throwIfAborted();
+        const identity = response.headers.get("x-furin-sync-session");
+        if (identity !== null) {
+          if (session !== undefined && identity !== session) {
+            reconnect();
+          }
+          session = identity;
+        }
+        return page;
       },
       onInvalidations: (paths) => {
         // Unknown cache tags imply a full refresh in the existing protocol.
@@ -277,10 +311,12 @@ export function createSyncClientRuntime(
       timer = undefined;
       connect();
     }, delay);
-    publish("reconnecting", error);
+    publish("reconnecting", error, "network");
   };
   const checkAccess = (url: string, status: number | undefined, error: unknown) => {
-    if (status === 401 || status === 403) {
+    if (status === 403) {
+      queries.setError(url, error);
+    } else if (status === 401) {
       fail(new SyncClientError("Live query access refused", status));
       if (state.status === "unauthorized") {
         queries.setError(url, error);
@@ -303,6 +339,12 @@ export function createSyncClientRuntime(
       connection = current;
       const stop = await transport.subscribe({
         headers: requestHeaders,
+        signal: controller.signal,
+        onContextChange: () => {
+          if (epoch === generation && connection === current && active()) {
+            reconnect(undefined, true);
+          }
+        },
         onCursor: () => {
           recovery
             .catchUp()
@@ -342,6 +384,50 @@ export function createSyncClientRuntime(
       }
     }
   };
+
+  function reconnect(reconnectOptions?: SyncReconnectOptions, automatic?: boolean): void {
+    if (state.status === "closed") {
+      return;
+    }
+    generation += 1;
+    const epoch = generation;
+    releaseConnection();
+    const cursor = reconnectOptions?.preserveCache ? recovery.cursor() : undefined;
+    recovery.close();
+    controller.abort();
+    ready.resolve();
+    controller = new AbortController();
+    ready = Promise.withResolvers<void>();
+    recovery = createRecovery();
+    if (cursor === undefined) {
+      session = undefined;
+    } else {
+      recovery.seed(cursor);
+    }
+    const delay = Math.min(250 * 2 ** attempt, 5000);
+    attempt = automatic ? attempt + 1 : 0;
+    queries.clear(reconnectOptions?.preserveCache);
+    if (epoch !== generation) {
+      return;
+    }
+    publish(
+      automatic ? "reconnecting" : "connecting",
+      null,
+      reconnectOptions?.preserveCache ? "credentials" : "context"
+    );
+    if (epoch !== generation) {
+      return;
+    }
+    if (automatic) {
+      timer = setTimeout(() => {
+        timer = undefined;
+        connect();
+      }, delay);
+    } else {
+      connect();
+    }
+    queries.invalidateAll();
+  }
 
   return {
     subscribe(query, listener) {
@@ -421,28 +507,7 @@ export function createSyncClientRuntime(
         listeners.delete(listener);
       };
     },
-    reconnect() {
-      if (state.status === "closed") {
-        return;
-      }
-      generation += 1;
-      const epoch = generation;
-      releaseConnection();
-      recovery.close();
-      controller.abort();
-      ready.resolve();
-      controller = new AbortController();
-      ready = Promise.withResolvers<void>();
-      recovery = createRecovery();
-      attempt = 0;
-      queries.clear();
-      if (epoch !== generation) {
-        return;
-      }
-      publish("connecting", null);
-      connect();
-      queries.invalidateAll();
-    },
+    reconnect,
     close() {
       if (state.status === "closed") {
         return;

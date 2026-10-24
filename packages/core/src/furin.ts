@@ -380,6 +380,7 @@ export {
   invalidateSync,
   type LocalSyncClientOptions,
   type SyncAdapter,
+  type SyncConnectionLease,
   type SyncInvalidationOptions,
   type SyncNotifier,
   type SyncRuntimeOptions,

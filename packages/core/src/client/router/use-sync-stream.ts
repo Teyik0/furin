@@ -1,7 +1,8 @@
 import { log } from "evlog";
 import { useEffect } from "react";
+import type { BrowserEventFor } from "../../shared/browser-events.ts";
 import { queryTag, queryTags } from "../../shared/sync-query.ts";
-import { subscribeBrowserEvent } from "../browser-events.ts";
+import { setBrowserSyncAuthentication, subscribeBrowserEvent } from "../browser-events.ts";
 import type { QueryStore } from "../query-store.ts";
 import {
   createSyncCatchUp,
@@ -42,6 +43,24 @@ export function useSyncStream(options: {
       : `${basePath}/${syncPath}`;
     let unsubscribe: (() => void) | undefined;
     let disposed = false;
+    let requestController = new AbortController();
+    let contextChanged = false;
+    let session: string | undefined;
+    const clearContext = () => {
+      contextChanged = true;
+      queries.clear();
+      controller.invalidateContext();
+    };
+    const observeSession = (response: Response) => {
+      const identity = response.headers.get("x-furin-sync-session");
+      if (identity === null) {
+        return;
+      }
+      if (session !== undefined && identity !== session) {
+        clearContext();
+      }
+      session = identity;
+    };
     const applyInvalidations = (entries: readonly string[]) => {
       if (disposed) {
         return;
@@ -61,48 +80,78 @@ export function useSyncStream(options: {
         }
       }
     };
-    const catchUp = createSyncCatchUp({
-      fetchPage: async (after) => {
-        const url = new URL(`${changesUrl}/changes`, window.location.origin);
-        if (after !== undefined) {
-          url.searchParams.set("after", after);
-        }
-        const response = await window.fetch(url);
-        if (!response.ok) {
-          throw new Error(`Sync catch-up failed with status ${response.status}`);
-        }
-        return (await response.json()) as SyncChangePagePayload;
-      },
-      onInvalidations: applyInvalidations,
-      onReset: () => {
-        if (!disposed) {
-          queries.invalidateAll();
-        }
-      },
-      onQueries: (identities) => {
-        queries.invalidate(identities);
-        const tags = new Set(identities.map(queryTag));
-        const affected = (snapshot: RouterState) =>
-          snapshot.querySeeds?.some((seed) =>
-            queryTags(seed.identity).some((tag) => tags.has(tag))
-          ) === true;
-        controller.invalidateQueries(affected);
-        if (autoRefresh && affected(controller.getSnapshot().state)) {
-          invalidationRefresh.run();
-        }
-      },
-    });
+    const createRecovery = () =>
+      createSyncCatchUp({
+        fetchPage: async (after) => {
+          const url = new URL(`${changesUrl}/changes`, window.location.origin);
+          if (after !== undefined) {
+            url.searchParams.set("after", after);
+          }
+          const { signal } = requestController;
+          const response = await window.fetch(url, { signal });
+          signal.throwIfAborted();
+          if (response.status === 401 || response.status === 403) {
+            clearContext();
+            setBrowserSyncAuthentication(false);
+          }
+          if (!response.ok) {
+            throw new Error(`Sync catch-up failed with status ${response.status}`);
+          }
+          const page = (await response.json()) as SyncChangePagePayload;
+          signal.throwIfAborted();
+          observeSession(response);
+          return page;
+        },
+        onInvalidations: applyInvalidations,
+        onReset: () => {
+          if (!disposed) {
+            queries.invalidateAll();
+          }
+        },
+        onQueries: (identities) => {
+          queries.invalidate(identities);
+          const tags = new Set(identities.map(queryTag));
+          const affected = (snapshot: RouterState) =>
+            snapshot.querySeeds?.some((seed) =>
+              queryTags(seed.identity).some((tag) => tags.has(tag))
+            ) === true;
+          controller.invalidateQueries(affected);
+          if (autoRefresh && affected(controller.getSnapshot().state)) {
+            invalidationRefresh.run();
+          }
+        },
+      });
+    let catchUp = createRecovery();
     const recover = () => {
       if (disposed) {
         return;
       }
-      catchUp.catchUp().catch((error: unknown) => {
-        if (!disposed) {
-          log.warn({ action: "sync_catch_up_failed", error: String(error) });
-        }
-      });
+      const current = catchUp;
+      current
+        .catchUp()
+        .then(() => {
+          if (!disposed && catchUp === current && contextChanged) {
+            contextChanged = false;
+            queries.invalidateAll();
+            applyInvalidations(["/:layout"]);
+          }
+        })
+        .catch((error: unknown) => {
+          if (!disposed) {
+            log.warn({ action: "sync_catch_up_failed", error: String(error) });
+          }
+        });
     };
-    const onSync = (event: { data: { cursor: string } }) => {
+    const onSync = (event: BrowserEventFor<"sync">) => {
+      if (event.data.context === "changed") {
+        requestController.abort();
+        requestController = new AbortController();
+        catchUp.close();
+        catchUp = createRecovery();
+        clearContext();
+        recover();
+        return;
+      }
       if (typeof event.data.cursor !== "string") {
         log.warn({ action: "sync_invalid_event", event: "browser-events.sync" });
         return;
@@ -124,6 +173,7 @@ export function useSyncStream(options: {
     connect();
     return () => {
       disposed = true;
+      requestController.abort();
       catchUp.close();
       unsubscribe?.();
     };

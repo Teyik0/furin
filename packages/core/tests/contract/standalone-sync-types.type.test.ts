@@ -4,7 +4,13 @@ import { treaty } from "@elysia/eden";
 import { Elysia, t } from "elysia";
 import { expectTypeOf } from "expect-type";
 import { createLocalSyncClient, type SyncRuntimeOptions } from "../../src/server/sync/index.ts";
-import { createSyncClient, furinSync, SyncClientError } from "../../src/sync-client.ts";
+import {
+  createSyncClient,
+  furinSync,
+  type SyncClient,
+  SyncClientError,
+  type SyncReconnectOptions,
+} from "../../src/sync-client.ts";
 
 declare const sync: SyncRuntimeOptions;
 
@@ -30,6 +36,9 @@ function assertLocalTypes() {
 }
 
 test("standalone subscriptions preserve Eden data, arguments and discriminated errors", () => {
+  expectTypeOf<Parameters<SyncClient["reconnect"]>>().toEqualTypeOf<
+    [options?: SyncReconnectOptions]
+  >();
   expectTypeOf(assertLocalTypes).toBeFunction();
   const app = new Elysia().get(
     "/state",

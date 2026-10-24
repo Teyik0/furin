@@ -110,6 +110,41 @@ describe("sync adapter bundle isolation", () => {
     }
   });
 
+  test("local validity lifetimes work across separately published server entrypoints", async () => {
+    const { createLocalSyncClient } = await import("../../dist/furin.js");
+    const { createSyncChangesPlugin } = await import("../../dist/server/sync/index.js");
+    const { furinSync } = await import("../../dist/sync-client.js");
+    const { sqliteSyncAdapter, migrateSqliteSync } = await import("../../dist/server/sync/sqlite/index.js");
+    const { Database } = await import("bun:sqlite");
+    const database = new Database(":memory:");
+    migrateSqliteSync(database);
+    const access = new AbortController();
+    let valid = true;
+    let releases = 0;
+    const sync = {
+      adapter: sqliteSyncAdapter({ database, namespace: "local-validity" }),
+      principal: () => valid ? "alice" : "",
+      connection: () => ({ signal: access.signal, release: () => { releases += 1; } }),
+    };
+    const app = new Elysia().use(createSyncChangesPlugin(sync)).get("/state", () => 0);
+    const api = treaty(app).use(furinSync);
+    const client = createLocalSyncClient({ app, sync });
+    const initial = Promise.withResolvers<void>();
+    const denied = Promise.withResolvers<void>();
+    try {
+      client.subscribeConnection(({ status }) => { if (status === "unauthorized") denied.resolve(); });
+      client.subscribe(api.state.get.live(), ({ data }) => { if (data === 0) initial.resolve(); });
+      await initial.promise;
+      valid = false;
+      access.abort();
+      await denied.promise;
+      expect(releases).toBe(1);
+    } finally {
+      client.close();
+      database.close();
+    }
+  });
+
   test("preserves thrown Eden errors from live objects created by the other published entrypoint", async () => {
     const { furinSync } = await import("../../dist/client.js");
     const { createSyncClient } = await import("../../dist/sync-client.js");

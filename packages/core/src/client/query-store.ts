@@ -356,17 +356,21 @@ export class QueryStore {
   }
 
   /** Fence in-flight responses without removing active observers or their loaders. */
-  clear(): void {
+  clear(preserveData?: boolean): void {
     this.epoch += 1;
-    this.session = undefined;
+    if (!preserveData) {
+      this.session = undefined;
+    }
     this.projections.clear();
     for (const entry of this.entries.values()) {
-      entry.base = undefined;
-      entry.identity = undefined;
+      if (!preserveData) {
+        entry.base = undefined;
+        entry.identity = undefined;
+      }
       entry.promise = undefined;
       entry.stale = true;
       entry.version += 1;
-      entry.snapshot = { data: undefined, error: null, isFetching: false };
+      entry.snapshot = { data: entry.base, error: null, isFetching: false };
       this.publish(entry);
     }
   }
@@ -384,7 +388,13 @@ export class QueryStore {
 
   setError(url: string, error: unknown): void {
     const entry = this.entry(url);
-    entry.snapshot = { ...entry.snapshot, error, isFetching: false };
+    entry.base = undefined;
+    entry.stale = false;
+    entry.version += 1;
+    entry.snapshot = { data: undefined, error, isFetching: false };
+    for (const projection of this.projections) {
+      projection.transforms.delete(entry);
+    }
     this.publish(entry);
   }
 

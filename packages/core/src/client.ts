@@ -33,6 +33,7 @@ export {
   type SyncClientOptions,
   type SyncConnectionState,
   type SyncQueryState,
+  type SyncReconnectOptions,
   type SyncSocket,
 } from "./client/sync-client.ts";
 export { Await, useAsyncError, useAsyncValue } from "./shared/await.tsx";

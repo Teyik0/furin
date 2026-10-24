@@ -16,7 +16,7 @@ export type BrowserEventEnvelope =
     }
   | {
       channel: "sync";
-      data: { cursor: string };
+      data: { cursor: string; context?: never } | { context: "changed"; cursor?: never };
       version: typeof BROWSER_EVENT_PROTOCOL_VERSION;
     };
 

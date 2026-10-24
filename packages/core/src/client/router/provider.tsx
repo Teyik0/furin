@@ -14,6 +14,7 @@ import { findRouteFailure } from "../../shared/route-matches.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
 import type { QuerySeed } from "../../shared/sync-query.ts";
 import { collectRouteChainFromRoute } from "../../shared/utils/index.ts";
+import { setBrowserSyncAuthentication } from "../browser-events.ts";
 import { DocumentProvider, useDocumentState } from "../document.tsx";
 import { QueryStoreContext } from "../query.tsx";
 import { QueryStore } from "../query-store.ts";
@@ -417,7 +418,10 @@ export function RouterProvider({
       invalidatePrefetch,
       navigate,
       prefetch,
-      refresh,
+      refresh: (options) => {
+        setBrowserSyncAuthentication(true);
+        return refresh(options);
+      },
       searchRoutes: routes,
     }),
     [

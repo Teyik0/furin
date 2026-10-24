@@ -3,7 +3,12 @@ import { IS_DEV } from "../runtime-env.ts";
 import type { SyncAdapter, SyncSubscription } from "./adapter.ts";
 import type { FurinSyncOptions } from "./config.ts";
 import { syncRuntimeOptions } from "./config.ts";
-import { readPrincipalChanges } from "./principal-journal.ts";
+import {
+  LOCAL_SYNC_CONNECTION,
+  type LocalSyncRequest,
+  verifiedSyncPrincipal,
+} from "./connection.ts";
+import { principalHash, readPrincipalChanges } from "./principal-journal.ts";
 import { markInternalRead } from "./queries.ts";
 import { type ResolvedSyncRuntime, resolveSyncRuntime } from "./runtime.ts";
 
@@ -191,9 +196,15 @@ export function createRuntimeSyncChangesPlugin(options: FurinSyncOptions, develo
       if ("error" in query) {
         return query.error;
       }
-      const principal = await options.principal(context);
-      if (principal.length === 0) {
+      const principal = await verifiedSyncPrincipal(options, context);
+      if (principal === undefined) {
         return new Response("Unauthorized", { status: 401 });
+      }
+      set.headers["x-furin-sync-session"] = principalHash(runtime.adapter, principal);
+      const connect = (request as LocalSyncRequest)[LOCAL_SYNC_CONNECTION];
+      if (connect) {
+        await connect(context, options);
+        return new Response(null, { status: 204 });
       }
       return readPrincipalChanges(runtime.adapter, query, principal);
     }
