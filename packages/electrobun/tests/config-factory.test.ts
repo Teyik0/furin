@@ -1,6 +1,6 @@
 import { expect, expectTypeOf, test } from "bun:test";
 import { treaty } from "@elysia/eden";
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import type { DesktopContext } from "../src/capabilities";
 import { desktopApp } from "../src/server";
 
@@ -97,4 +97,87 @@ test("explicit application configuration preserves services, shared references a
     desktop: null,
     name: "Relay",
   });
+});
+
+test("desktop configuration after an API plugin preserves macros, routes and lifecycle methods", async () => {
+  const accessService = {
+    admit: (_request: Request): Response | undefined => undefined,
+  };
+  const torrentsService = { settings: { runInBackground: true } };
+  const apiPlugin = new Elysia({ prefix: "/api" })
+    .decorate({ access: accessService, torrents: torrentsService })
+    .macro({
+      session: {
+        derive({ request, status }) {
+          if (!request.headers.has("x-session")) {
+            return status(401, { error: "Sign in" });
+          }
+          return { user: { role: "admin" as const } };
+        },
+      },
+    })
+    .get(
+      "/items/:id",
+      { session: true, params: t.Object({ id: t.Number() }) },
+      ({ params, user }) => ({ id: params.id, role: user.role })
+    );
+  let closed = 0;
+  const closeResources = () => {
+    closed += 1;
+  };
+  const app = new Elysia()
+    .use(apiPlugin)
+    .use(
+      desktopApp(({ access, torrents }) => {
+        expectTypeOf(access).toEqualTypeOf<typeof accessService>();
+        expectTypeOf(torrents).toEqualTypeOf<typeof torrentsService>();
+        return {
+          admission: access.admit.bind(access),
+          background: () => torrents.settings.runInBackground === true,
+        };
+      })
+    )
+    .onStop(closeResources)
+    .get(
+      "/after/:id",
+      { session: true, params: t.Object({ id: t.Number() }) },
+      ({ access, desktop, params, torrents, user }) => {
+        expectTypeOf(access).toEqualTypeOf<typeof accessService>();
+        expectTypeOf(desktop).toEqualTypeOf<DesktopContext | null>();
+        expectTypeOf(params.id).toEqualTypeOf<number>();
+        expectTypeOf(torrents).toEqualTypeOf<typeof torrentsService>();
+        expectTypeOf(user.role).toEqualTypeOf<"admin">();
+        return { id: params.id, role: user.role };
+      }
+    );
+  expectTypeOf(app).not.toBeNever();
+  expectTypeOf(app).not.toBeAny();
+  const client = treaty(app);
+  expectTypeOf<
+    Awaited<ReturnType<ReturnType<typeof client.api.items>["get"]>>["data"]
+  >().toEqualTypeOf<{
+    id: number;
+    role: "admin";
+  } | null>();
+  // @ts-expect-error the API plugin's routes must remain typed
+  expect(client.missing).toBeDefined();
+  try {
+    await new Promise<void>((resolve) => {
+      app.listen({ hostname: "127.0.0.1", port: 0 }, () => resolve());
+    });
+    const origin = `http://127.0.0.1:${app.server?.port}`;
+    const headers = { "x-session": "active" };
+    expect((await fetch(`${origin}/after/7`)).status).toBe(401);
+    expect(await (await fetch(`${origin}/api/items/42`, { headers })).json()).toEqual({
+      id: 42,
+      role: "admin",
+    });
+    expect(await (await fetch(`${origin}/after/7`, { headers })).json()).toEqual({
+      id: 7,
+      role: "admin",
+    });
+  } finally {
+    await app.stop(true);
+  }
+  expect(closed).toBe(1);
 });

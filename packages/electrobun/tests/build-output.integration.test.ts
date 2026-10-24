@@ -53,12 +53,40 @@ test("package build removes stale outputs and emits config and server exports", 
       import { Elysia } from "elysia";
       import { desktopApp, desktopContext } from "./dist/server";
       import type { BrowserWindow } from "electrobun/main";
-      const api = new Elysia().use(desktopContext).get("/native", ({ desktop }) => {
+      const api = new Elysia().use(desktopContext)
+        .decorate({
+          access: { admit(_request: Request): Response | undefined { return; } },
+          torrents: { settings: { runInBackground: true } },
+        })
+        .macro({
+          nativeOnly: {
+            derive({ desktop, status }) {
+              if (!desktop) return status(409, { error: "Desktop unavailable" });
+              return { desktop };
+            },
+          },
+        })
+        .get("/native", ({ desktop }) => {
         const window: BrowserWindow | undefined = desktop?.window;
         window?.minimize();
         return { available: desktop !== null };
       });
-      export const app = new Elysia().use(desktopApp({ window: { title: "Consumer", titleBarStyle: "hiddenInset" } })).use(api);
+      export const app = new Elysia().use(api)
+        .use(desktopApp({ window: { title: "Consumer", titleBarStyle: "hiddenInset" } }))
+        .onStop(() => {});
+      export const configured = new Elysia().use(api)
+        .use(desktopApp(({ access, torrents }) => ({
+          admission: access.admit.bind(access),
+          background: () => torrents.settings.runInBackground === true,
+        })))
+        .onStop(() => {})
+        .get("/after", { nativeOnly: true }, ({ desktop }) => {
+          const window: BrowserWindow | undefined = desktop.window;
+          return window !== undefined;
+        });
+      export const explicit = new Elysia().use(api)
+        .use(parent => desktopApp(parent, ({ access }) => ({ admission: access.admit.bind(access) })))
+        .onStop(() => {});
     `
     );
     await writeFile(

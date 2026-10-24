@@ -39,30 +39,19 @@ type DesktopFactory<Singleton extends SingletonBase> = (
   context: DesktopAppContext<Singleton>
 ) => DesktopAppOptions;
 
-type DesktopApplication<App extends AnyElysia> =
-  App extends Elysia<
-    infer Prefix,
-    infer Scope,
-    infer Singleton,
-    infer Definitions,
-    infer Metadata,
-    infer Routes,
-    infer Ephemeral,
-    infer Volatile
+// Inferring the invariant Elysia class fails for request-aware macros; read its type slots instead.
+type DesktopApplication<App extends AnyElysia> = ReturnType<
+  typeof installDesktopApp<
+    App["~Prefix"],
+    NonNullable<NonNullable<App["~config"]>["as"]>,
+    App["~Singleton"],
+    App["~Definitions"],
+    App["~Metadata"],
+    App["~Routes"],
+    App["~Ephemeral"],
+    App["~Volatile"]
   >
-    ? ReturnType<
-        typeof installDesktopApp<
-          Prefix,
-          Scope,
-          Singleton,
-          Definitions,
-          Metadata,
-          Routes,
-          Ephemeral,
-          Volatile
-        >
-      >
-    : never;
+>;
 
 const desktopFactory = Symbol("desktopFactory");
 
