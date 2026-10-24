@@ -1,0 +1,35 @@
+packages/core/src/server/sync/adapter.ts
+  s_c2fdda007d520f::t_647adb0b11a667 60,62-65
+packages/core/src/server/sync/invalidate-sync.ts
+  s_c2fdda007d520f::t_d1b06ea575b6c3 10-14,23-29,34-35,37-41,44-50,52-55
+packages/core/src/server/sync/postgres/index.ts
+  s_c2fdda007d520f::t_0316bdb173b13d 238-241,243-247
+packages/core/src/server/sync/redis/index.ts
+  s_c2fdda007d520f::t_664fe05934312f 246-249,258
+packages/core/src/server/sync/redis/scripts.ts
+  s_c2fdda007d520f::t_a9798a01da99df 82
+packages/core/src/server/sync/sqlite/index.ts
+  s_c2fdda007d520f::t_8b7a70acd45ae8 231-236
+packages/core/tests/client/sync/invalidate-sync.test.ts
+  s_c2fdda007d520f::t_fbbb3716af72dc 119-151
+packages/core/tests/contract/sync-invalidate-types.type.test.ts
+  s_c2fdda007d520f::t_9b3bb5a19af7a7 61-68
+packages/core/tests/helpers/sync-adapter-conformance.ts
+  s_c2fdda007d520f::t_a78430ddfc89c1 3,133-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "636cef73437e72a646ffd9fe7d346c9f8a7da148",
+  "prompts": {},
+  "sessions": {
+    "s_c2fdda007d520f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16dbf-9b6e-7911-8315-943b5502f765",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
