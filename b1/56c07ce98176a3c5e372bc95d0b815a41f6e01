@@ -1,0 +1,29 @@
+CHANGELOG.md
+  s_1a7c356629ae36::t_fcc1a904016c28 25
+packages/electrobun/src/server.ts
+  s_1a7c356629ae36::t_70d0659a2f101d 42-52,54
+packages/electrobun/tests/build-output.integration.test.ts
+  s_1a7c356629ae36::t_fcc1a904016c28 56-69,74-89
+packages/electrobun/tests/config-factory.test.ts
+  s_1a7c356629ae36::t_9ebcc92b0016fb 104,156-158,171-178
+  s_1a7c356629ae36::t_e09353b0c21456 3,101-103,105-109,117-148,150-155,159,161-168,179-182
+  s_1a7c356629ae36::t_ec79935a21ff9e 170
+  s_1a7c356629ae36::t_ca0bbbb7f95692 110-116,149,160,169
+  s_1a7c356629ae36::t_487f1d0a5d3ad5 183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b156c07ce98176a3c5e372bc95d0b815a41f6e01",
+  "prompts": {},
+  "sessions": {
+    "s_1a7c356629ae36": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16880-94ae-7220-9ce2-1ba05ec73fdc",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
