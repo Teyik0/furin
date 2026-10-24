@@ -1,12 +1,12 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: sync catch-up pages must be fetched sequentially by cursor
-import type { SyncInvalidation } from "../../server/sync/adapter.ts";
-import { encodeInvalidationEntry } from "../../shared/invalidation-header.ts";
-import { type QueryIdentity, queryFromTag } from "../../shared/sync-query.ts";
+import type { SyncInvalidation } from "../server/sync/adapter.ts";
+import { encodeInvalidationEntry } from "../shared/invalidation-header.ts";
+import { type QueryIdentity, queryFromTag } from "../shared/sync-query.ts";
 
 interface SyncChangePayload {
   cursor: string;
   invalidations: readonly (string | SyncInvalidation)[];
-  queries?: readonly import("../../shared/sync-query.ts").QueryIdentity[];
+  queries?: readonly QueryIdentity[];
 }
 
 export interface SyncChangePagePayload {
@@ -19,7 +19,7 @@ export interface SyncChangePagePayload {
 interface SyncCatchUpOptions {
   fetchPage: (after: string | undefined) => Promise<SyncChangePagePayload>;
   onInvalidations: (invalidations: readonly string[]) => void;
-  onQueries?: (identities: readonly import("../../shared/sync-query.ts").QueryIdentity[]) => void;
+  onQueries?: (identities: readonly QueryIdentity[]) => void;
   onReset?: () => void;
 }
 
@@ -57,6 +57,7 @@ function changeInvalidations(change: SyncChangePayload): {
 
 export interface SyncCatchUp {
   catchUp: () => Promise<void>;
+  close: () => void;
   cursor: () => string | undefined;
   seed: (cursor: string) => void;
 }
@@ -114,6 +115,7 @@ export function createSyncCatchUp(options: SyncCatchUpOptions): SyncCatchUp {
   let requested = false;
   let lastReset = Number.NEGATIVE_INFINITY;
   let pendingReset: ReturnType<typeof setTimeout> | undefined;
+  let closed = false;
 
   const refreshAfterReset = () => {
     pendingReset = undefined;
@@ -141,25 +143,35 @@ export function createSyncCatchUp(options: SyncCatchUpOptions): SyncCatchUp {
       let page: SyncChangePagePayload;
       do {
         page = await options.fetchPage(currentCursor ?? "0");
+        if (closed) {
+          return;
+        }
         if (page.reset) {
           currentCursor = page.cursor;
           scheduleResetRefresh();
           break;
         }
         for (const change of page.changes) {
-          const { paths, queries } = changeInvalidations(change);
-          options.onInvalidations(paths);
-          if (queries.length > 0) {
-            options.onQueries?.(queries);
-          }
+          applyChange(change);
         }
         currentCursor = page.cursor;
       } while (page.hasMore);
-    } while (requested);
+    } while (requested && !closed);
+  };
+
+  const applyChange = (change: SyncChangePayload) => {
+    const { paths, queries } = changeInvalidations(change);
+    options.onInvalidations(paths);
+    if (queries.length > 0) {
+      options.onQueries?.(queries);
+    }
   };
 
   return {
     catchUp() {
+      if (closed) {
+        return Promise.resolve();
+      }
       requested = true;
       if (!running) {
         running = readUntilCurrent().finally(() => {
@@ -169,10 +181,14 @@ export function createSyncCatchUp(options: SyncCatchUpOptions): SyncCatchUp {
       return running;
     },
     cursor: () => currentCursor,
+    close() {
+      closed = true;
+      clearTimeout(pendingReset);
+    },
     seed(cursor) {
       currentCursor ??= cursor;
     },
   };
 }
 
-import { isAbortError } from "./abort.ts";
+import { isAbortError } from "./router/abort.ts";

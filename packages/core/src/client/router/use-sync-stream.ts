@@ -4,17 +4,17 @@ import { queryTag, queryTags } from "../../shared/sync-query.ts";
 import { subscribeBrowserEvent } from "../browser-events.ts";
 import type { QueryStore } from "../query-store.ts";
 import {
+  createSyncCatchUp,
+  type InvalidationRefresh,
+  type SyncChangePagePayload,
+} from "../sync-catch-up.ts";
+import {
   applyRevalidateEntries,
   normalizeHref,
   shouldAutoRefreshPath,
   toLogical,
 } from "./link-utils.ts";
 import type { NavigationController } from "./navigation-controller.ts";
-import {
-  createSyncCatchUp,
-  type InvalidationRefresh,
-  type SyncChangePagePayload,
-} from "./sync-catch-up.ts";
 import type { RouterState } from "./types.ts";
 
 /**
@@ -124,6 +124,7 @@ export function useSyncStream(options: {
     connect();
     return () => {
       disposed = true;
+      catchUp.close();
       unsubscribe?.();
     };
   }, [syncPath, basePath, invalidationRefresh, autoRefresh, queries, controller]);

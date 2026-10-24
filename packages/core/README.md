@@ -31,6 +31,13 @@ bun create furin@latest my-app --template full
 
 Full API reference, rendering modes, routing, and deployment guides at **[teyik0.github.io/furin](https://teyik0.github.io/furin/)**.
 
+Live queries also support continuous subscriptions outside React with
+`createSyncClient` from `@teyik0/furin/sync/client`. See the complete Bun example,
+authentication contract and shutdown behavior in the
+[sync guide](https://teyik0.github.io/furin/docs/sync#continuous-subscriptions-outside-react).
+For a consumer in the same Bun process, `createLocalSyncClient({ app, sync })`
+from `@teyik0/furin/sync` follows `treaty(app)` live queries without a listener or socket.
+
 ## Importable Bun application
 
 `furin build --target bun --output app` builds `.furin/build/bun/app.js` for a

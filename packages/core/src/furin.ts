@@ -373,11 +373,14 @@ export { furinInvalidate, revalidateTag } from "./server/auto-invalidate/index.t
 export { revalidatePath, setCachePurger } from "./server/cache/invalidation.ts";
 export { buildErrorElement, renderRootNotFound } from "./server/render/index.ts";
 export {
+  createLocalSyncClient,
   type FurinSyncOption,
   type FurinSyncOptions,
   furinSync,
   invalidateSync,
+  type LocalSyncClientOptions,
   type SyncAdapter,
+  type SyncInvalidationOptions,
   type SyncNotifier,
   type SyncRuntimeOptions,
 } from "./server/sync/index.ts";

@@ -5,15 +5,55 @@ import {
   applyRevalidateEntries,
   shouldAutoRefreshPath,
 } from "../../../src/client/router/link-utils.ts";
-import {
-  createInvalidationRefresh,
-  createSyncCatchUp,
-} from "../../../src/client/router/sync-catch-up.ts";
+import { createInvalidationRefresh, createSyncCatchUp } from "../../../src/client/sync-catch-up.ts";
 import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/sqlite/index.ts";
 import { createSyncChangesPlugin } from "../../../src/server/sync/stream.ts";
 import { queryTag } from "../../../src/shared/sync-query.ts";
 
 describe("createSyncCatchUp", () => {
+  test("close cancels trailing resets and ignores a recovery response still in flight", async () => {
+    jest.useFakeTimers();
+    try {
+      const invalidations: string[] = [];
+      let cursor = 0;
+      const sync = createSyncCatchUp({
+        fetchPage: () => {
+          cursor += 1;
+          return Promise.resolve({
+            changes: [],
+            cursor: String(cursor),
+            hasMore: false,
+            reset: true,
+          });
+        },
+        onInvalidations: (paths) => invalidations.push(...paths),
+      });
+      await sync.catchUp();
+      await sync.catchUp();
+      sync.close();
+      jest.advanceTimersByTime(1000);
+      await sync.catchUp();
+      expect(invalidations).toEqual(["/:layout"]);
+      expect(cursor).toBe(2);
+      const pending = Promise.withResolvers<{
+        changes: [];
+        cursor: string;
+        hasMore: false;
+        reset: true;
+      }>();
+      const late = createSyncCatchUp({
+        fetchPage: () => pending.promise,
+        onInvalidations: (paths) => invalidations.push(...paths),
+      });
+      const reading = late.catchUp();
+      late.close();
+      pending.resolve({ changes: [], cursor: "3", hasMore: false, reset: true });
+      await reading;
+      expect(invalidations).toEqual(["/:layout"]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
   test("legacy journal paths preserve encoded slashes through the recovery transport", async () => {
     const app = new Elysia().get("/changes", () => ({
       changes: [{ cursor: "1", invalidations: ["/a%2Fb:layout", "/東京/%25"] }],

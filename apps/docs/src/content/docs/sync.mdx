@@ -186,7 +186,16 @@ await invalidateSync(sync, { tags: ["board-count"] });
 await invalidateSync(sync, { path: "/board", type: "layout" });
 ```
 
-The options select the runtime: the adapter journals the change and the notifier wakes connected browsers, including those served by other processes sharing the adapter. Its journal entry carries no principal, so browsers refresh all their live reads.
+Without principal provenance these entries intentionally produce a full reset when clients recover them. For a worker acting for a known, verified principal, pass explicit provenance to keep query invalidations targeted:
+
+```ts
+await invalidateSync(sync, "/api/boards/:boardId", { boardId }, { principal: ownerId });
+await invalidateSync(sync, { tags: ["board-count"] }, { principal: ownerId });
+```
+
+The application determines `ownerId` in trusted server code. This option does not authenticate a user or grant access. SQLite, PostgreSQL and Redis store the principal hash using the existing journal column/field; no migration is needed. Another principal never receives these tags or scopes. Mixed-principal pages, historical entries and custom adapters without trusted provenance still produce a conservative full reset. The optional second argument of `SyncAdapter.appendInvalidations(invalidations, principal?)` lets custom adapters persist provenance; custom adapters still recover through resets, since persisting this argument alone does not opt them into the built-in provenance trust boundary.
+
+The options select the runtime: the adapter journals the change and the notifier wakes connected clients, including those served by other processes sharing the adapter.
 
 Every GET has a live query, `.get.live(options?)`, on a client using the `furinSync` Eden plugin. Await it in a loader to track the read:
 
@@ -283,6 +292,137 @@ useQuery(api.cards.get.live({ query: { boardId, column: "done" } }), {
 ```
 
 An invalidation refreshes every cached query variant of that URL, whatever its query string. Other params remain separate unless the invalidation omits them. Per-call authorization and other request options isolate cache entries. Client-wide defaults still belong to that client's session: create a fresh client when authentication changes and remount the authenticated router (or perform a full navigation). Response session identities also clear data from a previous principal and reject its late responses.
+
+### Continuous Subscriptions Outside React
+
+Use `@teyik0/furin/sync/client` in a Bun desktop process or another runtime with Fetch, WebSocket and AbortController support. This entrypoint imports neither React nor server adapters and requires no DOM or router. It exports the same Eden `furinSync` plugin as `furin/client`.
+
+`await api.state.get.live()` remains a single Eden request. Creating a sync client or observing its connection state opens nothing. `subscribe()` starts a persistent connection; `reconnect()` explicitly restarts it. SSR loaders keep their existing request-scoped behavior.
+
+Here is a complete Bun client for a remote Furin application whose exported `App` type includes `GET /state` returning `{ value: number }`. Import that type only; the server is not executed in the desktop process. The server must configure `furin({ sync })` as above and authenticate both reads and `sync.principal`.
+
+```ts
+// follow-state.ts — run with bun follow-state.ts
+import { treaty } from "@elysia/eden";
+import {
+  createSyncClient,
+  furinSync,
+  SyncClientError,
+} from "@teyik0/furin/sync/client";
+import type { App } from "./server";
+
+const url = process.env.FURIN_SERVER_URL;
+let token = process.env.FURIN_ACCESS_TOKEN;
+if (!url || !token) throw new Error("Set FURIN_SERVER_URL and FURIN_ACCESS_TOKEN");
+
+const headers = () => ({ authorization: `Bearer ${token}` });
+const api = treaty<App>(url, { headers }).use(furinSync);
+
+// Bun accepts upgrade headers. The overload also works in projects loading lib.dom types.
+const BunWebSocket = WebSocket as typeof WebSocket & {
+  new (url: string, options: { headers: Headers }): WebSocket;
+};
+const client = createSyncClient({
+  url,
+  headers,
+  createWebSocket: (address, upgradeHeaders) =>
+    new BunWebSocket(address, { headers: upgradeHeaders }),
+});
+
+const stopConnection = client.subscribeConnection(({ status, error }) => {
+  console.log("Sync:", status, error?.status);
+  if (status === "unauthorized") {
+    // Ask your authentication service for renewed credentials, or sign out.
+    // After renewal: token = renewedToken; client.reconnect();
+  }
+});
+
+const stop = client.subscribe(api.state.get.live(), ({ data, error, isFetching }) => {
+  if (error instanceof SyncClientError) {
+    console.error("Read transport failed:", error.cause);
+  } else if (error) {
+    // Eden's inferred error union is preserved: narrow error.status for typed error.value.
+    console.error("GET failed:", error.status, error.value);
+  } else if (data && !isFetching) {
+    console.log("New value:", data.value); // number, inferred from App
+  }
+});
+
+const shutdown = Promise.withResolvers<void>();
+const onSignal = () => shutdown.resolve();
+process.once("SIGINT", onSignal);
+process.once("SIGTERM", onSignal);
+try {
+  await shutdown.promise;
+} finally {
+  process.removeListener("SIGINT", onSignal);
+  process.removeListener("SIGTERM", onSignal);
+  stop();
+  stopConnection();
+  client.close();
+}
+```
+
+All subscriptions of one client share its socket, journal cursor and query cache. Identical reads from the same Eden client share a fetch. `subscribe()` immediately delivers the cached snapshot, then reports data, typed Eden errors and fetching changes. Stopping a subscription removes its observer; the client retains its connection for reuse until `close()`. `close()` is idempotent: it removes listeners, closes the socket, cancels reconnect/reset timers, aborts owned HTTP requests and releases the cache. Late responses cannot restore it, even if a fetch adapter ignores cancellation.
+
+The first read waits until the server has installed notification delivery and journal recovery has completed. Invalidations arriving during a read are coalesced and cause a subsequent read. Network reconnections preserve the cursor and catch up from the existing journal. Browser query subscriptions use the same query store and recovery engine; the router additionally invalidates page and loader snapshots.
+
+Configure one client per Furin application URL and authentication context. `url` includes the application's mount path, for example `https://example.com/desktop`. For a server configured with `sync.path: "/internal/sync"`, pass `syncPath: "/internal/sync"`; it is resolved under that mount path. A query from another origin is rejected. Do not mix per-query credentials from different principals within a client. Client `headers` are applied to recovery and subscribed Eden reads; keep the Eden configuration consistent for one-shot reads and mutations too. Explicit Eden `fetch.headers` and `onRequest` hooks remain Eden's responsibility and must not override that context with different credentials.
+
+`headers` accepts a value or an async callback. `fetch` accepts standard request settings such as `credentials: "include"`, used for recovery and subscribed reads. `fetcher` customizes recovery HTTP requests; live reads retain their Eden fetcher. With explicit headers, `createWebSocket` is required so credentials reach the upgrade too. The factory only constructs a runtime socket; it does not implement Furin's protocol. Browser cookie authentication can use the native WebSocket without a factory. Node.js 22+ can use the built ESM entrypoint and a WebSocket adapter already supplied by the host for authenticated upgrades; Furin adds no socket dependency and does not provide a cookie jar. The autonomous client currently targets the Bun server WebSocket transport, not Vercel's SSE transport.
+
+`getConnectionState()` returns `{ status, error }`. Status is `idle`, `connecting`, `connected`, `reconnecting`, `unauthorized` or `closed`; `subscribeConnection()` observes changes. HTTP 401/403 from recovery or a subscribed GET, and socket policy/authentication close codes 1008/4401/4403, stop automatic reconnection. Other connection failures retry with bounded exponential backoff. WebSocket APIs can hide an upgrade's HTTP status: recovery is checked over HTTP first, but an upgrade-only rejection cannot always be classified by a generic socket. An adapter that can inspect that rejection should reject with `new SyncClientError(message, 401)` or `403`.
+
+After changing credentials or identity, call `reconnect()` explicitly. It aborts prior requests, clears the previous context's data and cursor, then reconnects using the current header callback. The application owns token refresh and its retry policy; Furin does not silently refresh or retry an authorization denial. Avoid changing a header callback's principal while leaving its old socket connected.
+
+Authentication is checked when opening the event connection and on each HTTP recovery/read. An already-open socket is not continuously reauthorized. Immediate revocation while a server is otherwise silent requires a server mechanism that closes the affected sockets or an application-controlled authorization check; this client alone cannot detect it. Roles, revoked devices, file permissions and observation of a torrent engine remain application logic. As with browser sync, notifications invalidate snapshots: subscribers receive current query values, not a lossless stream of every intermediate business event.
+
+### In-Process Subscriptions
+
+When the consumer and the Elysia application share a Bun process, use `createLocalSyncClient` from the server entrypoint. It returns the same `SyncClient` as `createSyncClient`, so subscription callbacks, connection state, credential changes and shutdown use the same API:
+
+```ts
+import { treaty } from "@elysia/eden";
+import { createLocalSyncClient } from "@teyik0/furin/sync";
+import { furinSync } from "@teyik0/furin/sync/client";
+import { app, sync } from "./server";
+
+const api = treaty(app).use(furinSync);
+const client = createLocalSyncClient({ app, sync });
+
+// A normal typed Eden result; no subscription is opened.
+const initial = await api.state.get.live();
+
+const stop = client.subscribe(api.state.get.live(), ({ data, error }) => {
+  if (error) console.error(error);
+  else if (data) console.log(data.value);
+});
+
+// During application shutdown:
+stop();
+client.close();
+```
+
+Pass the original, composed Elysia application to both `treaty(app)` and `createLocalSyncClient`. A live query from another application or a URL-based Eden client is rejected, even if the synthetic origins match. Use the same `sync` configuration as the server. Its existing recovery endpoint must be installed by `furin({ sync })` or, for standalone Elysia, `createSyncChangesPlugin(sync)`. The factory neither registers routes nor starts a listener. It works before or after the application starts listening; application services and their startup/shutdown remain owned by the host. Import the server application from a module that guards any `.listen()` call with `import.meta.main` if startup is host-controlled.
+
+The transport receives cursor notifications from the existing server coordinator and executes recovery requests through `app.handle()`. Live reads retain Eden's own in-process dispatch. No HTTP connection, socket, DOM or React runtime is required. The same cache, catch-up engine, initial-read barrier and generation checks are used for local and remote clients. One notifier subscription is shared across queries, and closing releases it. Durable adapters and distributed notifiers can still contact their own database or service.
+
+Local dispatch does not invent a principal or bypass application authorization. Both reads and recovery run through the application's handlers. If authentication uses request headers, share the same request configuration:
+
+```ts
+const request = {
+  headers: () => ({ authorization: `Bearer ${token}` }),
+};
+const api = treaty(app, request).use(furinSync);
+const client = createLocalSyncClient({ app, sync, ...request });
+
+// After replacing the credentials:
+client.reconnect();
+```
+
+Per-query request overrides must remain consistent with that authentication context, as for the remote client. A refusal suspends automatic recovery; renewing credentials and authorization decisions remain application logic. Open local subscriptions are not continuously reauthorized while there are no changes; close or reconnect the affected clients when the application revokes a local identity.
+
+`syncPath` overrides the recovery base path within the composed app. For an application mounted under `/desktop`, for example, pass `syncPath: "/desktop/_furin/sync"` if that is where the existing endpoint is registered. Otherwise it defaults to `sync.path` or `/_furin/sync`. No remote URL or WebSocket factory is needed.
 
 ### Mutation State In React
 
@@ -498,7 +638,7 @@ The standalone `sqliteSyncAdapter`, `postgresSyncAdapter` and `redisSyncAdapter`
 
 After a commit, the notifier wakes connected browsers with the latest cursor. The generated client then reads ordered pages from the `/_furin/sync/changes` recovery endpoint, invalidates prefetched routes, and refreshes the active route when affected.
 
-Built-in adapters return paginated changes attributable to the current principal. If recovery crosses another principal's changes, older entries without principal provenance, or a custom adapter without that provenance, Furin invalidates all cached queries and prefetched routes instead of exposing journal scopes. With `autoRefresh: true`, it also reloads the active route's loaders. With `autoRefresh: false`, active loaders refresh on the next navigation or an explicit router refresh. The public adapter interface stays unchanged.
+Built-in adapters return paginated changes attributable to the current principal. If recovery crosses another principal's changes, older entries without principal provenance, or a custom adapter without that provenance, Furin invalidates all cached queries and prefetched routes instead of exposing journal scopes. With `autoRefresh: true`, it also reloads the active route's loaders. With `autoRefresh: false`, active loaders refresh on the next navigation or an explicit router refresh. Existing adapter implementations remain compatible; background provenance is an optional argument to `appendInvalidations`.
 
 Bursts of commits are coalesced so one busy writer cannot make every browser reload continuously. Each server process wakes its browsers at most once per 100 ms, always with the latest cursor. Each browser runs a reset-driven full refresh at most once per second. Both limits fire on the trailing edge, so the final state is always fetched.
 

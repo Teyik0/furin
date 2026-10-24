@@ -19,6 +19,7 @@ export interface ReadResult {
 }
 
 export interface ReadReference {
+  application?: object;
   client: QueryStore;
   load: (options: unknown) => Promise<ReadResult>;
   url: string;
@@ -354,6 +355,39 @@ export class QueryStore {
     return this.epoch;
   }
 
+  /** Fence in-flight responses without removing active observers or their loaders. */
+  clear(): void {
+    this.epoch += 1;
+    this.session = undefined;
+    this.projections.clear();
+    for (const entry of this.entries.values()) {
+      entry.base = undefined;
+      entry.identity = undefined;
+      entry.promise = undefined;
+      entry.stale = true;
+      entry.version += 1;
+      entry.snapshot = { data: undefined, error: null, isFetching: false };
+      this.publish(entry);
+    }
+  }
+
+  dispose(): void {
+    this.epoch += 1;
+    for (const entry of this.entries.values()) {
+      entry.listeners.clear();
+    }
+    this.entries.clear();
+    this.requests = [];
+    this.projections.clear();
+    this.listeners.clear();
+  }
+
+  setError(url: string, error: unknown): void {
+    const entry = this.entry(url);
+    entry.snapshot = { ...entry.snapshot, error, isFetching: false };
+    this.publish(entry);
+  }
+
   version(url: string): number {
     return this.entry(url).version;
   }
@@ -402,7 +436,7 @@ export class QueryStore {
     const { epoch } = this;
     entry.snapshot = { ...entry.snapshot, isFetching: true };
     this.publish(entry);
-    entry.promise = Promise.resolve()
+    const promise = Promise.resolve()
       .then(() => entry.load?.())
       .then((result) => {
         if (!result || epoch !== this.epoch || version !== entry.version || this.pending(entry)) {
@@ -420,6 +454,9 @@ export class QueryStore {
         }
       })
       .finally(() => {
+        if (entry.promise !== promise) {
+          return;
+        }
         entry.promise = undefined;
         entry.snapshot = { ...entry.snapshot, isFetching: false };
         this.publish(entry);
@@ -431,14 +468,18 @@ export class QueryStore {
           this.fetch(url);
         }
       });
-    return entry.promise;
+    entry.promise = promise;
+    return promise;
   }
 
   invalidate(identities: readonly QueryIdentity[]): boolean {
     const tags = new Set(identities.map(queryTag));
     let affected = false;
     for (const [url, entry] of this.entries) {
-      if (entry.identity && queryTags(entry.identity).some((tag) => tags.has(tag))) {
+      if (
+        (entry.identity && queryTags(entry.identity).some((tag) => tags.has(tag))) ||
+        (!entry.identity && entry.load && identities.length > 0)
+      ) {
         affected = true;
         this.invalidateEntry(url, entry);
       }

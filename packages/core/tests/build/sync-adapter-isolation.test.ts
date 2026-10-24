@@ -9,6 +9,9 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { treaty } from "@elysia/eden";
+import { Elysia } from "elysia";
+import { websocket } from "elysia/websocket";
 import { assertDistFresh } from "../support/dist.ts";
 import { runProcess } from "../support/process.ts";
 
@@ -73,6 +76,64 @@ describe("sync adapter bundle isolation", () => {
       expect(output).not.toContain(redisMarker);
       expect(output).not.toContain(sqliteMarker);
       expect(output).not.toContain(migrationMarker);
+    }
+  });
+
+  test("bundles the autonomous client without React or server adapters", async () => {
+    const output = await bundle("standalone", "browser");
+    expect(output).not.toContain('from "react"');
+    expect(output).not.toContain("react/jsx-runtime");
+    expect(output).not.toContain(postgresMarker);
+    expect(output).not.toContain(redisMarker);
+    expect(output).not.toContain(sqliteMarker);
+  });
+
+  test("local client failures are recognized by the public standalone error class", async () => {
+    const { createLocalSyncClient } = await import("../../dist/server/sync/index.js");
+    const { furinSync, SyncClientError } = await import("../../dist/sync-client.js");
+    const { sqliteSyncAdapter, migrateSqliteSync } = await import("../../dist/server/sync/sqlite/index.js");
+    const { Database } = await import("bun:sqlite");
+    const database = new Database(":memory:");
+    migrateSqliteSync(database);
+    const sync = { adapter: sqliteSyncAdapter({ database, namespace: "local-error" }), principal: () => "" };
+    const app = new Elysia().get("/state", () => 0).get("/_furin/sync/changes", ({ status }) => status(401));
+    const api = treaty(app).use(furinSync);
+    const client = createLocalSyncClient({ app, sync });
+    const denied = Promise.withResolvers<unknown>();
+    try {
+      client.subscribeConnection(({ error }) => { if (error) { denied.resolve(error); } });
+      client.subscribe(api.state.get.live(), () => undefined);
+      expect(await denied.promise).toBeInstanceOf(SyncClientError);
+    } finally {
+      client.close();
+      database.close();
+    }
+  });
+
+  test("preserves thrown Eden errors from live objects created by the other published entrypoint", async () => {
+    const { furinSync } = await import("../../dist/client.js");
+    const { createSyncClient } = await import("../../dist/sync-client.js");
+    const app = new Elysia()
+      .use(websocket())
+      .get("/failure", ({ status }) => status(409, { code: "LOCKED" as const }))
+      .get("/_furin/sync/changes", { changes: [], cursor: "0", hasMore: false, reset: false })
+      .ws("/_furin/events", { open: (socket) => {
+        socket.send(JSON.stringify({ version: 1, channel: "sync", data: { cursor: "0" } }));
+      } })
+      .listen({ port: 0, hostname: "127.0.0.1" });
+    const url = app.server?.url.origin;
+    if (!url) { throw new Error("Expected a listening server"); }
+    const api = treaty<typeof app>(url, { throwHttpError: true }).use(furinSync);
+    const client = createSyncClient({ url });
+    const received = Promise.withResolvers<unknown>();
+    try {
+      client.subscribe(api.failure.get.live(), ({ error }) => {
+        if (error) { received.resolve(error); }
+      });
+      expect(await received.promise).toMatchObject({ status: 409, value: { code: "LOCKED" } });
+    } finally {
+      client.close();
+      await app.stop(true);
     }
   });
 

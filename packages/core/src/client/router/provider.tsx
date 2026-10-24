@@ -18,6 +18,7 @@ import { DocumentProvider, useDocumentState } from "../document.tsx";
 import { QueryStoreContext } from "../query.tsx";
 import { QueryStore } from "../query-store.ts";
 import { resolveRouteElement } from "../route-element.tsx";
+import { createInvalidationRefresh } from "../sync-catch-up.ts";
 import { buildRouterTree } from "./boundary-tree.tsx";
 import { RouterStoreContext } from "./context.ts";
 import {
@@ -36,7 +37,6 @@ import { createOptimisticRuntime, registerOptimisticRuntime } from "./optimistic
 import { fetchPageState } from "./page-fetch.ts";
 import { createSearchStore, SearchStoreContext } from "./search-store.ts";
 import { detectStaticMode } from "./spa-response.ts";
-import { createInvalidationRefresh } from "./sync-catch-up.ts";
 import type {
   ClientRoute,
   ClientSegmentBoundary,
