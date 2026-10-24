@@ -9,6 +9,7 @@ declare module "furin:app" {
   export default app;
   export const idleTimeout: number | undefined;
   export const onShutdown: (() => Promise<void> | void) | undefined;
+  export const onStartup: ((signal: AbortSignal) => Promise<void> | void) | undefined;
   export const port: number | undefined;
   export const startServer: (() => Promise<void> | void) | undefined;
 }

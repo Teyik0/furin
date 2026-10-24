@@ -6,6 +6,12 @@ import { PRODUCTION_DEFINE, runBunBuild } from "../build/bun-build.ts";
 import { buildClient } from "../build/client.ts";
 import { buildEntrySource } from "../build/entry-template.ts";
 import type { ClientPreloadManifest } from "../build/preload-manifest.ts";
+import {
+  type BuildRoot,
+  type BuildRouteInput,
+  rootHasRequestLoader,
+  routeBuildInfo,
+} from "../build/route-metadata.ts";
 import { ensureDir, toPosixPath } from "../build/shared.ts";
 import type { BuildAppOptions, StaticTargetBuildManifest } from "../build/types.ts";
 import { createVirtualBuildEntry } from "../build/virtual-entry.ts";
@@ -14,8 +20,7 @@ import type { StaticExportConfig } from "../config.ts";
 import { routeSourcePaths } from "../plugin/route-tree.ts";
 import { buildFlightCodec } from "../rsc/build/index.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
-import { resolveDocumentMode } from "../server/router/patterns.ts";
-import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
+import type { RootLayout } from "../server/router/types.ts";
 import type {
   StaticExportFailure,
   StaticExportPage,
@@ -285,11 +290,11 @@ function logRenderFailure(
  * Pushes skipped patterns into `skippedRoutes`.
  */
 function collectSsgRoutes(
-  routes: ResolvedRoute[],
+  routes: BuildRouteInput[],
   onSSR: "error" | "skip",
   skippedRoutes: string[]
-): ResolvedRoute[] {
-  const nonSsg = routes.filter((r) => resolveDocumentMode(r) !== "ssg");
+): BuildRouteInput[] {
+  const nonSsg = routes.filter((r) => routeBuildInfo(r).documentMode !== "ssg");
 
   if (nonSsg.length === 0) {
     return routes;
@@ -299,7 +304,7 @@ function collectSsgRoutes(
     const list = nonSsg
       .map(
         (r) =>
-          `  • ${r.pattern} (mode: ${resolveDocumentMode(r) === "ssr" && r.mode !== "ssr" ? "ssr layout" : resolveDocumentMode(r)})`
+          `  • ${r.pattern} (mode: ${routeBuildInfo(r).documentMode === "ssr" && r.mode !== "ssr" ? "ssr layout" : routeBuildInfo(r).documentMode})`
       )
       .join("\n");
     throw new Error(
@@ -312,12 +317,12 @@ function collectSsgRoutes(
   // onSSR === "skip"
   for (const r of nonSsg) {
     console.warn(
-      `[furin] static: skipping route "${r.pattern}" (mode=${resolveDocumentMode(r) === "ssr" && r.mode !== "ssr" ? "ssr layout" : resolveDocumentMode(r)}) — not statically exportable.`
+      `[furin] static: skipping route "${r.pattern}" (mode=${routeBuildInfo(r).documentMode === "ssr" && r.mode !== "ssr" ? "ssr layout" : routeBuildInfo(r).documentMode}) — not statically exportable.`
     );
     skippedRoutes.push(r.pattern);
   }
 
-  return routes.filter((r) => resolveDocumentMode(r) === "ssg");
+  return routes.filter((r) => routeBuildInfo(r).documentMode === "ssg");
 }
 
 // ── Export bundle ─────────────────────────────────────────────────────────────
@@ -396,14 +401,12 @@ async function bundleStaticExport(
 
 // ── Main adapter ──────────────────────────────────────────────────────────────
 
-function assertNoRequestLoaders(routes: ResolvedRoute[], root: RootLayout): void {
+function assertNoRequestLoaders(routes: BuildRouteInput[], root: BuildRoot | RootLayout): void {
   const offenders: string[] = [];
-  if (root.route.requestLoader !== undefined) {
+  if (rootHasRequestLoader(root)) {
     offenders.push("  • <root layout>");
   }
-  const requestScopedRoutes = routes.filter((route) =>
-    route.routeChain.some((entry) => entry.requestLoader !== undefined)
-  );
+  const requestScopedRoutes = routes.filter((route) => routeBuildInfo(route).hasRequestLoader);
   offenders.push(...requestScopedRoutes.map((route) => `  • ${route.pattern}`));
   if (offenders.length === 0) {
     return;
@@ -496,6 +499,7 @@ export async function buildStaticTarget(
       optimizeImports: options.optimizeImports,
       outDir: targetDir,
       pagesDir: dirname(root.path),
+      routeRegistry: app.routeRegistry,
       plugins: options.plugins,
       preloadRouteChunks: options.preload?.routeChunks,
       publicPath,

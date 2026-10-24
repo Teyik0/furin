@@ -5,7 +5,6 @@ import { createTmpApp, type TmpApp, writeAppFile } from "../../support/app-fixtu
 
 const { furin } = await import("../../../src/furin.ts");
 const { __resetCompileContext } = await import("../../../src/server/internal.ts");
-const { resetFurinLoggerForTests } = await import("../../../src/server/logger.ts");
 const { __setDevMode, IS_DEV } = await import("../../../src/server/runtime-env.ts");
 
 (globalThis as typeof globalThis & { __FURIN_SKIP_DOM_RESET?: boolean }).__FURIN_SKIP_DOM_RESET =
@@ -59,7 +58,6 @@ function resetState(): void {
     tmpApps.pop()?.cleanup();
   }
   __resetCompileContext();
-  resetFurinLoggerForTests();
 }
 
 beforeEach(() => {

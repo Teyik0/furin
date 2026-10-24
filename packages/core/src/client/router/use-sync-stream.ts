@@ -107,7 +107,8 @@ export function useSyncStream(options: {
         log.warn({ action: "sync_invalid_event", event: "browser-events.sync" });
         return;
       }
-      catchUp.seed(event.data.cursor);
+      // Notifications do not prove the rendered snapshot includes earlier writes.
+      // Recover from zero first; only successful HTTP recovery advances the cursor.
       recover();
     };
     const connect = () => {

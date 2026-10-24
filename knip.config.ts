@@ -32,21 +32,35 @@ const config: KnipConfig = {
       entry: ["src/server.ts", "furin.config.ts", "src/pages/**/*.{ts,tsx}"],
       project: ["src/**/*.{ts,tsx,css}"],
     },
+    "examples/electrobun-todo": {
+      entry: ["src/server.ts", "src/desktop.ts", "furin.config.ts", "src/pages/**/*.{ts,tsx}"],
+      // Font packages are loaded by CSS @import, which Knip does not compile.
+      ignoreDependencies: ["@fontsource-variable/manrope", "@fontsource/ibm-plex-mono"],
+      project: ["src/**/*.{ts,tsx}"],
+    },
+    "packages/electrobun": {
+      // Copied into the SDK fixture and launched by path, rather than imported.
+      entry: ["src/dev-server.ts", "src/native-open.ts"],
+    },
     "packages/core": {
       entry: [
         // Referenced by generated hydration entries and Bun codec aliases.
         "src/rsc/client-references.ts",
         // Adapter runtime modules, bundled as server entries by the build.
+        "src/adapter/bun/app.ts",
         "src/adapter/bun/server.ts",
         "src/adapter/vercel/bootstrap.ts",
         "src/adapter/vercel/handler.ts",
         // Spawned by the build to evaluate the server entry.
         "src/build/discover-mounts-process.ts",
+        "src/build/discover-pages-process.ts",
         "src/rsc/bundled-client-codec.ts",
         // Built as the browser `@teyik0/furin/rsc` entry, `dist/rsc-client.js`.
         "src/rsc-client.ts",
         // Re-exported by the generated static-export bundle entry.
         "src/server/static-export.ts",
+        // Launched by `furin dev` as its worker.
+        "src/cli/dev-worker.ts",
         "src/server/sync/postgres/migrate.ts",
         "tests/**/*.{ts,tsx}",
         "tests/fixtures/sync-prisma/schema.prisma",

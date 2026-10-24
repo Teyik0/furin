@@ -1,5 +1,8 @@
 import { furin } from "@teyik0/furin";
 import { Elysia } from "elysia";
+import { initLogger } from "evlog";
+
+initLogger({ env: { service: "weather" } });
 
 const app = new Elysia().use(await furin({ pagesDir: "./src/pages" }));
 export const port = Number(process.env.PORT ?? 3001);

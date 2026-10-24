@@ -13,8 +13,11 @@ import { frameworkSourceModule } from "./runtime-build.ts";
 import type { AdapterBuildOutput, FurinAdapter } from "./types.ts";
 
 const RUNTIME_MODULE = frameworkSourceModule("adapter/bun/server.ts");
+const APP_RUNTIME_MODULE = frameworkSourceModule("adapter/bun/app.ts");
 
 export type BunCompileMode = "server" | "embed";
+/** `server` emits a listening `server.js`, `app` an importable, inert `app.js`. */
+export type BunOutput = "app" | "server";
 
 function compiledServerFilename(platform: NodeJS.Platform): string {
   return platform === "win32" ? "server.exe" : "server";
@@ -75,7 +78,14 @@ async function compileExecutable(
  * Bun server bundle, optionally compiled into an executable. Requests reach
  * `Bun.serve()`, Furin serves assets and caches public pages itself.
  */
-export function bun(compile: BunCompileMode | undefined): FurinAdapter {
+export function bun(
+  compile: BunCompileMode | undefined,
+  bunOutput: BunOutput | undefined
+): FurinAdapter {
+  const isApp = bunOutput === "app";
+  if (isApp && compile !== undefined) {
+    throw new Error("[furin] Bun app output cannot be combined with compile.");
+  }
   return {
     capabilities: {
       assets: compile === "embed" ? "embedded" : "filesystem",
@@ -94,6 +104,12 @@ export function bun(compile: BunCompileMode | undefined): FurinAdapter {
         targetDir,
         templatePath: toPosixPath(join(targetDir, "client", "index.html")),
       };
+      if (isApp) {
+        manifest.appPath = manifest.serverPath as string;
+        manifest.serverPath = null;
+        console.log(`[furin] Application bundle: ${manifest.appPath}`);
+        return manifest;
+      }
       if (compile === undefined) {
         console.log(`[furin] Server bundle: ${manifest.serverPath}`);
         return manifest;
@@ -101,6 +117,6 @@ export function bun(compile: BunCompileMode | undefined): FurinAdapter {
       await compileExecutable(output, compile, manifest);
       return manifest;
     },
-    runtimeModule: RUNTIME_MODULE,
+    runtimeModule: isApp ? APP_RUNTIME_MODULE : RUNTIME_MODULE,
   };
 }

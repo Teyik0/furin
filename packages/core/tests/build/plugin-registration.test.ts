@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
+import { join } from "node:path";
 import type { BunPlugin } from "bun";
-import { buildApp } from "../../src/build/index.ts";
-import { createTmpApp } from "../support/app-fixtures.ts";
+import { buildApp, generateRouteTypes } from "../../src/build/index.ts";
+import { createTmpApp, writeAppFile } from "../support/app-fixtures.ts";
+
+const METADATA_IMPORT_RE = /^metadata$/;
+const ALL_MODULES_RE = /.*/;
 
 test("buildApp fails with an actionable error when a plugin cannot register at runtime", async () => {
   const app = createTmpApp("cli-app");
@@ -21,6 +25,43 @@ test("buildApp fails with an actionable error when a plugin cannot register at r
     await expect(
       buildApp({ plugins: [clientOnlyPlugin], rootDir: app.path, target: "bun" })
     ).rejects.toThrow("plugins: [{ ...plugin, buildOnly: true }]");
+  } finally {
+    app.cleanup();
+  }
+});
+
+test("isolated typegen preserves programmatic plugin closures and virtual module loaders", async () => {
+  const app = createTmpApp("cli-app");
+  let tag = "first-discovery";
+  const plugin: BunPlugin = {
+    name: "route-metadata-loader",
+    setup(builder) {
+      builder.onResolve({ filter: METADATA_IMPORT_RE, namespace: "route-info" }, () => ({
+        namespace: "route-info",
+        path: "metadata",
+      }));
+      builder.onLoad({ filter: ALL_MODULES_RE, namespace: "route-info" }, () => ({
+        contents: `export const tags = [${JSON.stringify(tag)}];`,
+        loader: "js",
+      }));
+    },
+  };
+  try {
+    writeAppFile(
+      app.path,
+      "src/pages/index.tsx",
+      `import { defineRoute } from "@teyik0/furin";
+import { tags } from "route-info:metadata";
+export const route = defineRoute("/").config({ mode: "ssg", tags }).page(() => null);`
+    );
+    const options = { pagesDir: "src/pages", plugins: [plugin], rootDir: app.path };
+    await generateRouteTypes(options);
+    expect(await Bun.file(join(app.path, "furin-env.d.ts")).text()).toContain(tag);
+    tag = "second-discovery";
+    await generateRouteTypes(options);
+    const declarations = await Bun.file(join(app.path, "furin-env.d.ts")).text();
+    expect(declarations).toContain(tag);
+    expect(declarations).not.toContain("first-discovery");
   } finally {
     app.cleanup();
   }

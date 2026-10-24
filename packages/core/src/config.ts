@@ -63,6 +63,7 @@ export const configSchema = t.Object({
   bun: t.Optional(
     t.Object({
       compile: t.Optional(compileTargetSchema),
+      output: t.Optional(t.Union([t.Literal("app"), t.Literal("server")])),
     })
   ),
   /**
@@ -72,6 +73,8 @@ export const configSchema = t.Object({
    * via the `furin({ logger })` plugin option).
    */
   clientLogging: t.Optional(t.Boolean()),
+  /** Optional integrations validate their own settings; core never loads a native SDK. */
+  desktop: t.Optional(t.Object({}, { additionalProperties: true })),
   /**
    * Package barrels Bun should parse on demand in production client bundles.
    * Packages declaring `sideEffects: false` are optimized automatically.
@@ -107,16 +110,20 @@ export type FurinPlugin = BunPlugin & { buildOnly?: boolean };
 /** A built-in target name or a deployment adapter object. */
 export type FurinTarget = BuildTarget | FurinAdapter;
 
-export type FurinConfig = Static<typeof configSchema> & {
-  plugins?: FurinPlugin[];
-  static?: StaticExportConfig;
-  /**
-   * Targets `furin build` builds when `--target` is omitted (default: bun).
-   * `--target <name>` picks the entry of that name, else the built-in one —
-   * so `vercel({ regions })` here configures `furin build --target vercel`.
-   */
-  targets?: FurinTarget[];
-};
+// biome-ignore lint/suspicious/noEmptyInterface: Optional packages augment configuration without core dependencies.
+export interface FurinConfigExtensions {}
+
+export type FurinConfig = Static<typeof configSchema> &
+  FurinConfigExtensions & {
+    plugins?: FurinPlugin[];
+    static?: StaticExportConfig;
+    /**
+     * Targets `furin build` builds when `--target` is omitted (default: bun).
+     * `--target <name>` picks the entry of that name, else the built-in one —
+     * so `vercel({ regions })` here configures `furin build --target vercel`.
+     */
+    targets?: FurinTarget[];
+  };
 
 export function defineConfig(config: FurinConfig): FurinConfig {
   return config;

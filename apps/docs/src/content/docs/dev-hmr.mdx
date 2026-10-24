@@ -294,7 +294,8 @@ source-map symbolication.
 The diagnostic contains the phase, route, message, cause, source location,
 application import chain, and stack. The import chain comes from the module graph
 recorded during transforms. Client frames are mapped through same-origin Bun
-source maps, and framework or dependency frames are classified as internal.
+source maps in both V8 and WebKit stack formats, and framework or dependency
+frames are classified as internal.
 
 The browser receives a small versioned diagnostic channel over Furin's shared
 `/_furin/events` WebSocket:
@@ -304,6 +305,13 @@ The browser receives a small versioned diagnostic channel over Furin's shared
 - a cold `500` page reloads automatically after recovery; and
 - a changed server id also reloads, because event cursors from the previous
   process no longer describe the current graph.
+
+A failed client render reloads the document after the next applied Bun HMR
+update. This discards the failed React tree and its local state, including when
+an error boundary still holds the error after a component-only edit. The retry
+is armed before the update, so an error caused by that update waits for a later
+save. Server readiness does not cancel this client recovery. Healthy edits keep
+their normal state-preserving HMR behavior.
 
 The store retains the latest active error and a bounded event history, allowing
 a newly opened tab or a reconnecting socket to recover its state. Sync,
@@ -405,6 +413,7 @@ use their own client entry without competing for that file.
 | CSS or `@import` dependency | Let Bun update styles while React state remains mounted |
 | Server entry, API, or runtime internals | Let `bun --hot` re-evaluate the affected server graph |
 | HMR transport reconnect | Reload once to recover a known-good graph |
+| Save after a client render failure | Reload the failed document after the update is applied |
 
 ## Known limitations
 

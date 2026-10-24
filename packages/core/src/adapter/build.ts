@@ -7,16 +7,16 @@ import {
   movePrivateServerSourceMaps,
   privateServerSourceMapDir,
 } from "../build/private-server-sourcemaps.ts";
+import {
+  type BuildRouteInput,
+  rootHasRequestLoader,
+  routeBuildInfo,
+} from "../build/route-metadata.ts";
 import { materializeServerAppEntry } from "../build/server-app-entry.ts";
 import { copyDirRecursive, ensureDir, toPosixPath, writeBuildMetafile } from "../build/shared.ts";
 import type { BuildAppOptions } from "../build/types.ts";
 import { buildRscGraph, type ClientReference } from "../rsc/build/index.ts";
 import type { AppPrerender } from "../server/prerender.ts";
-import { hasRequestLoader } from "../server/render/request-loaders.ts";
-import { resolveDocumentMode, resolveDocumentRevalidate } from "../server/router/patterns.ts";
-import { mergeRouteSchemas } from "../server/router/schema-merge.ts";
-import type { ResolvedRoute } from "../server/router/types.ts";
-import { isTypeBoxObjectSchema } from "../shared/elysia-contract.ts";
 import { clientDirNameForPrefix } from "../shared/prefix.ts";
 import { prerenderFromBundle } from "./prerender.ts";
 import { buildRuntimeApp, type RuntimeAppBuild, type RuntimeTargetApp } from "./runtime-build.ts";
@@ -40,19 +40,12 @@ function serverEntryLoader(serverEntry: string): "js" | "jsx" | "ts" | "tsx" {
 }
 
 /**
- * Fails before building: Elysia AOT and every runtime module consume the
- * default export, and a platform serving assets never deploys the files an
- * application static mount would read.
+ * A platform serving assets never deploys the files an application static
+ * mount would read. The generated entry normalizes the application for AOT.
  */
 function assertServerEntry(serverEntry: string, adapter: FurinAdapter): void {
   const transpiler = new Bun.Transpiler({ loader: serverEntryLoader(serverEntry) });
-  const { exports, imports } = transpiler.scan(readFileSync(serverEntry, "utf8"));
-  if (!exports.includes("default")) {
-    throw new Error(
-      `[furin] Server entry "${toPosixPath(serverEntry)}" must export the Elysia app as default. ` +
-        "Guard app.listen() with `if (import.meta.main)` so the same entry also runs locally."
-    );
-  }
+  const { imports } = transpiler.scan(readFileSync(serverEntry, "utf8"));
   if (
     adapter.capabilities.assets === "platform" &&
     imports.some(({ path }) => path === "@elysia/static")
@@ -103,22 +96,15 @@ function withAssetContexts(
   });
 }
 
-function queryKeys(route: ResolvedRoute): string[] | null {
-  const schema = mergeRouteSchemas(route.routeChain, "query");
-  if (schema === undefined) {
-    return [];
-  }
-  return isTypeBoxObjectSchema(schema) ? Object.keys(schema.properties).toSorted() : null;
-}
-
-function adapterRoute(app: RuntimeTargetApp, route: ResolvedRoute): AdapterRoute {
-  const mode = resolveDocumentMode(route);
+function adapterRoute(app: RuntimeTargetApp, route: BuildRouteInput): AdapterRoute {
+  const info = routeBuildInfo(route);
+  const mode = info.documentMode;
   return {
     mode,
     pattern: route.pattern,
-    ppr: mode !== "ssr" && (app.root.route.requestLoader !== undefined || hasRequestLoader(route)),
-    queryKeys: queryKeys(route),
-    revalidate: resolveDocumentRevalidate(route),
+    ppr: mode !== "ssr" && (rootHasRequestLoader(app.root) || info.hasRequestLoader),
+    queryKeys: info.queryKeys,
+    revalidate: info.documentRevalidate,
     tags: route.tags ?? [],
   };
 }
@@ -136,6 +122,7 @@ async function bundleServer(
   const build = await runBunBuild({
     define: PRODUCTION_DEFINE,
     entrypoints: [adapter.runtimeModule, appEntry],
+    external: options.serverExternalPackages,
     format: "esm",
     metafile: options.analyze,
     minify: true,
@@ -211,7 +198,13 @@ export async function buildAdapterTarget(
   );
   const rootIndex = apps.findIndex((app) => app.prefix === "");
   const { buildId } = builds[rootIndex === -1 ? 0 : rootIndex] as RuntimeAppBuild;
-  const rscManifest = await buildRscGraph(apps, targetDir, buildId, options.plugins);
+  const rscManifest = await buildRscGraph(
+    apps,
+    targetDir,
+    buildId,
+    options.plugins,
+    options.serverExternalPackages
+  );
 
   const projectPublicDir = join(rootDir, "public");
   const publicDir = existsSync(projectPublicDir) ? projectPublicDir : undefined;

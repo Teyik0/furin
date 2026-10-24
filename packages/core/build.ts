@@ -74,6 +74,7 @@ await Promise.all([
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/internal.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/production-server.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/runtime-env.ts`] }),
+  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/server-entry.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/static-export.ts`] }),
 ]);
 

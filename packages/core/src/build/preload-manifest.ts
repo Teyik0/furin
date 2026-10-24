@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { clientModuleKey } from "../plugin/transform-client-module.ts";
-import type { ResolvedRoute } from "../server/router/types.ts";
+import type { BuildRouteInput } from "./route-metadata.ts";
 
 const CLIENT_MODULE_KEY_RE = /(["'`])(__FURIN_CLIENT_MODULE_[a-z0-9]+__)\1/g;
 
@@ -14,7 +14,7 @@ export interface ClientPreloadManifest {
 }
 
 /** Client modules a route's hydration loads (mirrors the generated hydrate entry). */
-function routeModulePaths(route: ResolvedRoute): string[] {
+function routeModulePaths(route: BuildRouteInput): string[] {
   const layouts = (route.routeChain ?? [])
     .slice(1)
     .filter((entry) => entry.layout && entry.sourcePath)
@@ -41,7 +41,7 @@ export function writeClientPreloadManifest(
   metafile: Bun.BuildMetafile,
   outputPaths: string[],
   entryChunkPath: string,
-  routes: ResolvedRoute[],
+  routes: BuildRouteInput[],
   publicPrefix: string
 ): ClientPreloadManifest {
   const outputs = new Map(

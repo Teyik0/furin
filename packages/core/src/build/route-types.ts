@@ -95,7 +95,7 @@ ${body}
  * `defineRoute(id)` accepts any id.
  */
 export function writeRouteTypes(
-  routes: ResolvedRoute[],
+  routes: Pick<ResolvedRoute, "path" | "pattern" | "tags">[],
   projectRoot: string,
   apps?: readonly RouteInstanceSpec[]
 ): boolean {

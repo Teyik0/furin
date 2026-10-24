@@ -1,6 +1,6 @@
 # Logging
 
-Furin installs `evlog/elysia` for server requests. Each request emits one structured wide event containing method, logical path, status, duration, framework render/cache fields, and the context your code adds.
+Furin integrates evlog for server requests. Each request emits one structured wide event containing method, logical path, status, duration, framework render/cache fields, and the context your code adds.
 
 Browser logging is separate and disabled by default.
 
@@ -9,6 +9,9 @@ Browser logging is separate and disabled by default.
 ```ts
 import { Elysia } from "elysia";
 import { furin } from "@teyik0/furin";
+import { initLogger } from "evlog";
+
+initLogger({ env: { service: "my-app" } });
 
 new Elysia()
   .use(
@@ -25,7 +28,11 @@ new Elysia()
 
 Furin excludes its content-hashed assets and development diagnostics from normal request noise. SPA route-data requests are logged under the logical destination path rather than only as the internal transport URL.
 
-`logger` accepts evlog's Elysia middleware options: `include`, `exclude`, route overrides, `enrich`, `keep`, `redact`, `plugins`, `drain`, and `waitUntil`. Furin additionally accepts global `sampling` configuration.
+Call `initLogger()` once in your server entry before creating Furin instances. The application owns the process-wide configuration: service identity, output, global drain, redaction, and sampling. Furin never initializes or replaces it. Generated projects include this call.
+
+Without `initLogger()`, Furin still serves requests and emits console logs using evlog's defaults. No global drain or redaction is configured, and evlog warns once in production. Request-level options still apply.
+
+`logger` accepts evlog's middleware options: `include`, `exclude`, route overrides, `enrich`, `keep`, `redact`, `plugins`, `drain`, and `waitUntil`. Each Furin instance owns these request options; all instances share the application's global evlog configuration.
 
 ## Add Request Context
 
@@ -57,12 +64,18 @@ For live SSR, fields join the HTTP request event. SSG prerenders and ISR backgro
 ## Sampling
 
 ```ts
+import { initLogger } from "evlog";
+
+initLogger({
+  env: { service: "my-app" },
+  sampling: {
+    rates: { info: 10 },
+    keep: [{ status: 400 }, { duration: 1000 }],
+  },
+});
+
 await furin({
   logger: {
-    sampling: {
-      rates: { info: 10 },
-      keep: [{ status: 400 }, { duration: 1000 }],
-    },
     keep: (context) => {
       if (context.method !== "GET") context.shouldKeep = true;
     },

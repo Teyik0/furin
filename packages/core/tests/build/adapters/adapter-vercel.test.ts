@@ -26,8 +26,11 @@ function createVercelApp(): TmpApp {
     [
       'import { furin, revalidatePath, revalidateTag } from "@teyik0/furin";',
       'import { Elysia } from "elysia";',
+      'import { initLogger } from "evlog";',
       'import * as ReactDomServer from "react-dom/server";',
       'import { userHydrate } from "./build/hydrate";',
+      "",
+      'initLogger({ env: { service: "vercel-test" } });',
       "",
       "const app = new Elysia()",
       '  .get("/api/health", () => userHydrate)',
@@ -330,7 +333,7 @@ export const route = defineRoute("/catalog")
     runScenario().then(() => done(), done);
   });
 
-  test("requires the Vercel server entry to export its Elysia app as default", async () => {
+  test("rejects a server entry that neither exports its app nor calls listen", async () => {
     const app = createTmpApp("cli-app");
     tmpApps.push(app);
     const serverPath = join(app.path, "src/server.ts");

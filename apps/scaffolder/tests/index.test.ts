@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { version } from "../package.json";
 
 const appRoot = resolve(import.meta.dir, "..");
 const entrypoint = resolve(appRoot, "src/index.ts");
@@ -47,7 +48,7 @@ describe("create-furin CLI", () => {
     30_000
   );
 
-  it("reports the Furin version from the workspace core package", async () => {
+  it("reports the scaffolder version rather than the generated project's core catalog", async () => {
     const child = Bun.spawn(["bun", entrypoint, "--version"], {
       cwd: appRoot,
       stderr: "pipe",
@@ -58,12 +59,9 @@ describe("create-furin CLI", () => {
       new Response(child.stdout).text(),
       new Response(child.stderr).text(),
     ]);
-    const core: { version: string } = await Bun.file(
-      resolve(appRoot, "../../packages/core/package.json")
-    ).json();
 
     expect(exitCode).toBe(0);
-    expect(stdout.trim()).toBe(core.version);
+    expect(stdout.trim()).toBe(version);
   });
 
   it("prints help that invokes the published package name", async () => {

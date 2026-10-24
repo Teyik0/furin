@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "noEmit": false,
+    "outDir": ".furin/declarations"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["tests", "build.ts"]
+}

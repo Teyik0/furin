@@ -11,6 +11,7 @@ import MagicString from "magic-string";
 import { parseSource } from "../shared/parser.ts";
 import { walkAST } from "../shared/utils/ast-walk.ts";
 import { rewriteModuleSpecifiers } from "./dev/rewrite-module-specifiers.ts";
+import { isServerOnlyModule } from "./dev/server-only-module.ts";
 import { routeModuleSourceVersion } from "./router/source-version.ts";
 
 export const WORKSPACE_SOURCE_FILTER =
@@ -173,7 +174,8 @@ export function rewriteBareImports(source: string, dir: string, loader: SourceLo
       specifier !== "furin" &&
       !specifier.startsWith("furin/") &&
       specifier !== "@teyik0/furin" &&
-      !specifier.startsWith("@teyik0/furin/")
+      !specifier.startsWith("@teyik0/furin/") &&
+      !isServerOnlyModule(resolved)
     ) {
       resolved = `${resolved}?furin-server&t=${routeModuleSourceVersion(resolved)}`;
     }

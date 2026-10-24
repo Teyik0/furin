@@ -3,8 +3,8 @@ import { basename, dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClientStripPlugin } from "../plugin/client-plugin.ts";
 import { createRoutesPlugin } from "../plugin/route-registry.ts";
-import { discoverClientBoundaries, registerServerBoundaries } from "../rsc/build/discover.ts";
-import type { ResolvedRoute } from "../server/router/types.ts";
+import { discoverClientBoundaries } from "../rsc/build/discover.ts";
+import type { BuildRouteInput } from "./route-metadata.ts";
 import { PRODUCTION_DEFINE, runBunBuild } from "./bun-build.ts";
 import { generateClientReferenceEntry, generateProductionHydrateEntry } from "./hydrate";
 import { type ClientPreloadManifest, writeClientPreloadManifest } from "./preload-manifest.ts";
@@ -41,7 +41,7 @@ export interface BuildClientResult {
  * <!--ssr-outlet-->, and sends the complete page.
  */
 export async function buildClient(
-  routes: ResolvedRoute[],
+  routes: BuildRouteInput[],
   {
     outDir,
     rootLayout,
@@ -55,6 +55,7 @@ export async function buildClient(
     optimizeImports,
     reactCompiler,
     pagesDir,
+    routeRegistry,
   }: BuildClientOptions
 ): Promise<BuildClientResult> {
   // Per-app client dir so several mounted apps build side by side
@@ -72,7 +73,8 @@ export async function buildClient(
   const boundaries = await discoverClientBoundaries(
     [...new Set([rootLayout, ...routes.flatMap(route => [route.path, ...route.routeChain.flatMap(entry => entry.sourcePath ? [entry.sourcePath] : [])])])], plugins
   );
-  await registerServerBoundaries(boundaries);
+  // The production bundle registers these exports. Importing them here would
+  // reopen application resources in the parent before AOT.
   const hydrateCode =
     generateClientReferenceEntry(boundaries) + generateProductionHydrateEntry(routes, rootLayout, basePath, clientLogging);
   const hydratePath = join(
@@ -135,7 +137,7 @@ export async function buildClient(
       ...(plugins ?? []),
       ...(!clientLogging ? [routerLoggerPlugin] : []),
       ...(pagesDir
-        ? [createRoutesPlugin({ instances: [{ pagesDir, prefix: basePath }], target: "client" })]
+        ? [createRoutesPlugin({ instances: [{ pagesDir, prefix: basePath, routeRegistry }], target: "client" })]
         : []),
       createClientStripPlugin({ mode: "build" }),
     ],

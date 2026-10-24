@@ -78,29 +78,45 @@ jobs:
 
       - name: Publish Preview
         id: publish-preview
-        working-directory: packages/core
         if: github.event_name == 'pull_request'
-        run: bun run pkg-pr-new publish --bun --packageManager=bun --no-compact
+        run: bun run preview:publish
 
       - name: Verify preview installation
         if: github.event_name == 'pull_request'
         env:
-          FURIN_PREVIEW_URL: ${{ steps.publish-preview.outputs.urls }}
+          FURIN_PREVIEW_PACKAGES: ${{ steps.publish-preview.outputs.packages }}
         run: |
+          # The output lists every published workspace as name@url; install the libraries.
+          preview_url() { tr ' ' '\n' <<<"$FURIN_PREVIEW_PACKAGES" | sed -n "s|^$1@||p"; }
+          FURIN_PREVIEW_URL="$(preview_url @teyik0/furin)"
+          FURIN_ELECTROBUN_PREVIEW_URL="$(preview_url @teyik0/furin-electrobun)"
+          test -n "$FURIN_PREVIEW_URL"
+          test -n "$FURIN_ELECTROBUN_PREVIEW_URL"
+          export FURIN_PREVIEW_URL FURIN_ELECTROBUN_PREVIEW_URL
           consumer_dir="$(mktemp -d "$RUNNER_TEMP/furin-preview-XXXXXX")"
           cd "$consumer_dir"
-          bun -e 'await Bun.write("package.json", JSON.stringify({ private: true, dependencies: { "@teyik0/furin": process.env.FURIN_PREVIEW_URL } }));'
+          bun -e 'await Bun.write("package.json", JSON.stringify({ private: true, dependencies: { "@teyik0/furin": process.env.FURIN_PREVIEW_URL, "@teyik0/furin-electrobun": process.env.FURIN_ELECTROBUN_PREVIEW_URL } }));'
           bun install --production --ignore-scripts
           bun -e '
             import { furin } from "@teyik0/furin";
             import { defineRoute, defer, useMutation } from "@teyik0/furin/client";
-            const manifest = await Bun.file("node_modules/@teyik0/furin/package.json").json();
-            for (const field of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
-              for (const version of Object.values(manifest[field] ?? {})) {
-                if (/^(catalog|workspace):/.test(version)) throw new Error(`Unresolved dependency: ${version}`);
+            for (const name of ["@teyik0/furin", "@teyik0/furin-electrobun"]) {
+              const manifest = await Bun.file(`node_modules/${name}/package.json`).json();
+              for (const field of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
+                for (const version of Object.values(manifest[field] ?? {})) {
+                  if (/^(catalog|workspace):/.test(version)) throw new Error(`Unresolved dependency in ${name}: ${version}`);
+                }
               }
             }
             if (![furin, defineRoute, defer, useMutation].every(value => typeof value === "function")) throw new Error("Missing public export");
+            // Bun resolves the "bun" condition to src/; load the published dist/ entries explicitly.
+            const desktop = "node_modules/@teyik0/furin-electrobun";
+            const { defineDesktopConfig } = await import(`./${desktop}/dist/config.js`);
+            const { desktopApp } = await import(`./${desktop}/dist/server.js`);
+            const { runStandardDesktopHost } = await import(`./${desktop}/dist/host.js`);
+            const { runDesktopDevelopment } = await import(`./${desktop}/dist/dev.js`);
+            await import(`./${desktop}/dist/preload.js`);
+            if (![defineDesktopConfig, desktopApp, runStandardDesktopHost, runDesktopDevelopment].every(value => typeof value === "function")) throw new Error("Missing desktop export");
           '
 
   coverage:
@@ -175,6 +191,38 @@ jobs:
         run: bun run tscheck
 
       - name: Test
+        run: bun run test
+
+  macos:
+    name: macOS desktop compatibility
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cache bun
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('.bun-version', 'bun.lock') }}
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install packages
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      # The desktop host's FFI locks, LaunchServices queries and launcher paths
+      # differ on macOS; the headless suite runs against the documented SDK boundary.
+      - name: Test desktop package
+        working-directory: packages/electrobun
         run: bun run test
 
   vercel-benchmark:

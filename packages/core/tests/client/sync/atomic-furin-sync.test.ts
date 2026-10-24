@@ -6,7 +6,6 @@ import { integer, sqliteTable } from "drizzle-orm/sqlite-core";
 import { type Context, Elysia, t } from "elysia";
 import { furin } from "../../../src/furin.ts";
 import { __resetCompileContext } from "../../../src/server/internal.ts";
-import { resetFurinLoggerForTests } from "../../../src/server/logger.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { drizzleSyncAdapter } from "../../../src/server/sync/drizzle/index.ts";
 import { furinSync } from "../../../src/server/sync/plugin.ts";
@@ -30,7 +29,6 @@ test.serial.each(["", "/api"])(
     try {
       __setDevMode(true);
       __resetCompileContext();
-      resetFurinLoggerForTests();
       process.chdir(fixture.path);
       const app = new Elysia()
         .use(
@@ -62,7 +60,6 @@ test.serial.each(["", "/api"])(
       process.chdir(cwd);
       __setDevMode(originalDevMode);
       __resetCompileContext();
-      resetFurinLoggerForTests();
       fixture.cleanup();
     }
   }
@@ -87,7 +84,6 @@ test.serial(
     try {
       __setDevMode(true);
       __resetCompileContext();
-      resetFurinLoggerForTests();
       process.chdir(fixture.path);
       const child = new Elysia({ prefix: "/api" })
         .use(furinSync(sync))
@@ -123,7 +119,6 @@ test.serial(
       process.chdir(cwd);
       __setDevMode(originalDevMode);
       __resetCompileContext();
-      resetFurinLoggerForTests();
       fixture.cleanup();
     }
   }
@@ -161,7 +156,6 @@ test.serial("independent Furin mounts select their transactional Sync runtime", 
   try {
     __setDevMode(true);
     __resetCompileContext();
-    resetFurinLoggerForTests();
     process.chdir(fixture.path);
     const mount = new Elysia({ prefix: "/second/api" })
       .use(furinSync(second))
@@ -207,7 +201,6 @@ test.serial("independent Furin mounts select their transactional Sync runtime", 
     process.chdir(cwd);
     __setDevMode(originalDevMode);
     __resetCompileContext();
-    resetFurinLoggerForTests();
     fixture.cleanup();
   }
 });

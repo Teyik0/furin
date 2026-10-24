@@ -1,7 +1,7 @@
+import { fork } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Worker } from "node:worker_threads";
 import type { RouteInstanceSpec } from "../plugin/route-tree.ts";
 import type { FurinRegistration } from "../server/registrations.ts";
 import type {
@@ -15,7 +15,7 @@ const AOT_NAMESPACE = "furin-elysia-aot";
 const ELYSIA_RESOLVE_DIR = dirname(Bun.resolveSync("elysia", import.meta.dir));
 // The published package ships src/ too; resolving from the package entry also
 // works when this adapter is bundled into dist/build/index.js or dist/cli/index.js.
-const AOT_WORKER_PATH = join(
+const AOT_PROCESS_PATH = join(
   dirname(dirname(fileURLToPath(import.meta.resolve("@teyik0/furin")))),
   "src/build/elysia-aot-worker.ts"
 );
@@ -103,13 +103,34 @@ export interface AotBuildApps {
   rootDir: string;
 }
 
-/** Elysia AOT evaluation has its own module cache, independent of prerender loaders. */
+/** AOT imports own native resources in a separate process, exited before prerender. */
 export function elysiaAot(entry: string, expected: AotBuildApps): Bun.BunPlugin {
   const entryPath = resolve(entry);
   return {
     name: "elysia-aot",
     async setup(build) {
-      const worker = new Worker(AOT_WORKER_PATH, { workerData: { entry: entryPath } });
+      const child = fork(AOT_PROCESS_PATH, [entryPath], {
+        cwd: expected.rootDir,
+        execArgv: [],
+        execPath: process.execPath,
+        serialization: "advanced",
+        stdio: ["ignore", "inherit", "inherit", "ipc"],
+      });
+      const closed = new Promise<void>((resolveClosed) => {
+        child.once("close", () => resolveClosed());
+      });
+      let stopped: Promise<void> | undefined;
+      const stop = (): Promise<void> => {
+        stopped ??= (async () => {
+          // Application imports can keep timers, signal handlers and native
+          // handles alive. Reap the process even when those ignore shutdown.
+          if (child.exitCode === null && child.signalCode === null) {
+            child.kill("SIGKILL");
+          }
+          await closed;
+        })();
+        return stopped;
+      };
       const pending = new Map<
         number,
         {
@@ -118,16 +139,16 @@ export function elysiaAot(entry: string, expected: AotBuildApps): Bun.BunPlugin 
         }
       >();
       let nextId = 0;
-      let workerFailure: Error | undefined;
+      let childFailure: Error | undefined;
       let registrations: FurinRegistration[] = [];
       const fail = (error: Error): void => {
-        workerFailure = error;
+        childFailure = error;
         for (const request of pending.values()) {
           request.reject(error);
         }
         pending.clear();
       };
-      worker.on("message", (response: AotWorkerResponse) => {
+      child.on("message", (response: AotWorkerResponse) => {
         const request = pending.get(response.id);
         pending.delete(response.id);
         registrations = response.registrations ?? registrations;
@@ -137,89 +158,103 @@ export function elysiaAot(entry: string, expected: AotBuildApps): Bun.BunPlugin 
           request?.reject(response.error);
         }
       });
-      worker.on("error", fail);
-      worker.on("exit", (code) => fail(new Error(`[furin] Elysia AOT worker exited (${code}).`)));
+      child.on("error", fail);
+      child.on("exit", (code, signal) =>
+        fail(new Error(`[furin] Elysia AOT process exited (${signal ?? code}).`))
+      );
       const request = (payload: AotWorkerOperation) =>
         new Promise<AotWorkerResult>((resolveResponse, reject) => {
-          if (workerFailure) {
-            reject(workerFailure);
+          if (childFailure) {
+            reject(childFailure);
             return;
           }
           const id = nextId;
           nextId += 1;
           pending.set(id, { reject, resolve: resolveResponse });
-          worker.postMessage({ ...payload, id } satisfies AotWorkerRequest);
+          child.send({ ...payload, id } satisfies AotWorkerRequest, (error) => {
+            if (error) {
+              fail(error);
+            }
+          });
         });
-      let compiled: string | undefined;
-      let virtualType: string | undefined;
       try {
-        ({ code: compiled, virtualType } = await request({ method: "start" }));
-      } catch (error) {
-        await worker.terminate();
-        const mismatch = registrationMismatch(expected, registrations, false);
+        let compiled: string | undefined;
+        let virtualType: string | undefined;
+        try {
+          ({ code: compiled, virtualType } = await request({ method: "start" }));
+        } catch (error) {
+          await stop();
+          const mismatch = registrationMismatch(expected, registrations, false);
+          if (mismatch) {
+            throw mismatch;
+          }
+          if (
+            error instanceof Error &&
+            error.message.startsWith("[elysia-aot]") &&
+            error.message.includes("mounts a sub-app")
+          ) {
+            console.warn("[furin] Elysia AOT skipped because the app uses .mount().");
+            return;
+          }
+          throw error;
+        }
+        const mismatch = registrationMismatch(expected, registrations, true);
         if (mismatch) {
           throw mismatch;
         }
-        if (
-          error instanceof Error &&
-          error.message.startsWith("[elysia-aot]") &&
-          error.message.includes("mounts a sub-app")
-        ) {
-          console.warn("[furin] Elysia AOT skipped because the app uses .mount().");
-          return;
+        build.onEnd(async () => {
+          try {
+            await request({ method: "end" });
+          } finally {
+            await stop();
+          }
+        });
+        const entrySource = await Bun.file(entryPath).text();
+        const { code: transformedEntry } = await request({
+          code: entrySource,
+          method: "transform",
+          path: entryPath,
+        });
+        if (transformedEntry !== undefined) {
+          await Bun.write(entryPath, transformedEntry);
         }
+        build.onResolve({ filter: ELYSIA_IMPORT_FILTER }, ({ path }) => ({
+          path: Bun.resolveSync(path, ELYSIA_RESOLVE_DIR),
+        }));
+        build.onResolve({ filter: ELYSIA_VIRTUAL_IMPORT_FILTER }, ({ path }) => {
+          if (path === "elysia/type" && virtualType === undefined) {
+            return;
+          }
+          return { namespace: AOT_NAMESPACE, path };
+        });
+        build.onLoad({ filter: ANY_MODULE_FILTER, namespace: AOT_NAMESPACE }, ({ path }) => {
+          const contents = path === "elysia/compiled" ? compiled : virtualType;
+          return contents === undefined
+            ? undefined
+            : { contents, loader: "js", resolveDir: ELYSIA_RESOLVE_DIR };
+        });
+        build.onLoad({ filter: SOURCE_FILTER }, async ({ path }) => {
+          if (resolve(path) === entryPath) {
+            return;
+          }
+          const original = await Bun.file(path).text();
+          const { code: transformed } = await request({
+            code: original,
+            method: "transform",
+            path,
+          });
+          if (transformed === undefined) {
+            return;
+          }
+          return {
+            contents: patchElysiaWebSocketStub(transformed),
+            loader: loaderFor(path),
+          };
+        });
+      } catch (error) {
+        await stop();
         throw error;
       }
-      const mismatch = registrationMismatch(expected, registrations, true);
-      if (mismatch) {
-        await worker.terminate();
-        throw mismatch;
-      }
-      build.onEnd(async () => {
-        try {
-          await request({ method: "end" });
-        } finally {
-          await worker.terminate();
-        }
-      });
-      const entrySource = await Bun.file(entryPath).text();
-      const { code: transformedEntry } = await request({
-        code: entrySource,
-        method: "transform",
-        path: entryPath,
-      });
-      if (transformedEntry !== undefined) {
-        await Bun.write(entryPath, transformedEntry);
-      }
-      build.onResolve({ filter: ELYSIA_IMPORT_FILTER }, ({ path }) => ({
-        path: Bun.resolveSync(path, ELYSIA_RESOLVE_DIR),
-      }));
-      build.onResolve({ filter: ELYSIA_VIRTUAL_IMPORT_FILTER }, ({ path }) => {
-        if (path === "elysia/type" && virtualType === undefined) {
-          return;
-        }
-        return { namespace: AOT_NAMESPACE, path };
-      });
-      build.onLoad({ filter: ANY_MODULE_FILTER, namespace: AOT_NAMESPACE }, ({ path }) => {
-        const contents = path === "elysia/compiled" ? compiled : virtualType;
-        return contents === undefined
-          ? undefined
-          : { contents, loader: "js", resolveDir: ELYSIA_RESOLVE_DIR };
-      });
-      build.onLoad({ filter: SOURCE_FILTER }, async ({ path }) => {
-        if (resolve(path) === entryPath) {
-          return;
-        }
-        const original = await Bun.file(path).text();
-        const { code: transformed } = await request({ code: original, method: "transform", path });
-        if (transformed === undefined) {
-          return;
-        }
-        return {
-          contents: patchElysiaWebSocketStub(transformed),
-          loader: loaderFor(path),
-        };
-      });
     },
   };
 }

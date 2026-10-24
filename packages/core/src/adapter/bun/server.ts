@@ -7,8 +7,8 @@ import { startProductionServer } from "../../server/production-server.ts";
 if (typeof startServer === "function") {
   await startServer();
 } else if (app && typeof app.listen === "function" && !app.server) {
-  const declaredPort = typeof port === "number" ? port : 3000;
-  const serverPort = process.env.PORT === undefined ? declaredPort : Number(process.env.PORT);
+  const declaredPort = app["~config"]?.serve?.port ?? (typeof port === "number" ? port : 3000);
+  const serverPort = Number(process.env.PORT ?? declaredPort);
   const { server } = startProductionServer({ app, idleTimeout, onShutdown, port: serverPort });
   console.log(`[furin] Server running at http://localhost:${server.port}`);
 }

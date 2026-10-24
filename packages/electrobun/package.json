@@ -1,0 +1,69 @@
+{
+  "name": "@teyik0/furin-electrobun",
+  "version": "0.1.0",
+  "description": "Official system-WebView desktop packaging for Furin.",
+  "license": "MIT",
+  "sideEffects": [
+    "./src/preload.ts",
+    "./dist/preload.js"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/config.d.ts",
+      "bun": "./src/config.ts",
+      "import": "./dist/config.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "bun": "./src/server.ts",
+      "import": "./dist/server.js"
+    },
+    "./dev": {
+      "types": "./dist/dev.d.ts",
+      "bun": "./src/dev.ts",
+      "import": "./dist/dev.js"
+    },
+    "./preload": {
+      "types": "./dist/preload.d.ts",
+      "bun": "./src/preload.ts",
+      "import": "./dist/preload.js"
+    },
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "bun": "./src/host.ts",
+      "import": "./dist/host.js"
+    }
+  },
+  "bin": {
+    "furin-electrobun": "./src/cli.ts"
+  },
+  "files": [
+    "LICENSE",
+    "dist",
+    "src",
+    "README.md",
+    "native-host.md",
+    "tofu-migration.md"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "fix": "ultracite fix",
+    "test": "bun test tests",
+    "tscheck": "bun prepare-sdk.ts && tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@elysia/eden": "2.0.0-beta.5",
+    "elysia": "catalog:"
+  },
+  "peerDependencies": {
+    "@teyik0/furin": ">=0.8.0-alpha.0 <0.9.0",
+    "elysia": "catalog:"
+  },
+  "optionalDependencies": {
+    "electrobun": "2.0.2"
+  },
+  "engines": {
+    "bun": ">=1.4.0"
+  }
+}

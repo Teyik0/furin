@@ -61,6 +61,10 @@ function findUnknownKey(value: unknown, schema: TSchema, path: string): string |
   if (!t.IsObject(schema) || typeof value !== "object" || value === null) {
     return;
   }
+  // Open objects such as `desktop` are validated by the integration that owns them.
+  if ("additionalProperties" in schema && schema.additionalProperties === true) {
+    return;
+  }
   const { properties } = schema;
   const validKeys = Object.keys(properties);
   for (const [key, child] of Object.entries(value)) {

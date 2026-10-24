@@ -1,0 +1,8 @@
+preload = ["@teyik0/furin-electrobun/preload"]
+
+[serve.static]
+plugins = ["@teyik0/furin/strip-plugin"]
+env = "FURIN_PUBLIC_*"
+
+[test]
+preload = ["./tests/setup.ts"]

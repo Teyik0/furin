@@ -5,7 +5,7 @@ import { Elysia, t } from "elysia";
 import type { RequestLogger } from "evlog";
 import { expectTypeOf } from "expect-type";
 import { furinSync as furinSyncClient } from "../../src/client.ts";
-import { defineRoute, furin, furinSync } from "../../src/furin.ts";
+import { defineRoute, type FurinLoggerOptions, furin, furinSync } from "../../src/furin.ts";
 import type { SyncRuntimeOptions } from "../../src/server/sync/index.ts";
 
 async function composePublicApplication(options: SyncRuntimeOptions) {
@@ -94,6 +94,7 @@ function definePublicPage() {
 }
 
 test("Furin composition preserves native routes, logger, sync and page configuration types", () => {
+  expectTypeOf<FurinLoggerOptions>().not.toHaveProperty("sampling");
   expectTypeOf(composePublicApplication).toBeFunction();
   expectTypeOf(composeGuardedApplications).toBeFunction();
   expectTypeOf(definePublicPage).toBeFunction();

@@ -117,6 +117,7 @@ export interface FurinOptions {
    * and unaffected.
    */
   clientLogging?: boolean;
+  /** Request logging options. Configure global evlog settings with `initLogger()` in the application. */
   logger?: FurinLoggerOptions;
   /**
    * Cache for public page artifacts. Use a distributed adapter when several
