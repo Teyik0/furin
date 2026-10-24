@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import type { SyncAdapter } from "../../src/server/sync/adapter";
+import { readPrincipalChanges } from "../../src/server/sync/principal-journal.ts";
 
 const response = {
   body: new TextEncoder().encode("created"),
@@ -126,6 +127,25 @@ export function testSyncAdapterConformance(getAdapter: () => SyncAdapter): void 
     expect(await adapter.readChanges({ after: futureCursor(current), limit: 10 })).toMatchObject({
       changes: [],
       cursor: current,
+      reset: true,
+    });
+  });
+
+  test("preserves explicit background provenance without exposing another principal's tags", async () => {
+    const adapter = getAdapter();
+    const after = await adapter.currentCursor();
+    const invalidations = [{ kind: "tags", tags: ["private-background-change"] }] as const;
+    const cursor = await adapter.appendInvalidations(invalidations, "alice");
+    expect(await readPrincipalChanges(adapter, { after, limit: 10 }, "alice")).toEqual({
+      changes: [{ cursor, invalidations }],
+      cursor,
+      hasMore: false,
+      reset: false,
+    });
+    expect(await readPrincipalChanges(adapter, { after, limit: 10 }, "bob")).toEqual({
+      changes: [],
+      cursor,
+      hasMore: false,
       reset: true,
     });
   });

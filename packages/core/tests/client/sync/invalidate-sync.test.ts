@@ -116,3 +116,36 @@ test("invalidateSync() accepts a page path and journals it for clients", async (
     database.close();
   }
 });
+
+test("a background invalidation with explicit provenance is targeted only for that principal", async () => {
+  const { database, sync } = sqliteSync("invalidate-sync-principal");
+  const alice = new Elysia().use(createSyncChangesPlugin(sync));
+  const bob = new Elysia().use(createSyncChangesPlugin({ ...sync, principal: () => "bob" }));
+  try {
+    await invalidateSync(sync, "/boards/:boardId", { boardId: "alpha" }, { principal: "alice" });
+    const request = new Request("http://localhost/_furin/sync/changes?after=0");
+    expect(await (await alice.handle(request.clone())).json()).toMatchObject({
+      changes: [{ cursor: "1", invalidations: [{ kind: "tags", tags: [queryTag(board)] }] }],
+      reset: false,
+    });
+    expect(await (await bob.handle(request.clone())).json()).toEqual({
+      changes: [],
+      cursor: "1",
+      hasMore: false,
+      reset: true,
+    });
+    await invalidateSync(sync, { tags: ["private-tag"] }, { principal: "alice" });
+    expect(await (await alice.handle(request.clone())).json()).toMatchObject({
+      changes: [
+        { cursor: "1" },
+        { cursor: "2", invalidations: [{ kind: "tags", tags: ["private-tag"] }] },
+      ],
+      reset: false,
+    });
+    await expect(
+      invalidateSync(sync, { tags: ["private-tag"] }, { principal: "" })
+    ).rejects.toThrow("principal");
+  } finally {
+    database.close();
+  }
+});

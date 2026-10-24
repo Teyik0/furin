@@ -58,6 +58,14 @@ function rejectReadDeclarations(options: SyncRuntimeOptions) {
 }
 
 function invalidateOutsideRequests(options: SyncRuntimeOptions) {
+  expectTypeOf(
+    invalidateSync(options, "/anything/:id", { id: 1 }, { principal: "alice" })
+  ).toEqualTypeOf<Promise<void>>();
+  expectTypeOf(invalidateSync(options, { tags: ["rule"] }, { principal: "alice" })).toEqualTypeOf<
+    Promise<void>
+  >();
+  // @ts-expect-error principals are stable verified string identities
+  invalidateSync(options, { tags: ["rule"] }, { principal: 123 });
   // Until an app is registered, any path and params are accepted, as in a handler.
   expectTypeOf(invalidateSync(options, "/anything/:id", { id: 1 })).toEqualTypeOf<Promise<void>>();
   // Like the handler's invalidate(), it also takes cache tags and page paths.

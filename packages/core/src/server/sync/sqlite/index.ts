@@ -228,8 +228,12 @@ export class SqliteSyncAdapter implements SyncAdapter {
     return transaction.immediate(input);
   }
 
-  async appendInvalidations(invalidations: readonly SyncInvalidation[]): Promise<string> {
-    return this.database.transaction(() => this.appendChangeSync(invalidations, null)).immediate();
+  async appendInvalidations(
+    invalidations: readonly SyncInvalidation[],
+    principal?: string
+  ): Promise<string> {
+    const hash = principal === undefined ? null : principalHash(this, principal);
+    return this.database.transaction(() => this.appendChangeSync(invalidations, hash)).immediate();
   }
 
   private appendChangeSync(

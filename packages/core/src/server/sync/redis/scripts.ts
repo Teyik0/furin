@@ -79,5 +79,5 @@ if length >= tonumber(ARGV[2]) then
   local oldest = redis.call('XRANGE', KEYS[1], '-', '+', 'COUNT', 1)
   if oldest[1] then redis.call('SET', KEYS[2], oldest[1][1]) end
 end
-return redis.call('XADD', KEYS[1], 'MAXLEN', '=', ARGV[2], '*', 'data', ARGV[1])
+return redis.call('XADD', KEYS[1], 'MAXLEN', '=', ARGV[2], '*', 'data', ARGV[1], 'principal', ARGV[3])
 `;

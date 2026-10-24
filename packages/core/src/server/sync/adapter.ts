@@ -57,9 +57,12 @@ export interface SyncAdapter {
   abortMutation: (lease: MutationLease) => Promise<void>;
   /**
    * Journals invalidations no mutation lease owns (`invalidateSync()`, `idempotent: false`
-   * routes) and returns their cursor. The change carries no principal: readers reset.
+   * routes) and returns their cursor. Without explicit provenance, readers reset.
    */
-  appendInvalidations: (invalidations: readonly SyncInvalidation[]) => Promise<string>;
+  appendInvalidations: (
+    invalidations: readonly SyncInvalidation[],
+    principal?: string
+  ) => Promise<string>;
   beginMutation: (input: BeginMutationInput) => Promise<BeginMutationResult>;
   completeMutation: (input: CompleteMutationInput) => Promise<CompleteMutationResult>;
   currentCursor: () => Promise<string>;
