@@ -1,0 +1,40 @@
+packages/electrobun/tests/fixtures/standard-launch.ts
+  s_1a7c356629ae36::t_6c2694b203838d 46
+packages/electrobun/src/capabilities.ts
+  s_1a7c356629ae36::t_551530cffc287c 82-83
+packages/electrobun/README.md
+  s_1a7c356629ae36::t_6c2694b203838d 84,100,105,166
+packages/electrobun/tests/managed-windows.test.ts
+  s_1a7c356629ae36::t_1db9f5565804e6 17-24,28-39,44-59
+  s_1a7c356629ae36::t_b49ef0f66379d0 25-27,40-43
+  s_1a7c356629ae36::t_6c2694b203838d 82,143-144
+packages/electrobun/tests/config-factory.test.ts
+  s_1a7c356629ae36::t_41549a02c977b4 83
+  s_1a7c356629ae36::t_6c2694b203838d 4,74-75,84,95-97,99-100,141
+packages/electrobun/src/standard-host.ts
+  s_1a7c356629ae36::t_551530cffc287c 231-232
+packages/electrobun/tests/standard-host.test.ts
+  s_1a7c356629ae36::t_6c2694b203838d 164
+packages/electrobun/native-host.md
+  s_1a7c356629ae36::t_6c2694b203838d 15
+CHANGELOG.md
+  s_1a7c356629ae36::t_6c2694b203838d 10,21
+packages/electrobun/tests/build-output.integration.test.ts
+  s_1a7c356629ae36::t_6c2694b203838d 80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dffde06259908fda7d89b8ef53bc079800b967b7",
+  "prompts": {},
+  "sessions": {
+    "s_1a7c356629ae36": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16880-94ae-7220-9ce2-1ba05ec73fdc",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
