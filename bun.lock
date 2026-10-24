@@ -70,7 +70,7 @@
       "name": "@teyik0/furin-example-task-manager",
       "version": "0.1.0",
       "dependencies": {
-        "@elysia/eden": "2.0.0-beta.5",
+        "@elysia/eden": "2.0.0-rc.0",
         "@teyik0/furin": "workspace:*",
         "bun-plugin-tailwind": "^0.1.2",
         "clsx": "^2.1.1",
@@ -118,7 +118,7 @@
         "furin-sync-postgres-migrate": "./dist/server/sync/postgres/migrate.js",
       },
       "dependencies": {
-        "@elysia/eden": "2.0.0-beta.5",
+        "@elysia/eden": "2.0.0-rc.0",
         "@elysia/static": "2.0.0-beta.3",
         "@jridgewell/trace-mapping": "^0.3.31",
         "@vercel/functions": "^3.10.1",
@@ -282,7 +282,7 @@
 
     "@electric-sql/pglite-tools": ["@electric-sql/pglite-tools@0.3.3", "", { "peerDependencies": { "@electric-sql/pglite": "0.4.3" } }, "sha512-AlzLJTRJ8+UFgK8CmxIpyIpJ0+YaFw02IiOSdYrqxwPXdSyeIShz8aa9Tq+tYFXdPwcaMp/Fc80mQZ1dkOQ/wg=="],
 
-    "@elysia/eden": ["@elysia/eden@2.0.0-beta.5", "", { "peerDependencies": { "elysia": ">= 2.0.0-beta.2" } }, "sha512-1vH0ihYwQasF/zUp5v0CtONP6Lcr+NBdXsjFopZRtsE7zUWq77QgdnDM6Gy/ysUWWca7gc+SsBTs5poBAxNvkw=="],
+    "@elysia/eden": ["@elysia/eden@2.0.0-rc.0", "", { "peerDependencies": { "elysia": ">= 2.0.0-rc.0" } }, "sha512-Hw2YUjGBzeu+Wr1bflrbQLoFGAHK4sQlKHoKFSWNlfgW39yV5VJqf2G8g8VI5lzVgHFWqu0ldAPVWyhB1aFSRg=="],
 
     "@elysia/static": ["@elysia/static@2.0.0-beta.3", "", { "peerDependencies": { "elysia": ">= 2.0.0-beta.30" } }, "sha512-AWllQqIu3ZBB+FR/ap0D8KDIB7MRURrNIyRqTMkyvRQIN/MLMsrl1OEBZkdXXrK6foGT4rUEdeVSnT4Y/g463A=="],
 

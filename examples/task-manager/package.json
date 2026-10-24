@@ -17,7 +17,7 @@
     "tscheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@elysia/eden": "2.0.0-beta.5",
+    "@elysia/eden": "2.0.0-rc.0",
     "@teyik0/furin": "workspace:*",
     "bun-plugin-tailwind": "^0.1.2",
     "clsx": "^2.1.1",
