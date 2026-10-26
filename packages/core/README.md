@@ -38,6 +38,10 @@ authentication contract and shutdown behavior in the
 For a consumer in the same Bun process, `createLocalSyncClient({ app, sync })`
 from `@teyik0/furin/sync` follows `treaty(app)` live queries without a listener or socket.
 
+## Web development listener
+
+`furin dev --web` honors a source-owned Elysia `.listen(...)` and awaits its startup hooks. Export the app as default or as `app` if it does not listen during import; the CLI supplies `127.0.0.1:3000` for that form. An explicit `--port` takes priority over `PORT` and changes only the listener port, preserving other options. Release resources in `.onStop()`: hot replacement and cancellation await `app.stop(true)` before replacing/exiting the application. Source-owned listeners should sit outside `import.meta.main`; standalone signal handlers can stay guarded. Desktop-configured applications can use the [web owner bootstrap](../electrobun/README.md#development-and-production) without launching a native host.
+
 ## Importable Bun application
 
 `furin build --target bun --output app` builds `.furin/build/bun/app.js` for a

@@ -199,6 +199,20 @@ bunx --bun furin dev --web    # web mode, no SDK initialization
 bun run build:desktop        # package the native app
 ```
 
+Web-only development evaluates the source entry and honors its direct `.listen(...)`, including the hostname, TLS, port and Elysia startup/stop hooks. Keep that call outside `import.meta.main`; keep standalone process signal handlers inside the guard. For example:
+
+```ts
+const app = new Elysia()
+  .use(desktopApp({ admission: access.admit.bind(access) }))
+  .use(api);
+export default app;
+app.listen({ port: instance.port });
+```
+
+There is no startup wrapper to export. `--port` (then `PORT`) overrides only the source listener port. An unlistened default/named `app` export remains supported, with a loopback listener on port 3000 when no override is supplied. Web hot replacement awaits `app.stop(true)` before evaluating the next source graph, so release exclusive resources in `.onStop()`.
+
+With `desktopApp`, the CLI opens an authenticated owner session in the system browser, without starting Electrobun. Its single-use bootstrap URL expires after one minute and is sent directly to the browser, never printed or saved. It uses the application origin (HTTP or HTTPS), a host-only HttpOnly SameSite=Strict cookie, and Secure on HTTPS. HTTPS development needs a certificate trusted by the browser. Only a verified cookie on the exact local origin, from a loopback TCP peer without forwarded headers, sets `desktopSession: true`. `desktopHost` remains false, the native host context remains null, and the React desktop client remains in web mode. Missing/invalid owner cookies and remote requests continue through the application's admission policy; existing paired remote authentication is unchanged. No consumer client changes or remote-access setting changes are required. This bootstrap is activated only by the development CLI and never by production/package startup. A loopback or wildcard TCP listener and an available system browser are required.
+
 The preload only activates for the configured hot server entry. Frontend edits use Bun HMR/React Fast Refresh and retain the window. Backend/native dependency edits cause a controlled full process restart; native modules are never hot-reloaded and backend state is not promised to survive. External packages/assets/native dependencies stay with the relocatable Furin artifact. Compiled/AOT dispatch preserves app identity and the in-process Eden security boundary.
 
 See [native-host.md](./native-host.md) for session, listener, storage and lifecycle details, and [the todo example](../../examples/electrobun-todo) for working code.

@@ -15,7 +15,7 @@ export async function runDevelopment(cwd: string, args: string[]): Promise<void>
     throw new Error("Choose --web or --desktop, not both.");
   }
   const config = await loadCliConfig(cwd);
-  const hasDesktop = "desktop" in config && config.desktop !== undefined;
+  const hasDesktop = config.desktop !== undefined;
   if (hasDesktop && !values.web) {
     if (values.port !== undefined) {
       throw new Error("--port is only available with --web.");
@@ -36,9 +36,15 @@ export async function runDevelopment(cwd: string, args: string[]): Promise<void>
   if (values.desktop) {
     throw new Error("Add desktop to furin.config.ts before using --desktop.");
   }
-  const port = values.port ?? process.env.PORT ?? "3000";
-  if (!PORT.test(port) || Number(port) > 65_535) {
+  const port = values.port ?? process.env.PORT;
+  if (port !== undefined && (!PORT.test(port) || Number(port) > 65_535)) {
     throw new Error("Invalid development port.");
+  }
+  let webDevelopment = "";
+  try {
+    webDevelopment = Bun.resolveSync("@teyik0/furin-electrobun/web-dev", cwd);
+  } catch {
+    // Web-only apps can run without the optional desktop integration installed.
   }
   const child = Bun.spawn(
     [
@@ -46,7 +52,8 @@ export async function runDevelopment(cwd: string, args: string[]): Promise<void>
       "--hot",
       join(import.meta.dir, "dev-worker.ts"),
       resolve(config.rootDir, config.serverEntry ?? "src/server.ts"),
-      port,
+      port ?? "",
+      webDevelopment,
     ],
     {
       cwd: config.rootDir,

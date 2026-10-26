@@ -157,13 +157,17 @@ function protectNetworkDispatch(
       return denied;
     }
   }
+  const peerAddress = app.server?.requestIP(request)?.address;
+  const bootstrap = state.webBootstrap?.(request, peerAddress);
+  if (bootstrap) {
+    return bootstrap;
+  }
   const denied = state.guard?.(request);
   if (!(admission && app.server)) {
     return denied;
   }
-  const peerAddress = app.server.requestIP(request)?.address;
   return admission(request, {
-    desktopHost: state.guard !== undefined,
+    desktopHost: state.guard !== undefined && !state.webDevelopment,
     desktopSession:
       state.guard !== undefined &&
       denied === undefined &&
@@ -231,6 +235,8 @@ function installDesktopApp<
   const listening = entry ? Promise.withResolvers<void>() : undefined;
   const state: DesktopState = {
     closed: closed.promise,
+    webDevelopment: entry?.webDevelopment,
+    webBootstrap: entry?.webBootstrap,
     guard: entry?.guard,
     hooks,
     listening: listening?.promise,
