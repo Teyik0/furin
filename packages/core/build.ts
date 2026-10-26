@@ -103,10 +103,12 @@ await $`cp src/env.d.ts dist/env.d.ts`;
 // skipped would fail.
 mkdirSync(`${import.meta.dir}/dist/build`, { recursive: true });
 mkdirSync(`${import.meta.dir}/dist/client`, { recursive: true });
+mkdirSync(`${import.meta.dir}/dist/cli`, { recursive: true });
 mkdirSync(`${import.meta.dir}/dist/server/render`, { recursive: true });
 mkdirSync(`${import.meta.dir}/dist/server/sync/postgres`, { recursive: true });
 
 // Copy template source files that the adapter reads at runtime.
+await $`cp src/cli/dev-worker.ts dist/cli/dev-worker.ts`;
 await $`cp src/build/compile-entry.ts dist/build/compile-entry.ts`;
 await $`cp src/build/entry-template.ts dist/build/entry-template.ts`;
 await $`cp src/client/dev-error-overlay.ts dist/client/dev-error-overlay.ts`;

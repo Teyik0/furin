@@ -15,6 +15,8 @@ export interface DesktopState {
   runtime?: ApplicationRuntime;
   stop: () => Promise<void>;
   validate: (mode: DesktopMode) => Promise<() => void>;
+  webBootstrap?: (request: Request, peerAddress: string | undefined) => Response | undefined;
+  webDevelopment?: boolean;
 }
 
 export interface DesktopEntry {
@@ -23,6 +25,8 @@ export interface DesktopEntry {
   mode: DesktopMode;
   runtime: ApplicationRuntime | undefined;
   state?: DesktopState;
+  webBootstrap?: (request: Request, peerAddress: string | undefined) => Response | undefined;
+  webDevelopment?: boolean;
 }
 
 const registryKey: unique symbol = Symbol.for("@teyik0/furin-electrobun/roots/v3");

@@ -67,7 +67,8 @@ export interface NativeActionContext {
 export interface AdmissionContext {
   /** A managed native host installed its private window guard. */
   desktopHost: boolean;
-  /** The native window session cookie, origin and loopback peer were all verified. */
+  /** The native window or CLI web-development owner cookie, origin and loopback peer were verified.
+   * This grants owner admission, not native capabilities; desktopHost remains false in web dev. */
   desktopSession: boolean;
   /** TCP peer address reported by Bun; never derived from request headers. */
   peerAddress: string | undefined;

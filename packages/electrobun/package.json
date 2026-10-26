@@ -38,6 +38,11 @@
       "types": "./dist/client.d.ts",
       "bun": "./src/client.ts",
       "import": "./dist/client.js"
+    },
+    "./web-dev": {
+      "types": "./dist/web-dev.d.ts",
+      "bun": "./src/web-dev.ts",
+      "import": "./dist/web-dev.js"
     }
   },
   "bin": {

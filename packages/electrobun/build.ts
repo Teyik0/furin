@@ -19,6 +19,7 @@ const result = await Bun.build({
     join(root, "src/server.ts"),
     join(root, "src/host.ts"),
     join(root, "src/dev.ts"),
+    join(root, "src/web-dev.ts"),
     join(root, "src/preload.ts"),
   ],
   external: ["elysia", "elysia/*"],
