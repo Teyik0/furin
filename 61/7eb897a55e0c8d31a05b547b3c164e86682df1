@@ -1,0 +1,22 @@
+packages/core/tests/routing/cache/dev-isr-loader-cache.scenario.ts
+  s_dc893a22364433::t_d6a93fddcb968d 304-312,314
+packages/core/tests/routing/cache/dev-isr-loader-cache.test.ts
+  s_dc893a22364433::t_fa4cfcddddd6b9 10,21-22,24-25,43
+  s_dc893a22364433::t_4c5137fde94dca 20,23,27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "617eb897a55e0c8d31a05b547b3c164e86682df1",
+  "prompts": {},
+  "sessions": {
+    "s_dc893a22364433": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17942-db12-7e23-a256-a854da3d1374",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
