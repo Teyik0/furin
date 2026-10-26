@@ -2201,6 +2201,35 @@ browserTest(
   30_000
 );
 
+browserTest.each(["styles.css", "styles.module.css"])(
+  "root side-effect %s edits update computed styles without resetting React state",
+  async (stylesheet) => {
+    const selector = stylesheet.endsWith(".module.css") ? ":global(.hmr-color)" : ".hmr-color";
+    const harness = await createBrowserHarness(
+      cssPageSource().replace('import "./styles.css";', ""),
+      [
+        {
+          contents: `import "../${stylesheet}";\n${rootSource("root-v1")}`,
+          relativePath: "src/pages/root.tsx",
+        },
+        { contents: `${selector} { color: rgb(255, 0, 0); }`, relativePath: `src/${stylesheet}` },
+      ],
+      false
+    );
+    activeHarness = harness;
+    await harness.view.evaluate("window.__furinTestDocumentId = crypto.randomUUID()");
+    await waitForComputedColor(harness.view, "rgb(255, 0, 0)");
+    await harness.view.click('[data-testid="increment"]');
+    const before = await readSnapshot(harness.view);
+    writeAppFile(harness.app.path, `src/${stylesheet}`, `${selector} { color: rgb(0, 0, 255); }`);
+    await waitForComputedColor(harness.view, "rgb(0, 0, 255)");
+    const after = await readSnapshot(harness.view);
+    expect(after.count).toBe("1");
+    expect(after.documentId).toBe(before.documentId);
+  },
+  30_000
+);
+
 browserTest(
   "an invalid CSS edit keeps the last valid style and recovers",
   async () => {

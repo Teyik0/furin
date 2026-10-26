@@ -248,12 +248,12 @@ jobs:
           path: .benchmark
           persist-credentials: false
 
-      # The base branch predates file-id routes, so it builds the previous fixture.
+      # Both revisions support file-id routes; compare the same workload on each.
       - name: Checkout baseline benchmark
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: Teyik0/furin-vercel-benchmarks
-          ref: b06822ae1d74cafa70787c9617f29081d9784929
+          ref: 0eabe4369a98d0d072019336f5050555725746e1
           path: .benchmark-base
           persist-credentials: false
 

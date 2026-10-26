@@ -7,7 +7,10 @@ import { drizzle } from "drizzle-orm/bun-sqlite";
 const filename =
   process.env.FURIN_TODO_DATABASE ??
   join(process.env.FURIN_APP_DATA_DIR ?? ".furin", "todos.sqlite");
-mkdirSync(dirname(filename), { recursive: true });
+const directory = dirname(filename);
+if (directory !== ".") {
+  mkdirSync(directory, { recursive: true });
+}
 
 export const sqlite = new Database(filename, { create: true });
 sqlite.run(`CREATE TABLE IF NOT EXISTS todo (

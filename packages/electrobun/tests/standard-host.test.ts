@@ -1,5 +1,5 @@
-import { expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { expect, spyOn, test } from "bun:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -13,6 +13,22 @@ import { runStandardDesktopHost } from "../src/standard-host";
 test("standard host lifecycle and successful update handoff", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-standard-"));
   const previous = process.env.FURIN_APP_DATA_DIR;
+  const previousMain = Bun.main;
+  const previousXdg = process.env.XDG_DATA_HOME;
+  Reflect.set(Bun, "main", join(root, "host.ts"));
+  process.env.XDG_DATA_HOME = root;
+  await writeFile(join(root, "native-open.js"), "");
+  const { spawn } = Bun;
+  // Exercise host registration without changing the user's registry or desktop cache.
+  const commands = spyOn(Bun, "spawn").mockImplementation(((
+    ...args: Parameters<typeof Bun.spawn>
+  ) => {
+    const [command] = args;
+    if (command[0] === "reg.exe" || command[0] === "update-desktop-database") {
+      return spawn([process.execPath, "-e", ""], { stdout: "pipe", stderr: "pipe" });
+    }
+    return spawn(...args);
+  }) as typeof Bun.spawn);
   const events = new Map<string, ((event: unknown) => void)[]>();
   const emit = (name: string, event: unknown) => {
     for (const handler of events.get(name) ?? []) {
@@ -274,6 +290,13 @@ test("standard host lifecycle and successful update handoff", async () => {
         delete process.env.FURIN_APP_DATA_DIR;
       } else {
         process.env.FURIN_APP_DATA_DIR = previous;
+      }
+      commands.mockRestore();
+      Reflect.set(Bun, "main", previousMain);
+      if (previousXdg === undefined) {
+        delete process.env.XDG_DATA_HOME;
+      } else {
+        process.env.XDG_DATA_HOME = previousXdg;
       }
       await rm(root, { recursive: true, force: true });
     }

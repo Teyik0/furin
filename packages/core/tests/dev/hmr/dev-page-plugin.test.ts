@@ -466,3 +466,17 @@ describe("rewriteSingletonImports", () => {
     expect(output).not.toContain('from "react"');
   });
 });
+
+test("server transforms strip only side-effect CSS imports and preserve source lines", () => {
+  const source =
+    'import "./styles.css";\nimport "./theme.module.css";\nimport "./effects.ts";\nexport const value = 1;';
+  const result = transformDevSource(source, resolve(import.meta.dir, "page.tsx"), {
+    rewriteBareImports: false,
+    rewriteRelativeImports: false,
+  });
+  expect(result).not.toContain('import "./styles.css"');
+  expect(result).not.toContain('import "./theme.module.css"');
+  expect(result).toContain('import "./effects.ts"');
+  expect(result.split("\n").at(-1)).toBe("export const value = 1;");
+  expect(result.split("\n")).toHaveLength(source.split("\n").length);
+});

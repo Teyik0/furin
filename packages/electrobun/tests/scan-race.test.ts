@@ -95,6 +95,9 @@ test("dependency scans reconcile importer edits without writing build artifacts"
     // Delay completion of the real compiler at its public boundary; do not fake its graph.
     Bun.build = async (options) => {
       const result = await original(options);
+      if (!options.metafile) {
+        return result;
+      }
       const phase = scans;
       scans += 1;
       if (phase < 2) {
