@@ -156,6 +156,9 @@ async function startsDesktop(owner: "host" | "entry") {
     expect(await child.exited, (await output).join("\n")).toBe(0);
     expect(await Bun.file(join(root, "stops")).text()).toBe("stop\nstop\nstop\nstop\n");
     expect(await Bun.file(join(root, "listener-stops")).text()).toBe("stop\nstop\nstop\nstop\n");
+  } catch (error) {
+    console.error("Preload fixture failure", error);
+    throw error;
   } finally {
     if (child && child.exitCode === null && child.signalCode === null) {
       const control = join(root, ".furin/electrobun/control");
@@ -168,6 +171,7 @@ async function startsDesktop(owner: "host" | "entry") {
       }
     }
     await child?.exited;
+    console.error("[desktop-diagnostic] preload output", (await output)?.join("\n"));
     await rm(root, { recursive: true, force: true });
   }
 }

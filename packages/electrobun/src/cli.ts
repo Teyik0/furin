@@ -254,8 +254,18 @@ async function stopOwnedDevWorker(
   isStopping: () => boolean
 ): Promise<void> {
   try {
+    console.log("[desktop-diagnostic] draining", {
+      pid: backend.pid,
+      control,
+      exit: backend.exitCode,
+    });
     await writeFile(control, crypto.randomUUID());
     const status = await withShutdownDeadline(backend.exited);
+    console.log("[desktop-diagnostic] drained", {
+      pid: backend.pid,
+      status,
+      signal: backend.signalCode,
+    });
     if (status !== 0 && !stoppedByUser(backend, isStopping())) {
       const failure = Bun.file(join(dirname(control), "failure.json"));
       if (await failure.exists()) {
@@ -318,6 +328,13 @@ async function watchBackend(
     ? await canonicalDesktopPath(resolve(dataDir), process.platform === "win32" ? win32 : posix)
     : undefined;
   const dataPath = canonicalData ? relative(canonicalRoot, canonicalData) : undefined;
+  console.log("[desktop-diagnostic] watcher paths", {
+    root,
+    canonicalRoot,
+    dataDir,
+    canonicalData,
+    dataPath,
+  });
   const ownedData =
     dataPath && dataPath !== ".." && !dataPath.startsWith(`..${sep}`) && !isAbsolute(dataPath)
       ? join(canonicalRoot, dataPath)
@@ -343,6 +360,7 @@ async function watchBackend(
     } else if (compilationFailed) {
       sourceChanged.resolve();
     } else if (dependencies.has(path)) {
+      console.log("[desktop-diagnostic] dependency change", { filename, path, ownedData });
       onChange();
     }
   });
@@ -459,6 +477,7 @@ async function stopDevBackend(
 
 export function cancelPendingStartup(backend: Bun.Subprocess | undefined, ready: string) {
   if (backend && !existsSync(ready) && backend.exitCode === null) {
+    console.log("[desktop-diagnostic] hard cancellation", { pid: backend.pid, ready });
     backend.kill("SIGTERM");
   }
 }
@@ -502,6 +521,11 @@ async function runDesktopDev(
     nativeAliases
   );
   const stop = () => {
+    console.log("[desktop-diagnostic] supervisor stop", {
+      pid: backend?.pid,
+      ready,
+      exists: existsSync(ready),
+    });
     stopping = true;
     signalStop();
     requestStop().catch(console.error);

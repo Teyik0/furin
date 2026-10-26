@@ -190,6 +190,9 @@ jobs:
       - name: Type Check
         run: bun run tscheck
 
+      - name: Focused desktop lifecycle diagnostics
+        run: bun test --isolate packages/electrobun/tests/preload.test.ts packages/electrobun/tests/supervisor-stop.test.ts
+
       - name: Test
         run: bun run test
 

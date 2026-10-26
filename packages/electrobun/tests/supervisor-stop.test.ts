@@ -162,7 +162,9 @@ finally { process.disconnect(); }`
     stderr: "pipe",
     ipc: () => undefined,
   });
+  const stdout = new Response(supervisor.stdout).text();
   return {
+    stdout,
     root,
     supervisor,
     started: bounded(started),
@@ -178,6 +180,7 @@ finally { process.disconnect(); }`
         supervisor.kill("SIGKILL");
         await supervisor.exited;
       }
+      console.error("[desktop-diagnostic] supervisor output", await stdout);
       const pidFile = Bun.file(join(root, ".backend.pid"));
       const workerPid = (await pidFile.exists()) ? Number(await pidFile.text()) : undefined;
       for (const pid of [observed?.childPid, observed?.pid, workerPid]) {
@@ -234,7 +237,7 @@ test("Ctrl-C after readiness accepts a signal-terminated SDK and still drains th
     const workerPid = Number(await Bun.file(join(dev.root, ".backend.pid")).text());
     expect(() => process.kill(workerPid, 0)).toThrow();
     expect(window.url).toBeDefined();
-    expect(await new Response(dev.supervisor.stdout).text()).not.toContain(window.url as string);
+    expect(await dev.stdout).not.toContain(window.url as string);
     expect(diagnostic).toBe("");
   } finally {
     await dev.close();
@@ -295,8 +298,10 @@ test("user cancellation still reports an actual backend cleanup failure", async 
   try {
     await dev.started;
     dev.interrupt();
-    expect(await bounded(dev.supervisor.exited)).toBe(1);
-    expect(await new Response(dev.supervisor.stderr).text()).toContain("fixture cleanup failed");
+    const status = await bounded(dev.supervisor.exited);
+    const diagnostic = await new Response(dev.supervisor.stderr).text();
+    expect(status, diagnostic).toBe(1);
+    expect(diagnostic).toContain("fixture cleanup failed");
   } finally {
     await dev.close();
   }
