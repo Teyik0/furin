@@ -13,7 +13,7 @@
     "tscheck": "furin-electrobun prepare && tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@elysia/eden": "2.0.0-beta.5",
+    "@elysia/eden": "2.0.0-rc.0",
     "@fontsource-variable/manrope": "5.2.8",
     "@fontsource/ibm-plex-mono": "5.2.7",
     "@teyik0/furin": "workspace:*",
