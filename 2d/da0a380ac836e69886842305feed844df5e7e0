@@ -1,0 +1,24 @@
+packages/electrobun/src/web-dev.ts
+  s_dfbf2e8b7094c8::t_699550f6681975 106-121
+packages/electrobun/tests/web-dev.test.ts
+  s_dfbf2e8b7094c8::t_d3ccbb0026dbfb 272-284
+  s_dfbf2e8b7094c8::t_c2a09de6baa9e7 5,9,14-15,49,151,153,163-167,257,261,286
+  s_dfbf2e8b7094c8::t_699550f6681975 70,132,137,139,143-147,269,285
+  s_dfbf2e8b7094c8::t_ab73d72e401e8d 10-13,16,50-59,66-69,71-81,133-136,138,140-142,152,154-161,168-170,258-260,270-271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2dda0a380ac836e69886842305feed844df5e7e0",
+  "prompts": {},
+  "sessions": {
+    "s_dfbf2e8b7094c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17a0c-25e4-7601-9973-864291f8f9d8",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}
