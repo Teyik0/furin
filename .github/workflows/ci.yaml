@@ -113,10 +113,10 @@ jobs:
             const desktop = "node_modules/@teyik0/furin-electrobun";
             const { defineDesktopConfig } = await import(`./${desktop}/dist/config.js`);
             const { desktopApp } = await import(`./${desktop}/dist/server.js`);
-            const { runStandardDesktopHost } = await import(`./${desktop}/dist/host.js`);
+            const { getDesktopHost, getDesktopDevelopment } = await import(`./${desktop}/dist/host.js`);
             const { runDesktopDevelopment } = await import(`./${desktop}/dist/dev.js`);
             await import(`./${desktop}/dist/preload.js`);
-            if (![defineDesktopConfig, desktopApp, runStandardDesktopHost, runDesktopDevelopment].every(value => typeof value === "function")) throw new Error("Missing desktop export");
+            if (![defineDesktopConfig, desktopApp, getDesktopHost, getDesktopDevelopment, runDesktopDevelopment].every(value => typeof value === "function")) throw new Error("Missing desktop export");
           '
 
   coverage:

@@ -10,7 +10,7 @@ export function discoveryModule(
 ): string {
   const module = parseModule(code, `${path}.${loader}`);
   const chain = exportedRouteChain(module.program, collectDefineRouteBindings(module.program));
-  const boundary = /\/(?:error|not-found)\.[jt]sx?$/.test(path);
+  const boundary = /[\\/](?:error|not-found)\.[jt]sx?$/.test(path);
   if (!(chain || boundary)) {
     return code;
   }
@@ -60,4 +60,11 @@ export function discoveryModule(
   }
   pruneOrphanedCode(module, new Set(), new Set());
   return module.source.toString();
+}
+
+export function discoveryModuleFilter(pagesDirs: readonly string[]): RegExp {
+  const directories = pagesDirs
+    .map((path) => path.split(/[\\/]/).map(RegExp.escape).join("[\\\\/]"))
+    .join("|");
+  return new RegExp(`^(?:${directories})[\\\\/].*\\.[cm]?[jt]sx?$`);
 }

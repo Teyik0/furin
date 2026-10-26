@@ -13,7 +13,7 @@ import {
 import { detectLoaderFromPath } from "../server/lang-detect.ts";
 import { scanPages } from "../server/router/discovery.ts";
 import type { DiscoveredApp } from "./discover-pages.ts";
-import { discoveryModule } from "./discovery-module.ts";
+import { discoveryModule, discoveryModuleFilter } from "./discovery-module.ts";
 import type {
   DiscoveryHook,
   DiscoveryPluginRequest,
@@ -75,9 +75,7 @@ function resolveImport(hook: number, args: Bun.OnResolveArgs): Bun.OnResolveResu
   }
   return response.value as Bun.OnResolveResult | undefined;
 }
-const metadataFilter = new RegExp(
-  `^(?:${apps.map((app) => RegExp.escape(app.pagesDir)).join("|")})/.*\\.[cm]?[jt]sx?$`
-);
+const metadataFilter = discoveryModuleFilter(apps.map((app) => app.pagesDir));
 
 function isolateModule(result: Bun.OnLoadResult, path: string): Bun.OnLoadResult {
   if (!result || result.loader === "object" || !metadataFilter.test(path)) {

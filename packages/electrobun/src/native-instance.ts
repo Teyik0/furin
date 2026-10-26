@@ -26,24 +26,28 @@ const WINDOWS_PRIVATE_DIRECTORY = `
 $ErrorActionPreference = 'Stop'
 $path = $env:FURIN_NATIVE_DIRECTORY
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
-$owner = (Get-Acl -LiteralPath $path).GetOwner([Security.Principal.SecurityIdentifier])
-if ($owner.Value -ne $sid.Value) { throw 'Native directory belongs to another user' }
 $acl = New-Object Security.AccessControl.DirectorySecurity
 $acl.SetOwner($sid)
 $acl.SetAccessRuleProtection($true, $false)
 $rule = [Security.AccessControl.FileSystemAccessRule]::new(
   $sid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
 $acl.AddAccessRule($rule)
+# Set the owner and private ACL at creation, even when the token's default owner is a group.
+[IO.Directory]::CreateDirectory($path, $acl) | Out-Null
+$item = Get-Item -LiteralPath $path -Force
+if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Native directory must not be a link' }
+$owner = (Get-Acl -LiteralPath $path).GetOwner([Security.Principal.SecurityIdentifier])
+if ($owner.Value -ne $sid.Value) { throw 'Native directory belongs to another user' }
 Set-Acl -LiteralPath $path -AclObject $acl
 `;
 
 async function secureDirectory(path: string) {
-  await mkdir(path, { recursive: true, mode: 0o700 });
-  const info = await lstat(path);
-  if (!info.isDirectory() || info.isSymbolicLink()) {
-    throw new Error("Native instance directory must not be a link.");
-  }
   if (process.platform !== "win32") {
+    await mkdir(path, { recursive: true, mode: 0o700 });
+    const info = await lstat(path);
+    if (!info.isDirectory() || info.isSymbolicLink()) {
+      throw new Error("Native instance directory must not be a link.");
+    }
     if (info.uid !== process.getuid?.()) {
       throw new Error("Native instance directory belongs to another user.");
     }
@@ -55,13 +59,14 @@ async function secureDirectory(path: string) {
     {
       env: { ...process.env, FURIN_NATIVE_DIRECTORY: path },
       stdout: "ignore",
-      stderr: "ignore",
+      stderr: "pipe",
       timeout: 5000,
       killSignal: "SIGKILL",
     }
   );
-  if ((await acl.exited) !== 0) {
-    throw new Error("Cannot secure native instance directory.");
+  const [status, diagnostic] = await Promise.all([acl.exited, new Response(acl.stderr).text()]);
+  if (status !== 0) {
+    throw new Error(`Cannot secure native instance directory: ${diagnostic.trim()}`);
   }
 }
 

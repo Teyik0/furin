@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -114,6 +114,93 @@ test("a secondary launch waits for the owner to publish its descriptor", async (
     expect(received).toEqual([{ type: "url", url: "fixture://late" }]);
   } finally {
     await primary?.stop();
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test.skipIf(process.platform !== "win32")(
+  "native instance creation sets the user owner and a protected private Windows ACL",
+  async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "furin-native-acl-"));
+    let instance: Awaited<ReturnType<typeof openNativeInstance>>;
+    try {
+      instance = await openNativeInstance({
+        dataDir,
+        identity: { name: "ACL", identifier: "local.furin.acl", version: "1.0.0", channel: "dev" },
+        schemes: [],
+        extensions: [],
+        onOpen: () => undefined,
+        onActivate: () => undefined,
+      });
+      expect(instance).toBeDefined();
+      const query = Bun.spawn(
+        [
+          "powershell.exe",
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          `
+      $ErrorActionPreference = 'Stop'
+      $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+      $acl = Get-Acl -LiteralPath $env:FURIN_NATIVE_DIRECTORY
+      $rules = $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])
+      @{
+        owned = $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -eq $sid.Value
+        protected = $acl.AreAccessRulesProtected
+        private = @($rules | Where-Object { $_.IdentityReference.Value -ne $sid.Value }).Count -eq 0
+        fullControl = @($rules | Where-Object { $_.FileSystemRights -eq 'FullControl' -and $_.AccessControlType -eq 'Allow' }).Count -eq 1
+      } | ConvertTo-Json -Compress
+    `,
+        ],
+        {
+          env: { ...process.env, FURIN_NATIVE_DIRECTORY: join(dataDir, ".furin-native") },
+          stdout: "pipe",
+          stderr: "pipe",
+          timeout: 5000,
+        }
+      );
+      const [code, result, diagnostic] = await Promise.all([
+        query.exited,
+        new Response(query.stdout).text(),
+        new Response(query.stderr).text(),
+      ]);
+      expect(code, diagnostic).toBe(0);
+      expect(JSON.parse(result)).toEqual({
+        owned: true,
+        protected: true,
+        private: true,
+        fullControl: true,
+      });
+    } finally {
+      await instance?.stop();
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  }
+);
+
+test("native instance refuses a linked private directory without publishing a descriptor", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "furin-native-link-"));
+  try {
+    const target = join(dataDir, "target");
+    await mkdir(target);
+    await symlink(target, join(dataDir, ".furin-native"), "junction");
+    await expect(
+      openNativeInstance({
+        dataDir,
+        identity: {
+          name: "Link",
+          identifier: "local.furin.link",
+          version: "1.0.0",
+          channel: "dev",
+        },
+        schemes: [],
+        extensions: [],
+        onOpen: () => undefined,
+        onActivate: () => undefined,
+      })
+    ).rejects.toThrow("link");
+    expect(await Bun.file(join(target, "descriptor.json")).exists()).toBe(false);
+  } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
 });

@@ -83,6 +83,6 @@ test("native restart waits for both process exits before running the launcher an
       stop(child);
     }
     await Promise.all(children.map((child) => child.exited));
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
   }
 }, 15_000);

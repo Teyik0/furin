@@ -63,7 +63,7 @@ test("init preserves an existing unified config and refuses to rewrite applicati
     await initDesktop(configured);
     expect(await Bun.file(join(configured, "furin.config.ts")).text()).toBe(settings);
     expect((await Bun.file(join(configured, "package.json")).json()).scripts.dev).toBe(
-      "bun --hot src/server.ts"
+      `bun --hot ${join("src", "server.ts")}`
     );
   } finally {
     await rm(root, { recursive: true, force: true });

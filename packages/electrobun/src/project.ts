@@ -1,4 +1,4 @@
-import { constants, existsSync, realpathSync } from "node:fs";
+import { constants, existsSync, statSync } from "node:fs";
 import { access, chmod, link, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -186,7 +186,13 @@ export async function isDesktopDevelopmentEntry(cwd: string, entry: string): Pro
     return false;
   }
   const expected = resolve(cwd, config.rootDir ?? ".", config.serverEntry ?? "src/server.ts");
+  const configured = statSync(expected, { bigint: true, throwIfNoEntry: false });
+  const executed = statSync(entry, { bigint: true, throwIfNoEntry: false });
+  // Windows may report the same entry through short/long names or different casing.
   return (
-    existsSync(expected) && existsSync(entry) && realpathSync(expected) === realpathSync(entry)
+    configured !== undefined &&
+    executed !== undefined &&
+    configured.dev === executed.dev &&
+    configured.ino === executed.ino
   );
 }

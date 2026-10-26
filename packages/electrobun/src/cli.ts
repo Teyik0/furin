@@ -2,7 +2,7 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Restart supervision and readiness polling must be sequential.
 import { realpathSync, statSync, watch } from "node:fs";
 import { rm, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, posix, relative, resolve, sep, win32 } from "node:path";
 import { prepareDesktop } from "./prepare";
 import { initDesktop, loadDesktopConfig, loadFurinProject } from "./project";
 import { withShutdownDeadline } from "./runtime";
@@ -10,6 +10,14 @@ import { prepareSdkResolution } from "./sdk-resolution";
 import { resolveDesktopDataDir } from "./storage";
 
 const MODULE_PATH = /.*/;
+const WINDOWS_BASE = /^[a-z]:[\\/]|^\\\\/i;
+const WINDOWS_DRIVE_INPUT = /^(?:\.\.[\\/])*[\\/]?([a-z]:[\\/].*)$/i;
+
+export function backendInputPath(base: string, path: string): string {
+  const api = WINDOWS_BASE.test(base) ? win32 : posix;
+  // Bun can prefix cross-drive metafile inputs with a relative/root separator.
+  return api.resolve(base, api === win32 ? path.replace(WINDOWS_DRIVE_INPUT, "$1") : path);
+}
 
 async function backendDependencies(
   root: string,
@@ -71,7 +79,7 @@ async function backendDependencies(
   // Bun reports them relative to the canonical working directory, not `root`.
   const base = realpathSync(process.cwd());
   for (const path of Object.keys(result.metafile.inputs)) {
-    files.add(realpathSync(resolve(base, path)));
+    files.add(realpathSync(backendInputPath(base, path)));
   }
   return files;
 }
