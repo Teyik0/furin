@@ -56,6 +56,10 @@ async function fixture(
   ipc?: boolean
 ) {
   const root = await mkdtemp(join(tmpdir(), "furin-supervisor-stop-"));
+  const interruptSdk =
+    process.platform === "win32" || ipc
+      ? 'process.emit("SIGINT");'
+      : 'process.kill(process.pid, "SIGINT");';
   let observed: Started | undefined;
   const { promise: started, resolve: receive } = Promise.withResolvers<Started>();
   const receiver = Bun.serve({
@@ -124,6 +128,8 @@ async function fixture(
         : "const childPid = undefined;"
     }
     setInterval(() => {}, 1000);
+    // Windows cannot deliver POSIX signals. Invoke the host handler rather
+    // than killing the SDK process that also owns the application resources.
     ${
       mode === "hung"
         ? ""
@@ -135,7 +141,7 @@ async function fixture(
             process.kill(Number(await Bun.file(${JSON.stringify(join(root, ".backend.pid"))}).text()), "SIGINT");
           }
           process.exit(0);`
-              : 'if (process.platform === "win32") process.exit(130); else process.kill(process.pid, "SIGINT");'
+              : interruptSdk
           }
         }
       });`
@@ -180,7 +186,6 @@ finally { process.disconnect(); }`
         supervisor.kill("SIGKILL");
         await supervisor.exited;
       }
-      console.error("[desktop-diagnostic] supervisor output", await stdout);
       const pidFile = Bun.file(join(root, ".backend.pid"));
       const workerPid = (await pidFile.exists()) ? Number(await pidFile.text()) : undefined;
       for (const pid of [observed?.childPid, observed?.pid, workerPid]) {
@@ -224,7 +229,7 @@ test("Ctrl-C before readiness is an intentional stop, not a startup failure", as
   }
 }, 12_000);
 
-test("Ctrl-C after readiness accepts a signal-terminated SDK and still drains the backend", async () => {
+test("Ctrl-C after readiness drains the in-process SDK and backend", async () => {
   const dev = await fixture("signal");
   try {
     const window = await dev.started;
@@ -232,6 +237,10 @@ test("Ctrl-C after readiness accepts a signal-terminated SDK and still drains th
     const status = await bounded(dev.supervisor.exited);
     const diagnostic = await new Response(dev.supervisor.stderr).text();
     expect(status, diagnostic).toBe(0);
+    expect(
+      await Bun.file(join(dev.root, ".cleanup")).exists(),
+      [diagnostic, await dev.stdout].join("\n")
+    ).toBe(true);
     expect(await Bun.file(join(dev.root, ".cleanup")).text()).toBe("closed");
     expect(() => process.kill(window.pid, 0)).toThrow();
     const workerPid = Number(await Bun.file(join(dev.root, ".backend.pid")).text());
@@ -252,6 +261,10 @@ test("IPC-delivered shutdown invokes the supervisor signal handler and drains th
     const status = await bounded(dev.supervisor.exited);
     const diagnostic = await new Response(dev.supervisor.stderr).text();
     expect(status, diagnostic).toBe(0);
+    expect(
+      await Bun.file(join(dev.root, ".cleanup")).exists(),
+      [diagnostic, await dev.stdout].join("\n")
+    ).toBe(true);
     expect(await Bun.file(join(dev.root, ".cleanup")).text()).toBe("closed");
     expect(diagnostic).toBe("");
   } finally {

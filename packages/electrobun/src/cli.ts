@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // biome-ignore-all lint/performance/noAwaitInLoops: Restart supervision and readiness polling must be sequential.
-import { existsSync, realpathSync, statSync, watch } from "node:fs";
-import { rm, writeFile } from "node:fs/promises";
+import { existsSync, statSync, watch } from "node:fs";
+import { realpath, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, posix, relative, resolve, sep, win32 } from "node:path";
 import { prepareDesktop } from "./prepare";
 import { initDesktop, loadDesktopConfig, loadFurinProject } from "./project";
@@ -77,10 +77,12 @@ async function backendDependencies(
   // Observe Bun's resolved inputs, including file assets, without an onLoad
   // hook: passing file-loader imports through that hook can panic Bun.
   // Bun reports them relative to the canonical working directory, not `root`.
-  const base = realpathSync(process.cwd());
-  for (const path of Object.keys(result.metafile.inputs)) {
-    files.add(realpathSync(backendInputPath(base, path)));
-  }
+  const base = await realpath(process.cwd());
+  await Promise.all(
+    Object.keys(result.metafile.inputs).map(async (path) => {
+      files.add(await realpath(backendInputPath(base, path)));
+    })
+  );
   return files;
 }
 
@@ -254,18 +256,8 @@ async function stopOwnedDevWorker(
   isStopping: () => boolean
 ): Promise<void> {
   try {
-    console.log("[desktop-diagnostic] draining", {
-      pid: backend.pid,
-      control,
-      exit: backend.exitCode,
-    });
     await writeFile(control, crypto.randomUUID());
     const status = await withShutdownDeadline(backend.exited);
-    console.log("[desktop-diagnostic] drained", {
-      pid: backend.pid,
-      status,
-      signal: backend.signalCode,
-    });
     if (status !== 0 && !stoppedByUser(backend, isStopping())) {
       const failure = Bun.file(join(dirname(control), "failure.json"));
       if (await failure.exists()) {
@@ -315,7 +307,9 @@ async function watchBackend(
   sdkAliases: { [specifier: string]: string },
   nativeAliases: { [specifier: string]: string }
 ) {
-  const canonicalRoot = realpathSync(root);
+  // Use the same realpath API for every ownership key: Windows sync realpath
+  // can retain 8.3 aliases while async realpath expands them.
+  const canonicalRoot = await realpath(root);
   const entries = [serverEntry, ...(customHost ? [customHost] : [])].map((path) =>
     join(canonicalRoot, relative(root, path))
   );
@@ -328,13 +322,6 @@ async function watchBackend(
     ? await canonicalDesktopPath(resolve(dataDir), process.platform === "win32" ? win32 : posix)
     : undefined;
   const dataPath = canonicalData ? relative(canonicalRoot, canonicalData) : undefined;
-  console.log("[desktop-diagnostic] watcher paths", {
-    root,
-    canonicalRoot,
-    dataDir,
-    canonicalData,
-    dataPath,
-  });
   const ownedData =
     dataPath && dataPath !== ".." && !dataPath.startsWith(`..${sep}`) && !isAbsolute(dataPath)
       ? join(canonicalRoot, dataPath)
@@ -360,7 +347,6 @@ async function watchBackend(
     } else if (compilationFailed) {
       sourceChanged.resolve();
     } else if (dependencies.has(path)) {
-      console.log("[desktop-diagnostic] dependency change", { filename, path, ownedData });
       onChange();
     }
   });
@@ -477,7 +463,6 @@ async function stopDevBackend(
 
 export function cancelPendingStartup(backend: Bun.Subprocess | undefined, ready: string) {
   if (backend && !existsSync(ready) && backend.exitCode === null) {
-    console.log("[desktop-diagnostic] hard cancellation", { pid: backend.pid, ready });
     backend.kill("SIGTERM");
   }
 }
@@ -521,11 +506,6 @@ async function runDesktopDev(
     nativeAliases
   );
   const stop = () => {
-    console.log("[desktop-diagnostic] supervisor stop", {
-      pid: backend?.pid,
-      ready,
-      exists: existsSync(ready),
-    });
     stopping = true;
     signalStop();
     requestStop().catch(console.error);

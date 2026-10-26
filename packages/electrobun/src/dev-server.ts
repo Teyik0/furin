@@ -48,7 +48,6 @@ if (import.meta.main) {
   let closing: Promise<void> | undefined;
   const shutdown = (): Promise<void> => {
     closing ??= (async () => {
-      console.log("[desktop-diagnostic] worker shutdown", process.pid);
       clearInterval(timer);
       let code = 0;
       try {
@@ -57,7 +56,6 @@ if (import.meta.main) {
         console.error("[furin-electrobun] Dev shutdown failed:", error);
         code = 1;
       } finally {
-        console.log("[desktop-diagnostic] worker exit", { pid: process.pid, code });
         process.exit(code);
       }
     })();
