@@ -216,7 +216,14 @@ const backend = { origin: instance.server.url.origin };
           output,
           async stop(signal: "SIGINT" | "SIGTERM") {
             if (child.exitCode === null && child.signalCode === null) {
-              child.send(signal);
+              try {
+                child.send(signal);
+              } catch (sendError) {
+                // IPC may close before Bun reports exit; still await the child's result below.
+                if ((sendError as NodeJS.ErrnoException).code !== "ERR_IPC_CHANNEL_CLOSED") {
+                  throw sendError;
+                }
+              }
             }
             const ended = await Promise.race([child.exited, Bun.sleep(6500).then(() => undefined)]);
             if (ended === undefined) {
