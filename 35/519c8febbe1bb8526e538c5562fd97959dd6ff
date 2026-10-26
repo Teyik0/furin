@@ -1,0 +1,39 @@
+packages/electrobun/tests/startup-cancellation.test.ts
+  s_dc893a22364433::t_4fe97fa0e927b7 12-16,18-26,32-34,36-39
+  s_dc893a22364433::t_5903992083a131 1-11,27-31,40-48
+  s_dc893a22364433::t_4168303b644909 17,35
+packages/electrobun/src/cli.ts
+  s_dc893a22364433::t_5903992083a131 3,10,299,317-324,460-461,485,489,510,538
+packages/core/tests/routing/cache/dev-isr-loader-cache.scenario.ts
+  s_dc893a22364433::t_9e2e1aada110f4 19,106,291,293,297,299,303-305
+packages/core/tests/routing/cache/dev-isr-loader-cache.test.ts
+  s_dc893a22364433::t_5ebc09e540893e 2,8-36,42-44
+packages/electrobun/src/storage.ts
+  s_dc893a22364433::t_a497e9161d1e31 14,22-24,69-73
+packages/electrobun/tests/fixtures/files.ts
+  s_dc893a22364433::t_783cc398dcdada 1-8
+packages/electrobun/tests/fixtures/sdk.ts
+  s_dc893a22364433::t_9b9410fd10c321 31,66,89-92
+packages/electrobun/tests/fixtures/standard-launch.ts
+  s_dc893a22364433::t_5fc5290ae2dea4 5,43,65,89
+packages/electrobun/tests/preload.test.ts
+  s_dc893a22364433::t_58e85f3601732b 50-54,92
+packages/electrobun/tests/standard-bootstrap.test.ts
+  s_dc893a22364433::t_66a071aa86ce22 141-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "35519c8febbe1bb8526e538c5562fd97959dd6ff",
+  "prompts": {},
+  "sessions": {
+    "s_dc893a22364433": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17942-db12-7e23-a256-a854da3d1374",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
