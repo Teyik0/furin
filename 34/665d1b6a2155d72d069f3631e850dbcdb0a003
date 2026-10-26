@@ -1,0 +1,22 @@
+packages/electrobun/tests/standard-launch-shutdown.test.ts
+  s_dc893a22364433::t_729033f2a73ef0 1-31
+packages/electrobun/tests/fixtures/standard-launch.ts
+  s_dc893a22364433::t_b1181c8ea34331 219-220,222,225-226
+  s_dc893a22364433::t_b4e64390421687 221,223-224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "34665d1b6a2155d72d069f3631e850dbcdb0a003",
+  "prompts": {},
+  "sessions": {
+    "s_dc893a22364433": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17942-db12-7e23-a256-a854da3d1374",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
