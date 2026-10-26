@@ -67,7 +67,7 @@ async function validityConnection(
   transport: "sse" | "ws",
   connection: FurinSyncOptions["connection"]
 ) {
-  const sync = { adapter, notifier, principal: () => "alice", connection };
+  const sync = { adapter: () => adapter, notifier, principal: () => "alice", connection };
   if (transport === "sse") {
     const app = new Elysia().use(createSseBrowserEventsPlugin({ development: true, sync }));
     const response = await app.handle(new Request("http://localhost/_furin/events"));

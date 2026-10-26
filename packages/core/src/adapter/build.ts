@@ -234,11 +234,19 @@ export async function buildAdapterTarget(
     buildRoot,
     options
   );
-  const prerenders = await prerenderFromBundle(
-    { kind: "app", path: join(targetDir, APP_MODULE) },
-    rootDir,
-    frameworkCache
+  const needsPrerender = apps.some((app) =>
+    app.routes.some((route) => {
+      const info = routeBuildInfo(route);
+      return info.documentMode !== "ssr" && (info.queryKeys?.length ?? 0) === 0;
+    })
   );
+  const prerenders = needsPrerender
+    ? await prerenderFromBundle(
+        { kind: "app", path: join(targetDir, APP_MODULE) },
+        rootDir,
+        frameworkCache
+      )
+    : [];
   if (frameworkCache) {
     writePrerenderSnapshot(targetDir, prerenders);
   }

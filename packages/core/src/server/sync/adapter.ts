@@ -131,7 +131,8 @@ export type SyncMutation<Adapter> = <T>(
 ) => Promise<Awaited<T>>;
 
 export interface SyncRuntimeOptions<Adapter extends SyncAdapter = SyncAdapter> {
-  adapter: Adapter;
+  /** Factories run once during runtime composition, never during AOT or on a request. */
+  adapter: Adapter | (() => Adapter);
   notifier?: SyncNotifier;
   /** Authenticate the request and return its verified identity, including for journal recovery. */
   principal: (context: Context) => Promise<string> | string;

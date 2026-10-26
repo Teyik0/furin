@@ -1,12 +1,19 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: share one module graph across mounts, then exit before AOT
+// Discovery observes the same resource guard as AOT, without capturing handlers.
+import "elysia/plugin/aot/unplugin";
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { deserialize } from "node:v8";
 import { snapshotRouteRegistry } from "../plugin/route-registry.ts";
 import type { RouteInstanceSpec } from "../plugin/route-tree.ts";
-import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
+import {
+  isomorphicTransformPlugin,
+  transformIsomorphicFunctions,
+} from "../plugin/transform-isomorphic.ts";
+import { detectLoaderFromPath } from "../server/lang-detect.ts";
 import { scanPages } from "../server/router/discovery.ts";
 import type { DiscoveredApp } from "./discover-pages.ts";
+import { discoveryModule } from "./discovery-module.ts";
 import type {
   DiscoveryHook,
   DiscoveryPluginRequest,
@@ -68,6 +75,26 @@ function resolveImport(hook: number, args: Bun.OnResolveArgs): Bun.OnResolveResu
   }
   return response.value as Bun.OnResolveResult | undefined;
 }
+const metadataFilter = new RegExp(
+  `^(?:${apps.map((app) => RegExp.escape(app.pagesDir)).join("|")})/.*\\.[cm]?[jt]sx?$`
+);
+
+function isolateModule(result: Bun.OnLoadResult, path: string): Bun.OnLoadResult {
+  if (!result || result.loader === "object" || !metadataFilter.test(path)) {
+    return result;
+  }
+  const loader = result.loader ?? detectLoaderFromPath(path);
+  if (!(loader === "js" || loader === "jsx" || loader === "ts" || loader === "tsx")) {
+    return result;
+  }
+  const code =
+    typeof result.contents === "string"
+      ? result.contents
+      : new TextDecoder().decode(result.contents);
+  const sourcePath = `${path}.${loader}`;
+  const contents = discoveryModule(code, path, loader);
+  return { ...result, contents: transformIsomorphicFunctions(contents, sourcePath, "server").code };
+}
 Bun.plugin({
   name: "furin-discovery-plugins",
   setup(builder) {
@@ -84,16 +111,30 @@ Bun.plugin({
         namespace: hook.namespace,
       };
       if (hook.method === "onLoad") {
-        builder.onLoad(constraints, (args) => invoke(hook.id, args) as Promise<Bun.OnLoadResult>);
+        builder.onLoad(constraints, async (args) =>
+          isolateModule((await invoke(hook.id, args)) as Bun.OnLoadResult, args.path)
+        );
       } else {
         builder.onResolve(constraints, (args) => resolveImport(hook.id, args));
       }
     }
   },
 });
+Bun.plugin({
+  name: "furin-route-metadata",
+  setup(builder) {
+    builder.onLoad({ filter: metadataFilter }, async ({ path }) =>
+      isolateModule(
+        { contents: await Bun.file(path).text(), loader: detectLoaderFromPath(path) },
+        path
+      )
+    );
+  },
+});
 Bun.plugin(isomorphicTransformPlugin("server"));
 
 const discovered: DiscoveredApp[] = [];
+process.env.ELYSIA_AOT_BUILD = "1";
 for (const spec of apps) {
   const { root, routes } = await scanPages(spec.pagesDir);
   discovered.push({

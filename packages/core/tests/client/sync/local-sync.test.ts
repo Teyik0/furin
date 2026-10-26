@@ -63,9 +63,10 @@ function fixture(
       });
     },
   };
+  const adapter = sqliteSyncAdapter({ database, namespace: "local" });
   const sync = {
     connection,
-    adapter: sqliteSyncAdapter({ database, namespace: "local" }),
+    adapter: () => adapter,
     notifier,
     principal: ({ headers }: { headers: { [name: string]: string | undefined } }) =>
       headers.authorization === "deny" ? "" : (headers.authorization ?? "alice"),
@@ -98,7 +99,7 @@ function fixture(
     client.close();
     await waitForSyncCursorUnsubscriptions();
   });
-  return { app, api, client, sync, reads, subscriptions };
+  return { adapter, app, api, client, sync, reads, subscriptions };
 }
 
 test("in-process subscriptions follow Eden live queries without a listener, fetch or WebSocket", async () => {
@@ -134,7 +135,7 @@ test("local connections acquire a real authorized context and reauthenticate wit
   const leases: AbortController[] = [];
   let releases = 0;
   const seen: string[] = [];
-  const { app, api, sync } = fixture(undefined, (context) => {
+  const { adapter, app, api, sync } = fixture(undefined, (context) => {
     seen.push(context.request.headers.get("authorization") ?? "");
     const lease = new AbortController();
     leases.push(lease);
@@ -161,7 +162,7 @@ test("local connections acquire a real authorized context and reauthenticate wit
   leases[0]?.abort();
   await until(() => value === "bob");
   expect(seen).toEqual(["alice", "bob"]);
-  expect(await sync.adapter.currentCursor()).toBe("0");
+  expect(await adapter.currentCursor()).toBe("0");
   expect(releases).toBe(1);
   client.close();
   expect(releases).toBe(2);

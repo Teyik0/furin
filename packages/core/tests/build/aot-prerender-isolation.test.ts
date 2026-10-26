@@ -127,7 +127,7 @@ process.exit(0);`,
   30_000
 );
 
-test("failed route discovery releases import-time locks before rejecting and can run again", async () => {
+test("failed route configuration discovery can run again without acquiring application locks", async () => {
   const app = createApiPrerenderApp("ssg");
   const databasePath = join(app.path, "failed-discovery.db");
   try {
@@ -145,7 +145,7 @@ export const api = new Elysia().get("/api/message", () => ({ message: "In-memory
     writeAppFile(
       app.path,
       "src/pages/index.tsx",
-      `${page}\nthrow new Error("discovery regression");`
+      page.replace('.config({ mode: "ssg"', '.config({ mode: (() => { throw new Error("discovery regression"); })()')
     );
     const options = { pagesDir: "src/pages", rootDir: app.path };
     await expect(generateRouteTypes(options)).rejects.toThrow("discovery regression");
@@ -284,7 +284,12 @@ if (process.env.ELYSIA_AOT_BUILD) {
               },
             ]
           : [];
-      const build = buildApp({ rootDir: app.path, target: "bun", plugins });
+      const build = buildApp({
+        apps: [{ pagesDir: "src/pages" }],
+        rootDir: app.path,
+        target: "bun",
+        plugins,
+      });
       if (stage === "bundle") {
         await expect(build).rejects.toMatchObject({
           errors: expect.arrayContaining([

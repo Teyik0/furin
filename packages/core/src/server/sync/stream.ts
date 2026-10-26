@@ -10,7 +10,7 @@ import {
 } from "./connection.ts";
 import { principalHash, readPrincipalChanges } from "./principal-journal.ts";
 import { markInternalRead } from "./queries.ts";
-import { type ResolvedSyncRuntime, resolveSyncRuntime } from "./runtime.ts";
+import { prepareSyncRuntime, type ResolvedSyncRuntime, resolveSyncRuntime } from "./runtime.ts";
 
 export type { ChangePage as SyncChangePage, SyncChange } from "./adapter.ts";
 
@@ -185,10 +185,11 @@ export function createSyncChangesPlugin(options: FurinSyncOptions) {
 /** The changes endpoint of a Furin runtime, validated for that runtime's mode. */
 export function createRuntimeSyncChangesPlugin(options: FurinSyncOptions, development: boolean) {
   const syncPath = options.path ?? defaultSyncPath;
-  const runtime = resolveSyncRuntime(syncRuntimeOptions(options), development);
+  prepareSyncRuntime(options, development);
   return new Elysia({ name: `furin-sync-changes-${syncPath}` }).get(
     `${syncPath}/changes`,
     async (context) => {
+      const runtime = resolveSyncRuntime(options, development);
       const { request, set } = context;
       markInternalRead(request);
       set.headers["cache-control"] = "no-store";

@@ -37,6 +37,43 @@ function prismaAdapter(client: PrismaClient) {
   return prismaSyncAdapter({ client, namespace: "types" });
 }
 
+function typedFactoryApp(db: Db) {
+  return new Elysia()
+    .use(
+      furinSync({
+        adapter: () => drizzleSyncAdapter({ db, namespace: "factory-types" }),
+        principal: () => "user",
+      })
+    )
+    .post("/counter", ({ mutation }) => {
+      const invalid = () => {
+        // @ts-expect-error Factory inference must still forbid async SQLite callbacks.
+        mutation(async (tx) => tx.query.counter.findFirst());
+      };
+      expectTypeOf(invalid).toBeFunction();
+      return mutation((tx) => {
+        expectTypeOf(tx).toEqualTypeOf<SyncTransaction<DrizzleSqliteSyncAdapter<Db>>>();
+        return { value: tx.query.counter.findFirst().sync()?.value };
+      });
+    });
+}
+
+function typedAsyncFactoryApp(client: PrismaClient) {
+  return new Elysia()
+    .use(
+      furinSync({
+        adapter: () => prismaAdapter(client),
+        principal: () => "user",
+      })
+    )
+    .post("/async", ({ mutation }) =>
+      mutation((tx) => {
+        expectTypeOf(tx).toEqualTypeOf<Prisma.TransactionClient>();
+        return Promise.resolve({ value: Boolean(tx) });
+      })
+    );
+}
+
 function invalidSyncCallback(mutation: SyncMutation<DrizzleSqliteSyncAdapter<Db>>) {
   // @ts-expect-error SQLite callbacks cannot keep a synchronous transaction open across await.
   mutation(async (tx) => tx.query.counter.findFirst());
@@ -54,4 +91,13 @@ test("atomic mutation preserves native transactions, existing routes and Eden su
   expectTypeOf<
     SyncTransaction<ReturnType<typeof prismaAdapter>>
   >().toEqualTypeOf<Prisma.TransactionClient>();
+});
+
+test("adapter factories preserve sync and async transactions and Eden payloads", () => {
+  type Routes = ReturnType<typeof typedFactoryApp>["~Routes"];
+  expectTypeOf<Routes["counter"]["post"]["response"][200]>().toEqualTypeOf<{
+    value: number | undefined;
+  }>();
+  type AsyncRoutes = ReturnType<typeof typedAsyncFactoryApp>["~Routes"];
+  expectTypeOf<AsyncRoutes["async"]["post"]["response"][200]>().toEqualTypeOf<{ value: boolean }>();
 });

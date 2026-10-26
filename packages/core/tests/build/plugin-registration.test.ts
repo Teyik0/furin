@@ -66,3 +66,48 @@ export const route = defineRoute("/").config({ mode: "ssg", tags }).page(() => n
     app.cleanup();
   }
 });
+
+test.each(["page", "dependency"] as const)(
+  "discovery isolates the configured %s loader output",
+  async (target) => {
+    const app = createTmpApp("cli-app");
+    let calls = 0;
+    const plugin: BunPlugin = {
+      name: `configured-${target}-loader`,
+      setup(builder) {
+        builder.onLoad(
+          { filter: target === "page" ? /\/index\.tsx$/ : /\/_tags\.ts$/ },
+          async ({ path }) => {
+            calls += 1;
+            const source = (await Bun.file(path).text()).replace('"before"', '"configured-tag"');
+            return { contents: new TextEncoder().encode(source), loader: "js" };
+          }
+        );
+      },
+    };
+    try {
+      writeAppFile(
+        app.path,
+        "src/resource.ts",
+        'throw new Error("Discovery evaluated a loader dependency"); export const value = "resource";'
+      );
+      writeAppFile(app.path, "src/pages/_tags.ts", 'export const tags = ["before"];');
+      writeAppFile(
+        app.path,
+        "src/pages/index.tsx",
+        `import { defineRoute } from "@teyik0/furin";
+import { value } from "../resource";
+${target === "dependency" ? 'import { tags } from "./_tags";' : 'const tags = ["before"];'}
+export const route = defineRoute("/")
+  .config({ mode: "ssr", tags })
+  .loader(() => ({ value }))
+  .page(() => null);`
+      );
+      await generateRouteTypes({ pagesDir: "src/pages", plugins: [plugin], rootDir: app.path });
+      expect(calls).toBe(1);
+      expect(await Bun.file(join(app.path, "furin-env.d.ts")).text()).toContain("configured-tag");
+    } finally {
+      app.cleanup();
+    }
+  }
+);

@@ -11,6 +11,7 @@ import {
 import { forbiddenDevelopmentRequest } from "../dev/request-security.ts";
 import type { FurinSyncOptions } from "../sync/config.ts";
 import { createSyncConnectionLifetime, verifiedSyncPrincipal } from "../sync/connection.ts";
+import { prepareSyncRuntime } from "../sync/runtime.ts";
 import { subscribeSyncCursor } from "../sync/stream.ts";
 import { registerBrowserEventConnection, unregisterBrowserEventConnection } from "./shutdown.ts";
 import type { BrowserEventSource, BrowserEventSubscription } from "./types.ts";
@@ -115,6 +116,9 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
   const capacity = createConnectionCapacity();
   const peers = new WeakMap<Request, BrowserEventPeer>();
   const { development, sources = [], sync } = options;
+  if (sync) {
+    prepareSyncRuntime(sync, development);
+  }
   const clientSource = browserEventsClientSource(sync !== undefined);
   const authenticate = async (context: Context): Promise<Response> => {
     const forbidden = forbiddenBrowserRequest(context.request, context.server, development);
@@ -269,6 +273,7 @@ export function createSseBrowserEventsPlugin({
   development: boolean;
   sync: FurinSyncOptions;
 }): AnyElysia {
+  prepareSyncRuntime(sync, development);
   const capacity = createConnectionCapacity();
   return new Elysia({ name: "furin-browser-events-sse" })
     .head(SOCKET_PATH, async (context) => {

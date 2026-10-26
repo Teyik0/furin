@@ -30,6 +30,36 @@ export const sync = {
 
 `namespace` separates applications sharing the same database. `principal` must return a stable, non-empty identity; it scopes idempotency keys so two users can safely use the same client-generated key.
 
+### Adapter Factories And AOT
+
+When constructing the adapter requires runtime services, pass a synchronous factory:
+
+```ts
+export const sync = {
+  adapter: () => drizzleSyncAdapter({ db, namespace: "my-app" }),
+  principal: ({ request }) => requireUser(request).id,
+};
+```
+
+Pass the same `sync` object to `furinSync(sync)` and `furin({ sync })`. During normal composition, Furin calls the factory once, validates the real adapter, secret and notifier, and shares that runtime between mutations, browser event transports, recovery and `invalidateSync`. Factory errors reject composition before `.listen()`. SQLite and PostgreSQL transaction types remain inferred from the factory's return value. Factories returning a promise are unsupported.
+
+During mount discovery and AOT compilation, Furin installs the same hooks, macros and routes without invoking the factory. Elysia's compiled handlers are attached to the real functions and resources when the application starts. Requests and `invalidateSync` never initialize a factory: compose a Sync plugin before using them.
+
+The factory does not suppress effects in imported modules. Use Elysia's `inAotBuild()` guard in the module that owns service acquisition:
+
+```ts
+import { inAotBuild } from "elysia";
+
+if (!inAotBuild()) {
+  // Await the application's existing service acquisition and migrations here.
+  // Assign its resources before composing the application and calling listen().
+}
+```
+
+If a dependency opens SQLite at import time, move that import inside the guarded block as well. Read services inside handlers, factories and authentication callbacks, rather than while declaring them. Routes and schemas must remain declarable without those resources. Do not use `onStart` to acquire resources that must be ready before the socket opens.
+
+AOT remains enabled. The guard covers discovery and compilation; SSG/ISR prerendering executes loaders normally and still requires their resources. The application owns its database and service scope; Furin releases its event subscriptions without closing the borrowed database.
+
 Authenticate the request inside `principal`, for example by verifying a signed session as `requireUser` does above. The same callback authorizes journal recovery at the change endpoint. Never return an unverified header or a client-supplied user ID: hashing a principal separates journal entries but does not authenticate a request.
 
 ### Principal Secret
