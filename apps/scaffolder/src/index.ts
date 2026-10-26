@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { cancel } from "@clack/prompts";
+import { version } from "../package.json";
 import { parseArgs } from "./args.ts";
 import { run } from "./cli.ts";
 import { ScaffolderError } from "./errors.ts";
@@ -19,8 +20,7 @@ try {
   }
 
   if (args.version) {
-    const { BUNDLED_FURIN_VERSION } = await import("./furin-version.ts");
-    console.log(BUNDLED_FURIN_VERSION);
+    console.log(version);
     process.exit(0);
   }
 

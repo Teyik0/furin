@@ -1,9 +1,10 @@
 import type { BrowserEventChannel, BrowserEventEnvelope } from "../shared/browser-events.ts";
 
 type BrowserEventListener = (event: BrowserEventEnvelope) => void;
-type BrowserEventConnectionStatus = "connected" | "connecting" | "reconnecting";
+type BrowserEventConnectionStatus = "connected" | "connecting" | "reconnecting" | "unauthorized";
 
 interface BrowserEventRuntime {
+  setSyncAuthentication: (authorized: boolean) => void;
   subscribe: (
     channel: BrowserEventChannel,
     listener: BrowserEventListener
@@ -18,13 +19,15 @@ interface BrowserEventCandidate {
 }
 
 interface SyncEventCandidate {
+  context?: unknown;
   cursor?: unknown;
 }
 
 export function installBrowserEventsRuntime(
   browser: Window,
   moduleUrlValue: string,
-  transport?: "sse"
+  transport?: "sse",
+  sync?: boolean
 ): void {
   const runtimeKey = Symbol.for("furin.browser-events.runtime");
   const runtimeWindow = browser as Window &
@@ -53,7 +56,8 @@ export function installBrowserEventsRuntime(
       return false;
     }
     if (candidate.channel === "sync") {
-      return typeof (candidate.data as SyncEventCandidate).cursor === "string";
+      const data = candidate.data as SyncEventCandidate;
+      return typeof data.cursor === "string" || data.context === "changed";
     }
     return candidate.channel === "diagnostic" || candidate.channel === "devtools";
   };
@@ -92,6 +96,9 @@ export function installBrowserEventsRuntime(
   let eventSource: EventSource | undefined;
   let status: BrowserEventConnectionStatus = "connecting";
   let suspended = false;
+  let authPaused = false;
+  let authorized = !sync;
+  let authenticating: AbortController | undefined;
 
   const updateStatus = (next: BrowserEventConnectionStatus): void => {
     if (status === next) {
@@ -136,7 +143,68 @@ export function installBrowserEventsRuntime(
     }
   };
 
+  const retry = (): void => {
+    if (suspended || authPaused || reconnectTimer !== undefined) {
+      return;
+    }
+    updateStatus("reconnecting");
+    const baseDelay = Math.min(250 * 2 ** reconnectAttempt, maxReconnectDelayMs);
+    const delay =
+      transport === "sse"
+        ? baseDelay
+        : Math.min(Math.round(baseDelay * (0.8 + Math.random() * 0.4)), maxReconnectDelayMs);
+    reconnectAttempt += 1;
+    reconnectTimer = browser.setTimeout(() => {
+      reconnectTimer = undefined;
+      connect();
+    }, delay);
+  };
+
+  const authenticate = async (): Promise<void> => {
+    if (authenticating) {
+      return;
+    }
+    const current = new AbortController();
+    authenticating = current;
+    try {
+      const response = await browser.fetch(eventsUrl(), {
+        method: "HEAD",
+        credentials: "same-origin",
+        cache: "no-store",
+        signal: current.signal,
+      });
+      if (current.signal.aborted) {
+        return;
+      }
+      if (response.status === 401 || response.status === 403) {
+        dispatch({ channel: "sync", data: { context: "changed" }, version: protocolVersion });
+        setSyncAuthentication(false);
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(`Sync authentication failed: ${response.status}`);
+      }
+      authorized = true;
+      connect();
+    } catch {
+      if (!current.signal.aborted) {
+        retry();
+      }
+    } finally {
+      if (authenticating === current) {
+        authenticating = undefined;
+      }
+    }
+  };
+
   const connect = (): void => {
+    if (suspended || authPaused) {
+      return;
+    }
+    if (!authorized) {
+      authenticate();
+      return;
+    }
     if (transport === "sse") {
       if (
         suspended ||
@@ -165,12 +233,8 @@ export function installBrowserEventsRuntime(
           return;
         }
         eventSource = undefined;
-        const delay = Math.min(250 * 2 ** reconnectAttempt, maxReconnectDelayMs);
-        reconnectAttempt += 1;
-        reconnectTimer = browser.setTimeout(() => {
-          reconnectTimer = undefined;
-          connect();
-        }, delay);
+        authorized = !sync;
+        retry();
       });
       return;
     }
@@ -198,23 +262,17 @@ export function installBrowserEventsRuntime(
       if (suspended || reconnectTimer !== undefined) {
         return;
       }
-      updateStatus("reconnecting");
-      const baseDelay = Math.min(250 * 2 ** reconnectAttempt, maxReconnectDelayMs);
-      const delay = Math.min(
-        Math.round(baseDelay * (0.8 + Math.random() * 0.4)),
-        maxReconnectDelayMs
-      );
-      reconnectAttempt += 1;
-      reconnectTimer = browser.setTimeout(() => {
-        reconnectTimer = undefined;
-        connect();
-      }, delay);
+      authorized = !sync;
+      retry();
     });
     connection.addEventListener("error", () => connection.close());
   };
 
   const suspend = (): void => {
     suspended = true;
+    authenticating?.abort();
+    authenticating = undefined;
+    authorized = !sync;
     if (reconnectTimer !== undefined) {
       browser.clearTimeout(reconnectTimer);
       reconnectTimer = undefined;
@@ -225,17 +283,33 @@ export function installBrowserEventsRuntime(
     eventSource = undefined;
   };
   const resume = (): void => {
+    if (authPaused) {
+      return;
+    }
     suspended = false;
     if (socket === undefined && eventSource === undefined) {
       updateStatus("connecting");
     }
     connect();
   };
+  const setSyncAuthentication = (valid: boolean): void => {
+    if (valid) {
+      if (authPaused) {
+        authPaused = false;
+        resume();
+      }
+    } else if (!authPaused) {
+      authPaused = true;
+      suspend();
+      updateStatus("unauthorized");
+    }
+  };
   browser.addEventListener("pagehide", suspend);
   browser.addEventListener("pageshow", resume);
   connect();
 
   runtimeWindow[runtimeKey] = {
+    setSyncAuthentication,
     subscribe(channel, listener) {
       const channelListeners = listeners[channel];
       channelListeners.add(listener);
@@ -252,10 +326,10 @@ export function installBrowserEventsRuntime(
   };
 }
 
-export function browserEventsClientSource(): string {
-  return `(${installBrowserEventsRuntime.toString()})(window, import.meta.url);\n`;
+export function browserEventsClientSource(sync?: boolean): string {
+  return `(${installBrowserEventsRuntime.toString()})(window, import.meta.url, undefined, ${sync === true});\n`;
 }
 
 export function browserEventsSseClientSource(): string {
-  return `(${installBrowserEventsRuntime.toString()})(window, import.meta.url, "sse");\n`;
+  return `(${installBrowserEventsRuntime.toString()})(window, import.meta.url, "sse", true);\n`;
 }

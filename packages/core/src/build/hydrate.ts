@@ -5,9 +5,8 @@ import {
   buildRouteRegex,
   compareRouteSpecificity,
 } from "../server/router/patterns.ts";
-import { mergeRouteSchemas } from "../server/router/schema-merge.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
-import { collectSearchDefaults } from "../shared/search-params.ts";
+import { type BuildRouteInput, routeBuildInfo } from "./route-metadata.ts";
 import type { ClientBoundary } from "../rsc/build/discover.ts";
 import { CLIENT_REFERENCE_RUNTIME_PATH } from "../rsc/build/paths.ts";
 import { writeRouteTypes } from "./route-types";
@@ -43,7 +42,7 @@ export function generateClientReferenceEntry(boundaries: readonly ClientBoundary
  *   navigation uses the correct physical URLs.
  */
 export function generateHydrateEntry(
-  routes: ResolvedRoute[],
+  routes: BuildRouteInput[],
   rootLayout: string,
   basePath: string,
   clientLogging: boolean
@@ -58,7 +57,7 @@ export function generateHydrateEntry(
  * shipping absolute build paths to browsers.
  */
 export function generateProductionHydrateEntry(
-  routes: ResolvedRoute[],
+  routes: BuildRouteInput[],
   rootLayout: string,
   basePath: string,
   clientLogging: boolean
@@ -69,7 +68,7 @@ export function generateProductionHydrateEntry(
 }
 
 function hydrateEntry(
-  routes: ResolvedRoute[],
+  routes: BuildRouteInput[],
   rootLayout: string,
   basePath: string,
   clientLogging: boolean,
@@ -99,9 +98,7 @@ function hydrateEntry(
   for (const route of clientRoutes) {
     const resolvedPage = route.path.replace(/\\/g, "/");
     const regexPattern = buildRouteRegex(route.pattern).regex.source;
-    const searchDefaults = collectSearchDefaults(
-      mergeRouteSchemas(route.routeChain ?? [], "query")
-    );
+    const searchDefaults = routeBuildInfo(route).searchDefaults;
     const boundaryIdents = new Map<string, string>();
     const layoutPaths = (route.routeChain ?? [])
       .slice(1)
@@ -209,6 +206,12 @@ const __furinBasePath = ${basePathLiteral};
 ${loggerSetup}
 
 if (import.meta.hot) {
+  import.meta.hot.on("bun:beforeUpdate", () => {
+    window.dispatchEvent(new Event("furin:hmr-before-update"));
+  });
+  import.meta.hot.on("bun:afterUpdate", () => {
+    window.dispatchEvent(new Event("furin:hmr-after-update"));
+  });
   const connectionState = ((window as unknown as {
     __FURIN_HMR_CONNECTION__?: { disconnected: boolean; installed: boolean };
   }).__FURIN_HMR_CONNECTION__ ??= { disconnected: false, installed: false });

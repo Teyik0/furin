@@ -1,10 +1,13 @@
 import { furin } from "@teyik0/furin";
 import { Elysia } from "elysia";
+import { initLogger } from "evlog";
 import mdxPlugin from "./lib/bun-mdx-plugin.ts";
 import { getDocByPath } from "./lib/docs";
 import { getSearchIndexEntries, searchDocs } from "./lib/docs-search";
 import { getDocSourceText } from "./lib/docs-server";
 import { stripMdxToMarkdown } from "./lib/strip-mdx";
+
+initLogger({ env: { service: "furin-docs" } });
 
 const llmsTxtFile = new URL("../public/llms.txt", import.meta.url);
 const llmsFullTxtFile = new URL("../public/llms-full.txt", import.meta.url);

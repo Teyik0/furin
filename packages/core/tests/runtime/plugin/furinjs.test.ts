@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, expect, spyOn, test } from "bun:test";
+import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import Elysia, { type AnyElysia } from "elysia";
@@ -24,18 +24,8 @@ const { furin, isFurinPageRequest, revalidatePath, revalidateTag } = await impor
   "../../../src/furin"
 );
 const { __resetCompileContext, __setCompileContext } = await import("../../../src/server/internal");
-const { getFurinEvlogOptions } = await import("../../../src/server/evlog");
-const { allInstances, withInstance } = await import("../../../src/server/instance");
-const { resetFurinLoggerForTests } = await import("../../../src/server/logger");
 const { __resetTemplateState } = await import("../../../src/server/render/template");
 const { __setDevMode } = await import("../../../src/server/runtime-env");
-
-// evlog's logger is process-wide: observe furin()'s initialization without
-// installing a sampling config that would outlive this file.
-const initLoggerSpy = spyOn(await import("evlog"), "initLogger").mockImplementation(
-  () => undefined
-);
-afterAll(() => initLoggerSpy.mockRestore());
 
 const originalCwd = process.cwd();
 const originalArgv = process.argv.slice();
@@ -67,8 +57,6 @@ async function createTestApp(options: FurinOptions): Promise<AnyElysia> {
 }
 
 async function resetState(): Promise<void> {
-  initLoggerSpy.mockClear();
-  resetFurinLoggerForTests();
   __setDevMode(true);
   __resetTemplateState();
   __resetCompileContext();
@@ -197,48 +185,6 @@ test.serial("furin() writes dev files in development", async () => {
   expect(existsSync(join(app.path, "furin-env.d.ts"))).toBe(true);
 });
 
-test.serial(
-  "furin() forwards evlog sampling without passing it to the Elysia middleware",
-  async () => {
-    const app = rememberTmpApp(createTmpApp("cli-app"));
-    __setDevMode(true);
-    process.chdir(app.path);
-    const sampling = {
-      keep: [{ duration: 1000 }, { status: 400 }],
-      rates: { info: 10 },
-    };
-
-    await createTestApp({
-      logger: { sampling },
-      pagesDir: join(app.path, "src/pages"),
-    });
-
-    expect(initLoggerSpy).toHaveBeenCalledWith({
-      env: { service: "furin" },
-      sampling,
-    });
-    const options = allInstances().map((runtime) => withInstance(runtime, getFurinEvlogOptions));
-    expect(options).toHaveLength(1);
-    expect(options[0]).toBeDefined();
-    expect(options[0]).not.toHaveProperty("sampling");
-  }
-);
-
-test.serial("furin() initializes the process-wide logger only once", async () => {
-  const app = rememberTmpApp(createTmpApp("cli-app"));
-  __setDevMode(true);
-  process.chdir(app.path);
-  const pagesDir = join(app.path, "src/pages");
-
-  await createTestApp({ pagesDir });
-  await createTestApp({
-    pagesDir: copyPagesForPrefix(app.path, "src/admin", "/admin"),
-    prefix: "/admin",
-  });
-
-  expect(initLoggerSpy).toHaveBeenCalledTimes(1);
-});
-
 test.serial("furin() rejects one pages directory mounted under two prefixes", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   __setDevMode(true);
@@ -341,36 +287,6 @@ test.serial("furin() instances sharing a tag purger purge each tag once", async 
 
   expect(purged).toEqual([["posts", "authors"]]);
 });
-
-test.serial(
-  "furin() rejects a second instance whose logger sampling would be ignored",
-  async () => {
-    const app = rememberTmpApp(createTmpApp("cli-app"));
-    __setDevMode(true);
-    process.chdir(app.path);
-    const pagesDir = join(app.path, "src/pages");
-
-    await createTestApp({ logger: { sampling: { rates: { info: 10 } } }, pagesDir });
-    await createTestApp({
-      logger: { sampling: { rates: { info: 10 } } },
-      pagesDir: copyPagesForPrefix(app.path, "src/same", "/same"),
-      prefix: "/same",
-    });
-    await createTestApp({
-      pagesDir: copyPagesForPrefix(app.path, "src/inherits", "/inherits"),
-      prefix: "/inherits",
-    });
-
-    await expect(
-      createTestApp({
-        logger: { sampling: { rates: { info: 50 } } },
-        pagesDir: copyPagesForPrefix(app.path, "src/admin", "/admin"),
-        prefix: "/admin",
-      })
-    ).rejects.toThrow("logger.sampling");
-    expect(initLoggerSpy).toHaveBeenCalledTimes(1);
-  }
-);
 
 test.serial("furin() scaffolds empty root and index route files into a working app", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));

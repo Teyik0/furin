@@ -16,6 +16,7 @@ jobs:
       FURIN_PAGE_CACHE_REDIS_URL: redis://127.0.0.1:6379
     # Digest update process: review both upstream releases, update both digests together,
     # and run this workflow through CI before merging.
+    # The public Docker Official Images mirror avoids Docker Hub anonymous pull quotas.
     services:
       postgres:
         image: docker.io/library/postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15

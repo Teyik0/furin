@@ -19,7 +19,7 @@ type BuildArgs = Parameters<typeof buildAdapterTarget> extends [unknown, ...infe
 
 function buildBunTarget(...[apps, rootDir, buildRoot, serverEntry, options]: BuildArgs) {
   return buildAdapterTarget(
-    bun(options.compile),
+    bun(options.compile, options.bun?.output),
     apps,
     rootDir,
     buildRoot,
@@ -61,6 +61,29 @@ afterEach(() => {
 });
 
 describe.serial("buildBunTarget Bun branches", () => {
+  test("app output bundles an inert application instead of a server boot entry", async () => {
+    const app = createCompileTmpApp();
+    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const builds: Bun.BuildConfig[] = [];
+    const manifest = await withBuildStub(() =>
+      buildBunTarget(
+        [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
+        app.path,
+        join(app.path, ".furin/build"),
+        join(app.path, "src/server.ts"),
+        { bun: { output: "app" }, target: "bun" }
+      ),
+      (build) => builds.push(build)
+    );
+    expect(manifest.appPath).toBe(".furin/build/bun/app.js");
+    expect(manifest.serverPath).toBeNull();
+    const bundle = builds.find((build) =>
+      build.entrypoints.includes(join(app.path, ".furin/build/bun/_furin-app.ts"))
+    );
+    // The listener-free runtime module replaces the server one and names the entry app.js.
+    expect(bundle?.entrypoints[0]).toEndWith(join("src", "adapter", "bun", "app.ts"));
+  });
+
   test("client builds inline public environment values without exposing private ones", async () => {
     const app = createCompileTmpApp();
     const previousPublic = process.env.FURIN_PUBLIC_AUDIT;

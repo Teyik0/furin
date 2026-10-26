@@ -32,6 +32,13 @@ Compiling re-bundles the finished JavaScript, so the executable carries the
 snapshot the bundle rendered. Elysia AOT evaluates the listener-free
 application entry; `adapter/bun/server.ts` owns the listener.
 
+Mount discovery and AOT compilation expose Elysia's `inAotBuild()` guard to
+application modules. Sync adapter factories are skipped in those phases and
+prepared once during real application composition, before listening. The
+application must guard its own service acquisition and keep route declarations
+independent of runtime resources. Prerendering is separate: SSG/ISR loaders
+execute normally and still need their resources.
+
 ## Vercel adapter
 
 The Vercel target emits Build Output API v3 directly to `.vercel/output`:

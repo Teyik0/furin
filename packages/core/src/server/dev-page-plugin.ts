@@ -53,6 +53,7 @@
 
 import { statSync } from "node:fs";
 import { dirname, isAbsolute } from "node:path";
+import { parseModule, removeRange } from "../plugin/module-transform.ts";
 import { splitDevPage } from "../plugin/transform-dev-page.ts";
 import { transformIsomorphicFunctions } from "../plugin/transform-isomorphic.ts";
 import { invalidateDevLoaderCacheBySource } from "./cache/dev-loader.ts";
@@ -80,6 +81,7 @@ const T_PARAM_RE = /&t=(\d+)/;
 const STRIP_FURIN_SERVER_RE = /\?furin-server.*$/;
 const STRIP_T_PARAM_RE = /\?t=\d+$/;
 const DELETED_DEV_PAGE_CONTENTS = "export const route = undefined;";
+const CSS_IMPORT = /\.css(?:\?.*)?$/;
 
 let _pluginRegistered = false;
 const pluginSourceStamps = new Map<string, string>();
@@ -181,7 +183,22 @@ export function transformDevSource(
     if (!options.renderFragment) {
       recordDevImports(raw, filePath);
     }
-    const isomorphicSource = transformIsomorphicFunctions(raw, filePath, "server").code;
+    // CSS belongs to Bun's browser graph; importing it here also registers it with --hot.
+    const server = parseModule(raw, filePath);
+    for (const statement of server.program.body) {
+      if (
+        statement.type === "ImportDeclaration" &&
+        statement.specifiers.length === 0 &&
+        CSS_IMPORT.test(statement.source.value)
+      ) {
+        removeRange(server, statement.start, statement.end);
+      }
+    }
+    const isomorphicSource = transformIsomorphicFunctions(
+      server.source.toString(),
+      filePath,
+      "server"
+    ).code;
     const split = options.renderFragment
       ? undefined
       : splitDevPage(

@@ -77,6 +77,11 @@
       "bun": "./src/server/sync/index.ts",
       "import": "./dist/server/sync/index.js"
     },
+    "./sync/client": {
+      "types": "./dist/sync-client.d.ts",
+      "bun": "./src/sync-client.ts",
+      "import": "./dist/sync-client.js"
+    },
     "./sync/postgres": {
       "types": "./dist/server/sync/postgres/index.d.ts",
       "bun": "./src/server/sync/postgres/index.ts",

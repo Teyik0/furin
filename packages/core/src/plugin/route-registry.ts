@@ -32,8 +32,21 @@ const SERVER_ROUTES_FILTER = /^(?:@teyik0\/furin|furin)\/routes\?instance=.+$/;
 const VIRTUAL_ROUTES_FILTER = /.*/;
 
 export interface CreateRoutesPluginOptions {
-  instances: RouteInstanceSpec[];
+  instances: RegistryInstance[];
   target: "client" | "server";
+}
+
+interface RegistryInstance extends RouteInstanceSpec {
+  routeRegistry?: RouteRegistrySnapshot;
+}
+
+/** Build-time route evaluation is completed before the discovery process exits. */
+export interface RouteRegistrySnapshot {
+  client: string;
+  complete: GeneratedServerInstance;
+  composable: GeneratedServerInstance;
+  files: [string, RouteModuleInfo][];
+  materialized: string;
 }
 
 export function composableRouteModuleSpecifier(instance: RouteInstanceSpec): string {
@@ -112,11 +125,19 @@ async function retainComposableRoutes(node: RouteTreeNode): Promise<void> {
 }
 
 async function generateServerInstance(
-  instance: RouteInstanceSpec,
+  instance: RegistryInstance,
   routeFilesBySpecifier: Map<string, RouteModuleInfo>,
   materialized: boolean,
   includeRootCatchAll: boolean
 ): Promise<GeneratedServerInstance> {
+  if (instance.routeRegistry) {
+    for (const [specifier, info] of instance.routeRegistry.files) {
+      routeFilesBySpecifier.set(specifier, info);
+    }
+    return includeRootCatchAll
+      ? instance.routeRegistry.complete
+      : instance.routeRegistry.composable;
+  }
   const instanceId = Bun.hash(instanceKey(instance)).toString(16);
   const tree = buildRouteTree(instance.pagesDir, instanceId);
   await retainComposableRoutes(tree);
@@ -141,7 +162,7 @@ async function generateServerInstance(
 }
 
 async function serverRegistrySource(
-  instances: RouteInstanceSpec[],
+  instances: RegistryInstance[],
   routeFilesBySpecifier: Map<string, RouteModuleInfo>,
   materialized: boolean,
   includeRootCatchAll: boolean
@@ -165,7 +186,10 @@ ${generated
  * Emits a real server route module for build-time consumers such as Elysia's
  * AOT plugin, which imports the application outside Bun's virtual module graph.
  */
-export async function materializedRouteModuleSource(instance: RouteInstanceSpec): Promise<string> {
+export async function materializedRouteModuleSource(instance: RegistryInstance): Promise<string> {
+  if (instance.routeRegistry) {
+    return instance.routeRegistry.materialized;
+  }
   const routeFilesBySpecifier = new Map<string, RouteModuleInfo>();
   const source = await serverRegistrySource([instance], routeFilesBySpecifier, true, false);
   await validateRouteModules(routeFilesBySpecifier.values());
@@ -179,7 +203,10 @@ interface ClientRouteMetadata {
   pattern: string;
 }
 
-async function clientRoutesSource(instance: RouteInstanceSpec): Promise<string> {
+async function clientRoutesSource(instance: RegistryInstance): Promise<string> {
+  if (instance.routeRegistry) {
+    return instance.routeRegistry.client;
+  }
   const tree = buildRouteTree(instance.pagesDir, Bun.hash(instanceKey(instance)).toString(16));
   const routes = collectRouteFiles(tree)
     .filter((route) => route.path !== "")
@@ -198,7 +225,24 @@ async function clientRoutesSource(instance: RouteInstanceSpec): Promise<string> 
   return `export const routes = ${JSON.stringify(metadata)};\n`;
 }
 
-function primaryInstance(instances: RouteInstanceSpec[]): RouteInstanceSpec {
+/** Evaluated only inside build discovery; runtime/dev keep loading live modules. */
+export async function snapshotRouteRegistry(
+  instance: RouteInstanceSpec
+): Promise<RouteRegistrySnapshot> {
+  const files = new Map<string, RouteModuleInfo>();
+  const complete = await generateServerInstance(instance, files, false, true);
+  const composable = await generateServerInstance(instance, files, false, false);
+  await validateRouteModules(files.values());
+  return {
+    client: await clientRoutesSource(instance),
+    complete,
+    composable,
+    files: [...files],
+    materialized: await materializedRouteModuleSource(instance),
+  };
+}
+
+function primaryInstance(instances: RegistryInstance[]): RegistryInstance {
   const instance = instances.find(({ prefix }) => prefix === "") ?? instances[0];
   if (!instance) {
     throw new Error("[furin] The routes plugin requires at least one instance");
@@ -279,7 +323,9 @@ export function createRoutesPlugin(options: CreateRoutesPluginOptions): Bun.BunP
           false,
           path === registryVirtualPath
         );
-        await validateRouteModules(routeFilesBySpecifier.values());
+        if (!options.instances.every((instance) => instance.routeRegistry)) {
+          await validateRouteModules(routeFilesBySpecifier.values());
+        }
         return { contents, loader: "ts" };
       });
       build.onResolve({ filter: ROUTE_FILE_FILTER }, ({ path }) => {

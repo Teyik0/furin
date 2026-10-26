@@ -18,7 +18,8 @@ interface SymbolicatedStack {
 
 const STACK_FRAME_RE =
   /^\s*at\s+(?:(.*?)\s+\()?((?:https?:\/\/|file:\/\/|bun:\/\/).+):(\d+):(\d+)\)?$/;
-const SOURCE_MAP_RE = /\/\/[#@]\s*sourceMappingURL=([^\s]+)/;
+const WEBKIT_FRAME_RE = /^(.*?)@((?:https?:\/\/|file:\/\/|bun:\/\/).+):(\d+):(\d+)$/;
+const SOURCE_MAP_RE = /^\s*\/\/[#@]\s*sourceMappingURL=(\S+)\s*$/m;
 const BUN_ROOT_CHUNK_RE = /^\/chunk-[^/]+\.js$/;
 const SOURCE_MAP_CACHE_LIMIT = 100;
 const sourceMaps = new Map<string, Promise<TraceMap | undefined>>();
@@ -29,8 +30,8 @@ function parseGeneratedFrames(stack: string | undefined): readonly GeneratedFram
   }
   const frames: GeneratedFrame[] = [];
   for (const line of stack.split("\n")) {
-    const match = STACK_FRAME_RE.exec(line);
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: stack lines need not match the frame pattern.
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: exec returns null for nonmatching stack formats.
+    const match = STACK_FRAME_RE.exec(line) ?? WEBKIT_FRAME_RE.exec(line);
     if (!(match?.[2] && match[3] && match[4])) {
       continue;
     }

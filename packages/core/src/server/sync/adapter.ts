@@ -57,9 +57,12 @@ export interface SyncAdapter {
   abortMutation: (lease: MutationLease) => Promise<void>;
   /**
    * Journals invalidations no mutation lease owns (`invalidateSync()`, `idempotent: false`
-   * routes) and returns their cursor. The change carries no principal: readers reset.
+   * routes) and returns their cursor. Without explicit provenance, readers reset.
    */
-  appendInvalidations: (invalidations: readonly SyncInvalidation[]) => Promise<string>;
+  appendInvalidations: (
+    invalidations: readonly SyncInvalidation[],
+    principal?: string
+  ) => Promise<string>;
   beginMutation: (input: BeginMutationInput) => Promise<BeginMutationResult>;
   completeMutation: (input: CompleteMutationInput) => Promise<CompleteMutationResult>;
   currentCursor: () => Promise<string>;
@@ -128,7 +131,8 @@ export type SyncMutation<Adapter> = <T>(
 ) => Promise<Awaited<T>>;
 
 export interface SyncRuntimeOptions<Adapter extends SyncAdapter = SyncAdapter> {
-  adapter: Adapter;
+  /** Factories run once during runtime composition, never during AOT or on a request. */
+  adapter: Adapter | (() => Adapter);
   notifier?: SyncNotifier;
   /** Authenticate the request and return its verified identity, including for journal recovery. */
   principal: (context: Context) => Promise<string> | string;

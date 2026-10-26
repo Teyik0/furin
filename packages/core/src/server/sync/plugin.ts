@@ -44,7 +44,7 @@ import {
   replayResponse,
   storeResponse,
 } from "./response.ts";
-import { publishCursor, resolveSyncRuntime } from "./runtime.ts";
+import { prepareSyncRuntime, publishCursor, resolveSyncRuntime } from "./runtime.ts";
 import { bindSyncValidation, syncValidationApp } from "./validation.ts";
 
 interface ActiveMutation {
@@ -144,15 +144,20 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
   owner: SyncOwner
 ) {
   // furinSync() belongs to no Furin runtime: it follows the default mode.
-  const runtime = resolveSyncRuntime(options, IS_DEV);
-  const transactional =
-    "executeMutation" in options.adapter
-      ? (options.adapter as Adapter &
-          TransactionalSyncAdapter<SyncTransaction<Adapter>, "async" | "sync">)
-      : undefined;
+  const development = IS_DEV;
+  prepareSyncRuntime(options, development);
+  const runtime = () => resolveSyncRuntime(options, development);
 
   function mutationFor(ctx: MutationContext & Pick<Context, "set">): SyncMutation<Adapter> {
     const mutation = async (callback: (tx: SyncTransaction<Adapter>) => unknown) => {
+      const resolved = runtime();
+      const transactional =
+        "executeMutation" in resolved.adapter
+          ? (resolved.adapter as TransactionalSyncAdapter<
+              SyncTransaction<Adapter>,
+              "async" | "sync"
+            >)
+          : undefined;
       const active = activeMutations.get(ctx.request);
       if (!(transactional && active)) {
         throw new Error(
@@ -170,7 +175,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
             app: syncValidationApp(ctx as Context),
             context: ctx as Context,
             lease: active.lease,
-            runtime,
+            runtime: resolved,
             onCommit: (result) => atomicResponses.set(ctx.request, result),
           },
           callback
@@ -214,7 +219,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
     }
     const key = `${ctx.request.method}:${url.pathname}:${idempotencyKey}`;
     const fingerprint = createMutationFingerprint({ body: ctx.body, request: ctx.request });
-    const result = await runtime.adapter.beginMutation({ fingerprint, key, principal });
+    const result = await runtime().adapter.beginMutation({ fingerprint, key, principal });
     if (result.kind === "replay") {
       return replayResponse(result.response);
     }
@@ -228,7 +233,9 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
         if (activeMutations.get(ctx.request) === active) {
           scheduleRenewal();
         }
-        await runtime.adapter.renewMutation(result.lease).catch(() => undefined);
+        await runtime()
+          .adapter.renewMutation(result.lease)
+          .catch(() => undefined);
       }, renewAfter);
       active.renewal.unref?.();
     };
@@ -248,7 +255,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
   async function abortMutation(request: Request): Promise<void> {
     const active = releaseMutation(request);
     if (active) {
-      await runtime.adapter.abortMutation(active.lease);
+      await runtime().adapter.abortMutation(active.lease);
     }
   }
 
@@ -291,7 +298,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
         ? ctx.set.headers
         : effectiveResponseHeaders(ctx.responseValue, ctx.set)
     );
-    const completion = await runtime.adapter.completeMutation({
+    const completion = await runtime().adapter.completeMutation({
       invalidations,
       lease: active.lease,
       response,
@@ -300,7 +307,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
       return leaseLostResponse();
     }
     if (completion.cursor !== undefined) {
-      publishCursor(runtime, completion.cursor);
+      publishCursor(runtime(), completion.cursor);
     }
     if (result.kind === "unreplayable") {
       return replayResponse(response);
@@ -314,7 +321,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
     }
     const invalidations = await applyInvalidations(ctx);
     try {
-      publishCursor(runtime, await runtime.adapter.appendInvalidations(invalidations));
+      publishCursor(runtime(), await runtime().adapter.appendInvalidations(invalidations));
     } catch {
       getLogger().warn("Sync journal append failed after a non-idempotent mutation");
     }
@@ -340,12 +347,14 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
     }
     try {
       if (!isSuccessfulMutationResponse(ctx)) {
-        await runtime.adapter.abortMutation(active.lease);
+        await runtime().adapter.abortMutation(active.lease);
         return;
       }
       return await persistMutation(ctx, active);
     } catch (error) {
-      await runtime.adapter.abortMutation(active.lease).catch(() => undefined);
+      await runtime()
+        .adapter.abortMutation(active.lease)
+        .catch(() => undefined);
       throw error;
     } finally {
       activeMutations.delete(ctx.request);
@@ -408,7 +417,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
       }
       const identity: QueryReadIdentity = {
         ...urlIdentity(ctx),
-        session: principalHash(options.adapter, principal),
+        session: principalHash(runtime().adapter, principal),
       };
       ctx.set.headers["x-furin-query"] = serializeQueryHeader(identity);
     })
@@ -452,9 +461,7 @@ export function furinSync<Adapter extends SyncAdapter>(options: SyncRuntimeOptio
       requestOwners.set(request, routeOwner);
     });
     installMutationHandlers(app);
-    if ("executeMutation" in options.adapter) {
-      bindSyncValidation(app);
-    }
+    bindSyncValidation(app);
     return app.use(createSyncPlugin(options, owner));
   };
 }

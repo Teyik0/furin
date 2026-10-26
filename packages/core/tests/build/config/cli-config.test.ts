@@ -168,8 +168,22 @@ describe("CLI config resolution", () => {
     writeAppFile(app.path, "furin.config.ts", "export default { bun: { minify: true } };");
 
     await expect(loadCliConfig(app.path)).rejects.toThrow(
-      'unknown key "minify" (path: /bun/minify). Valid keys: compile'
+      'unknown key "minify" (path: /bun/minify). Valid keys: compile, output'
     );
+  });
+
+  test("loadCliConfig leaves keys of integration-owned open objects to their integration", async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    writeAppFile(
+      app.path,
+      "furin.config.ts",
+      'export default { desktop: { app: { name: "Desk" }, window: { width: 900 } } };'
+    );
+
+    expect((await loadCliConfig(app.path)).desktop).toEqual({
+      app: { name: "Desk" },
+      window: { width: 900 },
+    });
   });
 
   test("loadCliConfig rejects plugins without a name and setup function", async () => {

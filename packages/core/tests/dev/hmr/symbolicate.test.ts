@@ -7,6 +7,24 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
+test.each([
+  "Page@http://localhost:3000/_bun/client/webkit.js:1:1",
+  "@http://localhost:3000/_bun/client/webkit.js:1:1",
+  "after@http://localhost:3000/_bun/client/webkit.js.map:1:1",
+])("symbolicates WebKit initial and hot frames: %s", async (stack) => {
+  globalThis.fetch = ((input: RequestInfo | URL) =>
+    Promise.resolve(
+      String(input).endsWith(".map")
+        ? Response.json({ mappings: "AAAA", names: [], sources: ["/src/card.tsx"], version: 3 })
+        : new Response("//# sourceMappingURL=webkit.js.map")
+    )) as typeof fetch;
+
+  const result = await symbolicateStack({ origin: "http://localhost:3000", stack });
+
+  expect(result.location).toEqual({ column: 1, file: "/src/card.tsx", line: 1 });
+  expect(result.frames).toHaveLength(1);
+});
+
 test("symbolicates Bun 1.4 root chunk URLs", async () => {
   globalThis.fetch = ((input: RequestInfo | URL) => {
     const url = new URL(String(input));
@@ -24,6 +42,37 @@ test("symbolicates Bun 1.4 root chunk URLs", async () => {
   });
 
   expect(result.location?.file).toBe("/src/page.tsx");
+});
+
+test("ignores source map directive text inside Bun's generated code strings", async () => {
+  const requests: string[] = [];
+  globalThis.fetch = ((input: RequestInfo | URL) => {
+    const url = String(input);
+    requests.push(url);
+    if (url.endsWith("directive-decoy.js")) {
+      return Promise.resolve(
+        new Response(
+          "const code = `\n//# sourceMappingURL=` + sourceMap;\n//# sourceMappingURL=actual.js.map\n"
+        )
+      );
+    }
+    return Promise.resolve(
+      url.endsWith("actual.js.map")
+        ? Response.json({ mappings: "AAAA", names: [], sources: ["/src/card.tsx"], version: 3 })
+        : new Response("Not found", { status: 404 })
+    );
+  }) as typeof fetch;
+
+  const result = await symbolicateStack({
+    origin: "http://localhost:3000",
+    stack: "    at Card (http://localhost:3000/_bun/client/directive-decoy.js:1:1)",
+  });
+
+  expect(result.location?.file).toBe("/src/card.tsx");
+  expect(requests).toEqual([
+    "http://localhost:3000/_bun/client/directive-decoy.js",
+    "http://localhost:3000/_bun/client/actual.js.map",
+  ]);
 });
 
 test("evicts old source maps as HMR chunk URLs change", async () => {

@@ -243,7 +243,10 @@ export class RedisSyncAdapter implements SyncAdapter {
     return cursor.length === 0 ? { cursor: undefined, kind } : { cursor, kind };
   }
 
-  async appendInvalidations(invalidations: readonly SyncInvalidation[]): Promise<string> {
+  async appendInvalidations(
+    invalidations: readonly SyncInvalidation[],
+    principal?: string
+  ): Promise<string> {
     return stringResult(
       await this.client.send("EVAL", [
         APPEND_INVALIDATIONS_SCRIPT,
@@ -252,6 +255,7 @@ export class RedisSyncAdapter implements SyncAdapter {
         this.trimmedKey,
         JSON.stringify(invalidations),
         String(CHANGE_RETENTION),
+        principal === undefined ? "" : principalHash(this, principal),
       ]),
       "append invalidations cursor"
     );

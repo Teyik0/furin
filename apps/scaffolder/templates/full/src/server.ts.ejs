@@ -1,6 +1,9 @@
 import { furin } from "@teyik0/furin";
 import { Elysia } from "elysia";
+import { initLogger } from "evlog";
 import { getHelloPayload } from "./api/hello";
+
+initLogger({ env: { service: <%- JSON.stringify(projectNameKebab) %> } });
 
 const app = new Elysia()
   .use(await furin({ pagesDir: "./src/pages" }))

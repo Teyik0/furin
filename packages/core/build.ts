@@ -53,6 +53,11 @@ await Promise.all([
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/cli/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/furin.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/cache.ts`] }),
+  Bun.build({
+    ...shared,
+    entrypoints: [`${import.meta.dir}/src/sync-client.ts`],
+    target: "browser",
+  }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/cache/redis/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/routes.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/rsc.tsx`] }),
@@ -74,6 +79,7 @@ await Promise.all([
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/internal.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/production-server.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/runtime-env.ts`] }),
+  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/server-entry.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/static-export.ts`] }),
 ]);
 

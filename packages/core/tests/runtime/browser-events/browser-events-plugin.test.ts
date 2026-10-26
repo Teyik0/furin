@@ -5,6 +5,7 @@ import {
   createSseBrowserEventsPlugin,
 } from "../../../src/server/browser-events/plugin.ts";
 import type { SyncAdapter, SyncNotifier } from "../../../src/server/sync/adapter.ts";
+import type { FurinSyncOptions, SyncConnectionLease } from "../../../src/server/sync/config.ts";
 import { __resetSyncState } from "../../../src/server/sync/stream.ts";
 
 afterEach(() => {
@@ -26,6 +27,222 @@ const notifier: SyncNotifier = {
   publish: () => Promise.resolve(),
   subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve() }),
 };
+
+test.each(["sse", "ws"] as const)(
+  "%s checks cookie authentication over HEAD without acquiring a connection lease",
+  async (transport) => {
+    let acquired = 0;
+    const sync = {
+      adapter,
+      notifier,
+      principal: ({ request }: { request: Request }) =>
+        request.headers.get("cookie") === "session=valid" ? "alice" : "",
+      connection: (): undefined => {
+        acquired += 1;
+      },
+    };
+    const app = new Elysia().use(
+      transport === "sse"
+        ? createSseBrowserEventsPlugin({ development: true, sync })
+        : createBrowserEventsPlugin({ development: true, sync })
+    );
+    expect(
+      (await app.handle(new Request("http://localhost/_furin/events", { method: "HEAD" }))).status
+    ).toBe(401);
+    expect(
+      (
+        await app.handle(
+          new Request("http://localhost/_furin/events", {
+            method: "HEAD",
+            headers: { cookie: "session=valid" },
+          })
+        )
+      ).status
+    ).toBe(200);
+    expect(acquired).toBe(0);
+  }
+);
+
+async function validityConnection(
+  transport: "sse" | "ws",
+  connection: FurinSyncOptions["connection"]
+) {
+  const sync = { adapter: () => adapter, notifier, principal: () => "alice", connection };
+  if (transport === "sse") {
+    const app = new Elysia().use(createSseBrowserEventsPlugin({ development: true, sync }));
+    const response = await app.handle(new Request("http://localhost/_furin/events"));
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("Expected an SSE response body");
+    }
+    return {
+      close: () => reader.cancel(),
+      next: async () => new TextDecoder().decode((await reader.read()).value),
+    };
+  }
+  const app = new Elysia()
+    .use(createBrowserEventsPlugin({ development: true, sync }))
+    .listen({ port: 0, hostname: "127.0.0.1" });
+  const origin = app.server?.url.origin;
+  if (!origin) {
+    throw new Error("Expected a listening server");
+  }
+  const socket = new WebSocket(`${origin.replace("http", "ws")}/_furin/events`);
+  const queue: string[] = [];
+  let pending: ((value: string) => void) | undefined;
+  socket.addEventListener("message", (event) => {
+    const value = String(event.data);
+    if (pending) {
+      const resolve = pending;
+      pending = undefined;
+      resolve(value);
+    } else {
+      queue.push(value);
+    }
+  });
+  const closed = Promise.withResolvers<void>();
+  socket.addEventListener("close", () => closed.resolve());
+  return {
+    close: async () => {
+      socket.close();
+      await closed.promise;
+      await app.stop(true);
+    },
+    next: () => {
+      const value = queue.shift();
+      return value === undefined
+        ? new Promise<string>((resolve) => {
+            pending = resolve;
+          })
+        : Promise.resolve(value);
+    },
+  };
+}
+
+test.each(["sse", "ws"] as const)(
+  "%s releases a lease acquired after the connection closes",
+  async (transport) => {
+    const requested = Promise.withResolvers<void>();
+    const acquired = Promise.withResolvers<SyncConnectionLease>();
+    const released = Promise.withResolvers<void>();
+    let releases = 0;
+    const event = await validityConnection(transport, () => {
+      requested.resolve();
+      return acquired.promise;
+    });
+    await requested.promise;
+    await event.close();
+    acquired.resolve({
+      signal: new AbortController().signal,
+      release: () => {
+        releases += 1;
+        released.resolve();
+      },
+    });
+    await released.promise;
+    expect(releases).toBe(1);
+  }
+);
+
+test.each(["sse", "ws"] as const)(
+  "%s immediately handles an already interrupted validity signal",
+  async (transport) => {
+    const access = new AbortController();
+    access.abort();
+    let releases = 0;
+    const event = await validityConnection(transport, () => ({
+      signal: access.signal,
+      release: () => {
+        releases += 1;
+      },
+    }));
+    try {
+      if (transport === "sse") {
+        await event.next();
+      }
+      expect(await event.next()).toContain('"context":"changed"');
+    } finally {
+      await event.close();
+    }
+    expect(releases).toBe(1);
+  }
+);
+
+test.each(["sse", "ws"] as const)(
+  "%s releases validity on a normal connection close",
+  async (transport) => {
+    let releases = 0;
+    const event = await validityConnection(transport, () => ({
+      signal: new AbortController().signal,
+      release: () => {
+        releases += 1;
+      },
+    }));
+    if (transport === "sse") {
+      await event.next();
+    }
+    expect(await event.next()).toContain('"cursor":"7"');
+    await event.close();
+    expect(releases).toBe(1);
+  }
+);
+
+test.each(["sse", "ws"] as const)(
+  "%s completes transport cleanup if application release throws",
+  async (transport) => {
+    let releases = 0;
+    const event = await validityConnection(transport, () => ({
+      signal: new AbortController().signal,
+      release: () => {
+        releases += 1;
+        throw new Error("Application cleanup failed");
+      },
+    }));
+    if (transport === "sse") {
+      await event.next();
+    }
+    await event.next();
+    await event.close();
+    expect(releases).toBe(1);
+  }
+);
+
+test("SSE signals an access-context change without a journal write and releases its lease once", async () => {
+  const access = new AbortController();
+  let releases = 0;
+  const app = new Elysia().use(
+    createSseBrowserEventsPlugin({
+      development: true,
+      sync: {
+        adapter,
+        notifier,
+        principal: () => "alice",
+        connection: () => ({
+          signal: access.signal,
+          release: () => {
+            releases += 1;
+          },
+        }),
+      },
+    })
+  );
+  const response = await app.handle(new Request("http://localhost/_furin/events"));
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("Expected an SSE response body");
+  }
+  try {
+    await reader.read();
+    await reader.read();
+    access.abort();
+    expect(new TextDecoder().decode((await reader.read()).value)).toContain('"context":"changed"');
+    expect((await reader.read()).done).toBe(true);
+    expect(releases).toBe(1);
+  } finally {
+    await reader.cancel();
+  }
+  expect(releases).toBe(1);
+}, 1000);
 
 test("SSE delivers sync cursors through app.handle without a listening server", async () => {
   let notify: ((cursor: string) => void) | undefined;
@@ -332,6 +549,55 @@ test("browser event socket sends the current durable sync cursor", async () => {
   }
 });
 
+test("WebSocket signals context changes and releases its application lease once", async () => {
+  const access = new AbortController();
+  let releases = 0;
+  const app = new Elysia()
+    .use(
+      createBrowserEventsPlugin({
+        development: true,
+        sync: {
+          adapter,
+          notifier,
+          principal: () => "alice",
+          connection: () => ({
+            signal: access.signal,
+            release: () => {
+              releases += 1;
+            },
+          }),
+        },
+      })
+    )
+    .listen({ port: 0, hostname: "127.0.0.1" });
+  const origin = app.server?.url.origin;
+  if (!origin) {
+    throw new Error("Expected a listening server");
+  }
+  const socket = new WebSocket(`${origin.replace("http", "ws")}/_furin/events`);
+  const initial = Promise.withResolvers<void>();
+  const changed = Promise.withResolvers<string>();
+  const closed = Promise.withResolvers<void>();
+  socket.addEventListener("message", (event) => {
+    if (JSON.parse(String(event.data)).data.context === "changed") {
+      changed.resolve(String(event.data));
+    } else {
+      initial.resolve();
+    }
+  });
+  socket.addEventListener("close", () => closed.resolve());
+  try {
+    await initial.promise;
+    access.abort();
+    expect(await changed.promise).toContain('"context":"changed"');
+    await closed.promise;
+    expect(releases).toBe(1);
+  } finally {
+    socket.close();
+    await app.stop(true);
+  }
+}, 1000);
+
 test("browser event socket remains available when notifier subscription fails", async () => {
   let cursor = "7";
   const recoveringAdapter: SyncAdapter = {
@@ -437,10 +703,22 @@ test("browser event socket releases notifier subscriptions when the tab closes",
 
 test("browser event socket releases successful source subscriptions when another fails", async () => {
   let unsubscribed = 0;
+  let validityReleased = 0;
   const app = new Elysia()
     .use(
       createBrowserEventsPlugin({
         development: true,
+        sync: {
+          adapter,
+          notifier,
+          principal: () => "alice",
+          connection: () => ({
+            signal: new AbortController().signal,
+            release: () => {
+              validityReleased += 1;
+            },
+          }),
+        },
         sources: [
           {
             subscribe: () => ({
@@ -475,6 +753,7 @@ test("browser event socket releases successful source subscriptions when another
     });
 
     expect(unsubscribed).toBe(1);
+    expect(validityReleased).toBe(1);
   } finally {
     await app.stop();
   }

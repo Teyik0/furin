@@ -10,6 +10,8 @@ import {
 } from "../../shared/browser-events.ts";
 import { forbiddenDevelopmentRequest } from "../dev/request-security.ts";
 import type { FurinSyncOptions } from "../sync/config.ts";
+import { createSyncConnectionLifetime, verifiedSyncPrincipal } from "../sync/connection.ts";
+import { prepareSyncRuntime } from "../sync/runtime.ts";
 import { subscribeSyncCursor } from "../sync/stream.ts";
 import { registerBrowserEventConnection, unregisterBrowserEventConnection } from "./shutdown.ts";
 import type { BrowserEventSource, BrowserEventSubscription } from "./types.ts";
@@ -20,7 +22,6 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 const SSE_CONNECTION_LIFETIME_MS = 60_000;
 const MAX_BROWSER_EVENT_CONNECTIONS = 100;
 const MAX_BROWSER_EVENT_CONNECTIONS_PER_PEER = 10;
-const CLIENT_SOURCE = browserEventsClientSource();
 const SSE_CLIENT_SOURCE = browserEventsSseClientSource();
 const SSE_ENCODER = new TextEncoder();
 
@@ -41,10 +42,9 @@ interface ConnectionState {
 }
 
 /** Who holds a connection: a verified principal, or the peer address without one. */
-interface BrowserEventPeer {
-  key: string;
-  sync: boolean;
-}
+type BrowserEventPeer =
+  | { key: string; sync: false }
+  | { key: string; sync: true; context: Context };
 
 /** Bounds connections globally and per peer so one client cannot take the whole capacity. */
 function createConnectionCapacity() {
@@ -73,19 +73,6 @@ function createConnectionCapacity() {
       };
     },
   };
-}
-
-/** Resolves the Sync principal; a throwing or empty resolver means the caller is unauthenticated. */
-async function verifiedPrincipal(
-  sync: FurinSyncOptions,
-  context: Context
-): Promise<string | undefined> {
-  try {
-    const principal = await sync.principal(context);
-    return principal.length > 0 ? principal : undefined;
-  } catch {
-    // Resolvers reject signed-out requests by throwing, as `requireUser` does in the docs.
-  }
 }
 
 function peerAddressKey(request: Request, server: Bun.Server<unknown> | null | undefined): string {
@@ -129,6 +116,23 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
   const capacity = createConnectionCapacity();
   const peers = new WeakMap<Request, BrowserEventPeer>();
   const { development, sources = [], sync } = options;
+  if (sync) {
+    prepareSyncRuntime(sync, development);
+  }
+  const clientSource = browserEventsClientSource(sync !== undefined);
+  const authenticate = async (context: Context): Promise<Response> => {
+    const forbidden = forbiddenBrowserRequest(context.request, context.server, development);
+    if (forbidden) {
+      return forbidden;
+    }
+    return new Response(null, {
+      status:
+        !sync || sources.length > 0 || (await verifiedSyncPrincipal(sync, context)) !== undefined
+          ? 200
+          : 401,
+      headers: { "cache-control": "no-store" },
+    });
+  };
   return new Elysia({ name: "furin-browser-events" })
     .use(websocket())
     .get(CLIENT_PATH, ({ request, server }) => {
@@ -136,7 +140,7 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
       if (forbidden) {
         return forbidden;
       }
-      return new Response(CLIENT_SOURCE, {
+      return new Response(clientSource, {
         headers: {
           "cache-control": "no-store",
           "content-type": "text/javascript; charset=utf-8",
@@ -144,6 +148,7 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
         },
       });
     })
+    .head(SOCKET_PATH, (context) => authenticate(context as Context))
     .ws(SOCKET_PATH, {
       async beforeHandle(context) {
         const { request, server } = context;
@@ -151,13 +156,13 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
         if (forbidden) {
           return forbidden;
         }
-        const principal = sync && (await verifiedPrincipal(sync, context as Context));
+        const principal = sync && (await verifiedSyncPrincipal(sync, context as Context));
         // Development sources stay available to signed-out pages; their Sync cursor does not.
         if (sync && principal === undefined && sources.length === 0) {
           return new Response("Unauthorized", { status: 401 });
         }
         const peer: BrowserEventPeer = principal
-          ? { key: `principal:${principal}`, sync: true }
+          ? { key: `principal:${principal}`, sync: true, context: context as Context }
           : { key: peerAddressKey(request, server), sync: false };
         if (capacity.full(peer.key)) {
           return Response.json({ code: "FURIN_BROWSER_EVENTS_CAPACITY" }, { status: 503 });
@@ -214,6 +219,21 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
 
         try {
           if (sync !== undefined && peer.sync) {
+            const access = createSyncConnectionLifetime(sync, peer.context, () => {
+              send({
+                channel: "sync",
+                data: { context: "changed" },
+                version: BROWSER_EVENT_PROTOCOL_VERSION,
+              });
+              releaseConnection(state);
+              connections.delete(ws.id);
+              ws.close(4410, "Sync context changed");
+            });
+            keep({ unsubscribe: access.close });
+            await access.acquire();
+            if (state.closed) {
+              return;
+            }
             const subscription = await subscribeSyncCursor(sync, development, (cursor) =>
               send({
                 channel: "sync",
@@ -253,8 +273,19 @@ export function createSseBrowserEventsPlugin({
   development: boolean;
   sync: FurinSyncOptions;
 }): AnyElysia {
+  prepareSyncRuntime(sync, development);
   const capacity = createConnectionCapacity();
   return new Elysia({ name: "furin-browser-events-sse" })
+    .head(SOCKET_PATH, async (context) => {
+      const forbidden = forbiddenBrowserRequest(context.request, context.server, development);
+      if (forbidden) {
+        return forbidden;
+      }
+      return new Response(null, {
+        status: (await verifiedSyncPrincipal(sync, context as Context)) === undefined ? 401 : 200,
+        headers: { "cache-control": "no-store" },
+      });
+    })
     .get(CLIENT_PATH, ({ request, server }) => {
       const forbidden = forbiddenBrowserRequest(request, server, development);
       if (forbidden) {
@@ -274,7 +305,7 @@ export function createSseBrowserEventsPlugin({
       if (forbidden) {
         return forbidden;
       }
-      const principal = await verifiedPrincipal(sync, context as Context);
+      const principal = await verifiedSyncPrincipal(sync, context as Context);
       if (principal === undefined) {
         return new Response("Unauthorized", { status: 401 });
       }
@@ -297,6 +328,7 @@ export function createSseBrowserEventsPlugin({
           let closed = false;
           let subscription: BrowserEventSubscription | undefined;
           let lifetime: ReturnType<typeof setTimeout> | undefined;
+          let access: ReturnType<typeof createSyncConnectionLifetime> | undefined;
           const send = (event: BrowserEventEnvelope): void => {
             if (!closed) {
               controller.enqueue(SSE_ENCODER.encode(`data: ${serialized(event)}\n\n`));
@@ -327,6 +359,7 @@ export function createSseBrowserEventsPlugin({
               clearTimeout(lifetime);
             }
             request.signal.removeEventListener("abort", onAbort);
+            access?.close();
             subscription?.unsubscribe();
             releaseCapacity();
           };
@@ -339,10 +372,31 @@ export function createSseBrowserEventsPlugin({
           lifetime = setTimeout(finish, SSE_CONNECTION_LIFETIME_MS);
           lifetime.unref?.();
           controller.enqueue(SSE_ENCODER.encode(": connected\n\n"));
-          subscribeSyncCursor(sync, development, (cursor) =>
-            send({ channel: "sync", data: { cursor }, version: BROWSER_EVENT_PROTOCOL_VERSION })
-          )
+          access = createSyncConnectionLifetime(sync, context as Context, () => {
+            send({
+              channel: "sync",
+              data: { context: "changed" },
+              version: BROWSER_EVENT_PROTOCOL_VERSION,
+            });
+            finish();
+          });
+          access
+            .acquire()
+            .then(() =>
+              closed
+                ? undefined
+                : subscribeSyncCursor(sync, development, (cursor) =>
+                    send({
+                      channel: "sync",
+                      data: { cursor },
+                      version: BROWSER_EVENT_PROTOCOL_VERSION,
+                    })
+                  )
+            )
             .then((next) => {
+              if (!next) {
+                return;
+              }
               if (closed) {
                 next.unsubscribe();
               } else {

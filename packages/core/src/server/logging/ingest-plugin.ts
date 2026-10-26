@@ -1,15 +1,14 @@
 import { Elysia, problem } from "elysia";
-import type { DrainContext, LoggerConfig } from "evlog";
+import type { DrainContext } from "evlog";
 import { readBoundedBytes } from "../bounded-body.ts";
 import { instrumentationLoggerExclusions } from "../devtools/instrumentation.ts";
 import { createFurinEvlog, type FurinEvlogOptions, setFurinEvlogOptions } from "../evlog.ts";
 import type { FurinInstance } from "../instance.ts";
-import { initializeFurinLogger } from "../logger.ts";
 
 const MAX_BROWSER_INGEST_BYTES = 64 * 1024;
 const MAX_BROWSER_INGEST_EVENTS = 100;
 
-export type FurinLoggerOptions = FurinEvlogOptions & Pick<LoggerConfig, "sampling">;
+export type FurinLoggerOptions = FurinEvlogOptions;
 
 const PROTOTYPE_POLLUTION_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
@@ -79,12 +78,7 @@ export function createLoggerPlugin(
   logger: FurinLoggerOptions | undefined,
   clientLogging: boolean
 ) {
-  const { sampling, ...elysiaLoggerOptions } = logger ?? {};
-  initializeFurinLogger({
-    env: { service: "furin" },
-    ...(sampling ? { sampling } : {}),
-  });
-  const options = createLoggerOptions(instance.prefix, instance.syncPath, elysiaLoggerOptions);
+  const options = createLoggerOptions(instance.prefix, instance.syncPath, logger ?? {});
   setFurinEvlogOptions(instance, options);
   const app = new Elysia().use(createFurinEvlog(options));
 

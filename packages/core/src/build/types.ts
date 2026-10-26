@@ -1,9 +1,12 @@
 import type { AdapterTargetManifest } from "../adapter/types.ts";
 import type { FurinTarget, StaticExportConfig } from "../config";
+import type { RouteRegistrySnapshot } from "../plugin/route-registry.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import type { ClientBoundary } from "../rsc/build/discover.ts";
 
 export interface BuildClientOptions {
+  /** Route registry evaluated in the discovery process. */
+  routeRegistry?: RouteRegistrySnapshot;
   /**
    * Sub-path prefix for the deployment (e.g. "/furin" for GitHub Pages).
    * Passed through to the generated hydrate entry so SPA navigation uses
@@ -49,6 +52,8 @@ export interface BuildRouteManifestEntry {
 }
 
 export interface TargetBuildManifest {
+  /** Importable, inert Bun application; absent for listening server outputs. */
+  appPath?: string;
   buildId: string;
   clientDir: string | null;
   generatedAt: string;
@@ -97,6 +102,8 @@ export interface BuildManifest {
 export interface BuildAppOptions {
   /** Emit Bun metafiles for client and supported server bundle analysis. */
   analyze?: boolean;
+  /** Bun emits a listening server unless output is explicitly "app". */
+  bun?: { output?: "app" | "server" };
   /**
    * Explicit multi-app build (furin.config.ts `apps`). Overrides `pagesDir`
    * and the mounts found by evaluating the server entry.
@@ -115,6 +122,8 @@ export interface BuildAppOptions {
   reactCompiler?: boolean;
   rootDir?: string;
   serverEntry?: string;
+  /** Runtime packages excluded from server and RSC bundles, including their subpaths. */
+  serverExternalPackages?: string[];
   /** Emit server source maps outside deployable output directories. */
   serverSourceMaps?: boolean;
   /** Configuration for the `static` build target. */

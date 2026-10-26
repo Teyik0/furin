@@ -1848,8 +1848,67 @@ browserTodoTest(
   45_000
 );
 
+browserTest.each(["page", "root layout"])(
+  "an imported component hook-order failure in a %s recovers on save and subsequent healthy edits preserve state",
+  async (placement) => {
+    const brokenChild = importedChildSource("broken").replace(
+      "  return (",
+      '  if (count > 0) useState("extra-hook");\n  return ('
+    );
+    const files = [{ contents: brokenChild, relativePath: "src/components/ChildCounter.tsx" }];
+    if (placement === "root layout") {
+      files.push({
+        contents: [
+          'import { ChildCounter } from "../components/ChildCounter";',
+          rootSource("root-v1").replace(
+            "{children}<Scripts />",
+            "<ChildCounter />{children}<Scripts />"
+          ),
+        ].join("\n"),
+        relativePath: "src/pages/root.tsx",
+      });
+    }
+    const harness = await createBrowserHarness(
+      placement === "page"
+        ? importedChildPageSource("../components/ChildCounter")
+        : pageSource("root-child", false),
+      files,
+      false
+    );
+    activeHarness = harness;
+
+    await harness.view.click('[data-testid="child-increment"]');
+    await waitForDevErrorOverlayText(
+      harness.view,
+      "Rendered more hooks than during the previous render"
+    );
+
+    writeAppFile(
+      harness.app.path,
+      "src/components/ChildCounter.tsx",
+      importedChildSource("recovered")
+    );
+    await waitForElementText(harness.view, '[data-testid="child-count"]', "recovered:0");
+    await waitForDevErrorOverlayRemoved(harness.view);
+    await waitForStableDocument(harness.view);
+    await harness.view.evaluate("window.__furinTestDocumentId = crypto.randomUUID()");
+    await harness.view.click('[data-testid="increment"]');
+    await harness.view.click('[data-testid="child-increment"]');
+    const recovered = await readSnapshot(harness.view);
+
+    writeAppFile(
+      harness.app.path,
+      "src/components/ChildCounter.tsx",
+      importedChildSource("healthy")
+    );
+    await waitForElementText(harness.view, '[data-testid="child-count"]', "healthy:1");
+    expect(await readSnapshot(harness.view)).toEqual(recovered);
+  },
+  45_000
+);
+
 browserTest(
-  "a render error recovers after the next edit without reloading the document",
+  "a route render error reloads the failed document after the next edit",
   async () => {
     const harness = await createBrowserHarness(pageSource("v1", false), [], false);
     activeHarness = harness;
@@ -1877,7 +1936,8 @@ browserTest(
 
     const after = await waitForVersion(harness.view, "runtime-recovered");
     expect(after.count).toBe("0");
-    expect(after.documentId).toBe(before.documentId);
+    expect(after.documentId).not.toBe(before.documentId);
+    await waitForDevErrorOverlayRemoved(harness.view);
   },
   45_000
 );
@@ -2014,7 +2074,8 @@ browserTest(
 
     const after = await waitForVersion(harness.view, "sequence-fixed");
     expect(after.count).toBe("0");
-    expect(after.documentId).toBe(documentId);
+    expect(after.documentId).not.toBe(documentId);
+    await waitForDevErrorOverlayRemoved(harness.view);
   },
   45_000
 );
@@ -2132,6 +2193,35 @@ browserTest(
 
     writeAppFile(harness.app.path, "src/pages/styles.css", ".hmr-color { color: rgb(0, 0, 255); }");
 
+    await waitForComputedColor(harness.view, "rgb(0, 0, 255)");
+    const after = await readSnapshot(harness.view);
+    expect(after.count).toBe("1");
+    expect(after.documentId).toBe(before.documentId);
+  },
+  30_000
+);
+
+browserTest.each(["styles.css", "styles.module.css"])(
+  "root side-effect %s edits update computed styles without resetting React state",
+  async (stylesheet) => {
+    const selector = stylesheet.endsWith(".module.css") ? ":global(.hmr-color)" : ".hmr-color";
+    const harness = await createBrowserHarness(
+      cssPageSource().replace('import "./styles.css";', ""),
+      [
+        {
+          contents: `import "../${stylesheet}";\n${rootSource("root-v1")}`,
+          relativePath: "src/pages/root.tsx",
+        },
+        { contents: `${selector} { color: rgb(255, 0, 0); }`, relativePath: `src/${stylesheet}` },
+      ],
+      false
+    );
+    activeHarness = harness;
+    await harness.view.evaluate("window.__furinTestDocumentId = crypto.randomUUID()");
+    await waitForComputedColor(harness.view, "rgb(255, 0, 0)");
+    await harness.view.click('[data-testid="increment"]');
+    const before = await readSnapshot(harness.view);
+    writeAppFile(harness.app.path, `src/${stylesheet}`, `${selector} { color: rgb(0, 0, 255); }`);
     await waitForComputedColor(harness.view, "rgb(0, 0, 255)");
     const after = await readSnapshot(harness.view);
     expect(after.count).toBe("1");

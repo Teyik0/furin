@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PRODUCTION_DEFINE, runBunBuild } from "../../build/bun-build.ts";
+import type { BuildRoot } from "../../build/route-metadata.ts";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH } from "../../build/shared.ts";
 import { isomorphicTransformPlugin } from "../../plugin/transform-isomorphic.ts";
 import type { ResolvedRoute, RootLayout } from "../../server/router/types.ts";
@@ -27,8 +28,8 @@ export interface RscManifest {
 }
 
 export interface RscBuildApp {
-  root: RootLayout;
-  routes: ResolvedRoute[];
+  root: RootLayout | BuildRoot;
+  routes: Pick<ResolvedRoute, "path">[];
 }
 
 // Both builds run in the react-server graph with the same transforms.
@@ -63,7 +64,8 @@ export async function buildRscGraph(
   apps: RscBuildApp[],
   outDir: string,
   buildId: string,
-  userPlugins: Bun.BunPlugin[] | undefined
+  userPlugins: Bun.BunPlugin[] | undefined,
+  external?: string[]
 ): Promise<RscManifest> {
   await assertInstalledRscVersions();
   const graphDir = join(outDir, "rsc");
@@ -95,6 +97,7 @@ export async function buildRscGraph(
   const result = await runBunBuild({
     ...reactServerBuild,
     entrypoints,
+    external,
     metafile: true,
     outdir: graphDir,
     splitting: true,

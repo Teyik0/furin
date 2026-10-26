@@ -1,0 +1,9 @@
+{
+  "extends": ["./.furin/electrobun/tsconfig.json", "../../tsconfig.base.json"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "furin-env.d.ts",
+    "furin.config.ts"
+  ]
+}

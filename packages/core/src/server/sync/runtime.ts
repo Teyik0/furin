@@ -1,9 +1,12 @@
+import { inAotBuild } from "elysia";
 import type { SyncAdapter, SyncNotifier, SyncRuntimeOptions } from "./adapter.ts";
 import { PollingSyncNotifier } from "./notifier.ts";
 import { configurePrincipalSecret } from "./principal-journal.ts";
 
 const POLL_INTERVAL_MS = 250;
 const pollingNotifiers = new WeakMap<object, PollingSyncNotifier>();
+const factoryAdapters = new WeakMap<SyncRuntimeOptions, SyncAdapter>();
+const runtimes = new WeakMap<SyncRuntimeOptions, Map<boolean, ResolvedSyncRuntime>>();
 
 export interface ResolvedSyncRuntime {
   adapter: SyncAdapter;
@@ -23,34 +26,69 @@ export function publishCursor(runtime: ResolvedSyncRuntime, cursor: string): voi
   }
 }
 
+/** Prepare resources before listening; AOT only installs the same route behaviors. */
+export function prepareSyncRuntime(options: SyncRuntimeOptions, development: boolean): void {
+  if (inAotBuild()) {
+    return;
+  }
+  if (typeof options.adapter === "function" && !factoryAdapters.has(options)) {
+    const adapter = options.adapter();
+    if (adapter instanceof Promise) {
+      throw new Error("[furin] Sync adapter factories must return an adapter synchronously.");
+    }
+    factoryAdapters.set(options, adapter);
+  }
+  resolveSyncRuntime(options, development);
+}
+
+/** Reads a prepared factory adapter; request paths never invoke the factory. */
 export function resolveSyncRuntime(
   options: SyncRuntimeOptions,
   development: boolean
 ): ResolvedSyncRuntime {
-  if (!development && options.adapter.scope === "process-local") {
+  if (inAotBuild()) {
+    throw new Error("[furin] Sync runtime is unavailable during AOT compilation.");
+  }
+  const existingRuntime = runtimes.get(options)?.get(development);
+  if (existingRuntime) {
+    return existingRuntime;
+  }
+  const adapter =
+    typeof options.adapter === "function" ? factoryAdapters.get(options) : options.adapter;
+  if (!adapter) {
+    throw new Error(
+      "[furin] Compose furinSync(sync) or furin({ sync }) before using a Sync adapter factory."
+    );
+  }
+  if (!development && adapter.scope === "process-local") {
     throw new Error("[furin] Production sync cannot use a process-local SyncAdapter.");
   }
-  configurePrincipalSecret(options.adapter, options.secret, development);
-  if (options.notifier) {
-    if (
-      options.adapter.notificationChannel !== undefined &&
-      options.notifier.notificationChannel !== undefined &&
-      options.adapter.notificationChannel !== options.notifier.notificationChannel
-    ) {
-      throw new Error("[furin] SyncAdapter and SyncNotifier notification channels do not match.");
-    }
-    return { adapter: options.adapter, development, notifier: options.notifier };
+  configurePrincipalSecret(adapter, options.secret, development);
+  if (
+    options.notifier &&
+    adapter.notificationChannel !== undefined &&
+    options.notifier.notificationChannel !== undefined &&
+    adapter.notificationChannel !== options.notifier.notificationChannel
+  ) {
+    throw new Error("[furin] SyncAdapter and SyncNotifier notification channels do not match.");
   }
-  if (!development && options.adapter.scope === "distributed") {
+  if (!(options.notifier || development) && adapter.scope === "distributed") {
     throw new Error(
       "[furin] Distributed production sync requires an explicit SyncNotifier. Configure the adapter notifier or pass PollingSyncNotifier as a compatibility fallback."
     );
   }
-  const existing = pollingNotifiers.get(options.adapter);
-  if (existing) {
-    return { adapter: options.adapter, development, notifier: existing };
+  let notifier = options.notifier ?? pollingNotifiers.get(adapter);
+  if (!notifier) {
+    const polling = new PollingSyncNotifier(adapter, POLL_INTERVAL_MS);
+    pollingNotifiers.set(adapter, polling);
+    notifier = polling;
   }
-  const notifier = new PollingSyncNotifier(options.adapter, POLL_INTERVAL_MS);
-  pollingNotifiers.set(options.adapter, notifier);
-  return { adapter: options.adapter, development, notifier };
+  const runtime = { adapter, development, notifier };
+  let modes = runtimes.get(options);
+  if (!modes) {
+    modes = new Map();
+    runtimes.set(options, modes);
+  }
+  modes.set(development, runtime);
+  return runtime;
 }

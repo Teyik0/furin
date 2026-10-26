@@ -26,6 +26,16 @@ export { useQuery } from "./client/query.tsx";
 export type { LiveQuery } from "./client/query-store.ts";
 export { getRouteApi } from "./client/route-api.tsx";
 export { furinSync, type OptimisticCache, type SyncCallOptions } from "./client/sync.ts";
+export {
+  createSyncClient,
+  type SyncClient,
+  SyncClientError,
+  type SyncClientOptions,
+  type SyncConnectionState,
+  type SyncQueryState,
+  type SyncReconnectOptions,
+  type SyncSocket,
+} from "./client/sync-client.ts";
 export { Await, useAsyncError, useAsyncValue } from "./shared/await.tsx";
 
 export { type DeferredData, defer, isDeferred } from "./shared/defer.ts";

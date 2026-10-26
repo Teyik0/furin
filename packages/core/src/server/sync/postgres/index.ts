@@ -235,9 +235,16 @@ export class PostgresSyncAdapter implements SyncAdapter {
     });
   }
 
-  appendInvalidations(invalidations: readonly SyncInvalidation[]): Promise<string> {
+  appendInvalidations(
+    invalidations: readonly SyncInvalidation[],
+    principal?: string
+  ): Promise<string> {
     return this.sql.begin(async (tx) => {
-      const cursor = await this.appendChangeInTransaction(tx, invalidations, null);
+      const cursor = await this.appendChangeInTransaction(
+        tx,
+        invalidations,
+        principal === undefined ? null : principalHash(this, principal)
+      );
       if (this.publishesNotifications) {
         await tx.notify(this.notificationChannel, cursor);
       }

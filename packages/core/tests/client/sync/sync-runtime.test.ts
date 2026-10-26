@@ -29,7 +29,7 @@ describe("sync runtime", () => {
     const adapter = durableAdapter("host-local", async () => "0");
     const sync = { adapter, path: "/sync", principal };
     expect(resolveSyncPath(sync)).toBe("/sync");
-    expect(syncRuntimeOptions(sync)).toEqual({ adapter, notifier: undefined, principal });
+    expect(syncRuntimeOptions(sync)).toBe(sync);
   });
 
   test("rejects process-local SQLite storage in production", () => {

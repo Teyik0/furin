@@ -1,9 +1,12 @@
 // biome-ignore-all lint/suspicious/noUnusedExpressions: expect-type assertions are compile-time only
 
 import { test } from "bun:test";
+import type { Context } from "elysia";
 import { expectTypeOf } from "expect-type";
 import type {
+  FurinSyncOptions,
   PollingSyncNotifier,
+  SyncConnectionLease,
   SyncNotifier,
   SyncRuntimeOptions,
 } from "../../src/server/sync/index.ts";
@@ -31,6 +34,9 @@ function createSyncTypeContractApp(options: SyncRuntimeOptions) {
 }
 
 test("sync entrypoints require an explicit runtime", () => {
+  expectTypeOf<NonNullable<FurinSyncOptions["connection"]>>().toEqualTypeOf<
+    (context: Context) => SyncConnectionLease | undefined | Promise<SyncConnectionLease | undefined>
+  >();
   type ChangesOptions = Parameters<SyncModule["createSyncChangesPlugin"]>[0];
   type PluginOptions = Parameters<SyncModule["furinSync"]>[0];
   type FurinOptions = NonNullable<Parameters<FurinModule["furin"]>[0]>;

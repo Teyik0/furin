@@ -117,6 +117,7 @@ export interface FurinOptions {
    * and unaffected.
    */
   clientLogging?: boolean;
+  /** Request logging options. Configure global evlog settings with `initLogger()` in the application. */
   logger?: FurinLoggerOptions;
   /**
    * Cache for public page artifacts. Use a distributed adapter when several
@@ -372,11 +373,15 @@ export { furinInvalidate, revalidateTag } from "./server/auto-invalidate/index.t
 export { revalidatePath, setCachePurger } from "./server/cache/invalidation.ts";
 export { buildErrorElement, renderRootNotFound } from "./server/render/index.ts";
 export {
+  createLocalSyncClient,
   type FurinSyncOption,
   type FurinSyncOptions,
   furinSync,
   invalidateSync,
+  type LocalSyncClientOptions,
   type SyncAdapter,
+  type SyncConnectionLease,
+  type SyncInvalidationOptions,
   type SyncNotifier,
   type SyncRuntimeOptions,
 } from "./server/sync/index.ts";

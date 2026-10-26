@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import type { InvalidationRefresh } from "../sync-catch-up.ts";
 import { observeWindowFetch } from "./fetch-observers.ts";
 import {
   applyRevalidateHeader,
@@ -8,7 +9,6 @@ import {
   toLogical,
 } from "./link-utils.ts";
 import { SYNC_REQUEST } from "./optimistic.ts";
-import type { InvalidationRefresh } from "./sync-catch-up.ts";
 
 /**
  * Processes `X-Furin-Revalidate` headers on every same-origin `window.fetch`

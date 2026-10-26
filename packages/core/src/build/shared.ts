@@ -1,8 +1,7 @@
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveRouteRevalidate } from "../server/router/patterns.ts";
-import type { ResolvedRoute } from "../server/router/types.ts";
+import { type BuildRouteInput, routeBuildInfo } from "./route-metadata.ts";
 import type { BuildRouteManifestEntry } from "./types";
 
 // import.meta.dir/path/url are inlined at bundle time to the OUTPUT file's
@@ -35,17 +34,16 @@ export function copyDirRecursive(sourceDir: string, targetDir: string): void {
 }
 
 export function toBuildRouteManifestEntry(
-  route: ResolvedRoute,
+  route: BuildRouteInput,
   rootDir: string
 ): BuildRouteManifestEntry {
+  const info = routeBuildInfo(route);
   return {
     pattern: route.pattern,
     mode: route.mode,
     pagePath: toPosixPath(relative(rootDir, route.path)),
-    hasLayout: route.routeChain.some((entry) => !!entry.layout),
-    hasStaticParams:
-      route.page.staticParams !== undefined ||
-      route.routeChain.some((entry) => entry.staticParams !== undefined),
-    revalidate: resolveRouteRevalidate(route.page) ?? null,
+    hasLayout: info.hasLayout,
+    hasStaticParams: info.hasStaticParams,
+    revalidate: info.revalidate ?? null,
   };
 }

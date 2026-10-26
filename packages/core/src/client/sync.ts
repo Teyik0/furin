@@ -112,7 +112,7 @@ export function inProgress(result: PluginCallResult | undefined): boolean {
 
 // Eden hands plugins the client's config by identity: one per `treaty()` client.
 const clientStores = new WeakMap<Treaty.Config, QueryStore>();
-const edenClients = new WeakMap<Treaty.Config, object>();
+const edenClients = new WeakMap<Treaty.Config, Map<string | object, object>>();
 
 function clientStore(config: Treaty.Config): QueryStore {
   let store = clientStores.get(config);
@@ -139,10 +139,16 @@ function applyInvalidations(queries: QueryStore, response: Response | undefined)
 
 /** Verbs cannot reach the client they were called on: rebuild it (without plugins) per config. */
 function edenGet(context: PluginVerbContext): ReadReference["load"] {
-  let client = edenClients.get(context.config);
+  let clients = edenClients.get(context.config);
+  if (!clients) {
+    clients = new Map();
+    edenClients.set(context.config, clients);
+  }
+  const target = context.elysia ?? context.domain;
+  let client = clients.get(target);
   if (!client) {
-    client = treaty(context.elysia ?? context.domain, context.config);
-    edenClients.set(context.config, client);
+    client = treaty(target, context.config);
+    clients.set(target, client);
   }
   // Verb paths carry raw param values; Eden encodes params only when they are called.
   return context.paths.reduce<object>(
@@ -303,6 +309,7 @@ export const furinSync: TreatyPlugin<SyncPluginType> = {
         );
       }
       const reference: ReadReference = {
+        application: context.elysia,
         client: clientStore(context.config),
         load: edenGet(context),
         url: `${context.domain}/${context.paths.slice(0, -1).map(encodeURIComponent).join("/")}`,

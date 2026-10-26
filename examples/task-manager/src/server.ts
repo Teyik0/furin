@@ -1,7 +1,16 @@
 import { furin } from "@teyik0/furin";
 import Elysia from "elysia";
+import { initLogger } from "evlog";
 import { api } from "./api";
 import { taskManagerSync } from "./sync";
+
+initLogger({
+  env: { service: "task-manager" },
+  sampling: {
+    keep: [{ status: 400 }, { duration: 1000 }],
+    rates: { info: 10 },
+  },
+});
 
 const app = new Elysia({ name: "task-manager" }).use(api).use(
   await furin({
@@ -10,10 +19,6 @@ const app = new Elysia({ name: "task-manager" }).use(api).use(
         if (context.method !== "GET") {
           context.shouldKeep = true;
         }
-      },
-      sampling: {
-        keep: [{ status: 400 }, { duration: 1000 }],
-        rates: { info: 10 },
       },
     },
     pagesDir: "./src/pages",

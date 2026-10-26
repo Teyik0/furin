@@ -6,8 +6,11 @@ import { furinSync as furinSyncImplementation } from "./plugin.ts";
 import { createSyncChangesPlugin as createSyncChangesPluginImplementation } from "./stream.ts";
 
 export const createSyncChangesPlugin = createSyncChangesPluginImplementation;
+export type { SyncConnectionLease } from "./config.ts";
+export { createLocalSyncClient, type LocalSyncClientOptions } from "./local-client.ts";
 export const furinSync = furinSyncImplementation;
 export const invalidateSync = invalidateSyncImplementation;
+export type { SyncInvalidationOptions } from "./invalidate-sync.ts";
 export const PollingSyncNotifier = PollingSyncNotifierImplementation;
 
 export type PollingSyncNotifier = PollingSyncNotifierImplementation;

@@ -101,9 +101,10 @@ export class NavigationController {
   #version = 0;
   /** In-flight navigation; aborted when superseded or when it ends uncommitted. */
   #pendingAbort: AbortController | null = null;
-  /** Owns the visible page's deferred stream; aborted only when another page commits. */
+  /** Owns the visible page's deferred stream until replacement or an access-context change. */
   #committedAbort: AbortController | null = null;
-  #pendingUserNavigation: Promise<void> | null = null;
+  #contextAbort = new AbortController();
+  #pendingUserNavigation: { promise: Promise<void>; resolve: () => void } | null = null;
   #renderedHistoryKey: string | undefined;
   #pendingScroll: ScrollInstruction | null = null;
 
@@ -170,7 +171,12 @@ export class NavigationController {
     const entry: PageCacheEntry = {
       createdAt: Date.now(),
       promise: this.#config
-        .fetchPage({ currentMatch: this.#currentMatch, hmrRefresh: false, href, signal: undefined })
+        .fetchPage({
+          currentMatch: this.#currentMatch,
+          hmrRefresh: false,
+          href,
+          signal: this.#contextAbort.signal,
+        })
         .then((result) => ({ generation, result, revision: undefined })),
       staleTime: staleTime ?? this.#config.defaultStaleTime,
     };
@@ -201,6 +207,25 @@ export class NavigationController {
     }
   };
 
+  /** Access changes must also prevent old navigations and deferred streams from publishing. */
+  invalidateContext(): void {
+    this.#version += 1;
+    const pendingAbort = this.#pendingAbort;
+    const committedAbort = this.#committedAbort;
+    const contextAbort = this.#contextAbort;
+    const pendingNavigation = this.#pendingUserNavigation;
+    this.#pendingAbort = null;
+    this.#committedAbort = null;
+    this.#contextAbort = new AbortController();
+    this.#pendingUserNavigation = null;
+    this.invalidatePath("/", "layout");
+    this.#setNavigating(false);
+    pendingAbort?.abort();
+    committedAbort?.abort();
+    contextAbort.abort();
+    pendingNavigation?.resolve();
+  }
+
   /** Drops cached pages whose state reads an invalidated query. */
   invalidateQueries(affected: (state: RouterState) => boolean): void {
     this.#generation.bump((_href, state) => affected(state));
@@ -224,7 +249,7 @@ export class NavigationController {
   async waitForUserNavigation(): Promise<void> {
     while (this.#pendingUserNavigation) {
       // biome-ignore lint/performance/noAwaitInLoops: superseded user navigations must settle in sequence before HMR may refresh the final URL
-      await this.#pendingUserNavigation;
+      await this.#pendingUserNavigation.promise;
     }
   }
 
@@ -271,16 +296,14 @@ export class NavigationController {
   }
 
   #beginUserNavigation(): () => void {
-    let resolve: () => void = () => undefined;
-    const promise = new Promise<void>((settle) => {
-      resolve = settle;
-    });
-    this.#pendingUserNavigation = promise;
+    this.#pendingUserNavigation?.resolve();
+    const navigation = Promise.withResolvers<void>();
+    this.#pendingUserNavigation = navigation;
     return () => {
-      if (this.#pendingUserNavigation === promise) {
+      if (this.#pendingUserNavigation === navigation) {
         this.#pendingUserNavigation = null;
       }
-      resolve();
+      navigation.resolve();
     };
   }
 
@@ -309,11 +332,21 @@ export class NavigationController {
     this.#version += 1;
     const version = this.#version;
     const abort = this.#startAbort();
+    const cancelled = Promise.withResolvers<false>();
+    const onAbort = () => cancelled.resolve(false);
+    abort.signal.addEventListener("abort", onAbort, { once: true });
     let committed = false;
     this.#setNavigating(true);
     try {
-      committed = await this.#load(href, kind, version, abort.signal);
+      if (abort.signal.aborted) {
+        return;
+      }
+      committed = await Promise.race([
+        this.#load(href, kind, version, abort.signal),
+        cancelled.promise,
+      ]);
     } finally {
+      abort.signal.removeEventListener("abort", onAbort);
       this.#settleAbort(abort, committed);
       finishUserNavigation?.();
       if (this.#version === version) {

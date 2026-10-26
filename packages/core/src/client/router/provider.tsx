@@ -14,10 +14,12 @@ import { findRouteFailure } from "../../shared/route-matches.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
 import type { QuerySeed } from "../../shared/sync-query.ts";
 import { collectRouteChainFromRoute } from "../../shared/utils/index.ts";
+import { setBrowserSyncAuthentication } from "../browser-events.ts";
 import { DocumentProvider, useDocumentState } from "../document.tsx";
 import { QueryStoreContext } from "../query.tsx";
 import { QueryStore } from "../query-store.ts";
 import { resolveRouteElement } from "../route-element.tsx";
+import { createInvalidationRefresh } from "../sync-catch-up.ts";
 import { buildRouterTree } from "./boundary-tree.tsx";
 import { RouterStoreContext } from "./context.ts";
 import {
@@ -36,7 +38,6 @@ import { createOptimisticRuntime, registerOptimisticRuntime } from "./optimistic
 import { fetchPageState } from "./page-fetch.ts";
 import { createSearchStore, SearchStoreContext } from "./search-store.ts";
 import { detectStaticMode } from "./spa-response.ts";
-import { createInvalidationRefresh } from "./sync-catch-up.ts";
 import type {
   ClientRoute,
   ClientSegmentBoundary,
@@ -417,7 +418,10 @@ export function RouterProvider({
       invalidatePrefetch,
       navigate,
       prefetch,
-      refresh,
+      refresh: (options) => {
+        setBrowserSyncAuthentication(true);
+        return refresh(options);
+      },
       searchRoutes: routes,
     }),
     [
