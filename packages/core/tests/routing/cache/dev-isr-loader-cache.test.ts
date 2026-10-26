@@ -7,6 +7,7 @@ type DevCacheScenarioResult =
 
 async function runDevCacheScenario(): Promise<DevCacheScenarioResult> {
   let result: DevCacheScenarioResult | undefined;
+  let awaitingReceipt = false;
   const disconnected = Promise.withResolvers<void>();
   const child = Bun.spawn(
     [
@@ -16,8 +17,14 @@ async function runDevCacheScenario(): Promise<DevCacheScenarioResult> {
     {
       stdout: "pipe",
       stderr: "pipe",
-      ipc(message: DevCacheScenarioResult) {
+      ipc(message: DevCacheScenarioResult | { type: "awaiting-receipt" }, subprocess) {
+        if (message.type === "awaiting-receipt") {
+          awaitingReceipt = true;
+          subprocess.send({ type: "result-received" });
+          return;
+        }
         result = message;
+        subprocess.send({ type: "verify-awaiting-receipt" });
       },
       onDisconnect: () => disconnected.resolve(),
       timeout: 25_000,
@@ -33,6 +40,7 @@ async function runDevCacheScenario(): Promise<DevCacheScenarioResult> {
   if (!result || (result.type === "pass" && code !== 0)) {
     throw new Error(`Dev cache scenario exited (${code}): ${stderr}\n${stdout}`);
   }
+  expect(awaitingReceipt).toBe(true);
   return result;
 }
 

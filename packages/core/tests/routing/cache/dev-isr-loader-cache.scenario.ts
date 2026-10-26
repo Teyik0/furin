@@ -301,5 +301,15 @@ try {
   tmpApp.cleanup();
 }
 
+// Keep IPC alive until the parent confirms receipt, including on Windows.
+const receipt = Promise.withResolvers<void>();
+process.on("message", (message: { type: string }) => {
+  if (message.type === "verify-awaiting-receipt") {
+    process.send?.({ type: "awaiting-receipt" });
+  } else if (message.type === "result-received") {
+    receipt.resolve();
+  }
+});
 process.send?.(scenarioResult);
+await receipt.promise;
 process.exit(scenarioResult.type === "pass" ? 0 : 1);
