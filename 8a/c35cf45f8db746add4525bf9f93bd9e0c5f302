@@ -1,0 +1,67 @@
+packages/electrobun/src/server.ts
+  s_dfbf2e8b7094c8::t_11a0db3bb1f579 170,238
+  s_dfbf2e8b7094c8::t_30add15cf44f0a 160-164,239
+packages/core/build.ts
+  s_dfbf2e8b7094c8::t_d526a3da8ecf8b 106,111
+packages/electrobun/package.json
+  s_dfbf2e8b7094c8::t_11a0db3bb1f579 41-45
+packages/core/tests/cli/dev.test.ts
+  s_dfbf2e8b7094c8::t_8ad2c40e967fd6 59-74,81-85,89-111,113-122,124-130,132-136,138-140,200,202,207-210,212-216,218,225,227,238,242,244-246,248,256-258,261-285,289,291
+  s_dfbf2e8b7094c8::t_be086f608379f1 177-198,219-224,228-237,239,241,243,247,249-255,259-260,286-288,290,292-293
+  s_dfbf2e8b7094c8::t_d526a3da8ecf8b 55-58,86
+  s_dfbf2e8b7094c8::t_82b4e17fa3b245 76,78
+  s_dfbf2e8b7094c8::t_eb12b5a9e121b0 79,199,201,203-206,211,217,226,240
+packages/electrobun/src/capabilities.ts
+  s_dfbf2e8b7094c8::t_11a0db3bb1f579 70-71
+packages/electrobun/src/web-dev.ts
+  s_dfbf2e8b7094c8::t_8ad2c40e967fd6 27
+  s_dfbf2e8b7094c8::t_a227cad3cde2f1 8-12,15,20-21,35,41-45,49-50,52-63,88-90,94-96,114
+  s_dfbf2e8b7094c8::t_11a0db3bb1f579 1-4,13-14,23,28-31,36,39-40,51,64,67-77,79-87,91,93,97,104,106,112-113,115-116,119-121
+  s_dfbf2e8b7094c8::t_1bfef43b9e3146 16-19
+  s_dfbf2e8b7094c8::t_0b56975b706d6a 5-7,22,24-26,32-34,37-38,46-48,65-66,78,92,98-103,105,107-111,117-118
+packages/core/README.md
+  s_dfbf2e8b7094c8::t_5c29ecd31269f5 41-44
+packages/electrobun/tests/web-dev.test.ts
+  s_dfbf2e8b7094c8::t_a227cad3cde2f1 6,152-155
+  s_dfbf2e8b7094c8::t_70d2cde5503691 156-168
+  s_dfbf2e8b7094c8::t_5c29ecd31269f5 8-16,20-23,26-31,39-55,78,80,82,84,90,92,95-99,101-111,113-129,131-151,169,200-210,212-214
+  s_dfbf2e8b7094c8::t_4a77c8d7117496 1-3,5,7,56-58,64,70,73-77
+  s_dfbf2e8b7094c8::t_d4cc82d040abb8 32-38
+  s_dfbf2e8b7094c8::t_f23e9aa09d33b6 71-72
+  s_dfbf2e8b7094c8::t_8ad2c40e967fd6 79,112,130,199,211
+  s_dfbf2e8b7094c8::t_1d1c1360b20533 4,17-19,24-25,59-63,65-69,81,83,85-89,91,93-94,100,170-198
+packages/electrobun/README.md
+  s_dfbf2e8b7094c8::t_5c29ecd31269f5 202-215
+packages/electrobun/src/registry.ts
+  s_dfbf2e8b7094c8::t_8ad2c40e967fd6 18,28
+  s_dfbf2e8b7094c8::t_a1e57b2d1819f6 19,29
+packages/electrobun/build.ts
+  s_dfbf2e8b7094c8::t_11a0db3bb1f579 22
+packages/core/src/cli/dev-worker.ts
+  s_dfbf2e8b7094c8::t_18e65db451b48c 4
+  s_dfbf2e8b7094c8::t_98c3be9fdfdf76 6-10,15,19-22,24,28-36,43,55,63-69,71,73,86,88,111,115,117,119-123
+  s_dfbf2e8b7094c8::t_d36ca42817c990 83-85,87
+  s_dfbf2e8b7094c8::t_5c29ecd31269f5 112-113,116,118
+  s_dfbf2e8b7094c8::t_354d8fbd3502b2 2
+  s_dfbf2e8b7094c8::t_c93acb13dde478 5,70,72,74-82,89-110,114
+packages/core/src/cli/dev.ts
+  s_dfbf2e8b7094c8::t_6301e3f9498795 43-48
+  s_dfbf2e8b7094c8::t_98c3be9fdfdf76 39-40,56
+  s_dfbf2e8b7094c8::t_158e6b1223818d 18,55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8ac35cf45f8db746add4525bf9f93bd9e0c5f302",
+  "prompts": {},
+  "sessions": {
+    "s_dfbf2e8b7094c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17a0c-25e4-7601-9973-864291f8f9d8",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
