@@ -2,6 +2,7 @@ import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DesktopConfig } from "../../src/config";
+import { publishFixtureFile } from "./files";
 import { installSdk } from "./sdk";
 
 export async function standardLaunchFixture(options: {
@@ -39,6 +40,7 @@ export async function standardLaunchFixture(options: {
       import {Elysia} from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
       import { desktopApp, getApplicationRuntime } from ${JSON.stringify(join(import.meta.dir, "../../src/server.ts"))};
       import {appendFileSync} from "node:fs";
+      import {publishFixtureFile} from ${JSON.stringify(join(import.meta.dir, "files.ts"))};
       import {openNativeInstance} from ${JSON.stringify(join(import.meta.dir, "../../src/native-instance.ts"))};
       let desktop;
       let applicationLease;
@@ -60,7 +62,7 @@ export async function standardLaunchFixture(options: {
           ${options.startup ?? ""}
 
 const backend = { origin: instance.server.url.origin };
-          await Bun.write(${JSON.stringify(join(root, "backend.json"))},JSON.stringify({
+          publishFixtureFile(${JSON.stringify(join(root, "backend.json"))},JSON.stringify({
             ...backend,dataDir:process.env.FURIN_APP_DATA_DIR,cwd:process.cwd(),pid:process.pid
           }));
         }).onStop(async () => {
@@ -84,7 +86,7 @@ const backend = { origin: instance.server.url.origin };
     );
     await mkdir(join(root, ".furin/build/bun"), { recursive: true });
     await writeFile(join(root, ".furin/build/bun/app.js"), source);
-    await writeFile(join(root, "native-test.js"), script);
+    publishFixtureFile(join(root, "native-test.js"), script);
     await writeFile(join(cwd, "native-test.js"), script);
     const config: DesktopConfig & { app: DesktopConfig["app"] & { version: string } } = {
       app: {

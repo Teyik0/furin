@@ -47,6 +47,11 @@ async function startsDesktop(owner: "host" | "entry") {
       }};`
     );
     await mkdir(join(root, "storage"));
+    await symlink(
+      join(root, "storage"),
+      join(root, "storage-alias"),
+      process.platform === "win32" ? "junction" : "dir"
+    );
     await writeFile(join(root, "storage/state.txt"), "first state");
     await writeFile(join(root, "src/value.ts"), 'export const value = "first";');
     await writeFile(
@@ -84,7 +89,7 @@ async function startsDesktop(owner: "host" | "entry") {
       stderr: "pipe",
       timeout: 20_000,
       killSignal: "SIGKILL",
-      env: { ...process.env, FURIN_PRELOAD_DATA: "storage" },
+      env: { ...process.env, FURIN_PRELOAD_DATA: "storage-alias" },
     });
     output = Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
     const first = await ready();

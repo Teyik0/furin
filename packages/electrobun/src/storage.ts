@@ -11,7 +11,7 @@ export interface DataDirectoryContext {
   root: string;
 }
 
-async function canonical(path: string, api: typeof posix): Promise<string> {
+export async function canonicalDesktopPath(path: string, api: typeof posix): Promise<string> {
   try {
     return await realpath(path);
   } catch (error) {
@@ -19,7 +19,9 @@ async function canonical(path: string, api: typeof posix): Promise<string> {
       throw error;
     }
     const parent = api.dirname(path);
-    return parent === path ? path : api.join(await canonical(parent, api), api.basename(path));
+    return parent === path
+      ? path
+      : api.join(await canonicalDesktopPath(parent, api), api.basename(path));
   }
 }
 
@@ -64,7 +66,11 @@ export async function resolveDesktopDataDir(
   if (
     development &&
     (within(dataDir, release, api) ||
-      within(await canonical(dataDir, api), await canonical(release, api), api))
+      within(
+        await canonicalDesktopPath(dataDir, api),
+        await canonicalDesktopPath(release, api),
+        api
+      ))
   ) {
     throw new Error(
       "Development dataDir is reserved for release; use a separate development directory."

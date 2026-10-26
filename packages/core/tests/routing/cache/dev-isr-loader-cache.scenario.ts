@@ -16,9 +16,7 @@ import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { createTmpApp } from "../../support/app-fixtures.ts";
 
-// This scenario runs in the dedicated Worker created by
-// dev-isr-loader-cache.test.ts. The Worker isolates the dev/cache module state;
-// the parent bun:test case owns test discovery and failure reporting.
+// A subprocess isolates both the dev/cache module state and process-wide CWD.
 
 const fixturesDir = join(import.meta.dir, "../../fixtures/pages/default");
 const timestampRe = /data-timestamp="(\d+)"/;
@@ -105,6 +103,7 @@ async function mountDevelopmentPages(
   return { app, instance, pagesDir: instance.pagesDir };
 }
 
+let scenarioResult: { type: "pass" } | { type: "fail"; message: string; stack: string | undefined };
 const originalCwd = process.cwd();
 const tmpApp = createTmpApp("cli-app");
 
@@ -289,15 +288,18 @@ try {
     );
   });
 
-  self.postMessage({ type: "pass" });
+  scenarioResult = { type: "pass" };
 } catch (error) {
-  self.postMessage({
+  scenarioResult = {
     message: error instanceof Error ? error.message : String(error),
     stack: error instanceof Error ? error.stack : undefined,
     type: "fail",
-  });
+  };
 } finally {
-  // The working directory is process-wide, not per Worker.
+  // Restore and clean up before reporting the scenario result.
   process.chdir(originalCwd);
   tmpApp.cleanup();
 }
+
+process.send?.(scenarioResult);
+process.exit(scenarioResult.type === "pass" ? 0 : 1);

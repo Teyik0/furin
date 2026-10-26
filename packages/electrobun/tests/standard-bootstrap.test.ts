@@ -138,7 +138,11 @@ test.each([
         cwd: string;
         origin: string;
       };
-      expect(backend.dataDir).toBe(expected);
+      if (policy === "relative") {
+        expect(await realpath(backend.dataDir)).toBe(await realpath(expected));
+      } else {
+        expect(backend.dataDir).toBe(expected);
+      }
       expect(await Bun.file(join(expected, "existing-data")).text()).toBe("preserved");
       expect(await realpath(backend.cwd)).toBe(await realpath(fixture.cwd));
       expect(await Bun.file(join(expected, ".furin-native/descriptor.json")).exists()).toBe(true);

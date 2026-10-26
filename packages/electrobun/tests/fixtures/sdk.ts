@@ -28,6 +28,7 @@ export async function installSdk(
   await writeFile(
     join(directory, "main.ts"),
     `
+    import { publishFixtureFile } from ${JSON.stringify(join(import.meta.dir, "files.ts"))};
     const generated = ${JSON.stringify(join(root, ".furin/electrobun"))};
     const handlers = new Map();
     const events = {
@@ -62,7 +63,7 @@ export async function installSdk(
         this.options = options;
         this.webview.rpc = options.rpc;
         ${mode === "failed-window" ? 'throw new Error("constructor failed");' : ""}
-        require("node:fs").writeFileSync(${JSON.stringify(join(root, "window-url"))}, options.url, {mode:0o600});
+        publishFixtureFile(${JSON.stringify(join(root, "window-url"))}, options.url);
         views.add(this);
       }
       on(name, handler) {
@@ -85,7 +86,10 @@ export async function installSdk(
     export const Session = {
       fromPartition(partition) {
         return { cookies: { set(cookie) {
-          require("node:fs").appendFileSync(${JSON.stringify(join(root, "native-cookies"))}, JSON.stringify({ partition, ...cookie })+"\\n", {mode:0o600});
+          const cookieFile = ${JSON.stringify(join(root, "native-cookies"))};
+          const fs = require("node:fs");
+          const previous = fs.existsSync(cookieFile) ? fs.readFileSync(cookieFile, "utf8") : "";
+          publishFixtureFile(cookieFile, previous + JSON.stringify({ partition, ...cookie })+"\\n");
           cookies.set(cookie.name, {...cookie, httpOnly: process.env.FURIN_FIXTURE_INSECURE_COOKIE ? false : cookie.httpOnly});
           return true;
         }, get(filter) { return [...cookies.values()].filter(cookie => cookie.name === filter.name); }, remove(url,name) { cookies.delete(name); return true; } } };

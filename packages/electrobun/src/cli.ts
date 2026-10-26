@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 // biome-ignore-all lint/performance/noAwaitInLoops: Restart supervision and readiness polling must be sequential.
-import { realpathSync, statSync, watch } from "node:fs";
+import { existsSync, realpathSync, statSync, watch } from "node:fs";
 import { rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, posix, relative, resolve, sep, win32 } from "node:path";
 import { prepareDesktop } from "./prepare";
 import { initDesktop, loadDesktopConfig, loadFurinProject } from "./project";
 import { withShutdownDeadline } from "./runtime";
 import { prepareSdkResolution } from "./sdk-resolution";
-import { resolveDesktopDataDir } from "./storage";
+import { canonicalDesktopPath, resolveDesktopDataDir } from "./storage";
 
 const MODULE_PATH = /.*/;
 const WINDOWS_BASE = /^[a-z]:[\\/]|^\\\\/i;
@@ -296,7 +296,7 @@ async function waitForDevReady(
   return !isStopping();
 }
 
-function watchBackend(
+async function watchBackend(
   root: string,
   serverEntry: string,
   dataDir: string | undefined,
@@ -314,11 +314,14 @@ function watchBackend(
   let scanning = false;
   let compilationFailed = false;
   let sourceChanged = Promise.withResolvers<void>();
-  const resolvedData = dataDir ? resolve(dataDir) : undefined;
-  const canonicalData = resolvedData?.startsWith(`${root}${sep}`)
-    ? resolve(canonicalRoot, relative(root, resolvedData))
-    : resolvedData;
-  const ownedData = canonicalData?.startsWith(`${canonicalRoot}${sep}`) ? canonicalData : undefined;
+  const canonicalData = dataDir
+    ? await canonicalDesktopPath(resolve(dataDir), process.platform === "win32" ? win32 : posix)
+    : undefined;
+  const dataPath = canonicalData ? relative(canonicalRoot, canonicalData) : undefined;
+  const ownedData =
+    dataPath && dataPath !== ".." && !dataPath.startsWith(`..${sep}`) && !isAbsolute(dataPath)
+      ? join(canonicalRoot, dataPath)
+      : undefined;
   // Follow runtime ownership: JSX can belong to the backend and plain TS to
   // the frontend. Bun's frontend server owns modules outside this import graph.
   const watcher = watch(root, { recursive: true }, (_event, filename) => {
@@ -454,8 +457,8 @@ async function stopDevBackend(
   }
 }
 
-function cancelPendingStartup(backend: Bun.Subprocess | undefined, listening: boolean) {
-  if (backend && !listening && backend.exitCode === null) {
+export function cancelPendingStartup(backend: Bun.Subprocess | undefined, ready: string) {
+  if (backend && !existsSync(ready) && backend.exitCode === null) {
     backend.kill("SIGTERM");
   }
 }
@@ -476,14 +479,14 @@ async function runDesktopDev(
   let stopping = false;
   let restart = false;
   let backend: Bun.Subprocess | undefined;
-  let listening = false;
   const { promise: stopped, resolve: signalStop } = Promise.withResolvers<void>();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const control = join(generated, "control");
+  const ready = join(generated, "ready.json");
   const requestStop = async () => {
     await writeFile(control, crypto.randomUUID());
   };
-  const watcher = watchBackend(
+  const watcher = await watchBackend(
     root,
     serverEntry,
     dataDir,
@@ -504,7 +507,7 @@ async function runDesktopDev(
     requestStop().catch(console.error);
     // Before readiness the helper cannot read control yet. SIGTERM cancels
     // startup; ready workers continue to drain through the public control path.
-    cancelPendingStartup(backend, listening);
+    cancelPendingStartup(backend, ready);
   };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
@@ -514,10 +517,8 @@ async function runDesktopDev(
         return;
       }
       restart = false;
-      listening = false;
       let canceledStartup = false;
       await writeFile(control, "");
-      const ready = join(generated, "ready.json");
       await rm(ready, { force: true });
       await rm(join(generated, "failure.json"), { force: true });
       await rm(join(generated, "restart"), { force: true });
@@ -534,10 +535,9 @@ async function runDesktopDev(
       try {
         if (!(await waitForDevReady(backend, ready, () => stopping || restart))) {
           canceledStartup = true;
-          cancelPendingStartup(backend, false);
+          cancelPendingStartup(backend, ready);
           continue;
         }
-        listening = true;
         if (customHost) {
           await Promise.race([backend.exited, stopped]);
           continue;
