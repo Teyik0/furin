@@ -122,6 +122,8 @@ test.skipIf(process.platform !== "win32")(
   "native instance creation sets the user owner and a protected private Windows ACL",
   async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "furin-native-acl-"));
+    const previousModulePath = process.env.PSModulePath;
+    process.env.PSModulePath = join(dataDir, "unavailable-modules");
     let instance: Awaited<ReturnType<typeof openNativeInstance>>;
     try {
       instance = await openNativeInstance({
@@ -141,15 +143,18 @@ test.skipIf(process.platform !== "win32")(
           "-Command",
           `
       $ErrorActionPreference = 'Stop'
+      $PSModuleAutoLoadingPreference = 'None'
       $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
-      $acl = Get-Acl -LiteralPath $env:FURIN_NATIVE_DIRECTORY
+      $acl = [IO.Directory]::GetAccessControl($env:FURIN_NATIVE_DIRECTORY)
       $rules = $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])
-      @{
-        owned = $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -eq $sid.Value
-        protected = $acl.AreAccessRulesProtected
-        private = @($rules | Where-Object { $_.IdentityReference.Value -ne $sid.Value }).Count -eq 0
-        fullControl = @($rules | Where-Object { $_.FileSystemRights -eq 'FullControl' -and $_.AccessControlType -eq 'Allow' }).Count -eq 1
-      } | ConvertTo-Json -Compress
+      $owned = $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -eq $sid.Value
+      $private = $true
+      $fullControl = 0
+      foreach ($rule in $rules) {
+        if ($rule.IdentityReference.Value -ne $sid.Value) { $private = $false }
+        if ($rule.FileSystemRights -eq 'FullControl' -and $rule.AccessControlType -eq 'Allow') { $fullControl++ }
+      }
+      [Console]::WriteLine("$owned|$($acl.AreAccessRulesProtected)|$private|$($fullControl -eq 1)")
     `,
         ],
         {
@@ -165,13 +170,13 @@ test.skipIf(process.platform !== "win32")(
         new Response(query.stderr).text(),
       ]);
       expect(code, diagnostic).toBe(0);
-      expect(JSON.parse(result)).toEqual({
-        owned: true,
-        protected: true,
-        private: true,
-        fullControl: true,
-      });
+      expect(result.trim()).toBe("True|True|True|True");
     } finally {
+      if (previousModulePath === undefined) {
+        delete process.env.PSModulePath;
+      } else {
+        process.env.PSModulePath = previousModulePath;
+      }
       await instance?.stop();
       await rm(dataDir, { recursive: true, force: true });
     }

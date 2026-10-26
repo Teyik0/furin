@@ -76,7 +76,7 @@ test.each(["page", "dependency"] as const)(
       name: `configured-${target}-loader`,
       setup(builder) {
         builder.onLoad(
-          { filter: target === "page" ? /\/index\.tsx$/ : /\/_tags\.ts$/ },
+          { filter: target === "page" ? /[\\/]index\.tsx$/ : /[\\/]_tags\.ts$/ },
           async ({ path }) => {
             calls += 1;
             const source = (await Bun.file(path).text()).replace('"before"', '"configured-tag"');

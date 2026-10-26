@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, win32 } from "node:path";
+import { join, posix, win32 } from "node:path";
 import { defineDesktopConfig, validateDesktopConfig } from "../src/config";
 
 test("runtime storage policy is declarative and absolute overrides remain valid", () => {
@@ -28,7 +28,11 @@ test.each(["darwin", "linux", "win32"] as const)(
   async (platform) => {
     const directory = await mkdtemp(join(tmpdir(), "furin-storage-"));
     try {
-      const home = directory;
+      // An emulated POSIX home must remain absolute when this test runs on Windows.
+      const home =
+        process.platform === "win32" && platform !== "win32"
+          ? `/furin-storage-${crypto.randomUUID()}`
+          : directory;
       const child = Bun.spawn(
         [
           process.execPath,
@@ -78,8 +82,8 @@ test.each(["darwin", "linux", "win32"] as const)(
       };
       expect(paths.isolated).toBe(true);
       const prefix = {
-        darwin: join(home, "Library/Application Support"),
-        linux: join(home, ".local/share"),
+        darwin: posix.join(home, "Library/Application Support"),
+        linux: posix.join(home, ".local/share"),
         win32: win32.resolve(home, "AppData/Roaming"),
       }[platform];
       const separator = platform === "win32" ? "\\" : "/";

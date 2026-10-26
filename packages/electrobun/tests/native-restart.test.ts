@@ -3,10 +3,14 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runNativeRestart } from "../src/native-restart";
+import { watchProcessExit } from "../src/process-exit";
 
 test("native restart waits for both process exits before running the launcher and preserves launch environment", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-native-restart-"));
   const children: Bun.Subprocess[] = [];
+  let launcherPid: number | undefined;
+  let launcherExited = false;
+  let launcherWatch: ReturnType<typeof watchProcessExit> | undefined;
   const stop = (child: Bun.Subprocess) => {
     if (child.exitCode === null) {
       child.kill("SIGKILL");
@@ -24,12 +28,14 @@ test("native restart waits for both process exits before running the launcher an
     children.push(runtime, parent);
     const launcherSource = join(root, "launcher.ts");
     const result = join(root, "launched");
+    const release = join(root, "release");
     await writeFile(
       launcherSource,
       `await Bun.write(${JSON.stringify(result)},JSON.stringify({
       pid:process.pid,value:process.env.FURIN_RESTART_TEST,
       parent:process.env.ELECTROBUN_LAUNCHER_PID,url:process.env.FURIN_NATIVE_OPEN
-    }));`
+    }));
+    while (!(await Bun.file(${JSON.stringify(release)}).exists())) { await Bun.sleep(10); }`
     );
     const launcher = join(root, process.platform === "win32" ? "launcher.exe" : "launcher");
     const build = Bun.spawn(
@@ -74,11 +80,27 @@ test("native restart waits for both process exits before running the launcher an
       parent?: string;
       url?: string;
     };
+    launcherPid = actual.pid;
+    launcherWatch = watchProcessExit(launcherPid);
+    await Bun.write(release, "release");
+    const exitDeadline = Date.now() + 5000;
+    while (!launcherExited && Date.now() < exitDeadline) {
+      launcherExited = launcherWatch.exited();
+      if (!launcherExited) {
+        // biome-ignore lint/performance/noAwaitInLoops: Windows locks the executable and CWD until process exit.
+        await Bun.sleep(20);
+      }
+    }
+    expect(launcherExited).toBe(true);
     expect(actual.pid).not.toBe(runtime.pid);
     expect(actual.value).toBe("preserved");
     expect(actual.parent).toBeUndefined();
     expect(actual.url).toBeUndefined();
   } finally {
+    if (launcherPid && !launcherExited) {
+      process.kill(launcherPid, "SIGKILL");
+    }
+    launcherWatch?.close();
     for (const child of children) {
       stop(child);
     }

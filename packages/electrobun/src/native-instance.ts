@@ -26,19 +26,18 @@ const WINDOWS_PRIVATE_DIRECTORY = `
 $ErrorActionPreference = 'Stop'
 $path = $env:FURIN_NATIVE_DIRECTORY
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
-$acl = New-Object Security.AccessControl.DirectorySecurity
+$acl = [Security.AccessControl.DirectorySecurity]::new()
 $acl.SetOwner($sid)
 $acl.SetAccessRuleProtection($true, $false)
 $rule = [Security.AccessControl.FileSystemAccessRule]::new(
   $sid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
 $acl.AddAccessRule($rule)
 # Set the owner and private ACL at creation, even when the token's default owner is a group.
-[IO.Directory]::CreateDirectory($path, $acl) | Out-Null
-$item = Get-Item -LiteralPath $path -Force
-if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Native directory must not be a link' }
-$owner = (Get-Acl -LiteralPath $path).GetOwner([Security.Principal.SecurityIdentifier])
+$null = [IO.Directory]::CreateDirectory($path, $acl)
+if ([IO.File]::GetAttributes($path) -band [IO.FileAttributes]::ReparsePoint) { throw 'Native directory must not be a link' }
+$owner = [IO.Directory]::GetAccessControl($path).GetOwner([Security.Principal.SecurityIdentifier])
 if ($owner.Value -ne $sid.Value) { throw 'Native directory belongs to another user' }
-Set-Acl -LiteralPath $path -AclObject $acl
+[IO.Directory]::SetAccessControl($path, $acl)
 `;
 
 async function secureDirectory(path: string) {
