@@ -1,0 +1,28 @@
+packages/core/tests/build/plugin-registration.test.ts
+  s_dc893a22364433::t_7e94131e329109 79
+packages/electrobun/tests/native-restart.test.ts
+  s_dc893a22364433::t_1ef6dcf92594db 6,11-13,31,37-38,83-94,100-103
+packages/electrobun/src/native-instance.ts
+  s_dc893a22364433::t_7e94131e329109 29,36-38,40
+packages/electrobun/tests/storage.test.ts
+  s_dc893a22364433::t_7e94131e329109 4,31-33,35,85-86
+  s_dc893a22364433::t_4bd9f36c97a235 34
+packages/electrobun/tests/native-instance.test.ts
+  s_dc893a22364433::t_6979e8d0440471 125-126,146,148,150-157,173,175-179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bef3f0209521c85849350bb4407efd1d60c55f59",
+  "prompts": {},
+  "sessions": {
+    "s_dc893a22364433": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17942-db12-7e23-a256-a854da3d1374",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
