@@ -1,0 +1,23 @@
+packages/electrobun/tests/web-dev.test.ts
+  s_dfbf2e8b7094c8::t_ab73d72e401e8d 10-13,16,50-59,66-69,71-81,133-136,138,140-142,152,154-161,168-170,258-260,270-272
+  s_dfbf2e8b7094c8::t_699550f6681975 70,132,137,139,143-147,269,273
+  s_dfbf2e8b7094c8::t_c2a09de6baa9e7 5,9,14-15,49,151,153,163-167,257,261,274
+packages/electrobun/src/web-dev.ts
+  s_dfbf2e8b7094c8::t_699550f6681975 106-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "19f7cf2830cacd0dbf94f7cea64d285d00f5d518",
+  "prompts": {},
+  "sessions": {
+    "s_dfbf2e8b7094c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17a0c-25e4-7601-9973-864291f8f9d8",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
