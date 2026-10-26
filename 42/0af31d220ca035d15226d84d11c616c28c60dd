@@ -1,0 +1,19 @@
+packages/electrobun/package.json
+  s_f3cb0ecd6061ad::t_901a7cccf4149d 57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "420af31d220ca035d15226d84d11c616c28c60dd",
+  "prompts": {},
+  "sessions": {
+    "s_f3cb0ecd6061ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1778c-9ee2-7203-9b41-d76d1a9cc9f5",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
