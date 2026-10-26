@@ -1,0 +1,24 @@
+packages/electrobun/tests/supervisor-stop.test.ts
+  s_dc893a22364433::t_dc8b62261da98f 240-243,264-267
+  s_dc893a22364433::t_cbad48aaa7ee58 59-62,131-132,144,232
+packages/electrobun/src/cli.ts
+  s_dc893a22364433::t_dc8b62261da98f 3-4,80-85,310-312
+packages/electrobun/tests/preload.test.ts
+  s_dc893a22364433::t_dc8b62261da98f 11,161,175-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0df05a2cd7a34eb26069e844b99cd4577c18058c",
+  "prompts": {},
+  "sessions": {
+    "s_dc893a22364433": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17942-db12-7e23-a256-a854da3d1374",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
