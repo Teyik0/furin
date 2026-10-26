@@ -2,12 +2,18 @@ import { expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
+import { waitForFixture } from "./fixtures/standard-launch";
 
 const ORIGIN = /Web development: (https?:\/\/127\.0\.0\.1:\d+)/;
 
-test.each([false, true])(
-  "web CLI bootstraps an authenticated browser owner without native capabilities or admission bypass (TLS=%s)",
-  async (tls) => {
+test.each([
+  { tls: false, opener: "exit" },
+  { tls: true, opener: "exit" },
+  { tls: false, opener: "held" },
+  { tls: false, opener: "fail" },
+])(
+  "web CLI bootstraps an authenticated browser owner without native capabilities or admission bypass (TLS=$tls, opener=$opener)",
+  async ({ tls, opener: mode }) => {
     const root = await mkdtemp(join(tmpdir(), "furin-web-owner-"));
     let child: Bun.Subprocess<"ignore", "pipe", "pipe"> | undefined;
     const cert = await Bun.file(join(import.meta.dir, "fixtures/tls-cert.pem")).text();
@@ -40,14 +46,39 @@ test.each([false, true])(
         const script = join(root, "opener.ts");
         await writeFile(
           script,
-          `await Bun.write(${JSON.stringify(join(root, "browser-url"))}, process.argv.at(-1)!);`
+          `await Bun.write(${JSON.stringify(join(root, "browser-url"))}, process.argv.at(-1)!);
+          ${mode === "fail" ? "console.error(process.argv.at(-1)); process.exit(23);" : ""}
+          ${
+            mode === "held"
+              ? `
+            await Bun.write(${JSON.stringify(join(root, "opener-pid"))},String(process.pid));
+            while (!(await Bun.file(${JSON.stringify(join(root, "release-opener"))}).exists())) await Bun.sleep(20);
+            await Bun.write(${JSON.stringify(join(root, "opener-closed"))},"closed");
+          `
+              : ""
+          }`
         );
         const built = await Bun.build({ entrypoints: [script], compile: { outfile: opener } });
         if (!built.success) {
           throw new AggregateError(built.logs, "Browser fixture compilation failed");
         }
       } else {
-        await writeFile(opener, `#!/bin/sh\nprintf '%s' "$1" > '${join(root, "browser-url")}'\n`);
+        await writeFile(
+          opener,
+          `#!/bin/sh
+          printf '%s' "$1" > '${join(root, "browser-url")}'
+          ${mode === "fail" ? 'printf "%s" "$1" >&2; exit 23' : ""}
+          ${
+            mode === "held"
+              ? `
+            printf '%s' "$$" > '${join(root, "opener-pid")}'
+            while [ ! -f '${join(root, "release-opener")}' ]; do sleep 0.02; done
+            printf closed > '${join(root, "opener-closed")}'
+          `
+              : ""
+          }
+        `
+        );
         await chmod(opener, 0o755);
       }
       await writeFile(
@@ -98,19 +129,46 @@ test.each([false, true])(
         timeout: 12_000,
         killSignal: "SIGKILL",
       });
+      if (mode === "fail") {
+        const [code, output, errors] = await Promise.all([
+          child.exited,
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+        ]);
+        const url = await Bun.file(join(root, "browser-url")).text();
+        expect(code).toBe(1);
+        expect(errors).toContain(
+          "Could not open the web development owner session in the system browser."
+        );
+        expect(errors).not.toContain(new URL(url).pathname);
+        expect(output).not.toContain(new URL(url).pathname);
+        expect(output).not.toContain("Web development:");
+        return;
+      }
       const reader = child.stdout.getReader();
       let output = "";
       let origin: string | undefined;
-      while (!origin) {
-        // biome-ignore lint/performance/noAwaitInLoops: Observe readiness from the real CLI.
-        const chunk = await reader.read();
-        if (chunk.done) {
-          throw new Error(await new Response(child.stderr).text());
+      // Cancel through the real worker before the existing subprocess deadline on failure.
+      const startup = setTimeout(() => child?.send("stop"), 8000);
+      try {
+        while (!origin) {
+          // biome-ignore lint/performance/noAwaitInLoops: Observe readiness from the real CLI.
+          const chunk = await reader.read();
+          if (chunk.done) {
+            throw new Error(await new Response(child.stderr).text());
+          }
+          output += new TextDecoder().decode(chunk.value);
+          origin = output.match(ORIGIN)?.[1];
         }
-        output += new TextDecoder().decode(chunk.value);
-        origin = output.match(ORIGIN)?.[1];
+      } finally {
+        clearTimeout(startup);
+        reader.releaseLock();
       }
-      reader.releaseLock();
+      if (mode === "held") {
+        const pid = Number(await Bun.file(join(root, "opener-pid")).text());
+        expect(() => process.kill(pid, 0)).not.toThrow();
+        expect(await Bun.file(join(root, "opener-closed")).exists()).toBe(false);
+      }
       expect((await request(`${origin}/api/session`)).status).toBe(403);
       for (const cookie of ["", "furin_web_dev=invalid"]) {
         // biome-ignore lint/performance/noAwaitInLoops: Exercise application-owned remote authentication.
@@ -196,6 +254,11 @@ test.each([false, true])(
       const errors = await new Response(child.stderr).text();
       expect(await child.exited, errors).toBe(0);
       expect(errors).not.toContain(new URL(url).pathname);
+      if (mode === "held") {
+        const pid = Number(await Bun.file(join(root, "opener-pid")).text());
+        expect(() => process.kill(pid, 0)).not.toThrow();
+        expect(await Bun.file(join(root, "opener-closed")).exists()).toBe(false);
+      }
       expect(
         await request(url).then(
           () => false,
@@ -203,6 +266,24 @@ test.each([false, true])(
         )
       ).toBe(true);
     } finally {
+      if (mode === "held") {
+        await writeFile(join(root, "release-opener"), "release");
+        if (await Bun.file(join(root, "opener-pid")).exists()) {
+          const pid = Number(await Bun.file(join(root, "opener-pid")).text());
+          await waitForFixture(async () => {
+            if (!(await Bun.file(join(root, "opener-closed")).exists())) {
+              return false;
+            }
+            try {
+              process.kill(pid, 0);
+              return false;
+            } catch {
+              return true;
+            }
+          }, Boolean);
+          expect(await Bun.file(join(root, "opener-closed")).exists()).toBe(true);
+        }
+      }
       if (child?.exitCode === null) {
         child.kill("SIGKILL");
       }

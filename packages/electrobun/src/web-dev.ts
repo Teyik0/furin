@@ -103,9 +103,22 @@ export function createWebDevelopment() {
         command = ["rundll32", "url.dll,FileProtocolHandler", destination];
       }
       try {
-        const browser = Bun.spawn(command, { stdout: "ignore", stderr: "ignore" });
-        if ((await browser.exited) !== 0) {
-          throw new Error("Browser launch failed");
+        const browser = Bun.spawn(command, {
+          detached: true,
+          stdin: "ignore",
+          stdout: "ignore",
+          stderr: "ignore",
+        });
+        browser.unref();
+        // An opener may live as long as the browser; only wait for early launch failures.
+        const grace = Promise.withResolvers<number>();
+        const timer = setTimeout(() => grace.resolve(0), 1000);
+        try {
+          if ((await Promise.race([browser.exited, grace.promise])) !== 0) {
+            throw new Error("Browser launch failed");
+          }
+        } finally {
+          clearTimeout(timer);
         }
       } catch {
         // biome-ignore lint/style/useErrorCause: OS spawn errors can expose the private bootstrap token.
