@@ -54,7 +54,7 @@
   "scripts": {
     "build": "bun build.ts",
     "fix": "ultracite fix",
-    "test": "bun test tests",
+    "test": "bun test --isolate tests",
     "tscheck": "bun prepare-sdk.ts && tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
