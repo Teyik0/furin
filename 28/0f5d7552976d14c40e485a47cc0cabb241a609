@@ -1,0 +1,37 @@
+packages/electrobun/tests/standard-host.test.ts
+  s_dc893a22364433::t_15b8a5bfc0a0af 1-2,16-17,19-20,22,27-30,294,296-299
+  s_dc893a22364433::t_8bd49c86837224 21,23-25
+  s_dc893a22364433::t_fa0cb83b526264 18,26,31,295,300
+packages/electrobun/tests/scan-race.test.ts
+  s_dc893a22364433::t_8bd49c86837224 98-100
+packages/core/src/server/dev-page-plugin.ts
+  s_dc893a22364433::t_b2191035c806d3 84,186,189-193,195-196
+  s_dc893a22364433::t_be9d9fc4697ab7 56,187-188,194,197-201
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_dc893a22364433::t_8bd49c86837224 2211,2213-2214
+  s_dc893a22364433::t_8eb17b57ea4f69 2200-2210,2212,2215-2228
+.github/workflows/ci.yaml
+  s_dc893a22364433::t_6e1a30c99f1093 251,256
+examples/electrobun-todo/src/db/index.ts
+  s_dc893a22364433::t_2a2e85b62ad0c3 10-13
+packages/core/tests/dev/hmr/dev-css-resource.integration.test.ts
+  s_dc893a22364433::t_ef76ca2cd239d4 1-89
+packages/core/tests/dev/hmr/dev-page-plugin.test.ts
+  s_dc893a22364433::t_f40b5e82107503 469-482
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "280f5d7552976d14c40e485a47cc0cabb241a609",
+  "prompts": {},
+  "sessions": {
+    "s_dc893a22364433": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17942-db12-7e23-a256-a854da3d1374",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
