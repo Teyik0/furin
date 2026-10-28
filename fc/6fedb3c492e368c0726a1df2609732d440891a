@@ -1,0 +1,39 @@
+packages/electrobun/tests/external-sdk.integration.test.ts
+  s_9f89aecae32d53::t_0c8341c7798b15 45,115,163
+packages/electrobun/tests/fixtures/sdk.ts
+  s_9f89aecae32d53::t_0c8341c7798b15 20
+packages/electrobun/native-host.md
+  s_9f89aecae32d53::t_0c8341c7798b15 3,41
+packages/electrobun/package.json
+  s_9f89aecae32d53::t_0c8341c7798b15 79
+packages/electrobun/tests/prepare.test.ts
+  s_9f89aecae32d53::t_d587b81a232cab 32-33
+packages/electrobun/prepare-sdk.ts
+  s_9f89aecae32d53::t_0c8341c7798b15 11,30
+packages/electrobun/src/cli.ts
+  s_9f89aecae32d53::t_0c8341c7798b15 113
+packages/electrobun/README.md
+  s_9f89aecae32d53::t_0c8341c7798b15 3,186
+packages/electrobun/src/prepare.ts
+  s_9f89aecae32d53::t_0c8341c7798b15 106
+packages/electrobun/src/sdk-resolution.ts
+  s_9f89aecae32d53::t_0c8341c7798b15 30
+bun.lock
+  s_9f89aecae32d53::t_54397411a349a0 196,1201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fc6fedb3c492e368c0726a1df2609732d440891a",
+  "prompts": {},
+  "sessions": {
+    "s_9f89aecae32d53": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18189-ed3b-7900-a033-63a95b911181",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
