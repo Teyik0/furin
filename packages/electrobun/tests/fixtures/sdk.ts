@@ -17,7 +17,7 @@ export async function installSdk(
     join(directory, "package.json"),
     JSON.stringify({
       name: "electrobun",
-      version: "2.0.2",
+      version: "2.0.5",
       exports: {
         "./package.json": "./package.json",
         "./main": "./main.ts",

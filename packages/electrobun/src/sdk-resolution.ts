@@ -27,7 +27,7 @@ export async function prepareSdkResolution(
       return [subpath === "." ? "electrobun" : `electrobun/${subpath.slice(2)}`, path];
     })
   );
-  // TypeScript 7 removed baseUrl, which Electrobun 2.0.2's tsconfig still sets.
+  // TypeScript 7 removed baseUrl, which Electrobun 2.0.5's tsconfig still sets.
   // Derive only exact paths from the SDK export map, preserving application options.
   await Bun.write(
     join(generated, "tsconfig.json"),

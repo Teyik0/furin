@@ -1,6 +1,6 @@
 # @teyik0/furin-electrobun
 
-Furin desktop packaging with Electrobun 2.0.2 and one Bun main process. Your React DOM pages, SSR, API, Eden client and sync code serve both web and desktop.
+Furin desktop packaging with Electrobun 2.0.5 and one Bun main process. Your React DOM pages, SSR, API, Eden client and sync code serve both web and desktop.
 
 ## Setup
 
@@ -183,7 +183,7 @@ bunx --bun furin-electrobun prepare
 }
 ```
 
-Preserve your existing compiler options instead of copying the example's second extends path. `prepare`, `dev` and desktop builds regenerate exact aliases from the SDK export map; rerun preparation after relocating a checkout. Published Furin declarations reference original `electrobun/main` types, never a build machine's absolute paths. No GUI is needed to prepare/typecheck. First preparation needs network access; later runs reuse Hutch's cache. The optional SDK dependency is pinned to 2.0.2; install it explicitly if optional dependencies were omitted. All tools run through Bun.
+Preserve your existing compiler options instead of copying the example's second extends path. `prepare`, `dev` and desktop builds regenerate exact aliases from the SDK export map; rerun preparation after relocating a checkout. Published Furin declarations reference original `electrobun/main` types, never a build machine's absolute paths. No GUI is needed to prepare/typecheck. First preparation needs network access; later runs reuse Hutch's cache. The optional SDK dependency is pinned to 2.0.5; install it explicitly with `bun add -d electrobun@2.0.5` if optional dependencies were omitted. Generated Hutch configuration also pins 2.0.5, whose bundled Bun is 1.4.4. All tools run through Bun.
 
 ## Development and production
 

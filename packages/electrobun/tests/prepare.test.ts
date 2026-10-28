@@ -29,6 +29,8 @@ test("desktop build keeps the whole Furin artifact outside the SDK main bundle",
       "native-open.js": "bun/native-open.js",
       "native-restart.js": "bun/native-restart.js",
     });
+    const hutch = await import(join(generated, "hutch.config.ts"));
+    expect(hutch.default.electrobun.version).toBe("2.0.5");
     const main = await readFile(join(generated, "main.ts"), "utf8");
     expect(main).toContain("runStandardDesktopHost");
     expect(main).toContain('from "./.hutch/devkit/api/sdks/main/index.ts"');

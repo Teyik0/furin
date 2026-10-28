@@ -8,7 +8,7 @@ await mkdir(root, { recursive: true });
 await Bun.write(join(root, "package.json"), '{"private":true,"type":"module"}\n');
 await Bun.write(
   join(root, "hutch.config.ts"),
-  'export default { electrobun: { version: "2.0.2" } };\n'
+  'export default { electrobun: { version: "2.0.5" } };\n'
 );
 await Bun.write(
   join(root, "electrobun.config.ts"),
@@ -27,7 +27,7 @@ if ((await child.exited) !== 0) {
   throw new Error("Electrobun devkit preparation failed.");
 }
 await prepareSdkResolution(root);
-// SDK 2.0.2's inferred default export exposes a private Session class during
+// SDK 2.0.5's inferred default export exposes a private Session class during
 // declaration emit (TS4094). Explicit typeof members preserve its original types.
 const main = Bun.file(join(root, ".hutch/devkit/api/sdks/main/index.ts"));
 const source = await main.text();

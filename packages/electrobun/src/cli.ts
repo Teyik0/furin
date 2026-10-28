@@ -110,7 +110,7 @@ function sdkBootstrap(root: string): string {
       // The optional SDK can be resolved from either the consumer or this package.
     }
   }
-  throw new Error("Install the optional desktop SDK with bun add -d electrobun@2.0.2.");
+  throw new Error("Install the optional desktop SDK with bun add -d electrobun@2.0.5.");
 }
 
 async function run(command: string[], cwd: string, env: NodeJS.ProcessEnv): Promise<void> {

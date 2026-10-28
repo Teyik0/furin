@@ -103,7 +103,7 @@ export async function prepareDesktop(
   await writeFile(join(generated, "package.json"), '{"private":true,"type":"module"}\n');
   await writeFile(
     join(generated, "hutch.config.ts"),
-    'export default { electrobun: { version: "2.0.2" } };\n'
+    'export default { electrobun: { version: "2.0.5" } };\n'
   );
   const platform = { bundleCEF: false, bundleWGPU: false, defaultRenderer: "native" };
   const copy = Object.fromEntries(

@@ -1,6 +1,6 @@
 # Native host ownership
 
-The generated bootstrap imports Electrobun's canonical 2.0.2 devkit and starts the controller internally. The separately bundled Furin `app.js` remains inert until loaded. A native module selected by `desktop.build.bun.entrypoint` registers original SDK integrations; it does not launch the app. The principal window is declared exclusively in `.use(desktopApp({ window: { ... } }))` on the Elysia root.
+The generated bootstrap imports Electrobun's canonical 2.0.5 devkit and starts the controller internally. The separately bundled Furin `app.js` remains inert until loaded. A native module selected by `desktop.build.bun.entrypoint` registers original SDK integrations; it does not launch the app. The principal window is declared exclusively in `.use(desktopApp({ window: { ... } }))` on the Elysia root.
 
 The shared cross-bundle registry exposes one live controller through `getDesktopHost()` and the named `desktopContext` provider. Each request resolves the controller at execution time, so independent API modules can be imported before native installation. The provider does not register roots or native resources. The functional root plugin returns Elysia's inferred provider type and preserves route/Eden inference. No ambient context augmentation is used.
 
@@ -38,7 +38,7 @@ TLS windows receive a verified HttpOnly/Secure/SameSite cookie through the origi
 
 Compatible configuration derives from original SDK types. Furin owns the generated Bun entry, inert app artifact, helper destinations and runtime exit policy. CEF/WGPU default off; explicit per-platform opt-ins are preserved. CEF renderer selection requires that platform's CEF assets. Copy sources, view entrypoints, native entrypoints, scripts and icons resolve from the consuming project; output folders remain inside the generated SDK project. Required app/runtime assets and external native dependencies remain relocatable with the artifact.
 
-The npm package is a launcher. `furin-electrobun prepare` projects the pinned SDK and generates exact TypeScript aliases from its export map. Extend `.furin/electrobun/tsconfig.json`; rerun preparation after relocation. Published declarations use SDK specifiers and contain no machine-specific SDK path. Package development prepares its own pinned devkit and applies type-only annotations needed to emit SDK 2.0.2's inferred private Session types; consumer native code remains the original SDK.
+The npm package is a launcher. `furin-electrobun prepare` projects the pinned SDK and generates exact TypeScript aliases from its export map. Extend `.furin/electrobun/tsconfig.json`; rerun preparation after relocation. Published declarations use SDK specifiers and contain no machine-specific SDK path. Package development prepares its own pinned devkit and applies type-only annotations needed to emit SDK 2.0.5's inferred private Session types; consumer native code remains the original SDK.
 
 The Bun preload activates only for the configured `--hot` server entry and delegates to the supervisor before that entry runs. Frontend edits retain the window through Bun HMR/Fast Refresh. Backend/native dependency changes trigger a full controlled process restart. Native modules are never hot-reloaded. Ordinary web mode, imports and tests do not initialize the SDK.
 
