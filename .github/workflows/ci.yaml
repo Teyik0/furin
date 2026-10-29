@@ -474,7 +474,7 @@ jobs:
           exit "$comparison_status"
 
       - name: Install benchmark tools
-        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
         with:
           tool: hyperfine,oha
 
