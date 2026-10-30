@@ -1,0 +1,14 @@
+packages/core/tests/rendering/rsc/rsc-client-references.test.ts
+  h_a2cbd1b0e3ae6e 919-921
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c3f45a22ef3b18c69b3866fae06ea87532272cce",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
