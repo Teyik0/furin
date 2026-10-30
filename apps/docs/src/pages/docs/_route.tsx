@@ -2,9 +2,10 @@ import { defineRoute } from "@teyik0/furin";
 import { Link } from "@teyik0/furin/link";
 import { DocsMobileNav } from "@/components/docs-mobile-nav";
 import { DocsPager } from "@/components/docs-pager";
+import { DocsRootToggle } from "@/components/docs-root-toggle";
 import { DocsToc } from "@/components/docs-toc";
 import { GiscusComments } from "@/components/giscus-comments";
-import { DOCS_NAV } from "@/lib/docs";
+import { getDocsSidebarSections } from "@/lib/docs";
 
 export const route = defineRoute("/docs/_route")
   .config({ mode: "ssg" })
@@ -19,8 +20,9 @@ export const route = defineRoute("/docs/_route")
             viewport, full height under the fixed header, with its own column
             and border. */}
         <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] shrink-0 self-start overflow-y-auto px-6 pt-8 pb-10 [scrollbar-width:none] lg:block lg:w-[248px] [&::-webkit-scrollbar]:hidden">
-          <nav className="space-y-6">
-            {DOCS_NAV.map((section) => (
+          <DocsRootToggle pathname={pathname} />
+          <nav className="mt-6 space-y-6">
+            {getDocsSidebarSections(pathname).map((section) => (
               <div key={section.title}>
                 <p className="mb-2 font-medium text-[11px] text-foreground uppercase tracking-[0.2em]">
                   {section.title}

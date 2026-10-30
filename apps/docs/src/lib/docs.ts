@@ -278,6 +278,31 @@ export const DOCS_NAV: DocNavSection[] = [
   },
 ];
 
+export const DESKTOP_SECTION_TITLE = "Desktop (Electrobun)";
+
+/** Sidebar areas, mirrored by the root toggle in the sidebar. */
+export const DOCS_AREAS = [
+  {
+    description: "The React meta-framework on Bun and Elysia.",
+    href: "/docs",
+    title: "Furin",
+  },
+  {
+    description: "Native system-WebView desktop packaging.",
+    href: "/docs/desktop",
+    title: DESKTOP_SECTION_TITLE,
+  },
+] as const;
+
+/**
+ * Sections visible in the sidebar for a pathname: the Desktop (Electrobun)
+ * pages live behind the root toggle, like fumadocs documentation areas.
+ */
+export function getDocsSidebarSections(pathname: string): DocNavSection[] {
+  const desktopArea = pathname.startsWith("/docs/desktop");
+  return DOCS_NAV.filter((section) => (section.title === DESKTOP_SECTION_TITLE) === desktopArea);
+}
+
 export const DOCS_CARDS = DOCS_NAV.flatMap((section) => section.items);
 
 export function getDocSection(href: string): DocNavSection | undefined {
