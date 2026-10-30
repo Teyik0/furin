@@ -70,6 +70,30 @@ declare module "@teyik0/furin/routes" {
       parent: typeof import("./src/pages/docs/_route").route;
       pathParams: {};
     };
+    "/docs/desktop": {
+      kind: "page";
+      pattern: "/docs/desktop";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/desktop/architecture": {
+      kind: "page";
+      pattern: "/docs/desktop/architecture";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/desktop/client": {
+      kind: "page";
+      pattern: "/docs/desktop/client";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/desktop/migration": {
+      kind: "page";
+      pattern: "/docs/desktop/migration";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
     "/docs/dev-hmr": {
       kind: "page";
       pattern: "/docs/dev-hmr";
@@ -157,6 +181,10 @@ declare module "@teyik0/furin/routes" {
     "/docs/data-loading": typeof import("./src/pages/docs/data-loading").route;
     "/docs/defer": typeof import("./src/pages/docs/defer").route;
     "/docs/deployment": typeof import("./src/pages/docs/deployment").route;
+    "/docs/desktop": typeof import("./src/pages/docs/desktop/index").route;
+    "/docs/desktop/architecture": typeof import("./src/pages/docs/desktop/architecture").route;
+    "/docs/desktop/client": typeof import("./src/pages/docs/desktop/client").route;
+    "/docs/desktop/migration": typeof import("./src/pages/docs/desktop/migration").route;
     "/docs/dev-hmr": typeof import("./src/pages/docs/dev-hmr").route;
     "/docs/error-handling": typeof import("./src/pages/docs/error-handling").route;
     "/docs/getting-started": typeof import("./src/pages/docs/getting-started").route;

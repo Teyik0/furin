@@ -30,6 +30,9 @@ Vercel deployments reject an explicit `pageCache` during application initializat
 
 Browsers revalidate cached HTML, while a shared cache may use `s-maxage`. When `If-None-Match` matches a current SSG or ISR entry, Furin returns `304` without the body.
 
+> [!WARNING]
+> In a multi-replica deployment, every replica must share one `redisPageCache()` adapter and one stable namespace. A replica with a local-only cache can repopulate the CDN with stale HTML after your purger cleared it.
+
 SSG and ISR responses also expose `Cache-Tag` with the concrete resolved path. This is metadata for an upstream cache; it does not make an arbitrary CDN purge itself.
 
 ## ISR Lifecycle

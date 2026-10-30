@@ -16,7 +16,7 @@
     "prepare": "lefthook install",
     "preview:publish": "pkg-pr-new publish --bun --no-compact --packageManager=bun ./packages/core ./packages/electrobun ./apps/scaffolder",
     "start": "bun run --parallel --filter '*' --if-present start",
-    "test": "bun run test:release && bun run --parallel --filter '*' test",
+    "test": "bun run test:release && bun run --sequential --filter '*' test",
     "test:dev": "bun run --parallel --filter '*' test:dev",
     "test:release": "bun test scripts/release-target.test.ts",
     "tscheck": "tsc --noEmit -p scripts/tsconfig.release.json && bun run --parallel --filter '*' tscheck"
@@ -42,8 +42,8 @@
     "bun": ">=1.4.0"
   },
   "catalog": {
-    "elysia": "2.0.0-beta.32",
-    "evlog": "^2.33.0",
+    "elysia": "2.0.0-rc.1",
+    "evlog": "^2.33.1",
     "exact-mirror": "1.2.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

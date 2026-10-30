@@ -1,5 +1,6 @@
 import { compile } from "@mdx-js/mdx";
 import remarkGfm from "remark-gfm";
+import { rehypeCallouts } from "./rehype-callouts.ts";
 import rehypeHighlight from "./rehype-highlight.ts";
 
 const MDX_FILTER = /\.mdx$/;
@@ -12,7 +13,7 @@ const mdxPlugin: Bun.BunPlugin = {
       const compiled = await compile(source, {
         development: false,
         outputFormat: "program",
-        rehypePlugins: [rehypeHighlight],
+        rehypePlugins: [rehypeCallouts, rehypeHighlight],
         remarkPlugins: [remarkGfm],
       });
       return {

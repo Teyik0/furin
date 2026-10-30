@@ -136,4 +136,7 @@ bun run start
 
 The scaffold's `dev` script starts `src/server.ts` with Bun hot reloading. If you add, remove, or move a page, the route manifest and `furin-env.d.ts` are refreshed automatically.
 
+> [!TIP]
+> `bunx --bun furin dev` is the CLI companion of that script. It resolves the configured entry, honors its listener, and can start the [native desktop app](/docs/desktop) in desktop projects. See the [CLI Reference](/docs/cli#furin-dev).
+
 Next, read [File-Based Routing](/docs/routing), then [Data Loading](/docs/data-loading).

@@ -218,6 +218,9 @@ A page still declares every dynamic segment in its own `params` schema, because 
 
 You don't type the id of a new file: create the file empty and the development server writes a starter route with its id. Furin never rewrites a file that has content. After you move or rename a route file, TypeScript reports the stale id once `furin-env.d.ts` is regenerated, and the [route config checks](#route-config-checks) report it with the call to write:
 
+> [!CAUTION]
+> Do not edit `furin-env.d.ts` and exclude it from formatters such as Biome or Prettier: Furin rewrites it whenever routes change.
+
 ```text
 [furin] src/pages/posts/index.tsx:3:34: defineRoute("/blog") does not match this file. Its id is "/posts":
   defineRoute("/posts")

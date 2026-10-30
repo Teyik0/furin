@@ -224,6 +224,47 @@ export const DOCS_NAV: DocNavSection[] = [
   {
     items: [
       {
+        description: "Ship the same React app to webview, browser, and system windows.",
+        githubPath: "apps/docs/src/content/docs/desktop.mdx",
+        href: "/docs/desktop",
+        label: "Desktop Overview",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/docs/desktop.mdx",
+        title: "Desktop (Electrobun)",
+      },
+      {
+        description: "Native host startup, sessions, window management, and packaging.",
+        githubPath: "apps/docs/src/content/docs/desktop-architecture.mdx",
+        href: "/docs/desktop/architecture",
+        label: "Desktop Architecture",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/docs/desktop-architecture.mdx",
+        title: "Desktop Architecture",
+      },
+      {
+        description: "useDesktop() in pages, server-side desktop context, and native modules.",
+        githubPath: "apps/docs/src/content/docs/desktop-client.mdx",
+        href: "/docs/desktop/client",
+        label: "Desktop Client & Server Context",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/docs/desktop-client.mdx",
+        title: "Desktop Client & Server Context",
+      },
+      {
+        description: "Move a tofu-style standalone Electrobun app to Furin Desktop.",
+        githubPath: "apps/docs/src/content/docs/desktop-migration.mdx",
+        href: "/docs/desktop/migration",
+        label: "Migrating To Furin Desktop",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/docs/desktop-migration.mdx",
+        title: "Migrating To Furin Desktop",
+      },
+    ],
+    title: "Desktop (Electrobun)",
+  },
+  {
+    items: [
+      {
         description: "How Bun HMR and Furin SSR stay aligned in development.",
         githubPath: "apps/docs/src/content/docs/dev-hmr.mdx",
         href: "/docs/dev-hmr",
@@ -237,7 +278,36 @@ export const DOCS_NAV: DocNavSection[] = [
   },
 ];
 
+export const DESKTOP_SECTION_TITLE = "Desktop (Electrobun)";
+
+/** Sidebar areas, mirrored by the root toggle in the sidebar. */
+export const DOCS_AREAS = [
+  {
+    description: "The React meta-framework on Bun and Elysia.",
+    href: "/docs",
+    title: "Furin",
+  },
+  {
+    description: "Native system-WebView desktop packaging.",
+    href: "/docs/desktop",
+    title: DESKTOP_SECTION_TITLE,
+  },
+] as const;
+
+/**
+ * Sections visible in the sidebar for a pathname: the Desktop (Electrobun)
+ * pages live behind the root toggle, like fumadocs documentation areas.
+ */
+export function getDocsSidebarSections(pathname: string): DocNavSection[] {
+  const desktopArea = pathname.startsWith("/docs/desktop");
+  return DOCS_NAV.filter((section) => (section.title === DESKTOP_SECTION_TITLE) === desktopArea);
+}
+
 export const DOCS_CARDS = DOCS_NAV.flatMap((section) => section.items);
+
+export function getDocSection(href: string): DocNavSection | undefined {
+  return DOCS_NAV.find((section) => section.items.some((item) => item.href === href));
+}
 
 export const DOCS_BY_PATH = Object.fromEntries(DOCS_CARDS.map((doc) => [doc.href, doc])) as Record<
   keyof RouteManifest,
