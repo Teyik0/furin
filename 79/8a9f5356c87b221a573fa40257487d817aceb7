@@ -1,0 +1,45 @@
+apps/docs/src/content/docs/routing.mdx
+  s_21e34e05280d51::t_9e3406a12936d4 221-223
+apps/docs/src/content/docs/cli.mdx
+  s_21e34e05280d51::t_e5db7e16b6ec0b 3,7,13-36
+  s_21e34e05280d51::t_be69a216a6ee59 51-52
+  s_21e34e05280d51::t_693b264de45310 131,137
+apps/docs/src/content/docs/api-routes.mdx
+  s_21e34e05280d51::t_1b6200a57a3c82 160
+  s_21e34e05280d51::t_0c0b80619c5074 95,97-98
+  s_21e34e05280d51::t_17eadb4326b951 44,147,164
+  s_21e34e05280d51::t_8af8755a6d7212 96
+apps/docs/src/content/docs/caching.mdx
+  s_21e34e05280d51::t_9f30171869d220 33-35
+apps/docs/src/content/docs/comparison.mdx
+  s_21e34e05280d51::t_88d4333ad3ab15 5
+apps/docs/src/content/docs/sync.mdx
+  s_21e34e05280d51::t_878b9ab60b3d67 649
+apps/docs/src/content/docs/introduction.mdx
+  s_21e34e05280d51::t_093d832a5d713a 41-50,53-55,62
+apps/docs/src/content/docs/getting-started.mdx
+  s_21e34e05280d51::t_06cd5a8cc468c3 139-141
+apps/docs/src/content/docs/deployment.mdx
+  s_21e34e05280d51::t_2afa0095d36cac 18,20,24,27,32-34
+  s_21e34e05280d51::t_f7df745dbb3a1d 35
+  s_21e34e05280d51::t_701c3d2398ffb5 40
+  s_21e34e05280d51::t_3afdd0c56304d3 42
+apps/docs/src/content/docs/defer.mdx
+  s_21e34e05280d51::t_1f5fc0ffc578a9 5-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "798a9f5356c87b221a573fa40257487d817aceb7",
+  "prompts": {},
+  "sessions": {
+    "s_21e34e05280d51": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e7378f308ffe01k7ajENxaOB76",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
