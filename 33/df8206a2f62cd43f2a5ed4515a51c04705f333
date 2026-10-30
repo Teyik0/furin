@@ -1,0 +1,19 @@
+package.json
+  s_95080cf432b809::t_a02787a015e30d 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "33df8206a2f62cd43f2a5ed4515a51c04705f333",
+  "prompts": {},
+  "sessions": {
+    "s_95080cf432b809": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18cdb-ccfe-7271-8c89-d0a875d9d9ef",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
