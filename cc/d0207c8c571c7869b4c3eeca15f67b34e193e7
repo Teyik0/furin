@@ -1,0 +1,21 @@
+apps/docs/src/lib/docs.ts
+  s_77dd80860cd7b2::t_3792313b1e5810 288
+apps/docs/tests/docs-sidebar.test.tsx
+  s_77dd80860cd7b2::t_1f14e3152068d2 1-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ccd0207c8c571c7869b4c3eeca15f67b34e193e7",
+  "prompts": {},
+  "sessions": {
+    "s_77dd80860cd7b2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18cdb-ae59-7b63-8c97-2e4586fb2d0f",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
