@@ -1,0 +1,25 @@
+apps/docs/src/components/docs-root-toggle.tsx
+  s_21e34e05280d51::t_50dee24b3f87ac 45
+  s_21e34e05280d51::t_471709e08af330 1-44,46-69
+apps/docs/src/lib/docs.ts
+  s_21e34e05280d51::t_63d1c224ec3546 281-305
+apps/docs/src/pages/docs/_route.tsx
+  s_21e34e05280d51::t_da7bd5603ea6d7 5,8
+  s_21e34e05280d51::t_378f99711b3c4c 23-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f7c16a4168a642b0017a789f3956fcffeb3357b9",
+  "prompts": {},
+  "sessions": {
+    "s_21e34e05280d51": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e7378f308ffe01k7ajENxaOB76",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
