@@ -64,7 +64,7 @@ const rehypeHighlight = () => (tree: HastNode) => {
 
     highlightedPre.properties = {
       ...highlightedPre.properties,
-      style: "margin:0;padding:1.25rem 1.5rem;font-size:0.875rem;line-height:1.7;overflow-x:auto",
+      style: "margin:0;padding:1.25rem 1.5rem;font-size:0.8125rem;line-height:1.7;overflow-x:auto",
     };
 
     const windowHeader = (titleNode: string | ReturnType<typeof h>) =>

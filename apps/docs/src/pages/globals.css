@@ -94,11 +94,23 @@
     @apply bg-background text-foreground;
   }
 
+  /* Typography is sized in em by the prose plugin, so shrinking the root
+     size densifies every element (headings, lists, tables) proportionally. */
+  .doc-content.prose {
+    font-size: 0.9375rem;
+    line-height: 1.65;
+  }
+
+  .doc-content h1 {
+    font-size: 1.825em;
+  }
+
   .doc-content :is(h2, h3) {
     scroll-margin-top: 6rem;
   }
 
   .doc-content h2 {
+    font-size: 1.425em;
     @apply mt-10 border-border border-t pt-8;
   }
 
