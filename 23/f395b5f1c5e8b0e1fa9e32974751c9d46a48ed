@@ -1,0 +1,19 @@
+packages/electrobun/tests/web-dev.test.ts
+  s_95080cf432b809::t_1d6c4e51f4bc93 291
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "23f395b5f1c5e8b0e1fa9e32974751c9d46a48ed",
+  "prompts": {},
+  "sessions": {
+    "s_95080cf432b809": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18cdb-ccfe-7271-8c89-d0a875d9d9ef",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
