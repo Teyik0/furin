@@ -288,7 +288,7 @@ test.each([
         child.kill("SIGKILL");
       }
       await child?.exited;
-      await rm(root, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     }
   },
   15_000
