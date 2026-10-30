@@ -1,0 +1,29 @@
+apps/docs/src/components/code-copy-bridge.tsx
+  s_95080cf432b809::t_a16fdd05f033cc 10,23,38-45,53
+  s_95080cf432b809::t_31c4d46a1f7398 54-56
+apps/docs/src/content/docs/desktop-client.mdx
+  s_95080cf432b809::t_a16fdd05f033cc 3
+apps/docs/src/content/docs/cli.mdx
+  s_95080cf432b809::t_a16fdd05f033cc 137
+apps/docs/tests/code-copy-bridge.test.tsx
+  s_95080cf432b809::t_d18cfd8bbf0fce 1-53
+  s_95080cf432b809::t_256a775281ad1f 54-76
+apps/docs/src/content/docs/desktop.mdx
+  s_95080cf432b809::t_a16fdd05f033cc 50,59,64-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8dfd4a1eef0f86a3eb705395e11b951a318abd51",
+  "prompts": {},
+  "sessions": {
+    "s_95080cf432b809": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18cdb-ccfe-7271-8c89-d0a875d9d9ef",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
