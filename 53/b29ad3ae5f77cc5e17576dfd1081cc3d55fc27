@@ -1,0 +1,25 @@
+apps/docs/src/lib/rehype-highlight.ts
+  s_21e34e05280d51::t_2d0056cba504f2 67
+apps/docs/src/pages/docs/_route.tsx
+  s_21e34e05280d51::t_e997c2ef283cfe 63
+  s_21e34e05280d51::t_e49aebda1371e1 25,40,44
+apps/docs/src/pages/globals.css
+  s_21e34e05280d51::t_be3c92cb67eaf0 97-107
+  s_21e34e05280d51::t_e006d6b391826d 113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "53b29ad3ae5f77cc5e17576dfd1081cc3d55fc27",
+  "prompts": {},
+  "sessions": {
+    "s_21e34e05280d51": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e7378f308ffe01k7ajENxaOB76",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
