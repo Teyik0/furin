@@ -1,0 +1,52 @@
+apps/docs/src/lib/docs.ts
+  s_21e34e05280d51::t_99c6dbede1acf6 226-264
+  s_ca6cc7b4702a9a::t_f783f9a69b6fba 224-225
+apps/docs/src/content/docs/desktop-architecture.mdx
+  s_21e34e05280d51::t_15ef0aae10df53 103
+  s_21e34e05280d51::t_40fad11d8f744a 1-89,91-94,96-102
+  s_21e34e05280d51::t_45ca03483d85d8 90,95
+apps/docs/src/content/docs/desktop-client.mdx
+  s_21e34e05280d51::t_433e762749c85c 1-145
+apps/docs/furin-env.d.ts
+  s_21e34e05280d51::t_c57a93fbbbbc63 73-78,80,82-84,86,88-90,92,94-96
+  s_21e34e05280d51::t_d4be95739417a7 79,81,85,87,91,93,184-187
+apps/docs/tests/docs-pages.test.ts
+  s_21e34e05280d51::t_8a6e8c80a5e262 2
+  s_21e34e05280d51::t_c30cb666e8bf48 135-146,148-149
+apps/docs/src/content/docs/desktop-migration.mdx
+  s_21e34e05280d51::t_29504616c8cdee 1-95
+apps/docs/src/content/docs/desktop.mdx
+  s_21e34e05280d51::t_395cac44ca3a29 1-151
+apps/docs/src/pages/docs/desktop/architecture.tsx
+  s_21e34e05280d51::t_3cf949f45b10e7 1-27
+apps/docs/src/pages/docs/desktop/client.tsx
+  s_21e34e05280d51::t_04ad371eac6813 1-25
+apps/docs/src/pages/docs/desktop/index.tsx
+  s_21e34e05280d51::t_78387980c740b8 1-25
+apps/docs/src/pages/docs/desktop/migration.tsx
+  s_21e34e05280d51::t_3ac19cbbb269ea 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d320630ac71865ec1048987619c2a696cf1e48c3",
+  "prompts": {},
+  "sessions": {
+    "s_21e34e05280d51": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e7378f308ffe01k7ajENxaOB76",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_ca6cc7b4702a9a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e739a21efffeK5rtii3U1boJp9",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
