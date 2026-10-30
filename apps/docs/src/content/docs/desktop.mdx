@@ -47,7 +47,7 @@ bunx --bun @teyik0/furin-electrobun init
 preload = ["@teyik0/furin-electrobun/preload"]
 ```
 
-The generated config looks like this:
+For a package named `relay`, the generated config looks like this:
 
 ```ts
 // furin.config.ts
@@ -56,13 +56,20 @@ import { defineDesktopConfig } from "@teyik0/furin-electrobun";
 
 export default defineConfig({
   desktop: defineDesktopConfig({
-    app: { name: "Relay", identifier: "local.furin.relay" },
-    build: { mainProcess: "bun", bun: { entrypoint: "src/desktop.ts" } },
+    app: { name: "relay", identifier: "local.furin.relay" },
   }),
 });
 ```
 
-`app.identifier` must be reverse-domain style; `app.version` defaults to the consuming package version. `mainProcess` must stay `"bun"` — Furin's in-process backend is the main process; the generated host owns the Electrobun entry.
+`app.identifier` must be reverse-domain style; `app.version` defaults to the consuming package version.
+
+For native integrations such as application menus, first create `src/desktop.ts` as shown in [Native Modules](/docs/desktop/client#native-modules), then add this optional setting inside `defineDesktopConfig`:
+
+```ts
+build: { mainProcess: "bun", bun: { entrypoint: "src/desktop.ts" } },
+```
+
+`mainProcess` must stay `"bun"` — Furin's in-process backend is the main process; the generated host owns the Electrobun entry.
 
 ## Listener Configuration
 

@@ -7,7 +7,7 @@ import { useEffect } from "react";
  */
 export function CodeCopyBridge() {
   useEffect(() => {
-    let timer: number | undefined;
+    const timers = new Map<HTMLElement, number>();
 
     function findCodeText(button: HTMLElement): string | null {
       const container = button.closest(".not-prose");
@@ -20,7 +20,7 @@ export function CodeCopyBridge() {
 
     function onClick(event: MouseEvent): void {
       const button =
-        event.target instanceof HTMLElement
+        event.target instanceof Element
           ? event.target.closest<HTMLElement>("button[data-code-copy]")
           : null;
       if (button === null || button.dataset.copied !== undefined) {
@@ -35,8 +35,14 @@ export function CodeCopyBridge() {
         .writeText(text)
         .then(() => {
           button.dataset.copied = "";
-          window.clearTimeout(timer);
-          timer = window.setTimeout(() => delete button.dataset.copied, 1500);
+          window.clearTimeout(timers.get(button));
+          timers.set(
+            button,
+            window.setTimeout(() => {
+              delete button.dataset.copied;
+              timers.delete(button);
+            }, 1500)
+          );
         })
         .catch(() => undefined);
     }
@@ -44,7 +50,10 @@ export function CodeCopyBridge() {
     document.addEventListener("click", onClick);
     return () => {
       document.removeEventListener("click", onClick);
-      window.clearTimeout(timer);
+      for (const [button, timer] of timers) {
+        window.clearTimeout(timer);
+        delete button.dataset.copied;
+      }
     };
   }, []);
 

@@ -1,6 +1,6 @@
 # Desktop Client & Server Context
 
-Furin Desktop keeps three integration points in one shape: the React `useDesktop()` hook in pages, the `desktop` context property on the Elysia server, and `getDesktopHost()` in native modules. All three expose the same controller object; only the environments differ.
+Furin Desktop provides separate client and host APIs. The React `useDesktop()` hook returns a `DesktopClient` with `status` and `browser.open`, communicating with the host through the desktop bridge. The Elysia `desktop` context and native `getDesktopHost()` expose the host controller, including window and lifecycle methods; those methods are not available from `useDesktop()`.
 
 ## React Page State: `useDesktop()`
 
