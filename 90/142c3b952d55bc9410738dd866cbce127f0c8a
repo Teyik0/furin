@@ -1,0 +1,40 @@
+apps/scaffolder/src/generated/package-catalog.json
+  s_ca6cc7b4702a9a::t_c1e0ef79276c44 6-7
+packages/core/package.json
+  s_ca6cc7b4702a9a::t_d75577e227f1e6 179-180,188-189
+examples/task-manager/package.json
+  s_ca6cc7b4702a9a::t_37199be945291a 20,28
+packages/electrobun/package.json
+  s_ca6cc7b4702a9a::t_da6c3c7bc98238 66
+apps/scaffolder/package.json
+  s_ca6cc7b4702a9a::t_a118989916c36d 23
+package.json
+  s_ca6cc7b4702a9a::t_ada3d9c750dc71 45
+  s_ca6cc7b4702a9a::t_b3a2cb3e5dc685 46
+packages/core/tests/client/sync/security-regressions.test.ts
+  s_ca6cc7b4702a9a::t_3c7fc100eeb522 462
+.github/workflows/ci.yaml
+  s_ca6cc7b4702a9a::t_637e07badf1617 158,399,477,531
+.github/workflows/performance-comment.yaml
+  s_ca6cc7b4702a9a::t_3ae544dc86015d 65
+.github/workflows/vercel-benchmark.yaml
+  s_ca6cc7b4702a9a::t_abb0a7e69ccdfb 165,184
+bun.lock
+  s_ca6cc7b4702a9a::t_666f14d4025035 61,94,102,143-144,152-153,188,217-218,271,273,275,277,333,335,987,989,991,993,995,997,999,1001,1003,1005,1007,1009,1011,1199,1207,1271,1331,1663,1665,2025,2027,2057-2058
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "90142c3b952d55bc9410738dd866cbce127f0c8a",
+  "prompts": {},
+  "sessions": {
+    "s_ca6cc7b4702a9a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e739a21efffeK5rtii3U1boJp9",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
