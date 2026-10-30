@@ -1,0 +1,145 @@
+# Desktop Client & Server Context
+
+Furin Desktop keeps three integration points in one shape: the React `useDesktop()` hook in pages, the `desktop` context property on the Elysia server, and `getDesktopHost()` in native modules. All three expose the same controller object; only the environments differ.
+
+## React Page State: `useDesktop()`
+
+Import `useDesktop` from `@teyik0/furin-electrobun/client`. This entrypoint is safe to import and render during SSR — the browser bundle contains only React and the small event-bridge client, no server or native SDK imports. React is an optional peer, required only for this entrypoint.
+
+```ts
+import { useDesktop, type DesktopClient, type OpenBrowserResult } from "@teyik0/furin-electrobun/client";
+
+// status: "initializing" | "web" | "desktop" | "unavailable"
+const desktop = useDesktop();
+```
+
+| Status | Meaning |
+|---|---|
+| `initializing` | SSR/hydration snapshot; remains until the native handshake completes |
+| `web` | The current page has no Electrobun event bridge |
+| `desktop` | Its managed native window acknowledged the handshake |
+| `unavailable` | A present bridge did not acknowledge within five seconds, or stopped acknowledging an open request |
+
+Availability describes the **current interface**, not the backend location — a remote browser connected to a desktop backend stays `web`. No provider, server action, or application endpoint is required; state is per-interface handshake.
+
+## `desktop.browser.open`
+
+The single bridged capability is `browser.open(url)`: it asks the operating system to open a URL in its associated application (the system browser for HTTP(S)). The result is typed and only resolves after native acknowledgement:
+
+```
+OpenBrowserResult =
+  { ok: true }
+  | { ok: false; reason: "unavailable" | "invalid-url" | "open-failed" }
+```
+
+Semantics to keep in mind:
+
+- `ok: true` means `Utils.openExternal` accepted the request — not that a page loaded or a download succeeded.
+- Missing, closed, or unresponsive bridges return `unavailable`; native false results and exceptions return `open-failed`; requests time out after five seconds.
+- HTTP, HTTPS, and `mailto:` are allowed. `javascript:`, `data:`, `file:`, unknown custom schemes, malformed URLs, and URLs with embedded username/password are refused.
+- Relative URLs resolve against `window.location.href` **at call time**, and the host independently revalidates the absolute URL.
+- Same-origin application URLs are allowed for downloads; ordinary webview navigation keeps its existing app-origin restrictions.
+
+### Download Link With Desktop Behavior
+
+```tsx
+import { useState } from "react";
+import { useDesktop } from "@teyik0/furin-electrobun/client";
+
+export function DownloadLink({ url }: { url: string }) {
+  const desktop = useDesktop();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <>
+      <a
+        href={url}
+        onClick={(event) => {
+          if (desktop.status !== "desktop") {
+            return;
+          }
+          event.preventDefault();
+          setError(null);
+          void desktop.browser.open(url).then((result) => {
+            if (!result.ok) {
+              setError("Could not open the system browser.");
+            }
+          });
+        }}
+      >
+        Download the update
+      </a>
+      {error && <p role="alert">{error}</p>}
+    </>
+  );
+}
+```
+
+SSR and web render a regular anchor; once the desktop handshake succeeds, clicks use the system browser.
+
+> [!WARNING]
+> The system browser does not necessarily share the webview's cookies, storage, or session. This API never forwards credentials or issues a session bootstrap, so a protected download may require browser sign-in or a short-lived application-issued URL. Furin's private loopback listener also requires its desktop cookie — do not expose the bootstrap cookie or weaken listener protections to work around that.
+
+## Server-Side Desktop Context
+
+The Elysia context carries the `desktop` controller. Install `desktopContext` in independent API plugins to get static types; `desktopApp()` already provides it to its application:
+
+```ts
+import { desktopContext } from "@teyik0/furin-electrobun/server";
+import { Elysia, status } from "elysia";
+
+export const api = new Elysia({ prefix: "/api" })
+  .use(desktopContext)
+  .post("/minimize", ({ desktop }) => {
+    if (!desktop) {
+      return status(409, { error: "Desktop unavailable" });
+    }
+    desktop.window?.minimize();
+    return { ok: true };
+  });
+```
+
+`desktopContext` is a named, deduplicated dependency provider: it only injects the live `DesktopContext | null`, without registering another root, listener, or window. Web mode gets `null` and never loads native SDK code.
+
+Server controller methods touched by application code:
+
+| Member | Purpose |
+|---|---|
+| `desktop.window` | Current main SDK `BrowserWindow`, `undefined` after it closes |
+| `desktop.open()` | Reactivate or recreate the main window (throws before native readiness) |
+| `desktop.windows.create(name, options)` | Open an authenticated managed window; keeps exact RPC typing from the supplied `rpc` |
+| `desktop.windows.get(name)` | Lookup; default SDK typing (a dynamic name carries no RPC declaration) |
+| `desktop.quit()` / `desktop.restart()` | Coordinated drains with window fencing and one-time backend cleanup |
+| `desktop.updates.install()` | Install a downloaded update after draining the backend |
+| `desktop.browser.open(path)` | Coordinated application-side open with its own session-bootstrap policy |
+| `desktop.associations.read/requestDefault(target)` | Read/request file association and URL-scheme defaults where the platform needs user action |
+| `desktop.snapshot()` | `{ background, phase, trayVisible, webviews, windows }` |
+
+> [!CAUTION]
+> `desktop.open()` throws before native readiness — do not call it at native-module top level and never await it during startup.
+
+## Native Modules
+
+The optional `build.bun.entrypoint` module registers native integrations with the original SDK. It runs internally after the application module loads and before Elysia startup or listening — it must not start the backend or declare a primary window:
+
+```ts
+// src/desktop.ts
+import { ApplicationMenu } from "electrobun/main";
+import { getDesktopHost } from "@teyik0/furin-electrobun/host";
+
+ApplicationMenu.setApplicationMenu([
+  { label: "Relay", submenu: [{ label: "Open Relay", action: "open" }, { role: "quit" }] },
+]);
+ApplicationMenu.on("application-menu-clicked", () => {
+  Promise.resolve()
+    .then(() => getDesktopHost()?.open())
+    .catch(() => console.error("Native action failed"));
+});
+```
+
+- `getDesktopHost()` returns the same controller as route context, or `null` outside the managed host.
+- Deep links and associated files are handled directly with `Electrobun.events.on("open-url", handler)`; the payload is `event.data.url`, and files arrive as `file:` URLs. Declare `desktop.app.urlSchemes` / `desktop.app.fileAssociations` to receive them. Furin forwards launch and secondary-instance inputs to this SDK event after host readiness.
+- Every public devkit subpath stays available: ApplicationMenu, ContextMenu, Tray, Utils, GlobalShortcut, Screen, Session, BrowserWindow, BrowserView/RPC, GpuWindow, WGPUView, WebGPU. Furin installs no replacement menu or tray.
+- Native callbacks run outside HTTP: catch both synchronous errors and rejected promises there. Keep native SDK value imports confined to native modules; shared server modules use context and type-only imports.
+
+`getDesktopHost`, `resolveDesktopDataDir`, `startDesktopBackend`, and a handful of runtime types are also importable directly from `@teyik0/furin-electrobun/host` for custom host harnesses.

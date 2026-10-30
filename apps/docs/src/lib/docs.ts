@@ -224,6 +224,47 @@ export const DOCS_NAV: DocNavSection[] = [
   {
     items: [
       {
+        description: "Ship the same React app to webview, browser, and system windows.",
+        githubPath: "apps/docs/src/content/docs/desktop.mdx",
+        href: "/docs/desktop",
+        label: "Desktop Overview",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/docs/desktop.mdx",
+        title: "Desktop (Electrobun)",
+      },
+      {
+        description: "Native host startup, sessions, window management, and packaging.",
+        githubPath: "apps/docs/src/content/docs/desktop-architecture.mdx",
+        href: "/docs/desktop/architecture",
+        label: "Desktop Architecture",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/docs/desktop-architecture.mdx",
+        title: "Desktop Architecture",
+      },
+      {
+        description: "useDesktop() in pages, server-side desktop context, and native modules.",
+        githubPath: "apps/docs/src/content/docs/desktop-client.mdx",
+        href: "/docs/desktop/client",
+        label: "Desktop Client & Server Context",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/docs/desktop-client.mdx",
+        title: "Desktop Client & Server Context",
+      },
+      {
+        description: "Move a tofu-style standalone Electrobun app to Furin Desktop.",
+        githubPath: "apps/docs/src/content/docs/desktop-migration.mdx",
+        href: "/docs/desktop/migration",
+        label: "Migrating To Furin Desktop",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/docs/desktop-migration.mdx",
+        title: "Migrating To Furin Desktop",
+      },
+    ],
+    title: "Desktop (Electrobun)",
+  },
+  {
+    items: [
+      {
         description: "How Bun HMR and Furin SSR stay aligned in development.",
         githubPath: "apps/docs/src/content/docs/dev-hmr.mdx",
         href: "/docs/dev-hmr",
