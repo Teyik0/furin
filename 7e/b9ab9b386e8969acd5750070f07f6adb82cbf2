@@ -1,0 +1,21 @@
+apps/docs/src/pages/docs/_route.tsx
+  s_21e34e05280d51::t_7c883ca5ec3e08 17-55,57-59,62-70
+apps/docs/src/components/docs-toc.tsx
+  s_21e34e05280d51::t_fa465cda6d1bc1 170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7eb9ab9b386e8969acd5750070f07f6adb82cbf2",
+  "prompts": {},
+  "sessions": {
+    "s_21e34e05280d51": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e7378f308ffe01k7ajENxaOB76",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
