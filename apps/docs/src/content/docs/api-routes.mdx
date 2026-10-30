@@ -41,7 +41,7 @@ export default app;
 
 Continue chaining Elysia instances so route types remain intact. Elysia plugins are isolated by default: an API plugin must explicitly `.use()` the auth, database, logging, macro, or model dependencies required by its own routes.
 
-The exported `api` is also the root application extended by Furin. Kiana's AOT manifest owns one Elysia application per process, so an in-process Eden client must call this same instance instead of a second standalone app.
+The exported `api` is also the root application extended by Furin. Elysia's AOT manifest owns one Elysia application per process, so an in-process Eden client must call this same instance instead of a second standalone app.
 
 ## Mounted Request Handlers
 
@@ -92,7 +92,10 @@ Only use this guard as an access boundary for registered SSR page routes. Root c
 
 ## Cookie-Authenticated Mutations And CSRF
 
-Furin does not add CSRF protection to arbitrary Elysia routes. For mutations authenticated with cookies, install an Elysia-compatible CSRF plugin on the API instance before declaring those routes, and verify its compatibility with the Elysia version used by your app. Elysia [lists community CSRF plugins](https://elysiajs.com/plugins/overview). Keep cross-origin webhooks and token-authenticated endpoints in separate plugins so their policies can differ. Authenticate and authorize each mutation; CSRF protection does not grant access. Use `HttpOnly`, `Secure`, and `SameSite=Lax` or `Strict` for session cookies, but do not rely on `SameSite` alone. Do not perform mutations with `GET`.
+> [!WARNING]
+> Furin does not add CSRF protection to arbitrary Elysia routes. For mutations authenticated with cookies, install an Elysia-compatible CSRF plugin on the API instance before declaring those routes (see [Elysia's plugin overview](https://elysiajs.com/plugins/overview) for community options), and verify its compatibility with the Elysia version used by your app. CSRF protection does not grant access — authenticate and authorize each mutation.
+
+Keep cross-origin webhooks and token-authenticated endpoints in separate plugins so their policies can differ. Use `HttpOnly`, `Secure`, and `SameSite=Lax` or `Strict` for session cookies, but do not rely on `SameSite` alone. Do not perform mutations with `GET`.
 
 ## Typed Browser Client
 
@@ -141,7 +144,7 @@ The server Treaty client contains only the hooks and dependencies composed into 
 
 ## Accelerating External Schemas
 
-Kiana compiles TypeBox schemas such as `t.Object()` directly. When an API deliberately uses an external Standard Schema validator such as Zod, `t.Accelerate()` converts its JSON Schema representation into the TypeBox compiler path:
+Elysia AOT compiles TypeBox schemas such as `t.Object()` directly. When an API deliberately uses an external Standard Schema validator such as Zod, `t.Accelerate()` converts its JSON Schema representation into the TypeBox compiler path:
 
 ```ts
 import { Elysia, t } from "elysia";
@@ -154,11 +157,11 @@ new Elysia().post(
 );
 ```
 
-Do not wrap schemas already created with Elysia's `t`: they already use the optimized path. `t.Accelerate()` is still marked alpha in Elysia 2 beta, so keep its use explicit at external-schema boundaries.
+Do not wrap schemas already created with Elysia's `t`: they already use the optimized path. Keep `t.Accelerate()` at external-schema boundaries so a deliberately non-TypeBox API surface stays intentional.
 
 ## API Problem Details
 
-Use Kiana's `problem()` helper for expected HTTP failures. It emits an RFC 9457 body and the `application/problem+json` content type while preserving Eden's status-based inference:
+Use Elysia's `problem()` helper for expected HTTP failures. It emits an RFC 9457 body and the `application/problem+json` content type while preserving Eden's status-based inference:
 
 ```ts
 new Elysia().get("/api/posts/:id", ({ params, problem }) => {
