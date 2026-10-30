@@ -239,6 +239,10 @@ export const DOCS_NAV: DocNavSection[] = [
 
 export const DOCS_CARDS = DOCS_NAV.flatMap((section) => section.items);
 
+export function getDocSection(href: string): DocNavSection | undefined {
+  return DOCS_NAV.find((section) => section.items.some((item) => item.href === href));
+}
+
 export const DOCS_BY_PATH = Object.fromEntries(DOCS_CARDS.map((doc) => [doc.href, doc])) as Record<
   keyof RouteManifest,
   DocNavItem

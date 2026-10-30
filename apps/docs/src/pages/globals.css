@@ -4,6 +4,7 @@
 @import "./highlight.css";
 @source "../components";
 @source "../lib/rehype-highlight.ts";
+@source "../lib/rehype-callouts.ts";
 @source "./";
 @plugin "@tailwindcss/typography";
 @config "../../tailwind.config.ts";
@@ -103,5 +104,72 @@
 
   .doc-content h3 {
     @apply mt-8;
+  }
+
+  .doc-content .callout {
+    --callout-accent: var(--color-blue-500);
+    background: color-mix(in oklab, var(--callout-accent) 10%, transparent);
+    border-left-color: var(--callout-accent);
+    @apply my-6 rounded-xl border-l-2 py-3 pl-4 pr-6;
+  }
+
+  .doc-content .callout > * {
+    margin-top: 0;
+    margin-bottom: 0.35em;
+  }
+
+  .doc-content .callout > *:last-child {
+    margin-bottom: 0;
+  }
+
+  .doc-content .callout .callout-title {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: color-mix(in oklab, var(--callout-accent) 85%, var(--foreground));
+    @apply m-0 flex items-center gap-2.5 font-medium;
+  }
+
+  .doc-content .callout .callout-icon {
+    @apply size-4 shrink-0;
+  }
+
+  .doc-content .callout-note {
+    --callout-accent: var(--color-blue-500);
+  }
+
+  .doc-content .callout-tip {
+    --callout-accent: var(--color-emerald-500);
+  }
+
+  .doc-content .callout-important {
+    --callout-accent: var(--color-violet-500);
+  }
+
+  .doc-content .callout-warning {
+    --callout-accent: var(--color-amber-500);
+  }
+
+  .doc-content .callout-caution {
+    --callout-accent: var(--color-red-500);
+  }
+
+  /* Code copy buttons: rendered by rehype in standalone windows and by
+     CodeTabs. Clicks are handled once via the delegated document bridge. */
+  button[data-code-copy] {
+    color: #94a3b8;
+    @apply ml-auto inline-flex shrink-0 items-center gap-1 rounded-md font-mono px-2 py-1 text-[11px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2;
+  }
+
+  button[data-code-copy]:hover {
+    color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  button[data-code-copy][data-copied] {
+    color: #7ee787;
+  }
+
+  button[data-code-copy] svg {
+    @apply size-[0.85rem];
   }
 }
