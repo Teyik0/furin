@@ -1,0 +1,222 @@
+apps/docs/src/components/root-layout.tsx
+  s_79a7c66caa9183::t_af44766c219ad9 7,31-36,45-54
+  s_79a7c66caa9183::t_1f9d35c51c9a0f 14,20,72
+  s_79a7c66caa9183::t_d3745bc88af528 15,29-30,37-39
+  s_79a7c66caa9183::t_d8fbba374f5019 16
+  s_79a7c66caa9183::t_ae96762638d62b 21-27,40,43-44,55-66,68-71
+apps/docs/src/content/desktop/native-apis.mdx
+  s_79a7c66caa9183::t_613debcec2939e 1-54
+apps/docs/src/pages/docs/defer.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/pages/docs/api-routes.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/pages/docs/comparison.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/pages/docs/multi-instance.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/content/docs/data-loading.mdx
+  s_79a7c66caa9183::t_bc1314078304cb 29,34,36
+apps/docs/src/content/desktop/build.mdx
+  s_79a7c66caa9183::t_613debcec2939e 1-46
+apps/docs/src/pages/docs/sync.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 17-23
+apps/docs/src/pages/docs/link-navigation.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/components/docs-actions.tsx
+  s_79a7c66caa9183::t_8db6f3103f45b6 59,66-77,93,101
+  s_79a7c66caa9183::t_e672968592487b 1,3,30
+  s_79a7c66caa9183::t_ae96762638d62b 61,63-65
+  s_79a7c66caa9183::t_e07546d8d649c7 2,60,62,78,83,85,88-89,92,95
+apps/docs/src/pages/docs/caching.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/pages/docs/_route.tsx
+  s_79a7c66caa9183::t_1f9d35c51c9a0f 23-24,28-30,37,51,54-56,77-79,93-98
+  s_79a7c66caa9183::t_d3745bc88af528 7,15-16,18,25,31
+  s_79a7c66caa9183::t_d8fbba374f5019 19-20,89
+  s_79a7c66caa9183::t_af44766c219ad9 68-70,82-87
+  s_79a7c66caa9183::t_43ddb382166efe 17
+  s_79a7c66caa9183::t_ae96762638d62b 47,65-67,71-74,80-81,88,90-92
+apps/docs/src/pages/globals.css
+  s_79a7c66caa9183::t_e672968592487b 108-112,130-132,150-152,160-161,166-169,171-173,175,177-178,516,520,523,527,531,534,537,540,569,573-574,578-579,648
+  s_79a7c66caa9183::t_3867986ecca73b 305,315,323,341
+  s_79a7c66caa9183::t_43ddb382166efe 345,557
+  s_79a7c66caa9183::t_e72282bda519d6 519
+  s_79a7c66caa9183::t_ae96762638d62b 162-165,170,176,180-181,183-185,187-189,191-193,195-210,212-304,306-314,316-322,324-340,342-344,346-368,379,389,391-394,396-397,403,412,414,419,460-508,513,549-556,558-568,570-572,575-577,581-582,584-585,587-588,590-602
+  s_79a7c66caa9183::t_d3745bc88af528 174,580,603-618,630
+  s_79a7c66caa9183::t_8db6f3103f45b6 369-378,380-388,390,395,398-402,404-411,413,415-418,420-459
+  s_79a7c66caa9183::t_fdf84d2aebb32d 546
+  s_79a7c66caa9183::t_af44766c219ad9 525,530,545,548,619-629,631-647
+  s_79a7c66caa9183::t_d8fbba374f5019 179,182,186,190,194,583,586,589
+  s_79a7c66caa9183::t_ec402eed16bdde 113-129,133-149,153-159,211,509-512,514-515,517-518,521-522,524,526,528-529,532-533,535-536,538-539,541-544,547
+apps/docs/src/components/docs-toc.tsx
+  s_79a7c66caa9183::t_1f9d35c51c9a0f 170,183
+apps/docs/src/pages/docs/desktop/installation.tsx
+  s_79a7c66caa9183::t_d3745bc88af528 1-10,12-22,24-37
+  s_79a7c66caa9183::t_446241b9dde0ac 11
+  s_79a7c66caa9183::t_463be5ceda0fdc 23
+apps/docs/src/lib/docs-search.ts
+  s_79a7c66caa9183::t_af44766c219ad9 195-197
+  s_79a7c66caa9183::t_3b246e1590262c 2-3,36-39,194,202-203,210
+apps/docs/src/pages/docs/index.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-21
+apps/docs/src/content/desktop/updates.mdx
+  s_79a7c66caa9183::t_613debcec2939e 1-34
+apps/docs/src/pages/docs/desktop/integration.tsx
+  s_79a7c66caa9183::t_446241b9dde0ac 11
+  s_79a7c66caa9183::t_d3745bc88af528 1-10,12-22,24-37
+  s_79a7c66caa9183::t_f7c7661349e83c 23
+apps/docs/src/components/code-tabs.tsx
+  s_79a7c66caa9183::t_a113e6c66e94ca 27,38
+  s_79a7c66caa9183::t_ae96762638d62b 26,28-37
+apps/docs/src/lib/docs.ts
+  s_79a7c66caa9183::t_613debcec2939e 240-241,252-253,258,261-262,267,272-273,285-286,291,294-295,300,303-304,309,314-315,326-327,332,335-336,341,347-353,355-362
+  s_79a7c66caa9183::t_af44766c219ad9 242-251,254-257,259-260,263-266,268-271,274-284,287-290,292-293,296-299,301-302,305-308,310-313,316-325,328-331,333-334,337-340,342-346
+  s_79a7c66caa9183::t_2f68eef61ae783 354
+apps/docs/src/pages/docs/head-seo.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 20-26
+apps/docs/furin-env.d.ts
+  s_79a7c66caa9183::t_111137849f3ae5 73-132,220-229
+apps/docs/src/pages/docs/dev-hmr.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/tests/docs-pages.test.ts
+  s_79a7c66caa9183::t_95cf7061c08548 161,168-173,227
+  s_79a7c66caa9183::t_d8fbba374f5019 179
+  s_79a7c66caa9183::t_4c2820b770446e 178,180-187
+  s_79a7c66caa9183::t_a3c7b475642dbe 158-160,174-176,191,194,205,210,216,219,230
+  s_79a7c66caa9183::t_950b28e30d93b1 162-165,167
+  s_79a7c66caa9183::t_6dbc9257f75c98 119-122,141,166,177,188-190,192-193,195-204,206-209,211-215,217-218,220-226,228-229
+apps/docs/src/content/desktop/signing.mdx
+  s_79a7c66caa9183::t_613debcec2939e 1-29
+apps/docs/tests/docs-search-dialog.test.tsx
+  s_79a7c66caa9183::t_644e2b0c0f2035 3,16-77,80
+apps/docs/src/components/docs-search-trigger.tsx
+  s_79a7c66caa9183::t_d3745bc88af528 1,11,30,35
+  s_79a7c66caa9183::t_af44766c219ad9 4,12-13
+apps/docs/src/pages/docs/plugins.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/content/desktop/first-window.mdx
+  s_79a7c66caa9183::t_613debcec2939e 1-50
+apps/docs/src/pages/docs/deployment.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/content/desktop/bridge.mdx
+  s_79a7c66caa9183::t_613debcec2939e 1-65
+apps/docs/src/pages/docs/desktop/updates.tsx
+  s_79a7c66caa9183::t_d3745bc88af528 1-10,12-22,24-37
+  s_79a7c66caa9183::t_446241b9dde0ac 11
+  s_79a7c66caa9183::t_b1c2b92e362a48 23
+apps/docs/tests/llms.test.ts
+  s_79a7c66caa9183::t_bad13ea763cc66 1-14,43
+  s_79a7c66caa9183::t_af44766c219ad9 40-42
+  s_79a7c66caa9183::t_90a8676eea1ea0 15
+  s_79a7c66caa9183::t_d85f52f5c15aa7 21-28,30-33
+  s_79a7c66caa9183::t_6cd8672b7be0f5 16-20
+  s_79a7c66caa9183::t_5aab0038dbceaf 29,34-39
+apps/docs/src/pages/docs/desktop/build.tsx
+  s_79a7c66caa9183::t_d3745bc88af528 1-10,12-22,24-37
+  s_79a7c66caa9183::t_446241b9dde0ac 11
+  s_79a7c66caa9183::t_246f91ffcd11ff 23
+apps/docs/src/server.ts
+  s_79a7c66caa9183::t_4c54a002cb0200 72
+  s_79a7c66caa9183::t_765b4353089884 3,5,10-11
+  s_79a7c66caa9183::t_95cf7061c08548 25-35,48
+  s_79a7c66caa9183::t_af44766c219ad9 45-46,52-54,63-67
+  s_79a7c66caa9183::t_22f336bb83a67e 70,73-75
+  s_79a7c66caa9183::t_360fe458bde914 12-14,39-44
+  s_79a7c66caa9183::t_3b246e1590262c 51
+  s_79a7c66caa9183::t_7fa6157df8c20d 2,71
+apps/docs/src/pages/docs/routing.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/pages/docs/rendering.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/pages/docs/desktop/first-window.tsx
+  s_79a7c66caa9183::t_446241b9dde0ac 11
+  s_79a7c66caa9183::t_d3745bc88af528 1-10,12-22,24-37
+  s_79a7c66caa9183::t_391f8f335a5830 23
+apps/docs/src/content/desktop/installation.mdx
+  s_79a7c66caa9183::t_613debcec2939e 1-61
+apps/docs/src/pages/docs/desktop/native-apis.tsx
+  s_79a7c66caa9183::t_d3745bc88af528 1-10,12-22,24-37
+  s_79a7c66caa9183::t_446241b9dde0ac 11
+  s_79a7c66caa9183::t_99d667cef03b06 23
+.gitignore
+  s_79a7c66caa9183::t_d85f52f5c15aa7 50-52
+apps/docs/src/components/docs-pager.tsx
+  s_79a7c66caa9183::t_d3745bc88af528 2,9-10,16-17,24
+  s_79a7c66caa9183::t_3bdd6526c89f92 28,32-33,43,47,49
+apps/docs/src/lib/rehype-highlight.ts
+  s_79a7c66caa9183::t_3867986ecca73b 46
+  s_79a7c66caa9183::t_d8fbba374f5019 56
+  s_79a7c66caa9183::t_ae96762638d62b 53-55,57-59
+apps/docs/src/pages/docs/desktop/signing.tsx
+  s_79a7c66caa9183::t_d3745bc88af528 1-10,12-22,24-37
+  s_79a7c66caa9183::t_446241b9dde0ac 11
+  s_79a7c66caa9183::t_fb7ed18a149de3 23
+apps/docs/src/pages/docs/layouts.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/content/desktop/integration.mdx
+  s_79a7c66caa9183::t_613debcec2939e 1-57
+apps/docs/scripts/generate-llms-txt.ts
+  s_79a7c66caa9183::t_765b4353089884 33,78,99-105
+  s_79a7c66caa9183::t_c59f6eb7547cf9 2,12
+  s_79a7c66caa9183::t_af44766c219ad9 3-9,15-16,29-32,52-55,61-67,93-98
+  s_79a7c66caa9183::t_6cd8672b7be0f5 82-90,106-110
+  s_79a7c66caa9183::t_360fe458bde914 17-25,28,35-45,47,49,60,68,70-74,80-81,91,111
+apps/docs/src/pages/docs/logging.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/content/desktop/overview.mdx
+  s_79a7c66caa9183::t_613debcec2939e 1-32
+apps/docs/src/pages/docs/desktop/windows.tsx
+  s_79a7c66caa9183::t_446241b9dde0ac 11
+  s_79a7c66caa9183::t_d3745bc88af528 1-10,12-22,24-37
+  s_79a7c66caa9183::t_e45c3e068d6df2 23
+apps/docs/src/pages/docs/desktop/bridge.tsx
+  s_79a7c66caa9183::t_446241b9dde0ac 11
+  s_79a7c66caa9183::t_d3745bc88af528 1-10,12-22,24-37
+  s_79a7c66caa9183::t_ae72b2e6914c21 23
+apps/docs/src/pages/docs/getting-started.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/pages/root.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 17
+apps/docs/src/content/desktop/windows.mdx
+  s_79a7c66caa9183::t_613debcec2939e 1-47
+apps/docs/src/pages/docs/desktop/index.tsx
+  s_79a7c66caa9183::t_446241b9dde0ac 11
+  s_79a7c66caa9183::t_d3745bc88af528 1-10,12-22,24-37
+  s_79a7c66caa9183::t_c7a7fe135c6694 23
+apps/docs/src/pages/docs/error-handling.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/tests/docs-search.test.ts
+  s_79a7c66caa9183::t_af44766c219ad9 122-136
+  s_79a7c66caa9183::t_49b786a6debe43 119-121,137
+apps/docs/src/pages/docs/configuration.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/pages/docs/cli.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/src/pages/docs/data-loading.tsx
+  s_79a7c66caa9183::t_c59f6eb7547cf9 19-25
+apps/docs/scripts/generate-docs-content.ts
+  s_79a7c66caa9183::t_3b246e1590262c 43,48-51
+apps/docs/src/components/docs-search-dialog.tsx
+  s_79a7c66caa9183::t_af44766c219ad9 15,35-36
+  s_79a7c66caa9183::t_644e2b0c0f2035 2,211-214
+  s_79a7c66caa9183::t_3b246e1590262c 34,37,180-181,203-204,219,302,310,348
+apps/docs/src/components/docs-mobile-nav.tsx
+  s_79a7c66caa9183::t_af44766c219ad9 32-34
+  s_79a7c66caa9183::t_d3745bc88af528 15,17-19,27,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bd1ec994c23ededf7240fc91d1dbe77b214028b5",
+  "prompts": {},
+  "sessions": {
+    "s_79a7c66caa9183": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a0ff-a211-7100-9e00-6b161566bbad",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
