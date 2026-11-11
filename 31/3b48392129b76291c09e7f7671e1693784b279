@@ -1,0 +1,71 @@
+apps/docs/tests/callouts.test.ts
+  s_2d3b48c2109c35::t_3a6462c66284f5 50-58
+apps/docs/src/components/code-copy-icon-shape.ts
+  s_2d3b48c2109c35::t_6ef48f87313bda 1-5
+apps/docs/src/content/docs/caching.mdx
+  s_2d3b48c2109c35::t_9af67023ee6f65 34
+apps/docs/src/components/code-copy-bridge.tsx
+  s_2d3b48c2109c35::t_8a34e5a1a9a3cd 8-15,38-39,47,52,65
+apps/docs/src/components/code-tabs.tsx
+  s_2d3b48c2109c35::t_b1fe8a058b6d8c 2
+  s_2d3b48c2109c35::t_d8e9cf344f69cd 116-117
+apps/docs/src/components/docs-pager.tsx
+  s_2d3b48c2109c35::t_b9a8740008a55b 2,9
+.github/workflows/ci.yaml
+  s_2d3b48c2109c35::t_4637b04668a9fd 531
+apps/docs/src/components/docs-root-toggle.tsx
+  s_2d3b48c2109c35::t_9a1fd3d0372fe7 10
+  s_2d3b48c2109c35::t_0ea619f45b7d36 23
+apps/docs/src/lib/docs.ts
+  s_2d3b48c2109c35::t_e77996d178356a 22-23
+  s_2d3b48c2109c35::t_51f9ee687f928f 265
+  s_2d3b48c2109c35::t_2039e174a2a91a 302,306-322
+  s_05939466d0a8c3::t_55289db2dec94f 323
+apps/docs/src/lib/rehype-callouts.ts
+  s_2d3b48c2109c35::t_dff02f2df8ba24 119
+apps/docs/tests/docs-areas.test.ts
+  s_2d3b48c2109c35::t_1b1c131b05f892 1-12
+apps/docs/src/pages/globals.css
+  s_2d3b48c2109c35::t_76791fb7e1d449 96,98-100
+  s_2d3b48c2109c35::t_eca6ad0c78e83e 171,173
+apps/docs/src/components/code-copy-icons.ts
+  s_2d3b48c2109c35::t_b1fe8a058b6d8c 2
+  s_2d3b48c2109c35::t_982c7df93900aa 16
+apps/docs/src/content/docs/cli.mdx
+  s_2d3b48c2109c35::t_9af67023ee6f65 13,25,51
+apps/docs/tests/code-copy-bridge.test.tsx
+  s_2d3b48c2109c35::t_209b89ac5e0ef3 55,58,60,62-65,69-71,73,81-117
+apps/docs/src/content/docs/comparison.mdx
+  s_2d3b48c2109c35::t_9af67023ee6f65 5
+apps/docs/src/content/docs/desktop-migration.mdx
+  s_2d3b48c2109c35::t_9af67023ee6f65 63-67,82-86
+apps/docs/src/content/docs/routing.mdx
+  s_2d3b48c2109c35::t_9af67023ee6f65 226-227
+  s_2d3b48c2109c35::t_0340dbc70f792a 228
+apps/docs/src/lib/rehype-highlight.ts
+  s_05939466d0a8c3::t_bce220d562b55e 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "313b48392129b76291c09e7f7671e1693784b279",
+  "prompts": {},
+  "sessions": {
+    "s_05939466d0a8c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d305fcd8-382b-468d-a110-93b64d6f3b8c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
