@@ -1,7 +1,7 @@
 name: Workflow - Elysia next
 
-# Furin pins an exact Elysia beta. This runs the core tests against the
-# latest `elysia@next` so upcoming betas break CI before they break users.
+# Furin's Elysia peer is a range. This runs the core tests against the
+# latest `elysia@rc` so upcoming RCs break CI before they break users.
 on:
   schedule:
     - cron: "0 6 * * 1"
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   core-tests:
-    name: Core tests on elysia@next
+    name: Core tests on elysia@rc
     runs-on: ubuntu-latest
 
     steps:
@@ -24,9 +24,9 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Point the workspace catalog at elysia@next
+      - name: Point the workspace catalog at elysia@rc
         run: |
-          jq '.catalog.elysia = "next"' package.json > package.next.json
+          jq '.catalog.elysia = "rc"' package.json > package.next.json
           mv package.next.json package.json
 
       - name: Install packages
