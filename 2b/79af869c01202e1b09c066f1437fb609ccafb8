@@ -1,0 +1,517 @@
+package.json
+  s_bd17a5b23db464::t_5ec4e85c406276 29-34,36-37,39,46-47,52
+packages/electrobun/tests/backend.test.ts
+  s_ee1fcc24a80de0::t_dcd627e324ad0a 1,8,118,120-126,131,142,149,176-178,182,193,204,227-229,239,251,256,270-271,273,281
+examples/task-manager/package.json
+  s_bd17a5b23db464::t_5ec4e85c406276 28,39
+packages/electrobun/tests/support/clock.ts
+  s_ee1fcc24a80de0::t_b85e3ab7059a1e 1-28
+packages/electrobun/tests/desktop-client.test.ts
+  s_ee1fcc24a80de0::t_0eed9273331cdd 3,277,282,285,287,292,296
+  s_ee1fcc24a80de0::t_67feaa41963ce1 283,286,288
+  s_ee1fcc24a80de0::t_5e8b504d748322 284
+.github/FUNDING.yml
+  s_bd17a5b23db464::t_aeaea9d4fb77b7 1
+.github/dependabot.yaml
+  s_bd17a5b23db464::t_299b6db62c1b82 4-5,7,9-10,12
+.github/workflows/cd.yaml
+  s_bd17a5b23db464::t_027a81902a6f8b 5
+.github/workflows/ci.yaml
+  s_bd17a5b23db464::t_94fb627ea7ad67 5
+.github/workflows/pages.yaml
+  s_bd17a5b23db464::t_209de78519a34d 5
+.github/workflows/performance-comment.yaml
+  s_bd17a5b23db464::t_d4a91b69f88d7a 5-6
+.github/workflows/vercel-benchmark.yaml
+  s_bd17a5b23db464::t_661d0a64100605 5
+apps/docs/package.json
+  s_05939466d0a8c3::t_74a706dd05647f 24-25,33-35,41,46
+apps/docs/src/components/code-tabs.tsx
+  s_2d3b48c2109c35::t_3f35901f4a2ef6 27
+apps/docs/src/components/doc-page.tsx
+  s_bd17a5b23db464::t_9767f87c2e3d40 8,63,65
+apps/docs/src/components/docs-actions.tsx
+  s_2d3b48c2109c35::t_dcb2b124aa590f 57,82
+apps/docs/src/components/docs-mobile-nav.tsx
+  s_2d3b48c2109c35::t_358ca7426a3182 37,57
+apps/docs/src/components/docs-root-toggle.tsx
+  s_bd17a5b23db464::t_895a3e8a372630 30,34,43,47,50
+apps/docs/src/components/docs-search-dialog.tsx
+  s_2d3b48c2109c35::t_797d490a931aff 21,62,104,106,111,116,294,303,332
+apps/docs/src/components/docs-search-trigger.tsx
+  s_2d3b48c2109c35::t_7da78d974557a2 25,31
+apps/docs/src/components/docs-section-cards.tsx
+  s_bd17a5b23db464::t_d4d2a39143b0b7 13,16,23,26,29
+apps/docs/src/components/giscus-comments.tsx
+  s_bd17a5b23db464::t_daae72b1a8280e 56-57,59
+apps/docs/src/components/hero-section.tsx
+  s_bd17a5b23db464::t_2e49953f06d231 21,104,107
+apps/docs/src/components/landing/copy-command.tsx
+  s_bd17a5b23db464::t_9405b33de47bd8 38,47
+apps/docs/src/components/landing/landing-server.tsx
+  s_bd17a5b23db464::t_35d753915737e2 176,183,201,224,264,273,276,297,327,330,334-335,392
+apps/docs/src/components/landing/ship-section.tsx
+  s_bd17a5b23db464::t_961ea05328eff0 28,40,59
+apps/docs/src/components/landing/sync-demo.tsx
+  s_bd17a5b23db464::t_704d5315f33acc 49,54,73,144
+apps/docs/src/components/landing/sync-section.tsx
+  s_bd17a5b23db464::t_8564e37ff929d2 46,84,105-106
+apps/docs/src/components/root-layout.tsx
+  s_2d3b48c2109c35::t_2c2ecdbcc3800f 18,23,34,44,58,66,74,82
+apps/docs/src/components/ui/button.tsx
+  s_bd17a5b23db464::t_22ff5f6a7db08f 8,28,32
+apps/docs/src/components/ui/dialog.tsx
+  s_bd17a5b23db464::t_db31581f209061 26,41,54
+apps/docs/src/components/ui/dropdown-menu.tsx
+  s_bd17a5b23db464::t_8c7e0ad91f1929 27,46,63,76
+apps/docs/src/components/ui/input.tsx
+  s_bd17a5b23db464::t_0c577df5172c07 9
+apps/docs/src/components/ui/scroll-area.tsx
+  s_bd17a5b23db464::t_56b16ef8f3501c 28,36
+apps/docs/src/components/ui/sheet.tsx
+  s_bd17a5b23db464::t_0f1a7698294147 26,48,50,52,54,56,71,81
+apps/docs/src/lib/bun-mdx-plugin.ts
+  s_bd17a5b23db464::t_33a032b4823e94 6
+apps/docs/src/lib/docs-heading.ts
+  s_bd17a5b23db464::t_b27b5533e78a13 5-6
+apps/docs/src/lib/docs-search-shared.ts
+  s_bd17a5b23db464::t_3f8cec0900375d 44
+apps/docs/src/lib/docs-search.ts
+  s_2d3b48c2109c35::t_396b7da923163c 22-23,40-45,51-58,62
+apps/docs/src/lib/docs-server.ts
+  s_bd17a5b23db464::t_3f1f37ee8a659b 10
+apps/docs/src/lib/rehype-callouts.ts
+  s_bd17a5b23db464::t_60de891f98419a 60,62-63
+apps/docs/src/lib/rehype-highlight.ts
+  s_2d3b48c2109c35::t_6f5e477b061d9f 7-8
+apps/docs/src/lib/strip-mdx.ts
+  s_bd17a5b23db464::t_be5b197ace793b 8-12,67
+apps/docs/src/pages/docs/_route.tsx
+  s_2d3b48c2109c35::t_9c401f3fb91abc 22,27,46,65
+apps/docs/tests/landing-composite.test.tsx
+  s_bd17a5b23db464::t_6c8d21ec55d384 18
+apps/docs/tests/sync-demo.test.tsx
+  s_bd17a5b23db464::t_981a41de101e89 12
+apps/docs/tests/typography.test.tsx
+  s_bd17a5b23db464::t_8febd625d69381 15
+apps/scaffolder/package.json
+  s_05939466d0a8c3::t_fce16062575d54 26
+apps/scaffolder/src/engine/helpers.ts
+  s_bd17a5b23db464::t_623372f23eb162 11-12,14-16
+apps/scaffolder/src/utils/disk.ts
+  s_bd17a5b23db464::t_34cf8cd165d108 4
+apps/scaffolder/src/utils/path.ts
+  s_bd17a5b23db464::t_138ab9d1031306 1
+apps/scaffolder/src/utils/project-name.ts
+  s_bd17a5b23db464::t_ab28b3ddcf99b8 6
+apps/scaffolder/templates/full/src/components/ui/button.tsx
+  s_bd17a5b23db464::t_a5727f79deb2f4 7,21,23,27-28
+apps/scaffolder/templates/full/src/components/ui/card.tsx
+  s_bd17a5b23db464::t_c5b5c7a5e33fc5 8,33
+apps/scaffolder/templates/full/src/components/ui/input.tsx
+  s_bd17a5b23db464::t_8e01add6295e57 8
+apps/scaffolder/templates/full/src/pages/index.tsx
+  s_bd17a5b23db464::t_41885aa13fb146 14-15,26
+apps/scaffolder/templates/simple/src/pages/index.tsx
+  s_bd17a5b23db464::t_ae94fb68bc1d36 19,22,25,31-32,35,38
+apps/scaffolder/tests/package-catalog.test.ts
+  s_bd17a5b23db464::t_0b9371cede1688 14
+apps/scaffolder/tests/package.test.ts
+  s_bd17a5b23db464::t_1916420da9d280 7
+apps/scaffolder/tests/templates.test.ts
+  s_bd17a5b23db464::t_62282dd31a8e90 13,15
+bun.lock
+  s_bd17a5b23db464::t_1256b625bfae41 8-13,15-16,18,28-29,37-39,45,50,64,74-75,102,113,132,146,148,150,152-153,164,174,196,218-219,222,225-228,235-238,273,275,277,279,281,283,285,287,289,291,293,295,297-301,305,313,315,325,427,429,431,445-446,459-462,467-468,525,527,529,531,533,535,537,539,541,543,545,547,549,551,553,555,557,559,561,563,643-644,649,651,653,655,657,659,661,663,667,669,671,673,675,677,679,681,683,685,689,691,693,695,697,699,701,703,705,707,711,713,715,717,719,721,723,725,727,729,731,733,735,737,739,741,743,745,747,749,751,753,755,757,759,761,763,765,769,779,781,785-818,843-844,847,849,851,867,947,951,953,955,957,993-995,997,999,1001,1003,1005,1007,1009,1011,1013,1015,1017,1019,1023-1024,1031-1032,1041-1042,1055-1058,1061-1062,1065,1071-1082,1087-1088,1105-1107,1115-1116,1129-1130,1133-1134,1145-1146,1149-1150,1155-1156,1165-1166,1195,1197-1199,1201,1219-1220,1225,1229,1297-1299,1301,1313-1314,1335-1336,1341,1343,1355,1373-1374,1381,1393,1399,1401,1423-1424,1433-1436,1445-1446,1453-1454,1481,1545,1547,1677-1680,1685,1695-1698,1701-1702,1711-1714,1717-1718,1723,1729,1749-1750,1775,1791-1792,1795-1796,1799,1809,1815,1865,1867,1869,1879,1887,1891,1903,1929,1933-1940,1943-1947,1953-1954,1965-1966,1971,1979,1981,1989-1990,2001,2017-2026,2031-2032,2039-2040,2053-2054,2077,2079,2081,2097-2098,2101,2103,2105,2107,2109,2111,2115,2133-2134,2159-2160,2165-2167,2173-2174,2179-2180,2191-2227,2229,2231-2349
+examples/electrobun-todo/package.json
+  s_05939466d0a8c3::t_a9341ceb4c4486 17-18
+examples/task-manager/e2e/task-manager.e2e.ts
+  s_bd17a5b23db464::t_227b1e17a052db 10
+examples/task-manager/furin-env.d.ts
+  s_4fe91bd78a7c63::t_d267406c204e0f 23
+examples/task-manager/src/components/board-card.tsx
+  s_bd17a5b23db464::t_68bbba91387490 25,28,41,47,51,61
+examples/task-manager/src/components/board-page-content.tsx
+  s_bd17a5b23db464::t_2c23d73a6a6c62 5,48,51,59,65,69,77
+examples/task-manager/src/components/create-board-form.tsx
+  s_bd17a5b23db464::t_ea9156af823084 40,50,59
+examples/task-manager/src/components/ui/kanban.tsx
+  s_bd17a5b23db464::t_0809f630ffe35d 79,84,196,199,260,391,410,420,442
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  s_bd17a5b23db464::t_5b980a7c6c26cd 102,117,123-124,127,134,141,156,163,180,190,202,209,219-220
+examples/task-manager/src/pages/board/[boardId]/index.tsx
+  s_bd17a5b23db464::t_53c42b3cb2f480 47,49,52,57
+examples/task-manager/src/pages/board/_route.tsx
+  s_bd17a5b23db464::t_2338245f482c7a 31-32,38,45,61,75,77,86
+examples/task-manager/src/pages/globals.css
+  s_bd17a5b23db464::t_0494699aa32859 73-74
+examples/task-manager/src/pages/index.tsx
+  s_bd17a5b23db464::t_0f5fc083d644c9 38-39,42,58,67,82
+examples/task-manager/tests/card-detail-page.test.tsx
+  s_bd17a5b23db464::t_270e7fb5e8ef19 55
+examples/task-manager/tests/create-board-form.test.tsx
+  s_bd17a5b23db464::t_8b6bd46c4ddd7b 48-52
+examples/task-manager/tests/db-error-mapping.test.ts
+  s_bd17a5b23db464::t_e638dfb0b52053 9
+examples/task-manager/tests/kanban-sync.test.tsx
+  s_bd17a5b23db464::t_dddfa39ec19328 36,239-243
+examples/weather/package.json
+  s_05939466d0a8c3::t_921cdbef8fdcbc 29
+examples/weather/src/components/current-weather-card.tsx
+  s_bd17a5b23db464::t_cd73c094e50b54 10,20
+examples/weather/src/components/forecast-grid.tsx
+  s_bd17a5b23db464::t_aa077d3f3acd44 9,18,20
+examples/weather/src/components/weather-page.tsx
+  s_bd17a5b23db464::t_0d19a625af2677 33,56,96
+examples/weather/src/lib/cities.ts
+  s_bd17a5b23db464::t_b031d6e8b01cef 11-12
+packages/core/package.json
+  s_05939466d0a8c3::t_df153d564b569f 182,184,186,188-189,200,210
+packages/core/src/adapter/runtime-build.ts
+  s_bd17a5b23db464::t_a93d55fe526e82 44-49
+packages/core/src/adapter/server-bundle.ts
+  s_bd17a5b23db464::t_79c4f4c503c18b 11-14
+packages/core/src/adapter/static.ts
+  s_bd17a5b23db464::t_413eabb608619d 35
+packages/core/src/adapter/vercel.ts
+  s_bd17a5b23db464::t_a094be1ec67b5b 58-60
+packages/core/src/cli/dev.ts
+  s_bd17a5b23db464::t_f924d2893219c2 6
+packages/core/src/cli/index.ts
+  s_bd17a5b23db464::t_bebe86be380cbb 103
+packages/core/src/cli/preview.ts
+  s_bd17a5b23db464::t_2325b7b223a657 5-6
+packages/core/src/client/dev-error-overlay.ts
+  s_bd17a5b23db464::t_02757ba19b05f4 54-55
+packages/core/src/client/router/link-utils.ts
+  s_bd17a5b23db464::t_da836854ffc362 11,13,93,211
+packages/core/src/client/router/navigation-controller.ts
+  s_bd17a5b23db464::t_6776b9e583413d 454
+packages/core/src/client/sync-catch-up.ts
+  s_bd17a5b23db464::t_17a109449d9e9d 26
+packages/core/src/client/sync-client.ts
+  s_bd17a5b23db464::t_9b0c93ee1cd666 10
+packages/core/src/plugin/client-plugin.ts
+  s_bd17a5b23db464::t_eca7773b138725 7-9
+packages/core/src/plugin/dead-code-elimination.ts
+  s_bd17a5b23db464::t_ec1b0c71eb39ce 362
+packages/core/src/plugin/hmr-hook-signature.ts
+  s_bd17a5b23db464::t_c4cf1994f0b6fe 6
+packages/core/src/plugin/route-config.ts
+  s_bd17a5b23db464::t_933f9ce94a21c9 24-26
+packages/core/src/plugin/route-registry.ts
+  s_bd17a5b23db464::t_aee8e947bd353c 24-25,28,30-32
+packages/core/src/plugin/route-tree.ts
+  s_bd17a5b23db464::t_deea3ea6472405 10,89
+packages/core/src/plugin/strip-server-stages.ts
+  s_bd17a5b23db464::t_93906252cf4574 56
+packages/core/src/plugin/strip-server.ts
+  s_bd17a5b23db464::t_5ee1e46139956c 4
+packages/core/src/plugin/transform-isomorphic.ts
+  s_bd17a5b23db464::t_e2acfd08470509 25,258,416,590
+packages/core/src/rsc/render-error.ts
+  s_bd17a5b23db464::t_b2c7bdaeaf8532 21-23
+packages/core/src/rsc/transport-benchmark.ts
+  s_bd17a5b23db464::t_f1d79c96081e6c 22
+packages/core/src/rsc/version.ts
+  s_bd17a5b23db464::t_ab3c787e75fd63 4
+packages/core/src/server/bounded-body.ts
+  s_bd17a5b23db464::t_4dbdd336c72207 14
+packages/core/src/server/cache/page-cache.ts
+  s_bd17a5b23db464::t_15991a2dee6555 3
+packages/core/src/server/dev-page-imports.ts
+  s_bd17a5b23db464::t_bba5ff089d5586 18
+packages/core/src/server/dev-page-plugin.ts
+  s_bd17a5b23db464::t_15c736aa0d69f5 76-82,84,99
+packages/core/src/server/dev/runtime.ts
+  s_bd17a5b23db464::t_0ef6c648e2fd2a 17
+packages/core/src/server/dev/server-only-module.ts
+  s_bd17a5b23db464::t_fa3bc96575ecfa 3
+packages/core/src/server/dev/stack-location.ts
+  s_bd17a5b23db464::t_a1ce6406a53387 4-6
+packages/core/src/server/dev/symbolicate.ts
+  s_bd17a5b23db464::t_81feb87c420684 20-23
+packages/core/src/server/devtools/request-context.ts
+  s_bd17a5b23db464::t_165dae7e488331 6
+packages/core/src/server/instance.ts
+  s_bd17a5b23db464::t_209643dae3b361 49
+packages/core/src/server/lang-detect.ts
+  s_bd17a5b23db464::t_d16798193954f1 3-5
+packages/core/src/server/render/assemble.ts
+  s_bd17a5b23db464::t_52b51bb05df710 92
+packages/core/src/server/render/ppr-document.ts
+  s_bd17a5b23db464::t_139054dc86c59b 265
+packages/core/src/server/render/shell.ts
+  s_bd17a5b23db464::t_d50e936c1a1d83 25-29,34-37
+packages/core/src/server/render/ssr-transport.ts
+  s_bd17a5b23db464::t_88e747516379b4 66
+packages/core/src/server/render/static-params.ts
+  s_bd17a5b23db464::t_7dee8c07251c8c 21
+packages/core/src/server/render/template.ts
+  s_bd17a5b23db464::t_be040db0b9a386 38-39,59,91
+packages/core/src/server/router/discovery.ts
+  s_bd17a5b23db464::t_b11277f14ebc47 183
+packages/core/src/server/router/patterns.ts
+  s_bd17a5b23db464::t_455bbdba22ac0d 80,115,121,165
+packages/core/src/server/security/csp.ts
+  s_bd17a5b23db464::t_a3b88db8b0aa31 10
+packages/core/src/server/sync/atomic.ts
+  s_bd17a5b23db464::t_7c34984b8cb1ac 31
+packages/core/src/server/sync/plugin.ts
+  s_bd17a5b23db464::t_ff35b67307c9c2 87
+packages/core/src/server/sync/postgres/index.ts
+  s_bd17a5b23db464::t_0174d5bf73e27d 26
+packages/core/src/server/sync/redis/index.ts
+  s_bd17a5b23db464::t_c6be99e553eb6e 29
+packages/core/src/server/sync/sqlite/index.ts
+  s_bd17a5b23db464::t_3b82cb704c1037 22
+packages/core/src/server/sync/stream.ts
+  s_bd17a5b23db464::t_12994ce7024900 24
+packages/core/src/shared/deferred-ndjson.ts
+  s_bd17a5b23db464::t_967de01d46f998 91,290
+packages/core/src/shared/invalidation-header.ts
+  s_bd17a5b23db464::t_faab3e77ffff99 1
+packages/core/src/shared/route-frame.ts
+  s_bd17a5b23db464::t_2af02f9ef74e7b 469
+packages/core/src/shared/sync-query.ts
+  s_bd17a5b23db464::t_584e99a2165f44 17
+packages/core/src/shared/utils/index.ts
+  s_bd17a5b23db464::t_1a6548b4edd66b 50
+packages/core/tests/architecture/parser-dependency.test.ts
+  s_bd17a5b23db464::t_d3cffbd076c1dd 16
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_bd17a5b23db464::t_8b900c499f68c5 789,809,863,877,894,916,940,956,969,988,1005,1030,1054,1079,1101,1117,1133
+packages/core/tests/browser/rsc-image-preload.webview.test.ts
+  s_bd17a5b23db464::t_6ecf2ec7bc5c44 8
+packages/core/tests/cli/dev.test.ts
+  s_bd17a5b23db464::t_5a12b9f637591c 6
+packages/core/tests/client/boundaries/error-boundary-navigation.test.tsx
+  s_bd17a5b23db464::t_126095937576d7 15
+packages/core/tests/client/boundaries/extension-rejection.test.ts
+  s_bd17a5b23db464::t_95319b0d1598a4 12
+packages/core/tests/client/boundaries/render-boundaries.test.tsx
+  s_bd17a5b23db464::t_afc1bd73c83f62 30-31
+packages/core/tests/client/link/link-boundaries.test.tsx
+  s_bd17a5b23db464::t_93077ff7bc9ae5 62
+packages/core/tests/client/link/link-intent-preload.test.tsx
+  s_bd17a5b23db464::t_7d1917c53d74f8 11-12
+packages/core/tests/client/link/link.test.tsx
+  s_bd17a5b23db464::t_99196353fa5763 36-39
+packages/core/tests/client/link/route-matching-trailing-slash.test.ts
+  s_bd17a5b23db464::t_d7d54f9ad59199 4-5
+packages/core/tests/client/link/router-provider-intercept.test.tsx
+  s_bd17a5b23db464::t_9584c5be162f66 18-19
+packages/core/tests/client/link/router-provider-not-found.test.tsx
+  s_bd17a5b23db464::t_6bfa18029e9cbf 8
+packages/core/tests/client/link/scroll-restoration.test.tsx
+  s_bd17a5b23db464::t_458c0a247493c5 36
+packages/core/tests/client/navigation/multi-instance.test.tsx
+  s_bd17a5b23db464::t_fb4eaf944855ab 55-56
+packages/core/tests/client/navigation/page-fetch.test.ts
+  s_bd17a5b23db464::t_18647472508dd9 7
+packages/core/tests/client/navigation/remount-deps.test.tsx
+  s_bd17a5b23db464::t_b6c40cd3f8f4fc 15
+packages/core/tests/client/navigation/route-api.test.tsx
+  s_bd17a5b23db464::t_452751442a088b 30
+packages/core/tests/client/navigation/router-context.test.tsx
+  s_bd17a5b23db464::t_54cddf362fe5ce 10
+packages/core/tests/client/navigation/use-search.test.tsx
+  s_bd17a5b23db464::t_af677c745b8ecb 16
+packages/core/tests/client/sync/adapters/postgres-sync-adapter.test.ts
+  s_bd17a5b23db464::t_b05a421d1d93a8 11
+packages/core/tests/client/sync/adapters/postgres-sync-notifier.test.ts
+  s_bd17a5b23db464::t_8ae1f8193d0e34 5
+packages/core/tests/client/sync/adapters/sqlite-sync-adapter.test.ts
+  s_bd17a5b23db464::t_5436e5f72f1ca5 15-16
+packages/core/tests/client/sync/query-store.test.ts
+  s_bd17a5b23db464::t_ba15ab6abe4291 6
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_bd17a5b23db464::t_247ccd2654d13a 39
+packages/core/tests/dev/hmr/deferred-page.fixture.ts
+  s_bd17a5b23db464::t_a825387b31adae 11
+packages/core/tests/dev/hmr/dev-css-resource.integration.test.ts
+  s_bd17a5b23db464::t_b46dd710992612 80
+packages/core/tests/dev/hmr/dev-diagnostics.integration.test.ts
+  s_bd17a5b23db464::t_37f92f548e560d 39
+packages/core/tests/dev/hmr/dev-hmr-aliased-footer.integration.test.ts
+  s_bd17a5b23db464::t_c121fb882d854c 42
+packages/core/tests/dev/hmr/dev-hmr-cache-invalidation.integration.test.ts
+  s_bd17a5b23db464::t_a0fff73b1cedf2 8
+packages/core/tests/dev/hmr/dev-hmr-parent-child.integration.test.ts
+  s_bd17a5b23db464::t_031813b4a7ae1a 9,11,336,368
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  s_bd17a5b23db464::t_25b798e0ca2b5b 196,225,257
+packages/core/tests/dev/hmr/dev-page-plugin.test.ts
+  s_bd17a5b23db464::t_9728c0858b873a 19
+packages/core/tests/dev/hmr/dev-root-identity.integration.test.ts
+  s_bd17a5b23db464::t_ec45e49237e70a 14
+packages/core/tests/dev/hmr/dev-route-rebuild.test.ts
+  s_bd17a5b23db464::t_0f8deb23934f14 4
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  s_bd17a5b23db464::t_9568f399efa2d6 138,192
+packages/core/tests/dev/hmr/dev-server-helper.integration.test.ts
+  s_bd17a5b23db464::t_51c91879b8bfcd 48
+packages/core/tests/dev/hmr/rewrite-module-specifiers.test.ts
+  s_bd17a5b23db464::t_8479594917348d 7
+packages/core/tests/rendering/deferred/deferred-client.test.ts
+  s_bd17a5b23db464::t_ce0b6a3133f0a2 48
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_bd17a5b23db464::t_383d6e475beb9d 13
+packages/core/tests/rendering/deferred/deferred-hydration-race.test.ts
+  s_bd17a5b23db464::t_92d748aaa3b9ae 8-9
+packages/core/tests/rendering/deferred/deferred-render.test.ts
+  s_bd17a5b23db464::t_623559efda61d0 8-10
+packages/core/tests/rendering/deferred/render-deferred-suspense.test.ts
+  s_bd17a5b23db464::t_daecd5adb6fa00 130,193,257,324,378
+packages/core/tests/rendering/document/document-root.test.tsx
+  s_bd17a5b23db464::t_7d8cd105989f52 93-95,120-121,168
+packages/core/tests/rendering/document/document-script.test.tsx
+  s_bd17a5b23db464::t_ce87812744bb6b 39
+packages/core/tests/rendering/errors/render-digest.test.ts
+  s_bd17a5b23db464::t_f43fec59141af4 9
+packages/core/tests/rendering/errors/render-error.test.ts
+  s_bd17a5b23db464::t_58fcced01b7d09 372-374
+packages/core/tests/rendering/errors/render-not-found.test.ts
+  s_bd17a5b23db464::t_5fe0258637b45f 21-22
+packages/core/tests/rendering/rsc/rsc-build.test.ts
+  s_bd17a5b23db464::t_6aea76fec3bc10 11
+packages/core/tests/rendering/rsc/rsc-client-references.test.ts
+  s_bd17a5b23db464::t_3b654b03582ce1 914,916,921,1134
+packages/core/tests/rendering/rsc/rsc.scenario.tsx
+  s_bd17a5b23db464::t_eb95724aab8830 34,169
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_bd17a5b23db464::t_9ee9cb148f34ad 21
+packages/core/tests/rendering/ssr/module-preload.test.tsx
+  s_bd17a5b23db464::t_5385ae247b1860 20
+packages/core/tests/rendering/ssr/ppr-document.test.tsx
+  s_bd17a5b23db464::t_c5c502c2ae7b65 21,215
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_bd17a5b23db464::t_a5a6aca614e3ea 39
+packages/core/tests/rendering/ssr/transport-lifecycle.test.tsx
+  s_bd17a5b23db464::t_355800fbb00783 23-24
+packages/core/tests/routing/cache/cache-headers.test.ts
+  s_bd17a5b23db464::t_86656b1a06d8f3 13
+packages/core/tests/routing/cache/dev-isr-loader-cache.scenario.ts
+  s_bd17a5b23db464::t_7516ab940df440 22
+packages/core/tests/routing/cache/dev-loader-cache-primitives.test.ts
+  s_bd17a5b23db464::t_9a156058730c09 3
+packages/core/tests/routing/discovery/route-dependencies.test.ts
+  s_bd17a5b23db464::t_91102554c8c73a 4
+packages/core/tests/routing/errors/furinjs-not-found.test.ts
+  s_bd17a5b23db464::t_43fbcf91ffe952 5
+packages/core/tests/routing/validation/validation.test.ts
+  s_bd17a5b23db464::t_20405366122346 13-14
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  s_bd17a5b23db464::t_993df831f48b39 10
+packages/core/tests/runtime/multi-instance/nested-mount.integration.test.ts
+  s_bd17a5b23db464::t_f215ad845cfdaa 5
+packages/core/tests/runtime/plugin/react-singleton-integration.test.ts
+  s_bd17a5b23db464::t_bbb0ab12e4c3ec 20
+packages/core/tests/runtime/plugin/server-only-identity.test.ts
+  s_bd17a5b23db464::t_9112ba593679ce 15
+packages/core/tests/runtime/request-scope/request-scope-integration.test.ts
+  s_bd17a5b23db464::t_81ad7af88d5a46 5
+packages/core/tests/runtime/security/csp.test.tsx
+  s_bd17a5b23db464::t_ff2fcfd9cdce1d 16-17,96
+packages/core/tests/support/app-fixtures.ts
+  s_bd17a5b23db464::t_796d75d9f17f8f 16
+packages/core/tests/support/build-lock.ts
+  s_bd17a5b23db464::t_fc07b4cb6ea6db 40
+packages/core/tests/support/hmr-proxy.ts
+  s_bd17a5b23db464::t_0c95d9f0bc0128 3-4
+packages/core/tests/support/hmr.ts
+  s_bd17a5b23db464::t_f8b3835dd9e8e8 29
+packages/core/tests/support/http.ts
+  s_bd17a5b23db464::t_e4ca01acc08a45 14
+packages/core/tests/support/navigation-data.ts
+  s_bd17a5b23db464::t_b5511a0141330b 1
+packages/core/tests/support/process.test.ts
+  s_bd17a5b23db464::t_3ca82f6ba61435 7
+packages/core/tests/support/process.ts
+  s_bd17a5b23db464::t_542c2319fabb43 102
+packages/core/tests/support/with-build-stub.ts
+  s_bd17a5b23db464::t_30e0a7385b0f78 4
+packages/electrobun/package.json
+  s_05939466d0a8c3::t_679f037bd40970 84
+packages/electrobun/prepare-sdk.ts
+  s_bd17a5b23db464::t_ed32bee89fe894 34,43
+packages/electrobun/src/associations.ts
+  s_bd17a5b23db464::t_97ec12753bd12b 20-27
+packages/electrobun/src/cli.ts
+  s_ee1fcc24a80de0::t_6290b0dcb18663 12-14
+packages/electrobun/src/config.ts
+  s_bd17a5b23db464::t_43ca56a4593743 6-11
+packages/electrobun/src/package-name.ts
+  s_bd17a5b23db464::t_fcc15de19c5f95 1
+packages/electrobun/src/project.ts
+  s_bd17a5b23db464::t_20cc4f167713d9 95
+packages/electrobun/src/server.ts
+  s_bd17a5b23db464::t_fa561bb2e36d23 114,117
+packages/electrobun/src/standard-host.ts
+  s_bd17a5b23db464::t_af584a265cd960 59
+packages/electrobun/src/web-dev.ts
+  s_bd17a5b23db464::t_4cdb25cce63521 5
+packages/electrobun/tests/build-output.integration.test.ts
+  s_bd17a5b23db464::t_327409bc5452fa 5,7
+packages/electrobun/tests/lifecycle-context.test.ts
+  s_bd17a5b23db464::t_d1854283c7c0b5 9
+packages/electrobun/tests/web-dev.test.ts
+  s_bd17a5b23db464::t_5cc50844c3702f 7
+scripts/compare-vercel-framework-reports.ts
+  s_bd17a5b23db464::t_4df39ecfd234ae 23
+scripts/measure-client-bundle.ts
+  s_bd17a5b23db464::t_843476522db671 11
+scripts/measure-dev-startup.ts
+  s_bd17a5b23db464::t_ca4bda141402cb 9
+scripts/measure-vercel-server-bundle.ts
+  s_bd17a5b23db464::t_d4f6088e9c77d1 13
+scripts/release-target.ts
+  s_bd17a5b23db464::t_42f9395a6a7611 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2b79af869c01202e1b09c066f1437fb609ccafb8",
+  "prompts": {},
+  "sessions": {
+    "s_05939466d0a8c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d305fcd8-382b-468d-a110-93b64d6f3b8c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_4fe91bd78a7c63": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a158c1-9222-7e93-a024-febf74d0a5ea",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_bd17a5b23db464": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "40aa0758-324a-4090-bcf7-1c2489f3cc97",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_ee1fcc24a80de0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dc1429f-f948-43fb-a015-32a96578a2b9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
