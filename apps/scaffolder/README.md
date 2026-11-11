@@ -177,7 +177,7 @@ Edit `src/generated/package-catalog.json` — templates automatically pick up ne
 
 ```json
 {
-  "elysia": "2.0.0-beta.32",
+  "elysia": "2.0.0-rc.1",
   "react": "^19.3.1"
 }
 ```

@@ -30,7 +30,7 @@ The important manual checks are:
 
 - route arguments are now `(path, hooks, handler)`;
 - custom HTTP methods go through `Elysia.route(method, path, handler)` instead of a lowercase alias;
-- lifecycle hooks keep the `on` prefix in RC (`beforeHandle`, `afterHandle`, `onError`, `onRequest`, and `afterResponse` return to their Elysia 1 shape);
+- lifecycle hooks keep the `on` prefix in RC (`onBeforeHandle`, `onAfterHandle`, `onError`, `onRequest` and `onAfterResponse` return to their Elysia 1 shape);
 - lifecycle scope `scoped` is now spelled `plugin`; the `as: "scoped"` option is deprecated but still accepted;
 - the two-parameter `onError` hook shape is a breaking change; declare an error handler with the single Elysia context, or pair an error class with its handler;
 - official plugins move from `@elysiajs/*` to `@elysia/*`;
