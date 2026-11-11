@@ -1,10 +1,5 @@
 import { useEffect } from "react";
 
-/**
- * One delegated document listener for all `button[data-code-copy]` buttons:
- * rendered by the rehype pipeline (standalone code windows) and CodeTabs.
- * Clicks copy the enclosing window's code text; static markup stays inert.
- */
 const COPY_LABEL = "Copy code";
 const COPIED_LABEL = "Copied";
 
@@ -13,6 +8,11 @@ function resetButton(button: HTMLElement): void {
   button.setAttribute("aria-label", COPY_LABEL);
 }
 
+/**
+ * One delegated document listener for all `button[data-code-copy]` buttons:
+ * rendered by the rehype pipeline (standalone code windows) and CodeTabs.
+ * Clicks copy the enclosing window's code text; static markup stays inert.
+ */
 export function CodeCopyBridge() {
   useEffect(() => {
     const timers = new Map<HTMLElement, number>();
