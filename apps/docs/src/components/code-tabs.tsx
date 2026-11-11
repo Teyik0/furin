@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { COPY_ICON_PATH, COPY_ICON_RECT } from "./code-copy-icon-shape";
 
 interface CodeTabProps {
   children: React.ReactNode;
@@ -88,6 +89,34 @@ export function CodeTabs({ children }: CodeTabsProps) {
             </button>
           ))}
         </div>
+
+        {/* Copy handled by the delegated document listener (code-copy-bridge). */}
+        <button
+          aria-label="Copy code"
+          data-code-copy=""
+          style={{
+            border: 0,
+            cursor: "pointer",
+            display: "inline-flex",
+            marginLeft: "auto",
+            marginRight: 12,
+          }}
+          type="button"
+        >
+          <svg
+            aria-hidden="true"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            style={{ height: "0.85rem", width: "0.85rem" }}
+            viewBox="0 0 24 24"
+          >
+            <rect {...COPY_ICON_RECT} />
+            <path d={COPY_ICON_PATH} />
+          </svg>
+        </button>
       </div>
 
       {/* Active tab content */}

@@ -38,7 +38,20 @@ export const route = defineRoute("/")
 
 `config()` is mandatory. The builder then carries layout data, route params, validated search state, loader output, and `requestLoader()` output into the next stage.
 
+## Why Furin
+
+Three design decisions define it:
+
+- **One process, one origin.** Pages, API routes, WebSockets, and sync subscriptions run inside the same Elysia application your backend code already targets. There is no dev proxy to glue together and no second server to deploy.
+- **Explicit rendering modes.** Every route declares `ssr`, `ssg`, or `isr` instead of inheriting an opaque cache layer. Loading, metadata, validation, and caching come from the same `defineRoute()` chain, so the route file is the single source of truth.
+- **Inference without a schema trench.** TypeBox schemas in `config()` validate at runtime and feed `<Link>`, loaders, `head()`, and page props. The same types reflect Elysia API routes through Eden, so pages and APIs share one graph.
+
+Trade-offs are part of that shape: Furin is alpha, Bun-only, and deliberately does not implement the Next.js React Server Component model, Server Actions, or parallel routes.
+
 ## What Furin Is Good At
+
+> [!NOTE]
+> Furin is a good fit when Bun and Elysia are constraints you want to build on, not work around. When Router-first search-state typing or a portable Vite pipeline matters more, compare frameworks in [Comparison](/docs/comparison).
 
 - Bun and Elysia are deliberate platform choices.
 - Pages and APIs should share one process and one origin.
@@ -46,7 +59,7 @@ export const route = defineRoute("/")
 - Runtime validation and TypeScript inference should come from the same TypeBox schemas.
 - Teams want static pages, request-rendered pages, and incrementally regenerated pages in one route model.
 
-Furin is currently an alpha framework and supports Bun only. The production outputs are a Bun server, Bun executable, self-contained executable, Vercel Bun Function, static export, and packaged Furin app.
+The production outputs are a Bun server, Bun executable, self-contained executable, Vercel Bun Function, static export, and packaged Furin app.
 
 ## Start Here
 

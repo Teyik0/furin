@@ -459,7 +459,7 @@ test.each([
     let authorized = false;
     let authorizationCalls = 0;
     let executions = 0;
-    const app = new Elysia().use(furinSync(options)).method(
+    const app = new Elysia().use(furinSync(options)).route(
       method,
       "/private",
       {

@@ -916,6 +916,9 @@ export const route = defineRoute("/").config({ mode: "isr", revalidate: 300 })
               /^warn: File .* is not in the project directory and will not be watched\r?$/gm,
               ""
             )
+            // evlog >= 2.34 warns once when a production server runs without
+            // initLogger; the fixture intentionally wires no drain.
+            .replace(/^\[evlog\] running in production without initLogger\(\)\.[^\n]*$/gm, "")
             .trim()
         ).toBe("");
         expect(html).toContain('href="/blog/hello"');

@@ -61,9 +61,11 @@ test("MDX code tabs retain a single window and highlight their active content", 
   );
 
   expect(container.querySelectorAll(".not-prose")).toHaveLength(1);
+  // Tab buttons first, the shared copy button last (delegated clipboard bridge)
   expect(Array.from(container.querySelectorAll("button"), (button) => button.textContent)).toEqual([
     "server.ts",
     "client.ts",
+    "",
   ]);
   expect(container.querySelector("pre code")?.textContent).toBe("export const port = 3000;\n");
   expect(container.querySelector("pre .th-keyword")?.textContent).toBe("export");

@@ -1,19 +1,12 @@
 import { Link } from "@teyik0/furin/link";
-import { DOCS_CARDS } from "@/lib/docs";
+import { getDocNeighbors } from "@/lib/docs";
 
 interface DocsPagerProps {
   pathname: string;
 }
 
 export function DocsPager({ pathname }: DocsPagerProps) {
-  const index = DOCS_CARDS.findIndex((doc) => doc.href === pathname);
-
-  if (index === -1) {
-    return null;
-  }
-
-  const prev = index > 0 ? DOCS_CARDS[index - 1] : null;
-  const next = index < DOCS_CARDS.length - 1 ? DOCS_CARDS[index + 1] : null;
+  const { next, prev } = getDocNeighbors(pathname);
 
   if (!(prev || next)) {
     return null;

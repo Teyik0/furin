@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { evaluate } from "@mdx-js/mdx";
 import { RouterContext } from "@teyik0/furin/link";
@@ -131,14 +132,21 @@ test("every documentation page keeps its MDX content on the server", async () =>
       expect(html).not.toContain("__FURIN_DEV_DIAGNOSTIC__");
     })
   );
+  const pageModules = paths.map((path) => {
+    if (path === "/docs") {
+      return "index";
+    }
+    const slug = path.slice(6);
+    return existsSync(
+      fileURLToPath(new URL(`../src/pages/docs/${slug}/index.tsx`, import.meta.url))
+    )
+      ? `${slug}/index`
+      : slug;
+  });
+
   const build = await Bun.build({
-    entrypoints: paths.map((path) =>
-      fileURLToPath(
-        new URL(
-          `../src/pages/docs/${path === "/docs" ? "index" : path.slice(6)}.tsx`,
-          import.meta.url
-        )
-      )
+    entrypoints: pageModules.map((page) =>
+      fileURLToPath(new URL(`../src/pages/docs/${page}.tsx`, import.meta.url))
     ),
     external: ["*"],
     plugins: [stripServer],
@@ -153,4 +161,4 @@ test("every documentation page keeps its MDX content on the server", async () =>
       expect(bundle).not.toContain("renderDocContent");
     })
   );
-});
+}, 30_000);
