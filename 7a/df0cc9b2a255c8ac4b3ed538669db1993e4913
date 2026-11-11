@@ -1,0 +1,37 @@
+packages/core/tests/architecture/runtime-peers.test.ts
+  s_ee1fcc24a80de0::t_2f912d1b99be5b 36-37
+  s_ee1fcc24a80de0::t_36ed8e39305ae5 12-19,25-35,38
+  s_ee1fcc24a80de0::t_33f4d61a63c04d 39
+packages/core/package.json
+  s_ee1fcc24a80de0::t_ca185b5cf5fa50 179-180,205,210
+packages/electrobun/package.json
+  s_ee1fcc24a80de0::t_ca185b5cf5fa50 75
+.github/workflows/elysia-next.yaml
+  s_2d3b48c2109c35::t_02ef2b7c519530 3-4,15,27,29
+bun.lock
+  s_ee1fcc24a80de0::t_3fa1a96ff76450 143-144,169,174,200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7adf0cc9b2a255c8ac4b3ed538669db1993e4913",
+  "prompts": {},
+  "sessions": {
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_ee1fcc24a80de0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dc1429f-f948-43fb-a015-32a96578a2b9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
