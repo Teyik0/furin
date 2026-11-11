@@ -1,0 +1,39 @@
+apps/docs/src/components/root-layout.tsx
+  s_79a7c66caa9183::t_ae96762638d62b 55
+apps/docs/src/pages/docs/_route.tsx
+  s_79a7c66caa9183::t_1f9d35c51c9a0f 69
+apps/docs/src/pages/globals.css
+  s_79a7c66caa9183::t_e672968592487b 124,193
+  s_79a7c66caa9183::t_ae96762638d62b 135,139,146,150,154,158,162,166,170
+  s_79a7c66caa9183::t_d3745bc88af528 171-172
+  s_79a7c66caa9183::t_af44766c219ad9 130,179,184,188,192
+apps/docs/src/components/code-tabs.tsx
+  s_79a7c66caa9183::t_ae96762638d62b 115
+apps/docs/src/lib/docs.ts
+  s_79a7c66caa9183::t_613debcec2939e 236-237,242,245-246,251,254-255,260,266-267,274,281-282,296,305,309-310,322-323
+  s_79a7c66caa9183::t_af44766c219ad9 231,233,263-264,268-269,277-278,280
+apps/docs/furin-env.d.ts
+  s_79a7c66caa9183::t_111137849f3ae5 73-78,80,82-84,86,88-90,92,94-96,184
+apps/docs/src/lib/rehype-highlight.ts
+  s_79a7c66caa9183::t_3867986ecca73b 66
+apps/docs/scripts/generate-llms-txt.ts
+  s_79a7c66caa9183::t_765b4353089884 23
+apps/docs/src/pages/docs/desktop/index.tsx
+  s_79a7c66caa9183::t_d3745bc88af528 1-10,12-13,15-18,20-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "70aa69b3d626609323c546bd52507108b5470492",
+  "prompts": {},
+  "sessions": {
+    "s_79a7c66caa9183": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a0ff-a211-7100-9e00-6b161566bbad",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
