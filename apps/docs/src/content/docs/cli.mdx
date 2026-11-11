@@ -10,7 +10,7 @@ furin preview
 furin typegen
 ```
 
-The generated project already exposes builds and previews through `bun run build`, `bun run start`, and `bun run dev`.
+The generated project already exposes builds and previews through `bun run build` and `bun run start`.
 
 ## `furin dev`
 
@@ -22,7 +22,7 @@ Development runs the application entry with Bun hot reloading. The source entry 
 
 | Flag | Meaning |
 |---|---|
-| `--port` | Override the source listener's port (or `PORT`). Only valid with `--web` |
+| `--port` | Override the source listener's port (or `PORT`). In desktop projects, only valid with `--web` |
 | `--web` | Web mode: skip any native desktop integration |
 | `--desktop` | Desktop mode: start the native app without opening a browser owner session |
 
@@ -48,7 +48,7 @@ furin build [options]
 | `--prefix` | URL prefix | `""` | Prefix paired with the explicit pages directory |
 | `--config` | Path | Auto-discovered | Use another config file |
 | `--compile` | `server` or `embed` | No executable; inherits `bun.compile` when configured | Produce a Bun executable |
-| `--output` | `app` or `server` | `server` | Bun only: `app` emits an inert `furin:app` artifact without a listener entry, `server` emits a bootable `server.js` |
+| `--output` | `app` or `server` | `server` | Bun only: `app` emits an inert `app.js` without a listener entry, `server` emits a bootable `server.js` |
 | `--external` | Package name (repeatable) | None | Bun only: package to keep external in the server and RSC bundles |
 | `--analyze` | Boolean flag | `false` | Write client Bun metafiles under `.furin/build/analysis` |
 

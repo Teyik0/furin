@@ -47,3 +47,12 @@ test("the callout keeps surrounding paragraphs and real content", async () => {
   expect(html.indexOf("callout-warning")).toBeLessThan(html.indexOf("After."));
   expect(html).toContain("<p>Short body.</p>");
 });
+
+test("a marker followed by inline content on its line is removed from the body", async () => {
+  const compiled = await compile("> [!NOTE] **Bun only.**\n");
+  const html = renderToStaticMarkup(compiled.default({}));
+
+  expect(html).toContain('class="callout callout-note"');
+  expect(html).toContain("<strong>Bun only.</strong>");
+  expect(html).not.toContain("[!NOTE]");
+});

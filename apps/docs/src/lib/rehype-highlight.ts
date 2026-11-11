@@ -23,8 +23,7 @@ const copyButton = () =>
     {
       "aria-label": "Copy code",
       "data-code-copy": "",
-      style:
-        "margin-left:auto;background:none;border:0;cursor:pointer;display:inline-flex;align-items:center;color:#94a3b8",
+      style: "margin-left:auto;border:0;cursor:pointer;display:inline-flex;align-items:center",
       type: "button",
     },
     [copyIcon]

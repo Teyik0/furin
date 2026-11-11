@@ -7,7 +7,7 @@ import {
   DropdownMenuRoot,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { DOCS_AREAS } from "@/lib/docs";
+import { DOCS_AREAS, isDesktopDocsPath } from "@/lib/docs";
 
 const AREA_ICONS: { [title: string]: LucideIcon } = {
   [DOCS_AREAS[0].title]: BookOpen,
@@ -20,12 +20,7 @@ const AREA_ICONS: { [title: string]: LucideIcon } = {
  * area navigates to its landing page and the sidebar switches sections.
  */
 export function DocsRootToggle({ pathname }: { pathname: string }) {
-  const activeIndex = DOCS_AREAS.findIndex((area) =>
-    area.title === DOCS_AREAS[1].title
-      ? pathname.startsWith("/docs/desktop")
-      : !pathname.startsWith("/docs/desktop")
-  );
-  const active = DOCS_AREAS[activeIndex] ?? DOCS_AREAS[0];
+  const active = isDesktopDocsPath(pathname) ? DOCS_AREAS[1] : DOCS_AREAS[0];
 
   return (
     <DropdownMenuRoot>

@@ -5,6 +5,14 @@ import { useEffect } from "react";
  * rendered by the rehype pipeline (standalone code windows) and CodeTabs.
  * Clicks copy the enclosing window's code text; static markup stays inert.
  */
+const COPY_LABEL = "Copy code";
+const COPIED_LABEL = "Copied";
+
+function resetButton(button: HTMLElement): void {
+  delete button.dataset.copied;
+  button.setAttribute("aria-label", COPY_LABEL);
+}
+
 export function CodeCopyBridge() {
   useEffect(() => {
     const timers = new Map<HTMLElement, number>();
@@ -27,7 +35,8 @@ export function CodeCopyBridge() {
         return;
       }
       const text = findCodeText(button);
-      if (text === null) {
+      // The Clipboard API is missing outside secure contexts.
+      if (text === null || navigator.clipboard === undefined) {
         return;
       }
       event.preventDefault();
@@ -35,11 +44,12 @@ export function CodeCopyBridge() {
         .writeText(text)
         .then(() => {
           button.dataset.copied = "";
+          button.setAttribute("aria-label", COPIED_LABEL);
           window.clearTimeout(timers.get(button));
           timers.set(
             button,
             window.setTimeout(() => {
-              delete button.dataset.copied;
+              resetButton(button);
               timers.delete(button);
             }, 1500)
           );
@@ -52,7 +62,7 @@ export function CodeCopyBridge() {
       document.removeEventListener("click", onClick);
       for (const [button, timer] of timers) {
         window.clearTimeout(timer);
-        delete button.dataset.copied;
+        resetButton(button);
       }
     };
   }, []);

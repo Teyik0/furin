@@ -93,7 +93,11 @@
   body {
     @apply bg-background text-foreground;
   }
+}
 
+/* The typography plugin emits `.prose` into the utilities layer, which wins
+   over `base` whatever the specificity: overrides of prose live here. */
+@layer utilities {
   /* Typography is sized in em by the prose plugin, so shrinking the root
      size densifies every element (headings, lists, tables) proportionally. */
   .doc-content.prose {
@@ -164,7 +168,9 @@
   .doc-content .callout-caution {
     --callout-accent: var(--color-red-500);
   }
+}
 
+@layer base {
   /* Code copy buttons: rendered by rehype in standalone windows and by
      CodeTabs. Clicks are handled once via the delegated document bridge. */
   button[data-code-copy] {

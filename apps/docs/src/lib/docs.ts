@@ -19,6 +19,8 @@ export interface DocNavSection {
 
 const DEFAULT_OPEN_IN: OpenInTarget[] = ["github", "chatgpt", "claude", "cursor", "copilot"];
 
+export const DESKTOP_SECTION_TITLE = "Desktop (Electrobun)";
+
 export const DOCS_NAV: DocNavSection[] = [
   {
     items: [
@@ -260,7 +262,7 @@ export const DOCS_NAV: DocNavSection[] = [
         title: "Migrating To Furin Desktop",
       },
     ],
-    title: "Desktop (Electrobun)",
+    title: DESKTOP_SECTION_TITLE,
   },
   {
     items: [
@@ -277,8 +279,6 @@ export const DOCS_NAV: DocNavSection[] = [
     title: "Internals",
   },
 ];
-
-export const DESKTOP_SECTION_TITLE = "Desktop (Electrobun)";
 
 /** Sidebar areas, mirrored by the root toggle in the sidebar. */
 export const DOCS_AREAS = [
@@ -299,8 +299,26 @@ export const DOCS_AREAS = [
  * pages live behind the root toggle, like fumadocs documentation areas.
  */
 export function getDocsSidebarSections(pathname: string): DocNavSection[] {
-  const desktopArea = pathname.startsWith("/docs/desktop");
+  const desktopArea = isDesktopDocsPath(pathname);
   return DOCS_NAV.filter((section) => (section.title === DESKTOP_SECTION_TITLE) === desktopArea);
+}
+
+/** Whether a pathname belongs to the Desktop documentation area. */
+export function isDesktopDocsPath(pathname: string): boolean {
+  return pathname.startsWith("/docs/desktop");
+}
+
+/** Previous and next pages of a doc, within its own documentation area. */
+export function getDocNeighbors(pathname: string): {
+  next: DocNavItem | null;
+  prev: DocNavItem | null;
+} {
+  const items = getDocsSidebarSections(pathname).flatMap((section) => section.items);
+  const index = items.findIndex((doc) => doc.href === pathname);
+  if (index === -1) {
+    return { next: null, prev: null };
+  }
+  return { next: items[index + 1] ?? null, prev: items[index - 1] ?? null };
 }
 
 export const DOCS_CARDS = DOCS_NAV.flatMap((section) => section.items);

@@ -52,25 +52,66 @@ test("clicking the copy icon copies its code", async () => {
   }
 });
 
-test("copy buttons reset independently and remain usable after consecutive copies", async () => {
+test("each copy button resets on its own timer and stays usable", async () => {
   const { container, cleanup } = await renderBridge();
   try {
-    const buttons = container.querySelectorAll("button");
+    const [first, second] = container.querySelectorAll("button");
     await act(async () => {
-      buttons[0]?.click();
+      first?.click();
       await Promise.resolve();
-      buttons[1]?.click();
+    });
+    await act(() => Bun.sleep(800));
+    await act(async () => {
+      second?.click();
       await Promise.resolve();
     });
     expect(copies).toEqual(["first", "second"]);
-    await act(() => Bun.sleep(1600));
-    expect([...buttons].every((button) => button.dataset.copied === undefined)).toBe(true);
+    await act(() => Bun.sleep(900));
+    expect(first?.dataset.copied).toBeUndefined();
+    expect(second?.dataset.copied).toBe("");
     await act(async () => {
-      buttons[0]?.click();
+      first?.click();
       await Promise.resolve();
     });
     expect(copies).toEqual(["first", "second", "first"]);
   } finally {
+    cleanup();
+  }
+});
+
+test("a copy announces itself to assistive technology, then restores the label", async () => {
+  const { container, cleanup } = await renderBridge();
+  try {
+    const button = container.querySelector("button");
+    button?.setAttribute("aria-label", "Copy code");
+    await act(async () => {
+      button?.click();
+      await Promise.resolve();
+    });
+    expect(button?.getAttribute("aria-label")).toBe("Copied");
+    await act(() => Bun.sleep(1600));
+    expect(button?.getAttribute("aria-label")).toBe("Copy code");
+  } finally {
+    cleanup();
+  }
+});
+
+test("a click without the Clipboard API copies nothing and does not throw", async () => {
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+  const { container, cleanup } = await renderBridge();
+  const errors: unknown[] = [];
+  const onError = (event: ErrorEvent) => errors.push(event.error);
+  window.addEventListener("error", onError);
+  try {
+    const button = container.querySelector("button");
+    await act(async () => {
+      button?.click();
+      await Promise.resolve();
+    });
+    expect(errors).toEqual([]);
+    expect(button?.dataset.copied).toBeUndefined();
+  } finally {
+    window.removeEventListener("error", onError);
     cleanup();
   }
 });

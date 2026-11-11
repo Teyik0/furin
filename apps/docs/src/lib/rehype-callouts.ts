@@ -116,7 +116,7 @@ function transformBlockquote(node: HastNode): void {
     return;
   }
 
-  head.value = head.value.slice(markerLine === head.value ? head.value.length : lineEnd + 1);
+  head.value = lineEnd === -1 ? "" : head.value.slice(lineEnd + 1);
   if (head.value.length === 0) {
     markerParagraph.children.shift();
   }
