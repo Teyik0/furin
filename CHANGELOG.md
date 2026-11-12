@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.9.0-alpha.2] — 2026-11-12
+
 ### Breaking
 - **Two file-routing styles: Next.js and TanStack Start** — `furin({ style })` is required and picks the convention of `pagesDir`: `"nextjs"` (App Router: top-level `layout.tsx`, `page.tsx`, nested `layout.tsx`, `[id]`, `[...slug]`/`[[...slug]]`, `(group)`, `_private/`, `error.tsx`, `not-found.tsx`; `route.ts` is rejected, declare API routes on Elysia) or `"tanstack"` (TanStack Start: `__root.tsx`, `index.tsx`, `route.tsx`, `$id`, `$`, `{-$lang}`, `(group)`, `-private`, flat `posts.$id.tsx`, pathless `_auth.tsx`, un-nested `posts_.$id.tsx`, and `.error()`/`.notFound()` on the route). The Furin convention (`root.tsx`, `_route.tsx`) is removed: rename `root.tsx` to `__root.tsx` and `_route.tsx` to `route.tsx` for the TanStack style. `pagesDir` defaults to `src/app` (`nextjs`) or `src/routes` (`tanstack`) instead of `src/pages`.
 - **TanStack Start route ids in both styles** — `defineRoute(id)` takes the TanStack Start id: a layout is `"/board"` (was `"/board/_route"`), an index page ends with a slash (`"/board/$boardId/"`, was `"/board/[boardId]"`), dynamic segments are `$id` and catch-alls `$`. Moving between styles only renames files. The route config checks print the id to write for every file.
@@ -631,7 +633,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `writeRouteTypes()` generating `furin-env.d.ts` for per-route type inference
 - Bun-native HMR with React Fast Refresh — single process, no Vite
 
-[Unreleased]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.0...HEAD
+[Unreleased]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.2...HEAD
+[0.9.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.1...v0.9.0-alpha.2
+[0.9.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.0...v0.9.0-alpha.1
 [0.9.0-alpha.0]: https://github.com/teyik0/furin/compare/v0.8.0-alpha.0...v0.9.0-alpha.0
 [0.8.0-alpha.0]: https://github.com/teyik0/furin/compare/v0.7.0-alpha.3...v0.8.0-alpha.0
 [0.7.0-alpha.3]: https://github.com/teyik0/furin/compare/v0.7.0-alpha.2...v0.7.0-alpha.3
