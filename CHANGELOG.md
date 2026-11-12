@@ -14,7 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 - **`notFound()` takes optional options** — call `notFound()` without arguments; `notFound(undefined)` and `notFound({ message, data })` still work.
-- **Desktop development runs in two processes** — in a desktop project, `furin dev` runs the backend in the hot worker and starts the native shell from `@teyik0/furin-electrobun/desktop-dev`; native edits relaunch the shell without restarting the backend.
+- **Desktop development runs in two processes** — in a desktop project, `furin dev` runs the backend in the hot worker and starts the native shell from `@teyik0/furin-electrobun/desktop-dev`; native edits relaunch the shell without restarting the backend. It requires `@teyik0/furin-electrobun` 0.2.0, which declares `@teyik0/furin` `>=0.9.0-alpha.1 <0.10.0`.
 - **Desktop documentation** — ten task-oriented guides under Desktop (Start Here, Build Your App, Ship) replace the overview and client pages, with the architecture and migration guides in a Reference section. The docs use a workbench layout with a Web/Desktop platform switch and serve generated Markdown and LLM indexes for both platforms.
 - **Faster CI** — core, electrobun and the apps run on separate Ubuntu and Windows runners, and the WebView conformance suite has its own job; they previously ran back to back. Tests drive startup and shutdown budgets with fake timers, stop production servers without the 5-second pre-stop delay, share builds that asserted the same output, and drop duplicated cases: core runs in about 90 s locally instead of 235 s, electrobun in about 27 s instead of 76 s.
 - **Weekly Elysia check** — the scheduled workflow tests the latest `elysia@rc` instead of the stale `next` tag.

@@ -1,6 +1,6 @@
 {
   "name": "@teyik0/furin-electrobun",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Official system-WebView desktop packaging for Furin.",
   "license": "MIT",
   "sideEffects": [
@@ -76,7 +76,7 @@
     "react-dom": "catalog:"
   },
   "peerDependencies": {
-    "@teyik0/furin": ">=0.9.0-alpha.0 <0.10.0",
+    "@teyik0/furin": ">=0.9.0-alpha.1 <0.10.0",
     "elysia": "^2.0.0-rc.1",
     "react": "^19.3.1"
   },
