@@ -52,3 +52,8 @@ describe("applyLinkParams", () => {
     expect(applyLinkParams("/about", undefined)).toBe("/about");
   });
 });
+
+test("drops an optional segment when no params are given", () => {
+  expect(applyLinkParams("/:lang?/about", undefined)).toBe("/about");
+  expect(applyLinkParams("/:lang?", null)).toBe("/");
+});

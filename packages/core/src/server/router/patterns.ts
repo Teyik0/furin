@@ -102,7 +102,10 @@ export function routePatternRegexSource(
       }
     } else if (pattern[i] === "*") {
       paramNames.push(SPLAT_PARAM);
-      source += sources.catchAll;
+      // Elysia serves `/docs` from `/docs/*` too, with an empty splat.
+      source = source.endsWith("/")
+        ? `${source.slice(0, -1)}(?:/${sources.catchAll})?`
+        : source + sources.catchAll;
       i += 1;
     } else {
       const ch = pattern[i];
@@ -145,6 +148,28 @@ interface CompiledRoutePattern<TRoute extends RoutePatternLike> {
   route: TRoute;
 }
 
+function decodeParam(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/** An empty catch-all is `""`; an optional segment that did not match stays unset. */
+function matchedParams(paramNames: string[], match: RegExpExecArray): Record<string, string> {
+  const params: Record<string, string> = {};
+  for (const [index, name] of paramNames.entries()) {
+    const value = match[index + 1];
+    if (value !== undefined) {
+      params[name] = decodeParam(value);
+    } else if (name === SPLAT_PARAM) {
+      params[name] = "";
+    }
+  }
+  return params;
+}
+
 export function buildRouteMatcher<TRoute extends RoutePatternLike>(
   routes: TRoute[]
 ): (pathname: string) => RouteMatch<TRoute> | null {
@@ -161,19 +186,7 @@ export function buildRouteMatcher<TRoute extends RoutePatternLike>(
       if (!match) {
         continue;
       }
-      const params: Record<string, string> = {};
-      for (let i = 0; i < candidate.paramNames.length; i += 1) {
-        const name = candidate.paramNames[i];
-        // An optional segment that did not match leaves its param unset.
-        if (name !== undefined && match[i + 1] !== undefined) {
-          try {
-            params[name] = decodeURIComponent(match[i + 1] ?? "");
-          } catch {
-            params[name] = match[i + 1] ?? "";
-          }
-        }
-      }
-      return { params, route: candidate.route };
+      return { params: matchedParams(candidate.paramNames, match), route: candidate.route };
     }
     return null;
   };

@@ -221,3 +221,19 @@ describe("nextjs style", () => {
     );
   });
 });
+
+describe("review: collisions and catch-all layouts", () => {
+  test("an optional segment that collides with a sibling route is rejected", () => {
+    touch("__root.tsx", "index.tsx", "{-$lang}/index.tsx");
+    expect(() => scanRouteManifest({ pagesDir, prefix: "", style: "tanstack" })).toThrow(
+      "Duplicate route pattern"
+    );
+  });
+
+  test("a Next.js layout inside a catch-all folder is rejected with a fix", () => {
+    touch("layout.tsx", "docs/[...slug]/layout.tsx", "docs/[...slug]/page.tsx");
+    expect(() => scanRouteManifest({ pagesDir, prefix: "", style: "nextjs" })).toThrow(
+      "move it to the parent folder"
+    );
+  });
+});

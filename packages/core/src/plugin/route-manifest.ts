@@ -1,5 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { extname } from "node:path";
+import { expandOptionalSegments } from "../shared/route-specificity.ts";
 
 /**
  * File-routing convention of one `furin()` app. Both styles produce the same
@@ -73,6 +74,7 @@ const ROUTE_EXTENSION = /\.(?:jsx?|tsx?)$/;
 const PARAM_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const BRACKET_ESCAPE = /\[([^\]]*)\]/g;
 const SOURCE_EXTENSIONS = [".tsx", ".ts", ".jsx", ".js"];
+const PARAM_SEGMENT = /(^|\/):[^/]+/g;
 /** `[...slug]` and the optional `[[...slug]]`. */
 const NEXT_CATCH_ALL = /^\[\[?\.\.\.([^\]]+)\]\]?$/;
 
@@ -244,6 +246,11 @@ function addNextFile(
       `[furin] ${sourcePath}: route handlers are not supported. Declare API routes on your Elysia app instead.`
     );
   }
+  if (base === "layout" && segments.at(-1)?.type === "splat") {
+    throw new Error(
+      `[furin] ${sourcePath}: a layout cannot share a catch-all folder with its page: move it to the parent folder.`
+    );
+  }
   if (base === "page" || (base === "layout" && segments.length > 0)) {
     state.candidates.push({
       forcedLayout: base === "layout",
@@ -330,11 +337,29 @@ function assertSplatLast(candidate: Candidate): void {
   }
 }
 
-/** Optional segments match like a missing segment, so `/:a?` and `/` collide. */
-function patternKey(pattern: string): string {
-  return pattern.replace(/(^|\/):[^/?]+(\?)?/g, (_, slash: string, optional?: string) =>
-    optional ? `${slash}:optional` : `${slash}:param`
+/** Collision keys of a page: one per concrete variant, params renamed `:param`. */
+function patternKeys(pattern: string): string[] {
+  return expandOptionalSegments(pattern).map((variant) =>
+    variant.replace(PARAM_SEGMENT, "$1:param")
   );
+}
+
+/** Records a page's collision keys, rejecting one another page already claims. */
+function claimPatterns(
+  seenPatterns: Map<string, string>,
+  pattern: string,
+  sourcePath: string,
+  relativePath: (path: string) => string
+): void {
+  for (const patternKey of patternKeys(pattern)) {
+    const previous = seenPatterns.get(patternKey);
+    if (previous !== undefined) {
+      throw new Error(
+        `[furin] Duplicate route pattern "${patternKey}" from "${relativePath(previous)}" and "${relativePath(sourcePath)}".`
+      );
+    }
+    seenPatterns.set(patternKey, sourcePath);
+  }
 }
 
 function buildManifest(scan: StyleScan, pagesDir: string, prefix: string): RouteManifest {
@@ -388,13 +413,7 @@ function buildManifest(scan: StyleScan, pagesDir: string, prefix: string): Route
     seenIds.set(id, sourcePath);
     const pattern = urlPattern(segments);
     if (kind === "page") {
-      const previous = seenPatterns.get(patternKey(pattern));
-      if (previous !== undefined) {
-        throw new Error(
-          `[furin] Duplicate route pattern "${patternKey(pattern)}" from "${relativePath(previous)}" and "${relativePath(sourcePath)}".`
-        );
-      }
-      seenPatterns.set(patternKey(pattern), sourcePath);
+      claimPatterns(seenPatterns, pattern, sourcePath, relativePath);
     }
     return { id, kind, params: routeParams(segments), parentPath, pattern, sourcePath };
   });

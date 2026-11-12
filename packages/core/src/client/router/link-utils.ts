@@ -88,20 +88,18 @@ export function applyLinkParams(
   to: string,
   params: Record<string, string | number> | null | undefined
 ): string {
-  if (!params) {
-    return to;
-  }
+  const values = params ?? {};
   let url = to
     .replaceAll(/\/:([a-zA-Z0-9_]+)\?(?=\/|$)/g, (_match: string, name: string) =>
-      params[name] === undefined ? "" : `/${encodeURIComponent(String(params[name]))}`
+      values[name] === undefined ? "" : `/${encodeURIComponent(String(values[name]))}`
     )
     .replaceAll(/:([a-zA-Z0-9_]+)/g, (match: string, name: string) =>
-      name in params ? encodeURIComponent(String(params[name])) : match
+      name in values ? encodeURIComponent(String(values[name])) : match
     );
   if (url === "") {
     url = "/";
   }
-  const wildcard: string | number | undefined = params._splat;
+  const wildcard: string | number | undefined = values._splat;
   if (wildcard !== undefined && url.includes("/*")) {
     const encodedWildcard = String(wildcard).split("/").map(encodeURIComponent).join("/");
     url = url.replace("/*", () => `/${encodedWildcard}`);

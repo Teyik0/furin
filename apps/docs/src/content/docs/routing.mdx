@@ -165,7 +165,7 @@ export const route = defineRoute("/docs/$")
   .page(({ params }) => <p>{params._splat}</p>);
 ```
 
-Furin maps both `[...slug]` and `[[...slug]]` to the same `$` catch-all and does not distinguish them: `[[...slug]]` is accepted so Next.js trees keep working, but it behaves exactly like `[...slug]`. Add a `page.tsx` in the parent directory when the bare path needs its own page.
+Furin maps both `[...slug]` and `[[...slug]]` to the same `$` catch-all. As in TanStack Start, a catch-all also serves its bare parent path with an empty `params._splat` (`/docs` for `docs/[...slug]/page.tsx`), unless a `page.tsx` in the parent directory claims that path. So `[[...slug]]` behaves as in Next.js, and `[...slug]` matches the bare path too. A `layout.tsx` cannot sit in a catch-all folder: put it in the parent folder.
 
 ### Optional segments
 
@@ -181,7 +181,7 @@ export const route = defineRoute("/{-$lang}/about")
   .page(({ params }) => <About lang={params.lang ?? "en"} />);
 ```
 
-The route pattern is `/:lang?/about`. `<Link to="/:lang?/about">` drops the segment when `lang` is omitted. A required segment outranks an optional one when both match.
+The route pattern is `/:lang?/about`. `<Link to="/:lang?/about">` drops the segment when `lang` is omitted. Like the server, Furin ranks an optional pattern by its most specific form: `/about` is served by `{-$lang}/about.tsx` before `$id.tsx`. A page whose optional segment collides with another page (`index.tsx` and `{-$lang}/index.tsx` both serve `/`) is rejected as a duplicate pattern.
 
 ## Validated Search Parameters
 

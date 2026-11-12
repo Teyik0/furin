@@ -80,7 +80,7 @@ describe("routePatternRegexSource", () => {
   test("substitutes the given sources for params and catch-alls, in order", () => {
     expect(
       routePatternRegexSource("/v1.0/:org/:repo/*", { catchAll: "(?:.*)", param: "[^/]+" })
-    ).toEqual({ paramNames: ["org", "repo", "_splat"], source: "/v1\\.0/[^/]+/[^/]+/(?:.*)" });
+    ).toEqual({ paramNames: ["org", "repo", "_splat"], source: "/v1\\.0/[^/]+/[^/]+(?:/(?:.*))?" });
   });
 });
 
@@ -124,7 +124,31 @@ describe("optional params and splats", () => {
     expect(resolvePath("/docs/:lang?", {})).toBe("/docs");
   });
 
-  test("a required param outranks an optional one", () => {
-    expect(compareRouteSpecificity("/:lang/about", "/:lang?/about")).toBeGreaterThan(0);
+  test("an optional pattern ranks as its most specific variant", () => {
+    expect(compareRouteSpecificity("/:lang?/about", "/:id")).toBeGreaterThan(0);
+    expect(compareRouteSpecificity("/:lang?/about", "/about/:id")).toBeLessThan(0);
+  });
+});
+
+describe("review: optional params rank like Elysia", () => {
+  test("a static variant of an optional pattern beats a param route", () => {
+    const optional = { pattern: "/:lang?/about" };
+    const param = { pattern: "/:id" };
+    expect(buildRouteMatcher([param, optional])("/about")?.route).toBe(optional);
+    expect(buildRouteMatcher([param, optional])("/fr/about")?.route).toBe(optional);
+    expect(buildRouteMatcher([param, optional])("/x")?.route).toBe(param);
+  });
+
+  test("a catch-all also serves its bare parent path with an empty splat, as Elysia does", () => {
+    const matcher = buildRouteMatcher([{ pattern: "/docs/*" }]);
+    expect(matcher("/docs")?.params).toEqual({ _splat: "" });
+    expect(matcher("/docs/")?.params).toEqual({ _splat: "" });
+    expect(matcher("/docs/a/b")?.params).toEqual({ _splat: "a/b" });
+    expect(matcher("/docsx")).toBeNull();
+  });
+
+  test("a static sibling still wins its exact path over the catch-all", () => {
+    const docs = { pattern: "/docs" };
+    expect(buildRouteMatcher([{ pattern: "/docs/*" }, docs])("/docs")?.route).toBe(docs);
   });
 });
