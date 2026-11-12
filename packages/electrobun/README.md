@@ -2,7 +2,7 @@
 
 Furin desktop packaging with Electrobun 2.0.2 and one Bun main process in production. Your React DOM pages, SSR, API, Eden client and sync code serve both web and desktop.
 
-Guides: [teyik0.github.io/furin/docs/desktop](https://teyik0.github.io/furin/docs/desktop). Requires Bun 1.4+, `@teyik0/furin` `>=0.9.0-alpha.0 <0.10.0` and Elysia `^2.0.0-rc.1`.
+Guides: [teyik0.github.io/furin/docs/desktop](https://teyik0.github.io/furin/docs/desktop). Requires Bun 1.4+, `@teyik0/furin` `>=0.9.0-alpha.1 <0.10.0` and Elysia `^2.0.0-rc.1`.
 
 ## Setup
 
