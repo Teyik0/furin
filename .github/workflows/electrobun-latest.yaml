@@ -25,7 +25,7 @@ jobs:
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version-file: .bun-version
+          bun-version-file: package.json
 
       - name: Point the desktop package at electrobun@latest
         working-directory: packages/electrobun
