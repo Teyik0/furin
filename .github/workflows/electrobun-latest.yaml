@@ -1,0 +1,52 @@
+name: Workflow - Electrobun latest
+
+# The electrobun peer is a range. This packages the desktop suite and the
+# example app with the latest `electrobun` so a new release breaks CI before
+# it breaks users. A release outside the peer range fails with Furin's
+# "supports ~x.y.z" error: widen the range once it passes.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop-tests:
+    name: Desktop tests on electrobun@latest
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Point the desktop package at electrobun@latest
+        working-directory: packages/electrobun
+        run: |
+          jq '.devDependencies.electrobun = "latest"' package.json > package.next.json
+          mv package.next.json package.json
+
+      - name: Install packages
+        run: bun install
+
+      - name: Build
+        run: bun run build
+
+      - name: Test desktop package
+        working-directory: packages/electrobun
+        run: |
+          launcher="$(dirname "$(bun -e 'console.log(Bun.resolveSync("electrobun/package.json", process.cwd()))')")"
+          echo "electrobun $(jq -r .version "$launcher/package.json")"
+          FURIN_ELECTROBUN_SDK_CLI="$launcher/bin/electrobun.cjs" \
+          FURIN_ELECTROBUN_SDK_DEVKIT="$PWD/.furin/sdk/.hutch/devkit" \
+            bun run test
+
+      - name: Build the example desktop app
+        working-directory: examples/electrobun-todo
+        run: bun run build:desktop

@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join, posix, resolve, sep, win32 } from "node:path
 import type { DesktopConfig } from "./config";
 import { prepareDesktop } from "./prepare";
 import { initDesktop, loadDesktopConfig, loadFurinProject } from "./project";
-import { prepareSdkResolution } from "./sdk-resolution";
+import { prepareSdkResolution, resolveSdk } from "./sdk-resolution";
 import { defaultDesktopDataDir, resolveDesktopDataDir } from "./storage";
 
 const MODULE_PATH = /.*/;
@@ -102,17 +102,6 @@ async function coreCli(root: string): Promise<string> {
   throw new Error("Cannot locate the Furin CLI; install @teyik0/furin.");
 }
 
-function sdkBootstrap(root: string): string {
-  for (const from of [root, import.meta.dir]) {
-    try {
-      return join(dirname(Bun.resolveSync("electrobun/package.json", from)), "bin/electrobun.cjs");
-    } catch {
-      // The optional SDK can be resolved from either the consumer or this package.
-    }
-  }
-  throw new Error("Install the optional desktop SDK with bun add -d electrobun@2.0.2.");
-}
-
 async function run(command: string[], cwd: string, env: NodeJS.ProcessEnv): Promise<void> {
   const child = Bun.spawn(command, {
     cwd,
@@ -160,9 +149,13 @@ export async function prepareDesktopDevelopment(
 ): Promise<{ [name: string]: string }> {
   const config = await loadDesktopConfig(cwd);
   const project = await loadFurinProject(cwd);
-  const sdk = sdkBootstrap(cwd);
+  const { launcher: sdk, version: electrobunVersion } = await resolveSdk(cwd);
   const env = { ...process.env, NODE_ENV: "development" };
-  const generated = await prepareDesktop(cwd, config, { ...project, mode: "dev" });
+  const generated = await prepareDesktop(cwd, config, {
+    ...project,
+    electrobunVersion,
+    mode: "dev",
+  });
   await run([process.execPath, sdk, "prepare", "--env=dev"], generated, env);
   const settings: DesktopDevelopmentSettings = {
     config,
@@ -233,7 +226,7 @@ export async function desktopCommand(
   }
   const config = await loadDesktopConfig(cwd);
   const project = await loadFurinProject(cwd);
-  const sdk = sdkBootstrap(cwd);
+  const { launcher: sdk, version: electrobunVersion } = await resolveSdk(cwd);
   const env = {
     ...process.env,
     NODE_ENV: command === "build" ? "production" : "development",
@@ -257,6 +250,7 @@ export async function desktopCommand(
   }
   const generated = await prepareDesktop(cwd, config, {
     ...project,
+    electrobunVersion,
     mode: command === "build" ? "build" : "dev",
   });
   await run([process.execPath, sdk, "prepare", `--env=${channel}`], generated, env);

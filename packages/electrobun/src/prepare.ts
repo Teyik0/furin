@@ -16,6 +16,8 @@ const SOURCES = resolve(import.meta.dir, "../src");
 const NATIVE_EXTENSION = /\.[cm]?tsx?$/u;
 
 export interface DesktopPreparation {
+  /** The installed launcher's version; it selects the paired Electrobun runtime. */
+  electrobunVersion: string;
   mode: "dev" | "build";
   root: string;
   serverEntry: string;
@@ -107,7 +109,7 @@ export async function prepareDesktop(
   await writeFile(join(generated, "package.json"), '{"private":true,"type":"module"}\n');
   await writeFile(
     join(generated, "hutch.config.ts"),
-    'export default { electrobun: { version: "2.0.2" } };\n'
+    `export default { electrobun: { version: ${JSON.stringify(options.electrobunVersion)} } };\n`
   );
   const platform = { bundleCEF: false, bundleWGPU: false, defaultRenderer: "native" };
   const copy = Object.fromEntries(

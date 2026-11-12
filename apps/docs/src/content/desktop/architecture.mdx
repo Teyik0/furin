@@ -4,7 +4,7 @@ Furin's desktop integration separates three owners: the generated Electrobun hos
 
 ## Host ownership
 
-The generated bootstrap imports the pinned Electrobun 2.0.2 devkit and starts the controller internally. The separately bundled Furin `app.js` stays inert until the host loads it, and the native module selected by `desktop.build.bun.entrypoint` registers SDK integrations without launching the app. The principal window is declared exclusively through `desktopApp({ window: {...} })` on the Elysia root.
+The generated bootstrap imports the devkit of the installed Electrobun release (`~2.0.2`) and starts the controller internally. The separately bundled Furin `app.js` stays inert until the host loads it, and the native module selected by `desktop.build.bun.entrypoint` registers SDK integrations without launching the app. The principal window is declared exclusively through `desktopApp({ window: {...} })` on the Elysia root.
 
 A shared cross-bundle registry exposes the live native controller, with original SDK objects, through `getDesktopHost()`, and an asynchronous, serializable controller through the injected `desktop` decorator. Both reach one command executor: in process in a packaged app, over the development channel otherwise. Each request resolves the controller at execution time, so independent API modules can be imported before native installation. No ambient module augmentation is involved — the plugin returns Elysia's inferred provider type, preserving route and Eden inference.
 
