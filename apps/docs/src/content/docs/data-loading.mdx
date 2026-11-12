@@ -33,7 +33,7 @@ Mark modules that must never reach the browser, such as database clients or modu
 import "@teyik0/furin/server-only";
 import { SQL } from "bun";
 
-// Without arguments, Bun reads the connection string from DATABASE_URL.
+// Without arguments, Bun reads the connection string from the environment.
 export const db = new SQL();
 ```
 
