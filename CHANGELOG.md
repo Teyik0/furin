@@ -12,6 +12,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Elysia and TypeBox peers accept newer releases** — `@teyik0/furin@0.9.0-alpha.0` published exact versions (`elysia@2.0.0-rc.1`, `typebox@1.3.34`, `@elysia/eden@2.0.0-rc.1`, `@elysia/static@2.0.0-rc.0`), so no install could satisfy both Furin and `elysia@2.0.0-rc.3`, which requires `typebox >=1.3.35`. They are now ranges: `elysia ^2.0.0-rc.1`, `typebox ^1.3.34`, `@elysia/eden ^2.0.0-rc.1` and `@elysia/static ^2.0.0-rc.0`. `@teyik0/furin-electrobun` declares `elysia ^2.0.0-rc.1`.
 - **React and TypeScript ranges** — the `react` and `react-dom` peers are `^19.3.1` (the floor `react-server-dom-webpack@19.3.1` requires) in both packages, and the `typescript` dependency is `^7.0.2` instead of exactly `7.0.2`. TypeScript 8 stays excluded because request field inference uses `typescript/unstable/async`.
 
+### Changed
+- **Desktop documentation** — ten task-oriented guides under Desktop (Start Here, Build Your App, Ship) replace the overview and client pages, with the architecture and migration guides in a Reference section. The docs use a workbench layout with a Web/Desktop platform switch and serve generated Markdown and LLM indexes for both platforms.
+- **Faster CI** — core, electrobun and the apps run on separate Ubuntu and Windows runners, and the WebView conformance suite has its own job; they previously ran back to back. Tests drive startup and shutdown budgets with fake timers, stop production servers without the 5-second pre-stop delay, share builds that asserted the same output, and drop duplicated cases: core runs in about 90 s locally instead of 235 s, electrobun in about 27 s instead of 76 s.
+- **Weekly Elysia check** — the scheduled workflow tests the latest `elysia@rc` instead of the stale `next` tag.
+
 ## [0.9.0-alpha.0] — 2026-11-11
 
 ### Breaking
