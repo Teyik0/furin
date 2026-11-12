@@ -33,7 +33,7 @@ appendFileSync(${JSON.stringify(pids)}, process.pid + "\\n");
 export default { ping: async () => ${JSON.stringify(reply)} };`;
 
 /** A desktop project whose native entry records each shell process it runs in. */
-async function createProject(mode?: "hung-quit") {
+async function createProject(mode?: "hung-quit" | "failed-window") {
   const root = await mkdtemp(join(tmpdir(), "furin-desktop-dev-"));
   const shellPids = join(root, "shell-pids");
   const probe = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() });
@@ -112,12 +112,15 @@ async function createProject(mode?: "hung-quit") {
   };
 }
 
+// The suite drives Ctrl-C through POSIX process groups (negative PIDs), which Windows lacks.
+const posix = test.skipIf(process.platform === "win32");
+
 async function interrupt(child: Bun.Subprocess): Promise<number> {
   process.kill(-child.pid, "SIGINT");
   return await child.exited;
 }
 
-test.each([
+posix.each([
   ["furin dev --desktop", [process.execPath, CORE_CLI, "dev", "--desktop"]],
   ["bun --hot src/server.ts", [process.execPath, "--hot", "src/server.ts"]],
 ] as const)(
@@ -151,6 +154,8 @@ test.each([
           "browser"
         );
         expect((await fetch(browserUrl, { redirect: "manual" })).status).toBe(303);
+      } else {
+        expect(await Bun.file(join(project.root, "browser-url")).exists()).toBe(false);
       }
       const [shell = 0] = await project.readPids();
 
@@ -193,19 +198,144 @@ test.each([
   60_000
 );
 
-test("a native shell whose quit hangs is terminated when development stops", async () => {
-  const project = await createProject("hung-quit");
-  const child = project.start([process.execPath, CORE_CLI, "dev", "--desktop"]);
-  try {
-    await until(() => Bun.file(join(project.root, "window-url")).text(), "window");
-    const [shell = 0] = await project.readPids();
-    expect(await interrupt(child)).toBe(0);
-    await until(async () => (alive(shell) ? undefined : true), "forced shell exit");
-  } finally {
-    if (child.exitCode === null) {
-      process.kill(-child.pid, "SIGKILL");
-      await child.exited;
+posix(
+  "a native window construction failure quits the shell and ends development",
+  async () => {
+    const project = await createProject("failed-window");
+    const child = project.start([process.execPath, CORE_CLI, "dev", "--desktop"]);
+    try {
+      const code = await Promise.race([child.exited, Bun.sleep(15_000).then(() => "hung")]);
+      expect(code).not.toBe("hung");
+      expect(await Bun.file(join(project.root, "quit")).text()).toBe("1");
+      const [shell = 0] = await project.readPids();
+      expect(alive(shell)).toBe(false);
+    } finally {
+      if (child.exitCode === null) {
+        process.kill(-child.pid, "SIGKILL");
+        await child.exited;
+      }
+      await rm(project.root, { recursive: true, force: true });
     }
-    await rm(project.root, { recursive: true, force: true });
-  }
-}, 30_000);
+  },
+  30_000
+);
+
+posix(
+  "a native shell whose quit hangs is terminated when development stops",
+  async () => {
+    const project = await createProject("hung-quit");
+    const child = project.start([process.execPath, CORE_CLI, "dev", "--desktop"]);
+    try {
+      await until(() => Bun.file(join(project.root, "window-url")).text(), "window");
+      const [shell = 0] = await project.readPids();
+      expect(await interrupt(child)).toBe(0);
+      await until(async () => (alive(shell) ? undefined : true), "forced shell exit");
+    } finally {
+      if (child.exitCode === null) {
+        process.kill(-child.pid, "SIGKILL");
+        await child.exited;
+      }
+      await rm(project.root, { recursive: true, force: true });
+    }
+  },
+  30_000
+);
+
+posix(
+  "a native edit during a shell rebuild relaunches one shell after that build",
+  async () => {
+    const project = await createProject();
+    const builds = join(project.root, "builds");
+    // Every rebuild after the first is slow and announces itself, so an edit can land mid-build.
+    await writeFile(
+      join(project.root, "node_modules/electrobun/bin/electrobun.cjs"),
+      `if (process.argv[2] === "build") {
+      const fs = require("node:fs");
+      const count = fs.existsSync(${JSON.stringify(builds)}) ? fs.readFileSync(${JSON.stringify(builds)}, "utf8").length : 0;
+      fs.appendFileSync(${JSON.stringify(builds)}, "b");
+      if (count > 0) await Bun.sleep(1500);
+    }
+    ${sdkRunHeader(project.root)}`
+    );
+    const child = project.start([process.execPath, CORE_CLI, "dev", "--desktop"]);
+    try {
+      await until(() => Bun.file(join(project.root, "window-url")).text(), "window");
+      await writeFile(join(project.root, "src/desktop.ts"), nativeEntry(project.shellPids, "two"));
+      await until(
+        async () => ((await Bun.file(builds).text()).length === 2 ? true : undefined),
+        "slow rebuild"
+      );
+      await writeFile(
+        join(project.root, "src/desktop.ts"),
+        nativeEntry(project.shellPids, "three")
+      );
+      const app = await project.session(
+        await until(async () => {
+          const url = await Bun.file(join(project.root, "window-url")).text();
+          return (await project.readPids()).length === 2 ? url : undefined;
+        }, "second shell")
+      );
+      expect(await app.post("/ping")).toEqual({ reply: "three" });
+      const pids = await project.readPids();
+      expect(pids.map(alive)).toEqual([false, true]);
+      // Outlast another slow rebuild: no second concurrent shell may follow.
+      await Bun.sleep(2000);
+      expect(await project.readPids()).toEqual(pids);
+      expect(await interrupt(child)).toBe(0);
+    } finally {
+      if (child.exitCode === null) {
+        process.kill(-child.pid, "SIGKILL");
+        await child.exited;
+      }
+      await rm(project.root, { recursive: true, force: true });
+    }
+  },
+  60_000
+);
+
+posix(
+  "fixing a native import after a failed rebuild relaunches the shell",
+  async () => {
+    const project = await createProject();
+    const imported = join(project.root, "src/native-value.ts");
+    await writeFile(imported, 'export const reply = "one";');
+    await writeFile(
+      join(project.root, "src/desktop.ts"),
+      `import { appendFileSync } from "node:fs";
+    import { reply } from "./native-value";
+    appendFileSync(${JSON.stringify(project.shellPids)}, process.pid + "\\n");
+    export default { ping: async () => reply };`
+    );
+    // Like the SDK, a shell build fails while the native graph does not compile.
+    await writeFile(
+      join(project.root, "node_modules/electrobun/bin/electrobun.cjs"),
+      `if (process.argv[2] === "build" && require("node:fs").readFileSync(${JSON.stringify(imported)}, "utf8").includes("(")) process.exit(1);
+    ${sdkRunHeader(project.root)}`
+    );
+    const child = project.start([process.execPath, CORE_CLI, "dev", "--desktop"]);
+    try {
+      const app = await project.session(
+        await until(() => Bun.file(join(project.root, "window-url")).text(), "window")
+      );
+      expect(await app.post("/ping")).toEqual({ reply: "one" });
+      await writeFile(imported, "export const reply = (;");
+      const [first = 0] = await project.readPids();
+      await until(async () => (alive(first) ? undefined : true), "failed relaunch");
+      await writeFile(imported, 'export const reply = "fixed";');
+      expect(
+        await until(async () => {
+          const { reply } = (await app.post("/ping").catch(() => ({}))) as { reply?: string };
+          return reply === "fixed" ? reply : undefined;
+        }, "repaired shell")
+      ).toBe("fixed");
+      expect(await interrupt(child)).toBe(0);
+    } finally {
+      if (child.exitCode === null) {
+        process.kill(-child.pid, "SIGKILL");
+        await child.exited;
+      }
+      await rm(project.root, { recursive: true, force: true });
+    }
+  },
+  60_000
+);

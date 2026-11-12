@@ -26,6 +26,7 @@ export interface BackendInfo {
 }
 
 interface Owner {
+  building: boolean;
   channel: { url: string };
   hooks: DesktopAppOptions | undefined;
   key: string;
@@ -39,6 +40,7 @@ interface Owner {
   shell: Bun.Subprocess | undefined;
   socket: unknown;
   spent: Map<string, number>;
+  stale: boolean;
 }
 
 // Bun --hot re-evaluates this module but keeps globalThis: the shell and channel survive reloads.
@@ -58,7 +60,7 @@ function handleShell(owner: Owner, request: ShellRequest): unknown {
     case "backend":
       return {
         key: owner.key,
-        openBrowser: owner.launches === 1,
+        openBrowser: owner.settings.openBrowser && owner.launches === 1,
         origin: owner.origin,
         window: owner.hooks?.window,
       } satisfies BackendInfo;
@@ -120,13 +122,22 @@ async function launchShell(owner: Owner): Promise<void> {
     BUN_OPTIONS:
       `${process.env.BUN_OPTIONS ?? ""} ${existsSync(bunfig) ? JSON.stringify(`--config=${bunfig}`) : ""}`.trim(),
   };
-  const build = Bun.spawn([process.execPath, settings.sdk, "build", "--env=dev"], {
-    cwd: settings.generated,
-    env,
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-  if ((await build.exited) !== 0) {
+  owner.building = true;
+  let code: number;
+  do {
+    // A native edit during this build marks it stale: rebuild before launching a shell.
+    owner.stale = false;
+    const build = Bun.spawn([process.execPath, settings.sdk, "build", "--env=dev"], {
+      cwd: settings.generated,
+      env,
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+    // biome-ignore lint/performance/noAwaitInLoops: Builds are sequential by design.
+    code = await build.exited;
+  } while (owner.stale);
+  owner.building = false;
+  if (code !== 0) {
     console.error("[furin-electrobun] Desktop shell build failed; waiting for native changes.");
     return;
   }
@@ -162,18 +173,25 @@ async function watchNative(owner: Owner) {
   }
   const root = await realpath(settings.root);
   const entry = join(root, settings.nativeEntry);
-  const scan = async () =>
-    (await backendDependencies(root, [entry], settings.sdkAliases, settings.nativeAliases)) ??
-    new Set([entry]);
-  let graph = await scan();
+  const scan = () =>
+    backendDependencies(root, [entry], settings.sdkAliases, settings.nativeAliases);
+  let graph: Set<string> | undefined;
+  // Changes observed while the first graph is being built.
+  const early = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | undefined;
-  watch(root, { recursive: true }, (_event, filename) => {
-    if (!(filename && graph.has(join(root, filename)))) {
-      return;
-    }
+  const changed = () => {
     clearTimeout(timer);
     timer = setTimeout(async () => {
-      graph = await scan();
+      // A failed scan keeps the previous graph, so fixing any of its modules relaunches.
+      graph = (await scan()) ?? graph;
+      if (!owner.launching) {
+        // The first launch has not started yet; it will build the current sources.
+        return;
+      }
+      if (owner.building) {
+        owner.stale = true;
+        return;
+      }
       if (!owner.shell) {
         // The previous shell build failed: this native edit may have repaired it.
         launchShell(owner).catch(console.error);
@@ -182,11 +200,28 @@ async function watchNative(owner: Owner) {
       owner.restart = true;
       owner.peer?.request({ type: "quit" } satisfies DesktopCommand).catch(() => undefined);
     }, 150);
+  };
+  watch(root, { recursive: true }, (_event, filename) => {
+    if (!filename) {
+      return;
+    }
+    const path = join(root, filename);
+    if (!graph) {
+      early.add(path);
+    } else if (graph.has(path)) {
+      changed();
+    }
   });
+  const initial = (await scan()) ?? new Set([entry]);
+  graph = initial;
+  if ([...early].some((path) => initial.has(path))) {
+    changed();
+  }
 }
 
 function startOwner(settings: DesktopDevelopmentSettings): Owner {
   const owner: Owner = {
+    building: false,
     channel: { url: "" },
     hooks: undefined,
     key: crypto.randomUUID(),
@@ -203,6 +238,7 @@ function startOwner(settings: DesktopDevelopmentSettings): Owner {
     shell: undefined,
     socket: undefined,
     spent: new Map<string, number>(),
+    stale: false,
   };
   owner.channel = openChannel(owner);
   watchNative(owner).catch(console.error);
