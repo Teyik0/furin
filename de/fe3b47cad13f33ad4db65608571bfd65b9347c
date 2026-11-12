@@ -1,0 +1,25 @@
+package.json
+  s_de8b8b55ac7c0a::t_01f1f75fa1a21d 42
+.github/workflows/vercel-benchmark.yaml
+  s_de8b8b55ac7c0a::t_01f1f75fa1a21d 54-57,60
+packages/core/tests/build/measurement/live-benchmark-workflow.test.ts
+  s_de8b8b55ac7c0a::t_5145c3b1d0030f 101,114-116,157-162,167,169-171
+.github/workflows/ci.yaml
+  s_de8b8b55ac7c0a::t_01f1f75fa1a21d 185-187,189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "defe3b47cad13f33ad4db65608571bfd65b9347c",
+  "prompts": {},
+  "sessions": {
+    "s_de8b8b55ac7c0a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e4a1b3d-9529-48ec-a322-b6caf391e07e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
