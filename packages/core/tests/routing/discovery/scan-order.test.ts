@@ -160,7 +160,9 @@ describe("scanPages: route order is deterministic", () => {
     const { routes } = await scanPages(tanstack(tempDir));
 
     expect(routes.map((route) => route.pattern)).toEqual(["/foo/bar"]);
-    expect(routes[0]?.layouts).toEqual([{ path: join(tempDir, "foo.tsx"), pattern: "/foo" }]);
+    expect(routes[0]?.layouts).toEqual([
+      { path: join(tempDir, "foo.tsx").replaceAll("\\", "/"), pattern: "/foo" },
+    ]);
   });
 });
 
