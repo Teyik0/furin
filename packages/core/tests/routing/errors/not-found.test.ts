@@ -3,10 +3,10 @@ import { isNotFoundError, notFound } from "../../../src/shared/not-found.ts";
 
 describe("notFound()", () => {
   test("throws an error identifiable via isNotFoundError", () => {
-    expect(() => notFound(undefined)).toThrow();
+    expect(() => notFound()).toThrow();
 
     try {
-      notFound(undefined);
+      notFound();
     } catch (err) {
       expect(isNotFoundError(err)).toBe(true);
       return;

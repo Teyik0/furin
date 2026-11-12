@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+- **`notFound()` takes optional options** — call `notFound()` without arguments; `notFound(undefined)` and `notFound({ message, data })` still work.
+
 ## [0.9.0-alpha.1] — 2026-11-12
 
 ### Fixed

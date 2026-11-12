@@ -26,7 +26,7 @@ export class FurinNotFoundError extends Error {
   }
 }
 
-export function notFound(options: NotFoundOptions | undefined): never {
+export function notFound(options?: NotFoundOptions): never {
   throw new FurinNotFoundError(options);
 }
 
