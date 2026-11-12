@@ -1,0 +1,37 @@
+packages/core/tests/client/link/link-boundaries.test.tsx
+  s_ee1fcc24a80de0::t_8840234d645a19 138
+packages/core/src/client/router/context.ts
+  s_ee1fcc24a80de0::t_68a783324d7ba4 84,87,100,106,108,115,123,125
+packages/core/src/client/router/provider.tsx
+  s_ee1fcc24a80de0::t_b848bb6c5d7b28 130,370-371
+  s_ee1fcc24a80de0::t_3145a7657a94cb 386,389
+packages/electrobun/package.json
+  s_ee1fcc24a80de0::t_006e554021e7c9 76
+packages/core/package.json
+  s_ee1fcc24a80de0::t_006e554021e7c9 187,208-209
+packages/core/tests/architecture/runtime-peers.test.ts
+  s_ee1fcc24a80de0::t_e60e2ca680e61e 34-36
+bun.lock
+  s_ee1fcc24a80de0::t_a8190ca6122ecd 151,172-173,201
+packages/core/src/client/link.tsx
+  s_ee1fcc24a80de0::t_c39f88f49d498a 163,165,171,190,234
+  s_ee1fcc24a80de0::t_f379a641da6fda 263-278
+packages/core/tests/client/navigation/router-cache.test.tsx
+  s_ee1fcc24a80de0::t_2fb0f4c27f6089 20-23,95,99,152,156,220,257,314,395,427,453
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f9b53e448c538fb24f88a7dfe7599c158d13dc4b",
+  "prompts": {},
+  "sessions": {
+    "s_ee1fcc24a80de0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dc1429f-f948-43fb-a015-32a96578a2b9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
