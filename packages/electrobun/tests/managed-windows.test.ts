@@ -254,3 +254,44 @@ for (const failure of ["tray", "fence", "main", "extra", "quit"] as const) {
     }
   });
 }
+
+test("a window opened while the async background policy is pending keeps the app running", async () => {
+  const root = await mkdtemp(join(tmpdir(), "furin-window-background-"));
+  const identity = { name: "Fixture", identifier: "local.furin.background", version: "1.0.0" };
+  const decision = Promise.withResolvers<boolean>();
+  const quits: number[] = [];
+  let desktop: DesktopHost | undefined;
+  try {
+    await Bun.write(join(root, ".furin/electrobun/host.json"), JSON.stringify({ app: identity }));
+    await installSdk(root);
+    const sdk = (await import(join(root, "node_modules/electrobun/main.ts"))) as DesktopSdk;
+    Object.defineProperty(sdk.Utils, "quit", {
+      value: (code: number) => {
+        quits.push(code);
+        return true;
+      },
+    });
+    desktop = await runStandardDesktopHost(sdk, {
+      config: { app: identity },
+      dataDir: join(root, "data"),
+      root,
+      mode: "build",
+      load: async () => ({
+        // Development shells answer the background policy asynchronously over their channel.
+        default: new Elysia().use(
+          desktopApp({ background: (() => decision.promise) as unknown as () => boolean })
+        ),
+      }),
+    });
+    desktop?.window?.close();
+    const reopened = desktop?.open();
+    decision.resolve(false);
+    await Bun.sleep(10);
+    expect(desktop?.snapshot().phase).toBe("ready");
+    expect(quits).toEqual([]);
+    expect(desktop?.window).toBe(reopened);
+  } finally {
+    await desktop?.quit();
+    await rm(root, { recursive: true, force: true });
+  }
+});

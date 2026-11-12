@@ -277,7 +277,8 @@ export async function runStandardDesktopHost(
         report("action")(error);
       }
       Promise.resolve(background)
-        .then((keep) => (keep ? undefined : desktop.quit()))
+        // A window may have opened while the policy was pending.
+        .then((keep) => (keep || windows.size !== 0 ? undefined : desktop.quit()))
         .catch(report("quit"));
     });
     const external = (event: unknown) => {
