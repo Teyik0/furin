@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeRouteTypes } from "../../src/build/route-types.ts";
 import type { ResolvedRoute } from "../../src/server/router/types.ts";
-import { startProcess } from "../support/process.ts";
+import { runProcess } from "../support/process.ts";
 
 function route(pattern: string, path: string, tags?: string[]): ResolvedRoute {
   return {
@@ -39,32 +39,21 @@ async function typecheck(directory: string, files: string[]): Promise<string> {
       files,
     })
   );
-  const compiler = startProcess(
+  const { exitCode, stderr, stdout } = await runProcess(
     [
       process.execPath,
       join(import.meta.dir, "../../node_modules/typescript/lib/tsc.js"),
       "--project",
       config,
     ],
-    { cwd: directory }
+    { cwd: directory, timeoutMs: 12_000 }
   );
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    await Promise.race([
-      compiler.exitCode,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => {
-          compiler.kill();
-          reject(new Error("TypeScript contract check timed out."));
-        }, 12_000);
-      }),
-    ]);
-    return compiler.getStdout() + compiler.getStderr();
-  } finally {
-    clearTimeout(timer);
-    compiler.kill();
-    await compiler.exitCode;
+  const output = stdout + stderr;
+  // A timed-out compiler is killed silently; never mistake it for a clean check.
+  if (exitCode !== 0 && output === "") {
+    throw new Error("TypeScript contract check exited without output (timed out?).");
   }
+  return output;
 }
 
 describe("writeRouteTypes", () => {

@@ -20,9 +20,12 @@ beforeAll(() => {
 afterAll(() => __setDevMode(originalDevMode));
 
 describe("route chain contains layouts", () => {
-  test("keeps the page leaf separate from its filesystem layout", async () => {
-    const result = await scanPages(FIXTURES_DIR);
+  let result: Awaited<ReturnType<typeof scanPages>>;
+  beforeAll(async () => {
+    result = await scanPages(FIXTURES_DIR);
+  });
 
+  test("keeps the page leaf separate from its filesystem layout", () => {
     const nestedRoute = result.routes.find((r) => r.pattern === "/nested");
     expect(nestedRoute).toBeDefined();
 
@@ -32,9 +35,7 @@ describe("route chain contains layouts", () => {
     expect(page?._route?.layout).toBeUndefined();
   });
 
-  test("page._route.parent contains the nearest layout and root ancestor", async () => {
-    const result = await scanPages(FIXTURES_DIR);
-
+  test("page._route.parent contains the nearest layout and root ancestor", () => {
     const nestedRoute = result.routes.find((r) => r.pattern === "/nested");
     const page = nestedRoute?.page;
 
@@ -43,9 +44,7 @@ describe("route chain contains layouts", () => {
     expect(page?._route?.parent?.parent?.layout).toBeDefined();
   });
 
-  test("collectRouteChainFromRoute returns all layouts in order", async () => {
-    const result = await scanPages(FIXTURES_DIR);
-
+  test("collectRouteChainFromRoute returns all layouts in order", () => {
     const nestedRoute = result.routes.find((r) => r.pattern === "/nested");
     expectDefined(nestedRoute);
     const chain = collectRouteChainFromRoute(nestedRoute.page._route);
@@ -56,9 +55,7 @@ describe("route chain contains layouts", () => {
     expect(chain[2]?.layout).toBeUndefined();
   });
 
-  test("deeply nested route chain (3 levels)", async () => {
-    const result = await scanPages(FIXTURES_DIR);
-
+  test("deeply nested route chain (3 levels)", () => {
     const deepRoute = result.routes.find((r) => r.pattern === "/nested/deep");
     expectDefined(deepRoute);
     const chain = collectRouteChainFromRoute(deepRoute.page._route);
@@ -70,9 +67,27 @@ describe("route chain contains layouts", () => {
     expect(chain[3]?.layout).toBeUndefined();
   });
 
-  test("root route is in every page's chain", async () => {
-    const result = await scanPages(FIXTURES_DIR);
+  test("a page-level JSX wrapper does not create a route layout", () => {
+    const inlineRoute = result.routes.find((r) => r.pattern === "/inline-layout");
+    expectDefined(inlineRoute);
+    const chain = collectRouteChainFromRoute(inlineRoute.page._route);
 
+    expect(chain).toHaveLength(2);
+    expect(chain[0]?.layout).toBeDefined();
+    expect(chain[1]?.layout).toBeUndefined();
+  });
+
+  test("a page can skip intermediate layouts and use root directly", () => {
+    const skipRoute = result.routes.find((r) => r.pattern === "/skip-layout");
+    expectDefined(skipRoute);
+    const chain = collectRouteChainFromRoute(skipRoute.page._route);
+
+    expect(chain).toHaveLength(2);
+    expect(chain[0]).toBe(result.root.route);
+    expect(chain[1]?.layout).toBeUndefined();
+  });
+
+  test("root route is in every page's chain", () => {
     for (const route of result.routes) {
       const chain = collectRouteChainFromRoute(route.page._route);
       const hasRoot = chain.some((r) => r === result.root.route);
@@ -81,128 +96,91 @@ describe("route chain contains layouts", () => {
   });
 });
 
+const withLoader = [{ __type: "FURIN_ROUTE", loader: async () => ({}) }] as RuntimeRoute[];
+
 describe("resolveMode", () => {
-  test("returns isr when revalidate > 0", () => {
-    const page = {
-      __type: "FURIN_PAGE",
-      _route: { __type: "FURIN_ROUTE", revalidate: 60 },
-    } as RuntimePage;
-    const chain = [{ __type: "FURIN_ROUTE", loader: async () => ({}) }] as RuntimeRoute[];
-
-    expect(resolveMode(page, chain)).toBe("isr");
-  });
-
-  test("returns ssg when no loader", () => {
-    const page = {
-      __type: "FURIN_PAGE",
-      _route: { __type: "FURIN_ROUTE" },
-    } as RuntimePage;
-    const chain = [{ __type: "FURIN_ROUTE" }] as RuntimeRoute[];
-
-    expect(resolveMode(page, chain)).toBe("ssg");
-  });
-
-  test("returns ssr when route chain declares query state", () => {
-    const page = {
-      __type: "FURIN_PAGE",
-      _route: { __type: "FURIN_ROUTE" },
-    } as RuntimePage;
-    const chain = [
-      {
-        __type: "FURIN_ROUTE",
-        query: {
-          properties: { page: { default: 1, type: "number" } },
-          type: "object",
+  test.each([
+    {
+      chain: withLoader,
+      expected: "isr",
+      name: "returns isr when revalidate > 0",
+      page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE", revalidate: 60 } },
+    },
+    {
+      chain: [{ __type: "FURIN_ROUTE" }] as RuntimeRoute[],
+      expected: "ssg",
+      name: "returns ssg when no loader",
+      page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE" } },
+    },
+    {
+      chain: [
+        {
+          __type: "FURIN_ROUTE",
+          query: {
+            properties: { page: { default: 1, type: "number" } },
+            type: "object",
+          },
         },
+      ] as RuntimeRoute[],
+      expected: "ssr",
+      name: "returns ssr when route chain declares query state",
+      page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE" } },
+    },
+    {
+      chain: withLoader,
+      expected: "ssr",
+      name: "returns ssr when the route chain has a loader but no revalidate",
+      page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE" } },
+    },
+    {
+      chain: [] as RuntimeRoute[],
+      expected: "ssr",
+      name: "respects explicit mode ssr",
+      page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE", mode: "ssr" } },
+    },
+    {
+      chain: withLoader,
+      expected: "ssg",
+      name: "respects explicit mode ssg",
+      page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE", mode: "ssg" } },
+    },
+    {
+      chain: [] as RuntimeRoute[],
+      expected: "isr",
+      name: "respects explicit mode isr",
+      page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE", mode: "isr" } },
+    },
+    {
+      chain: [] as RuntimeRoute[],
+      expected: "ssr",
+      name: "detects loader in page",
+      page: {
+        __type: "FURIN_PAGE",
+        _route: { __type: "FURIN_ROUTE" },
+        component: () => null,
+        loader: async () => ({ data: "test" }),
       },
-    ] as RuntimeRoute[];
-
-    expect(resolveMode(page, chain)).toBe("ssr");
-  });
-
-  test("returns ssr when has loader but no revalidate", () => {
-    const page = {
-      __type: "FURIN_PAGE",
-      _route: { __type: "FURIN_ROUTE" },
-    } as RuntimePage;
-    const chain = [{ __type: "FURIN_ROUTE", loader: async () => ({}) }] as RuntimeRoute[];
-
-    expect(resolveMode(page, chain)).toBe("ssr");
-  });
-
-  test("respects explicit mode ssr", () => {
-    const page = {
-      __type: "FURIN_PAGE",
-      _route: { __type: "FURIN_ROUTE", mode: "ssr" },
-    } as RuntimePage;
-    const chain = [] as RuntimeRoute[];
-
-    expect(resolveMode(page, chain)).toBe("ssr");
-  });
-
-  test("respects explicit mode ssg", () => {
-    const page = {
-      __type: "FURIN_PAGE",
-      _route: { __type: "FURIN_ROUTE", mode: "ssg" },
-    } as RuntimePage;
-    const chain = [{ __type: "FURIN_ROUTE", loader: async () => ({}) }] as RuntimeRoute[];
-
-    expect(resolveMode(page, chain)).toBe("ssg");
-  });
-
-  test("respects explicit mode isr", () => {
-    const page = {
-      __type: "FURIN_PAGE",
-      _route: { __type: "FURIN_ROUTE", mode: "isr" },
-    } as RuntimePage;
-    const chain = [] as RuntimeRoute[];
-
-    expect(resolveMode(page, chain)).toBe("isr");
-  });
-
-  test("detects loader in page", () => {
-    const page = {
-      __type: "FURIN_PAGE" as const,
-      _route: { __type: "FURIN_ROUTE" as const },
-      component: () => null,
-      loader: async () => ({ data: "test" }),
-    } as RuntimePage;
-    const chain = [] as RuntimeRoute[];
-
-    expect(resolveMode(page, chain)).toBe("ssr");
-  });
-
-  test("detects loader in route chain", () => {
-    const page = {
-      __type: "FURIN_PAGE",
-      _route: { __type: "FURIN_ROUTE" },
-    } as RuntimePage;
-    const chain = [{ __type: "FURIN_ROUTE", loader: async () => ({}) }] as RuntimeRoute[];
-
-    expect(resolveMode(page, chain)).toBe("ssr");
-  });
-
-  test("returns isr when revalidate is 0 (explicit ISR with no caching)", () => {
-    const page = {
-      __type: "FURIN_PAGE",
-      _route: { __type: "FURIN_ROUTE", revalidate: 0 },
-    } as RuntimePage;
-    const chain = [{ __type: "FURIN_ROUTE", loader: async () => ({}) }] as RuntimeRoute[];
-
-    expect(resolveMode(page, chain)).toBe("isr");
-  });
-
-  test("returns isr when page-level revalidate is 0 (explicit ISR with no caching)", () => {
-    const page = {
-      __type: "FURIN_PAGE" as const,
-      _route: { __type: "FURIN_ROUTE" as const },
-      component: () => null,
-      loader: async () => ({ data: "test" }),
-      revalidate: 0,
-    } as RuntimePage;
-    const chain = [] as RuntimeRoute[];
-
-    expect(resolveMode(page, chain)).toBe("isr");
+    },
+    {
+      chain: withLoader,
+      expected: "isr",
+      name: "returns isr when revalidate is 0 (explicit ISR with no caching)",
+      page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE", revalidate: 0 } },
+    },
+    {
+      chain: [] as RuntimeRoute[],
+      expected: "isr",
+      name: "returns isr when page-level revalidate is 0 (explicit ISR with no caching)",
+      page: {
+        __type: "FURIN_PAGE",
+        _route: { __type: "FURIN_ROUTE" },
+        component: () => null,
+        loader: async () => ({ data: "test" }),
+        revalidate: 0,
+      },
+    },
+  ])("$name", ({ chain, expected, page }) => {
+    expect(resolveMode(page as RuntimePage, chain)).toBe(expected);
   });
 });
 

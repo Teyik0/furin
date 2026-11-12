@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, jest, test } from "bun:test";
 import {
   browserEventsClientSource,
   browserEventsSseClientSource,
@@ -257,11 +257,13 @@ test.serial("browser event consumers share one multiplexed connection", async ()
     runtime?.subscribe("sync", (event) => replayed.push(event));
     expect(replayed).toEqual([{ channel: "sync", data: { cursor: "42" }, version: 1 }]);
 
+    jest.useFakeTimers();
     socket?.serverClose();
     expect(statuses.at(-1)).toBe("reconnecting");
-    await Bun.sleep(1000);
+    jest.advanceTimersByTime(1000);
     expect(TestWebSocket.instances).toHaveLength(2);
   } finally {
+    jest.useRealTimers();
     window.dispatchEvent(new window.Event("pagehide"));
     Reflect.deleteProperty(window, RUNTIME_KEY);
     window.WebSocket = originalWebSocket;
