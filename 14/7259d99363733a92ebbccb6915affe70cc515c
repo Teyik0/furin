@@ -1,0 +1,66 @@
+packages/electrobun/src/prepare.ts
+  s_df67d91227c4b3::t_f07da9070f3caf 19-20,112
+packages/electrobun/src/cli.ts
+  s_df67d91227c4b3::t_3d231c7cb2c27b 8
+  s_df67d91227c4b3::t_f07da9070f3caf 152,154-158,229,253
+packages/electrobun/tests/external-sdk.integration.test.ts
+  s_df67d91227c4b3::t_99e25a725a9173 45,113-115,118,166-168
+packages/electrobun/tests/sdk-resolution.test.ts
+  s_df67d91227c4b3::t_bfcea644047c37 6,26,32,34,89,92,94,129-140,142-152,156-178
+  s_df67d91227c4b3::t_f07da9070f3caf 141
+  s_df67d91227c4b3::t_9ed33457d28f50 153-155
+apps/docs/src/content/desktop/overview.mdx
+  s_df67d91227c4b3::t_8beabc1e5d4994 24
+packages/electrobun/tests/prepare.test.ts
+  s_df67d91227c4b3::t_bfcea644047c37 21-24
+  s_df67d91227c4b3::t_b88002e4afbc92 70,126,162
+packages/electrobun/tests/shutdown.test.ts
+  s_df67d91227c4b3::t_b88002e4afbc92 31
+packages/electrobun/tests/build-output.integration.test.ts
+  s_df67d91227c4b3::t_9e6986d670ed95 14-20
+  s_df67d91227c4b3::t_da84ed99bb6367 168-173
+apps/docs/src/content/desktop/installation.mdx
+  s_df67d91227c4b3::t_8beabc1e5d4994 8,11
+packages/electrobun/tests/startup-failure.test.ts
+  s_df67d91227c4b3::t_b88002e4afbc92 28
+.github/workflows/ci.yaml
+  s_df67d91227c4b3::t_3c8fa9c6eddd30 207,209,212-215,232-239,241,247-248,251-260
+packages/electrobun/package.json
+  s_df67d91227c4b3::t_87097aa419b649 74,81
+knip.config.ts
+  s_df67d91227c4b3::t_bd7645fdcbc3b6 68-69
+packages/electrobun/src/sdk-resolution.ts
+  s_df67d91227c4b3::t_f07da9070f3caf 2-4,12,21-22
+  s_df67d91227c4b3::t_8beabc1e5d4994 65
+  s_df67d91227c4b3::t_dd6739b00d94d2 1,5-11,13-20,23-31,43-47
+packages/electrobun/native-host.md
+  s_df67d91227c4b3::t_8beabc1e5d4994 3,41
+CHANGELOG.md
+  s_df67d91227c4b3::t_8beabc1e5d4994 9-11
+apps/docs/src/content/desktop/architecture.mdx
+  s_df67d91227c4b3::t_8beabc1e5d4994 7
+packages/electrobun/prepare-sdk.ts
+  s_df67d91227c4b3::t_eeeb4b111573dc 2-3,5,7,12,27
+.github/workflows/electrobun-latest.yaml
+  s_df67d91227c4b3::t_3c8fa9c6eddd30 1-52
+packages/electrobun/README.md
+  s_df67d91227c4b3::t_8beabc1e5d4994 3,208
+bun.lock
+  s_df67d91227c4b3::t_de73480cb1a492 191,198,1200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "147259d99363733a92ebbccb6915affe70cc515c",
+  "prompts": {},
+  "sessions": {
+    "s_df67d91227c4b3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8db72b8-2db8-4e6b-b18d-01b078375b13",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
