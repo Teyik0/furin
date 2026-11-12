@@ -1,0 +1,93 @@
+apps/docs/src/pages/docs/link-navigation.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_f3174016b799c4 20
+apps/docs/src/pages/docs/configuration.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_fa716cea3d01a8 20
+apps/docs/src/pages/docs/layouts.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_7160e923e86bf4 20
+apps/docs/src/pages/docs/multi-instance.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_9c636dd7a832c1 20
+apps/docs/src/pages/globals.css
+  s_2d3b48c2109c35::t_9e94c07c25fad1 241,244,248,659,662,665
+apps/docs/src/pages/docs/head-seo.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 22-25
+  s_2d3b48c2109c35::t_29f778240580a7 21
+apps/docs/src/pages/docs/getting-started.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_f4969fea031fbc 20
+apps/docs/src/pages/docs/api-routes.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_58830ad37c316c 20
+apps/docs/src/components/root-layout.tsx
+  s_2d3b48c2109c35::t_25755fb6183827 74-111
+apps/docs/src/content/desktop/bridge.mdx
+  s_2d3b48c2109c35::t_bc99a431dfecd4 3,25
+apps/docs/src/pages/docs/routing.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_9aaa73967890b9 20
+apps/docs/src/pages/docs/logging.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_5102c711f2a530 20
+apps/docs/tests/docs-search.test.ts
+  s_2d3b48c2109c35::t_81bab3dc75625d 3,131
+apps/docs/src/pages/docs/sync.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 19-22
+  s_2d3b48c2109c35::t_a54ad4d05bd01a 18
+apps/docs/src/pages/docs/dev-hmr.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_70e788d2802ae2 20
+apps/docs/src/pages/docs/defer.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_64c1b619070b58 20
+apps/docs/src/pages/docs/comparison.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_2675b84c31e91f 20
+apps/docs/src/pages/docs/deployment.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_b3b71977f1453e 20
+apps/docs/src/pages/docs/index.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-25
+apps/docs/src/pages/root.tsx
+  s_2d3b48c2109c35::t_81bab3dc75625d 17-21
+apps/docs/src/pages/docs/plugins.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_312b33ce5ebb0c 20
+apps/docs/src/pages/docs/data-loading.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_2bb665750ef4e9 20
+apps/docs/src/pages/docs/caching.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_84b989cbd30104 20
+apps/docs/src/pages/docs/cli.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_a0adb95fe2a461 20
+apps/docs/src/content/desktop/integration.mdx
+  s_2d3b48c2109c35::t_5375ae2d910e57 64,73
+apps/docs/src/pages/docs/error-handling.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_24858ee5d07736 20
+apps/docs/src/pages/docs/rendering.tsx
+  s_2d3b48c2109c35::t_41e220155763ae 21-24
+  s_2d3b48c2109c35::t_902db69cff6596 20
+apps/docs/src/content/docs/data-loading.mdx
+  s_2d3b48c2109c35::t_5751d6afb1f189 36-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d029fdba303894300c5f4725672c3e1af8446c81",
+  "prompts": {},
+  "sessions": {
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
