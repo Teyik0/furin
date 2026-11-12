@@ -25,7 +25,7 @@ export function mintWindowUrl(
   }
   const payload = Buffer.from(
     JSON.stringify({
-      path: `${target.pathname}${target.search}`,
+      path: `${target.pathname}${target.search}${target.hash}`,
       issued: Date.now(),
       nonce: crypto.randomUUID(),
     })
@@ -55,7 +55,9 @@ export function redeemWindowUrl(
     !peerAddress ||
     !LOOPBACK.test(peerAddress) ||
     FORWARDED.some((name) => request.headers.has(name)) ||
+    (request.headers.has("origin") && request.headers.get("origin") !== origin) ||
     request.headers.get("sec-fetch-site") === "cross-site" ||
+    (request.headers.has("referer") && !request.headers.get("referer")?.startsWith(`${origin}/`)) ||
     expected.length !== received.length ||
     !timingSafeEqual(expected, received)
   ) {
