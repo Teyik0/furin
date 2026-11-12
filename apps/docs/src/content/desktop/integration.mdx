@@ -41,31 +41,32 @@ import { Elysia, status } from "elysia";
 
 export const desktopApi = new Elysia({ prefix: "/api/desktop" })
   .use(desktopContext)
-  .post("/minimize", ({ desktop }) => {
+  .post("/minimize", async ({ desktop }) => {
     if (!desktop) return status(409, { error: "Desktop unavailable" });
-    desktop.window?.minimize();
+    await desktop.window.minimize();
     return { ok: true };
   });
 ```
 
-`desktopContext` is named and deduplicated. It injects the live controller (`null` in Web mode, without loading native SDK code) and registers no root, listener or window. The root `desktopApp()` plugin installs it automatically; independent plugins `.use()` it to get their own types.
+`desktopContext` is named and deduplicated. It injects the desktop controller (`null` in Web mode, without loading native SDK code) and registers no root, listener or window. The root `desktopApp()` plugin installs it automatically; independent plugins `.use()` it to get their own types.
 
-The controller exposes:
+Every controller call is asynchronous, with plain-data (JSON) arguments and results. A packaged app runs it in the same process; in development it crosses the channel to the native shell, so code behaves the same once packaged. The controller exposes:
 
 | Member | Purpose |
 |---|---|
-| `desktop.window` | Current main SDK `BrowserWindow`, `undefined` after it closes |
+| `desktop.window` | The main window's serializable SDK `BrowserWindow` methods (`minimize`, `setTitle`, `getFrame`…); calls reject while it is closed |
 | `desktop.open()` | Reactivate or recreate the main window |
-| `desktop.windows.create(name, options)` | Open an authenticated managed window at `options.path`, keeping the exact RPC typing of the supplied `rpc`; `"main"` is reserved |
-| `desktop.windows.get(name)` | Look up a managed window, with default SDK typing |
+| `desktop.windows.create(name, options)` | Open an authenticated managed window at `options.path` and resolve to its handle; options exclude `rpc`; `"main"` is reserved |
+| `desktop.windows.get(name)` | Handle for a managed window; calls reject while it is not open |
+| `desktop.native` | Commands exported by the [native entrypoint](/docs/desktop/native-apis#call-native-code-from-elysia), typed from it |
 | `desktop.quit()` / `desktop.restart()` | Coordinated shutdown with window fencing and one-time backend cleanup |
 | `desktop.updates.install()` | Install a downloaded update after draining the backend |
-| `desktop.browser.open(path?)` | Open an app path (default `/`) in the system browser with a fresh one-use session; returns `false` on TLS listeners |
+| `desktop.browser.open(path?)` | Open an app path (default `/`) in the system browser with a fresh one-use session; resolves to `false` on TLS listeners |
 | `desktop.associations.read(target)` / `requestDefault(target)` | Read or request file-association and URL-scheme defaults |
 | `desktop.snapshot()` | `{ background, phase, trayVisible, webviews, windows }` |
 
 > [!CAUTION]
-> `desktop.open()` throws before native readiness: do not call it at native-module top level or await it during startup.
+> `desktop.open()` rejects before native readiness, and in development while the native shell is not connected: do not await it during startup.
 
 ## Authentication and storage
 

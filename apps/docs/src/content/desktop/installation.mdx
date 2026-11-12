@@ -37,7 +37,7 @@ export default defineConfig({
 bunx --bun @teyik0/furin-electrobun init
 ```
 
-`init` adds a `build:desktop` script, adds `dev` (`bun --hot <server entry>`) only when it is missing, and registers the desktop preload in `bunfig.toml`:
+`init` adds a `build:desktop` script, adds `dev` (`bun --hot <server entry>`) only when it is missing, and registers the desktop preload in `bunfig.toml`, which hands `bun --hot <server entry>` off to `furin dev`:
 
 ```toml
 preload = ["@teyik0/furin-electrobun/preload"]

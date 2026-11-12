@@ -62,4 +62,4 @@ Opening a URL does not forward cookies, tokens or the WebView's authentication. 
 
 ## Custom RPC
 
-The built-in bridge uses Electrobun's event transport and leaves application RPC transports untouched. It exposes only `browser.open`; it is not a generic native-method invoker. For application-specific RPC, define it with the original SDK RPC types and pass it as `rpc` to `desktop.windows.create()`. See [Windows and lifecycle](/docs/desktop/windows) and [Electrobun BrowserWindow](https://docs.electrobun.dev/electrobun/apis/browser-window/).
+The built-in bridge uses Electrobun's event transport and leaves application RPC transports untouched. It exposes only `browser.open`; it is not a generic native-method invoker. For application-specific RPC, define it with the original SDK RPC types and pass it as `rpc` to `getDesktopHost().windows.create()` in a native module; to call native code from Elysia, use [`desktop.native`](/docs/desktop/native-apis#call-native-code-from-elysia). See [Windows and lifecycle](/docs/desktop/windows) and [Electrobun BrowserWindow](https://docs.electrobun.dev/electrobun/apis/browser-window/).

@@ -27,12 +27,14 @@ cd examples/electrobun-todo
 bun run dev
 ```
 
-The `@teyik0/furin-electrobun/preload` registered in `bunfig.toml` opens the desktop window and an
-authenticated browser on one backend. Packaging settings live in `furin.config.ts`; the primary window lives in `server.ts`.
+The `@teyik0/furin-electrobun/preload` registered in `bunfig.toml` hands `bun --hot` off to `furin dev`:
+the hot worker serves the backend and launches the native shell as a separate process, which opens the
+desktop window and an authenticated browser on that backend. Packaging settings live in `furin.config.ts`; the primary window lives in `server.ts`.
 
 `desktop.build.bun.entrypoint` selects `src/desktop.ts` using Electrobun's keys.
-The generated bootstrap loads it after the app module and before Elysia startup. `.use(desktopApp({ window: ... }))` opens
-the native window after readiness; no host launch call is needed.
+In a packaged app the generated host loads it alongside the app module; in development it runs in the native shell,
+and editing it relaunches only the shell. `.use(desktopApp({ window: ... }))` opens the native window after readiness;
+no host launch call is needed.
 This optional module imports the SDK through `electrobun/main`; server and browser modules
 remain independent of native imports. `bun run tscheck` prepares the SDK and its
 generated TypeScript paths before checking the app.
@@ -61,4 +63,4 @@ bun run test
 
 See the [integration package](../../packages/electrobun/README.md) for the server contract, packaging and limitations.
 
-The independent `/api/desktop` plugin installs `desktopContext`. Its minimize action calls the original SDK window method and returns a typed 409 in web mode. Native menus/tray use the SDK directly; `/host` returns the same live controller. No native launch call or window declaration module is required.
+The independent `/api/desktop` plugin installs `desktopContext`. Its minimize action awaits the asynchronous `desktop.window.minimize()` and returns a typed 409 in web mode. Native menus/tray use the SDK directly; `getDesktopHost()` from `/host` exposes the original SDK objects. No native launch call or window declaration module is required.

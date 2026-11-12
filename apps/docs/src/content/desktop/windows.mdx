@@ -1,30 +1,31 @@
 # Windows and lifecycle
 
-The controller is available as `desktop` in Elysia handlers with `desktopContext`, or through `getDesktopHost()` in a native module. Both refer to the same managed host.
+Elysia handlers reach the managed host as `desktop` through `desktopContext`: an asynchronous controller whose arguments and results are plain data. Native modules use `getDesktopHost()`, which exposes the original SDK objects.
 
 ## The primary window
 
-`desktop.window` is a readonly getter for the current Electrobun `BrowserWindow`, with all its native methods and the original `webview` types. It becomes `undefined` after that window closes.
+`desktop.window` exposes the SDK's serializable `BrowserWindow` methods under their original names (`minimize`, `maximize`, `setTitle`, `getFrame`, `setFrame`, `center`, `show`, `close`…). Each returns a promise, which rejects while the window is closed. In a native module, `getDesktopHost().window` is the original SDK `BrowserWindow`, or `undefined` after it closes.
 
-`desktop.open()` shows and focuses the primary window, or creates it again after it closes, and returns the SDK instance. It throws before native readiness, so do not call it at native module top level or await it during application startup.
+`desktop.open()` shows and focuses the primary window, or creates it again after it closes. It rejects before native readiness, so do not await it during application startup. In a native module, `getDesktopHost().open()` returns the SDK instance and throws before readiness, so do not call it at module top level.
 
 ## Additional windows
 
 Create named windows from a ready desktop context (for example inside a route handler that uses `desktopContext`):
 
 ```ts
-const settings = desktop.windows.create("settings", {
+const settings = await desktop.windows.create("settings", {
   path: "/settings",
   title: "Settings",
   frame: { width: 640, height: 480 },
 });
+await settings.center();
 
-desktop.windows.get("settings");
+await desktop.windows.get("settings").close();
 ```
 
 `path` is a route in your Furin app. Each managed window receives its own one-use authenticated bootstrap URL. Furin owns the window's URL, HTML, views root and navigation rules; other SDK window options pass through. The name `"main"` is reserved for the primary window.
 
-`get(name)` returns `BrowserWindow | undefined` with the SDK's default RPC type, because a runtime name carries no RPC declaration. Keep the return value of `create(name, { rpc, ... })` when exact RPC inference matters.
+`get(name)` returns a handle without checking the window; its calls reject while no window of that name is open. Options exclude `rpc`, which cannot cross processes: create windows with application RPC in a native module, where `getDesktopHost().windows.create(name, { path, rpc, ... })` returns the SDK `BrowserWindow<T>` with exact RPC inference.
 
 ## Background mode
 
@@ -45,6 +46,6 @@ Background mode does not create a tray or menu; add those with the [native SDK](
 
 ## Shutdown and restart
 
-Use `desktop.quit()` and `desktop.restart()` for coordinated shutdown: the host closes managed windows and runs backend cleanup once. Release application resources in Elysia `.onStop()`.
+Use `desktop.quit()` and `desktop.restart()` for coordinated shutdown: the host closes managed windows and runs backend cleanup once. Release application resources in Elysia `.onStop()`. In development, `desktop.restart()` relaunches only the native shell.
 
 Raw SDK windows and views are outside Furin's managed ownership and authentication. Use managed windows for routes that need the application session.

@@ -6,18 +6,18 @@ Furin's desktop integration separates three owners: the generated Electrobun hos
 
 The generated bootstrap imports the pinned Electrobun 2.0.2 devkit and starts the controller internally. The separately bundled Furin `app.js` stays inert until the host loads it, and the native module selected by `desktop.build.bun.entrypoint` registers SDK integrations without launching the app. The principal window is declared exclusively through `desktopApp({ window: {...} })` on the Elysia root.
 
-A shared cross-bundle registry exposes one live controller through `getDesktopHost()` and the injected `desktop` decorator. Each request resolves the controller at execution time, so independent API modules can be imported before native installation. No ambient module augmentation is involved — the plugin returns Elysia's inferred provider type, preserving route and Eden inference.
+A shared cross-bundle registry exposes the live native controller, with original SDK objects, through `getDesktopHost()`, and an asynchronous, serializable controller through the injected `desktop` decorator. Both reach one command executor: in process in a packaged app, over the development channel otherwise. Each request resolves the controller at execution time, so independent API modules can be imported before native installation. No ambient module augmentation is involved — the plugin returns Elysia's inferred provider type, preserving route and Eden inference.
 
 ## Startup and shutdown
 
 Startup is fail-closed, in this order:
 
 1. Resolve SDK identity and runtime storage before claiming single-instance ownership.
-2. Load the developed or built `app.js` and the optional native entrypoint.
+2. Load the built `app.js` and the optional native entrypoint.
 3. Install session guards, await Elysia `app.modules`, and run every `.onStart()` hook.
 4. Create the main window with the original SDK constructor once Elysia's successful listen callback fires.
 
-No window opens after a failed or cancelled startup, and `desktop.open()` throws before readiness instead of queueing a promise that could deadlock initialization.
+In development, Furin's hot worker starts the backend first; the native shell then connects, loads the native entrypoint and opens the main window. No window opens after a failed or cancelled startup, and the host's `open()` throws before readiness (so `desktop.open()` rejects) instead of queueing a promise that could deadlock initialization.
 
 Quit/restart/update behavior is coordinated around the backend:
 
@@ -33,25 +33,27 @@ Application resources belong to Elysia `.onStart()` / `.onStop()`. Initialize du
 
 ## Windows and the SDK boundary
 
-`desktop` (from the server context) exposes:
+`desktop` (from the server context) exposes, as promises:
 
-- `desktop.window` — readonly getter for the current original SDK `BrowserWindow`, `undefined` after it closes;
-- `desktop.open()` — reactivate or recreate the main window (throws before native readiness);
-- `desktop.windows.create(name, { path, ...sdkOptions })` — authenticated managed window returning the SDK `BrowserWindow<T>` with exact RPC inference;
-- `desktop.windows.get(name)` — lookup with the SDK default type, since a dynamic name carries no RPC declaration.
+- `desktop.window` — the main window's serializable SDK `BrowserWindow` methods, rejecting while it is closed;
+- `desktop.open()` — reactivate or recreate the main window (rejects before native readiness);
+- `desktop.windows.create(name, { path, ...sdkOptions })` — authenticated managed window, resolving to the same kind of handle; options exclude `rpc`;
+- `desktop.windows.get(name)` — handle by name, whose calls reject while that window is not open;
+- `desktop.native` — the native entrypoint's `defineNative` default export, typed through a generated declaration.
 
 ```ts
-const options = desktop.windows.create("options", {
+const options = await desktop.windows.create("options", {
   path: "/options",
   title: "Options",
   frame: { width: 640, height: 480 },
-  rpc,
 });
-options.webview.rpc;
-desktop.windows.get("options");
+await options.center();
+await desktop.windows.get("options").close();
 ```
 
-Each additional window gets its own one-use authenticated bootstrap URL. Furin manages the window URL, HTML, views root, allowed protocols and navigation rules, and overrides those fields at runtime even if wider SDK options are passed. Other SDK options pass through. Managed windows default to sandboxed without RPC; supplying `rpc` enables the SDK transport unless you explicitly choose sandbox mode.
+In native modules, `getDesktopHost().window` is the current original SDK `BrowserWindow | undefined`, and `getDesktopHost().windows.create(name, { path, rpc, ...sdkOptions })` returns the SDK `BrowserWindow<T>` with exact RPC inference.
+
+Each additional window gets its own one-use authenticated bootstrap URL. Furin manages the window URL, HTML, views root, allowed protocols and navigation rules, and overrides those fields at runtime even if wider SDK options are passed. Other SDK options pass through. Managed windows default to sandboxed without RPC; supplying `rpc` from a native module enables the SDK transport unless you explicitly choose sandbox mode.
 
 > [!IMPORTANT]
 > SDK value imports (`electrobun/main`) belong in native modules only. The generated host and those modules resolve to the same devkit paths — bundling a second SDK into the application artifact would create independent constructors, event maps and RPC transports. Shared server or browser modules use server context and type-only SDK imports.
@@ -71,13 +73,13 @@ Loopback traffic and in-process dispatch are distinct layers:
 
 ### Window bootstrap cookies
 
-Each HTTP managed window receives a fresh one-use bootstrap token and an HttpOnly/SameSite cookie on a separate ephemeral listener bound to the same hostname as the window destination, so the cookie survives the bootstrap redirect (IPv6 and LAN listeners included). The backend verifies origin, cookie, and navigation provenance; tokens expire and are bounded, and paths cannot leave the app origin. The bootstrap listener stays bound until backend cleanup finishes.
+In a packaged app, each HTTP managed window receives a fresh one-use bootstrap token and an HttpOnly/SameSite cookie on a separate ephemeral listener bound to the same hostname as the window destination, so the cookie survives the bootstrap redirect (IPv6 and LAN listeners included). The backend verifies origin, cookie, and navigation provenance; tokens expire and are bounded, and paths cannot leave the app origin. The bootstrap listener stays bound until backend cleanup finishes.
 
 TLS windows get a verified HttpOnly/Secure/SameSite cookie through the original SDK Session before navigation; SDKs that cannot preserve those cookie attributes fail closed. A system browser cannot receive that native TLS session — `desktop.browser.open` fails for TLS listeners even when the backend invites it.
 
 ### Development owner session
 
-In development the CLI opens an authenticated owner session in the system browser instead of starting Electrobun. The single-use bootstrap URL expires after one minute, uses the application origin (HTTP or HTTPS), and sets a host-only HttpOnly SameSite=Strict cookie (Secure on HTTPS). Only a verified cookie on the exact local origin, from a loopback TCP peer without forwarded headers, sets `desktopSession: true`. `desktopHost` stays false in web mode, and the React client remains in web mode.
+In web development (`furin dev --web`), the CLI opens an authenticated owner session in the system browser instead of starting Electrobun. The single-use bootstrap URL expires after one minute, uses the application origin (HTTP or HTTPS), and sets a host-only HttpOnly SameSite=Strict cookie (Secure on HTTPS). Only a verified cookie on the exact local origin, from a loopback TCP peer without forwarded headers, sets `desktopSession: true`. `desktopHost` stays false in web mode, and the React client remains in web mode.
 
 ## Runtime storage and associations
 
@@ -96,7 +98,7 @@ Packaging configuration derives from the original SDK `ElectrobunConfig`: platfo
 | Native menu, tray, shortcuts, dialogs, GPU views | Application, through the original SDK |
 | Window URL / navigation rules | Furin (managed windows) |
 
-The Bun preload activates only for the configured `--hot` server entry and delegates to the supervisor before that entry runs. Frontend edits retain the window through Bun HMR/Fast Refresh; backend or native dependency changes restart the whole controlled process. Native modules are never hot-reloaded.
+Development splits the backend from the native shell. Furin's `bun --hot` worker owns the Elysia backend, its session cookie and an authenticated loopback channel, and launches the Electrobun shell. The shell mints one-use window URLs with a key received over that channel, and the backend redeems them on its own origin. Backend edits reload in place without touching the shell; changes to the native entrypoint's import graph rebuild and relaunch only the shell. Closing the channel quits the shell, forcibly after five seconds. The Bun preload activates only for the configured `--hot` server entry and hands off to `furin dev`. Native modules are never hot-reloaded in place.
 
 ## Verification
 

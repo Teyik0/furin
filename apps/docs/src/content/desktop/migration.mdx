@@ -24,7 +24,7 @@ const app = new Elysia({ name: "relay" })
   .listen({ hostname: "127.0.0.1", port: 4242 });
 ```
 
-`restrictWebToLoopback: true` limits ordinary Web traffic to loopback hosts. Independent API plugins get typed access through `desktopContext` without re-declaring a root, and native code reaches the same controller through `getDesktopHost()`.
+`restrictWebToLoopback: true` limits ordinary Web traffic to loopback hosts. Independent API plugins get typed access through `desktopContext` without re-declaring a root, and native code reaches the same host, with original SDK objects, through `getDesktopHost()`.
 
 ## Move application lifecycle into Elysia hooks
 
@@ -97,6 +97,7 @@ Remember the [session boundaries](/docs/desktop/bridge#url-and-session-boundarie
 | Secondary windows built by hand | `desktop.windows.create(name, { path, ... })` with managed authentication |
 | Custom quit handlers per window | `desktop.quit()` / `desktop.restart()` coordinated drains |
 | App-menu wiring in backend code | `ApplicationMenu` in the native entrypoint; `getDesktopHost()` for actions |
+| Backend code calling native APIs | A `defineNative()` default export in the native entrypoint, called through [`desktop.native`](/docs/desktop/native-apis#call-native-code-from-elysia) |
 | Background/keep-alive flags | `background` policy on `desktopApp` |
 | Update install flows | `desktop.updates.install()` with backend drain before SDK handoff |
 

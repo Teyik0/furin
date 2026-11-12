@@ -35,14 +35,22 @@ With the [preload configured](/docs/desktop/installation#initialize):
 bun --hot src/server.ts
 ```
 
-The preload only activates when `--hot` runs the configured server entry (`serverEntry`, `src/server.ts` by default). It opens the native window and an authenticated system-browser session against the same backend. `furin dev` does the same for a desktop configuration; choose one interface with a flag:
+The preload only activates when `--hot` runs the configured server entry (`serverEntry`, `src/server.ts` by default), and hands off to `furin dev`. It opens the native window and an authenticated system-browser session against the same backend. Choose one interface with a flag:
 
 ```sh
 bunx --bun furin dev --desktop  # native window only
 bunx --bun furin dev --web      # Web app only, without the native SDK
 ```
 
-Frontend edits use Bun HMR and React Fast Refresh while keeping the window open. Backend or native dependency edits restart the whole process; native modules are not hot-reloaded and backend state is not preserved.
+Development runs two processes: Furin's `bun --hot` worker serves the backend (Elysia, API, SSR, sync), and a native shell owns the Electrobun windows, menus, tray and your native entrypoint. They talk over an authenticated loopback channel.
+
+| You edit | What happens |
+|---|---|
+| A page or component | Bun HMR and React Fast Refresh; the window stays open |
+| A route, API, database or sync module | The backend reloads in place; windows stay open and `globalThis` state survives |
+| The native entrypoint or its imports | Only the native shell is rebuilt and relaunched; the backend keeps running |
+
+Quitting the desktop app ends the development session, and Ctrl-C stops the backend, then the shell. Keep the listener port fixed: a port that changes on reload (`port: 0`) relaunches the shell.
 
 ## Startup ownership
 

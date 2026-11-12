@@ -4,7 +4,7 @@
 
 ## One backend, two interfaces
 
-The Elysia application and the native host share **one Bun main process**. The desktop window loads the same Furin pages as the browser, with an authenticated local session. React still renders in a WebView; native SDK integrations belong to the desktop process.
+In a packaged app, the Elysia application and the native host share **one Bun main process**; [during development](/docs/desktop/first-window#run-in-development) they run as two processes. The desktop window loads the same Furin pages as the browser, with an authenticated local session. React still renders in a WebView; native SDK integrations belong to the desktop process.
 
 | Responsibility | Where it belongs |
 |---|---|
