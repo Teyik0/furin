@@ -1,0 +1,27 @@
+packages/core/tests/build/aot-prerender-isolation.test.ts
+  s_ee1fcc24a80de0::t_ac7829870d5903 545
+packages/core/tests/support/process.ts
+  s_ee1fcc24a80de0::t_ac7829870d5903 22-26,188-189
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_ee1fcc24a80de0::t_ac7829870d5903 786,824
+packages/core/tests/build/embed/build-embed.test.ts
+  s_ee1fcc24a80de0::t_ac7829870d5903 144
+packages/core/tests/rendering/rsc/rsc-client-references.test.ts
+  s_ee1fcc24a80de0::t_ac7829870d5903 930
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "67676dbe116340bb5ec6c002a3e38723b1fed9e7",
+  "prompts": {},
+  "sessions": {
+    "s_ee1fcc24a80de0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dc1429f-f948-43fb-a015-32a96578a2b9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
