@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { desktopCommand } from "../src/cli";
+import { prepareSdkResolution } from "../src/sdk-resolution";
 import { installSdk } from "./fixtures/sdk";
 
 test("prepare exposes the projected SDK to TypeScript without copying its obsolete baseUrl", async () => {
@@ -72,3 +73,55 @@ test("prepare exposes the projected SDK to TypeScript without copying its obsole
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test.each([
+  ["neither include nor files", {}],
+  ["its own files", { files: ["src/app.ts"] }],
+  ["its own include", { include: ["src/**/*.ts"] }],
+])(
+  "a project tsconfig with %s checks its sources and the native types",
+  async (_shape, selection) => {
+    const root = await mkdtemp(join(tmpdir(), "furin-sdk-files-"));
+    try {
+      const generated = join(root, ".furin/electrobun");
+      const devkit = join(generated, ".hutch/devkit");
+      await mkdir(join(devkit, "api"), { recursive: true });
+      await writeFile(
+        join(devkit, "package.json"),
+        JSON.stringify({ exports: { "./main": "./api/main.ts" } })
+      );
+      await writeFile(join(devkit, "api/main.ts"), "export default {};");
+      await prepareSdkResolution(generated);
+      await writeFile(join(generated, "native-env.d.ts"), "export {};");
+      await mkdir(join(root, "src"));
+      await writeFile(join(root, "src/app.ts"), "export const app = 1;");
+      await writeFile(
+        join(root, "tsconfig.json"),
+        JSON.stringify({
+          extends: "./.furin/electrobun/tsconfig.json",
+          compilerOptions: { noEmit: true, types: [] },
+          ...selection,
+        })
+      );
+      const compiler = join(
+        dirname(Bun.resolveSync("typescript/package.json", import.meta.dir)),
+        "bin/tsc"
+      );
+      const child = Bun.spawn(
+        [process.execPath, compiler, "-p", join(root, "tsconfig.json"), "--listFilesOnly"],
+        { stdout: "pipe", stderr: "pipe", timeout: 10_000 }
+      );
+      const [code, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect(code, stdout + stderr).toBe(0);
+      const files = stdout.replaceAll("\\", "/");
+      expect(files).toContain("/src/app.ts");
+      expect(files).toContain("/.furin/electrobun/native-env.d.ts");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+);
