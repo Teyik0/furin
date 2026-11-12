@@ -1,4 +1,4 @@
-name: Workflow - Elysia next
+name: Workflow - Elysia rc
 
 # Furin's Elysia peer is a range. This runs the core tests against the
 # latest `elysia@rc` so upcoming RCs break CI before they break users.
