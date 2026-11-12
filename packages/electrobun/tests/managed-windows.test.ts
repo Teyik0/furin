@@ -16,7 +16,6 @@ import { installSdk } from "./fixtures/sdk";
 
 test("managed windows keep SDK identity and independent APIs share the live controller", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-windows-"));
-  const previous = process.env.FURIN_APP_DATA_DIR;
   const identity = { name: "Fixture", identifier: "local.furin.windows", version: "1.0.0" };
   let desktop: DesktopContext | undefined;
   let failBackground = false;
@@ -117,11 +116,6 @@ test("managed windows keep SDK identity and independent APIs share the live cont
     expect(getDesktopHost()).toBeNull();
   } finally {
     await desktop?.quit();
-    if (previous === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previous;
-    }
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -143,7 +137,6 @@ export function createTypedWindow<T extends RPCWithTransport>(
 
 test("quit during async Elysia startup creates no window and cleans up once", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-window-cancel-"));
-  const previous = process.env.FURIN_APP_DATA_DIR;
   const entered = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
   let stops = 0;
@@ -179,11 +172,6 @@ test("quit during async Elysia startup creates no window and cleans up once", as
   } finally {
     release.resolve();
     await app.stop(true);
-    if (previous === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previous;
-    }
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -191,7 +179,6 @@ test("quit during async Elysia startup creates no window and cleans up once", as
 for (const failure of ["tray", "fence", "main", "extra", "quit"] as const) {
   test(`native ${failure} cleanup failure still drains every managed object and quits once`, async () => {
     const root = await mkdtemp(join(tmpdir(), "furin-cleanup-failure-"));
-    const previous = process.env.FURIN_APP_DATA_DIR;
     const previousExitCode = process.exitCode;
     const identity = { name: "Fixture", identifier: "local.furin.cleanup", version: "1.0.0" };
     const attempts: string[] = [];
@@ -263,11 +250,6 @@ for (const failure of ["tray", "fence", "main", "extra", "quit"] as const) {
     } finally {
       await desktop?.quit().catch(() => undefined);
       process.exitCode = previousExitCode ?? 0;
-      if (previous === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previous;
-      }
       await rm(root, { recursive: true, force: true });
     }
   });

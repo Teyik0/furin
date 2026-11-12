@@ -10,7 +10,6 @@ import { standardLaunchFixture, waitForFixture } from "./fixtures/standard-launc
 
 test("admission authenticates listener requests that lack the desktop session; in-process dispatch bypasses it", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-admission-"));
-  const previous = process.env.FURIN_APP_DATA_DIR;
   const admitted: AdmissionContext[] = [];
   const app = new Elysia({ serve: { hostname: "0.0.0.0" } })
     .use(
@@ -60,11 +59,6 @@ test("admission authenticates listener requests that lack the desktop session; i
     try {
       await backend?.stop();
     } finally {
-      if (previous === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previous;
-      }
       await rm(data, { recursive: true, force: true });
     }
   }
@@ -72,7 +66,6 @@ test("admission authenticates listener requests that lack the desktop session; i
 
 test("the application chooses a stable desktop port and TLS; TLS windows receive the session natively", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-listen-"));
-  const previous = process.env.FURIN_APP_DATA_DIR;
   const cert = await Bun.file(join(import.meta.dir, "fixtures/tls-cert.pem")).text();
   const key = await Bun.file(join(import.meta.dir, "fixtures/tls-key.pem")).text();
   const probe = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() });
@@ -98,11 +91,6 @@ test("the application chooses a stable desktop port and TLS; TLS windows receive
     try {
       await backend?.stop();
     } finally {
-      if (previous === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previous;
-      }
       await rm(data, { recursive: true, force: true });
     }
   }

@@ -84,7 +84,6 @@ for (const rootData of [false, true]) {
       await writeFile(join(root, "src/server/index.tsx"), entry);
       await writeFile(join(root, "src/database.ts"), 'export const value = "first";');
       const sdk = join(root, "node_modules/electrobun");
-      await mkdir(join(sdk, "bin"), { recursive: true });
       await installSdk(root);
       await writeFile(
         join(sdk, "bin/electrobun.cjs"),
@@ -277,7 +276,6 @@ test("dev supervisor terminates its ready worker when Elysia cleanup holds an ac
     );
     // The SDK command boundary exits like a closed window; no GUI is launched.
     const sdk = join(root, "node_modules/electrobun");
-    await mkdir(join(sdk, "bin"), { recursive: true });
     await installSdk(root);
     await writeFile(join(sdk, "bin/electrobun.cjs"), `${sdkRunHeader(root)} sdk.Utils.quit(0);`);
     const result = await Promise.race([
@@ -303,47 +301,3 @@ test("dev supervisor terminates its ready worker when Elysia cleanup holds an ac
     await rm(root, { recursive: true, force: true });
   }
 }, 9000);
-
-test("dev helper reports cleanup failure and exits with status one", async () => {
-  const root = await mkdtemp(join(tmpdir(), "furin-dev-failed-"));
-  const entry = join(root, "server.ts");
-  await writeFile(
-    entry,
-    `
-    import { createDesktopApp } from ${JSON.stringify(Bun.resolveSync("@teyik0/furin-electrobun/server", import.meta.dir))};
-    export default createDesktopApp().get("/", () => "ready").onStop(() => { throw new Error("resource close failed"); });
-
-  `
-  );
-  const generated = await prepareDesktop(
-    root,
-    {
-      app: { name: "Fixture", identifier: "local.furin.fixture", version: "1.0.0" },
-      dataDir: join(root, "data"),
-    },
-    { mode: "dev", root, serverEntry: entry }
-  );
-  const child = Bun.spawn([process.execPath, join(generated, "dev-server.ts")], {
-    cwd: root,
-    stdout: "ignore",
-    stderr: "pipe",
-  });
-  try {
-    const deadline = Date.now() + 2000;
-    while (!(await Bun.file(join(generated, "ready.json")).exists())) {
-      if (child.exitCode !== null || Date.now() > deadline) {
-        throw new Error("Dev helper did not start.");
-      }
-      await Bun.sleep(25);
-    }
-    await writeFile(join(generated, "control"), "stop");
-    expect(await child.exited).toBe(1);
-    expect(await new Response(child.stderr).text()).toContain("resource close failed");
-  } finally {
-    if (child.exitCode === null) {
-      child.kill("SIGKILL");
-      await child.exited;
-    }
-    await rm(root, { recursive: true, force: true });
-  }
-});

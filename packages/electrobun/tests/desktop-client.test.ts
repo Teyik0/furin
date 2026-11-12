@@ -55,7 +55,6 @@ async function withDesktop(
 ) {
   const root = await mkdtemp(join(tmpdir(), "furin-react-desktop-"));
   const identity = { name: "Fixture", identifier: "local.furin.react", version: "1.0.0" };
-  const previous = process.env.FURIN_APP_DATA_DIR;
   let host: Awaited<ReturnType<typeof runStandardDesktopHost>>;
   try {
     await Bun.write(join(root, ".furin/electrobun/host.json"), JSON.stringify({ app: identity }));
@@ -100,11 +99,6 @@ async function withDesktop(
   } finally {
     (window as BridgeWindow).__electrobunSendToHost = undefined;
     await host?.quit();
-    if (previous === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previous;
-    }
     await rm(root, { recursive: true, force: true });
   }
 }

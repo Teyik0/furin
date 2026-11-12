@@ -25,7 +25,6 @@ test.each(
   ])
 )("$mode listener navigates through $destination", async ({ mode, hostname, destination }) => {
   const data = await mkdtemp(join(tmpdir(), "furin-listener-origin-"));
-  const previous = process.env.FURIN_APP_DATA_DIR;
   let backend: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
   let listenerUrl: URL | undefined;
   try {
@@ -83,18 +82,12 @@ test.each(
     expect((await fetch(backend.url, { redirect: "manual" })).status).toBe(410);
   } finally {
     await backend?.stop();
-    if (previous === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previous;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test.each(["source", "host"])("%s Unix listener is rejected and closed", async (mode) => {
   const data = await mkdtemp(join(tmpdir(), "furin-listener-unix-"));
-  const previous = process.env.FURIN_APP_DATA_DIR;
   const unix = join(data, "app.sock");
   let stopped = false;
   try {
@@ -118,11 +111,6 @@ test.each(["source", "host"])("%s Unix listener is rejected and closed", async (
       await expect(fetch("http://localhost/", { unix })).rejects.toThrow();
     }
   } finally {
-    if (previous === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previous;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });

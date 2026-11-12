@@ -12,7 +12,6 @@ import { runStandardDesktopHost } from "../src/standard-host";
 
 test("standard host lifecycle and successful update handoff", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-standard-"));
-  const previous = process.env.FURIN_APP_DATA_DIR;
   const previousMain = Bun.main;
   const previousXdg = process.env.XDG_DATA_HOME;
   Reflect.set(Bun, "main", join(root, "host.ts"));
@@ -286,11 +285,6 @@ test("standard host lifecycle and successful update handoff", async () => {
     try {
       await desktop?.quit();
     } finally {
-      if (previous === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previous;
-      }
       commands.mockRestore();
       Reflect.set(Bun, "main", previousMain);
       if (previousXdg === undefined) {

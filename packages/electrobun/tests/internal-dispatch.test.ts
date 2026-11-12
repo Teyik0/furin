@@ -24,7 +24,6 @@ test.each(["dev", "build"] as const)(
     migrateSqliteSync(database);
     const adapter = sqliteSyncAdapter({ database, namespace: `desktop-composition-${mode}` });
     const data = await mkdtemp(join(tmpdir(), "furin-sync-desktop-"));
-    const previous = process.env.FURIN_APP_DATA_DIR;
     const seen: string[] = [];
     let starts = 0;
     let stops = 0;
@@ -83,11 +82,6 @@ test.each(["dev", "build"] as const)(
       try {
         await backend?.stop();
       } finally {
-        if (previous === undefined) {
-          delete process.env.FURIN_APP_DATA_DIR;
-        } else {
-          process.env.FURIN_APP_DATA_DIR = previous;
-        }
         database.close();
         await rm(data, { recursive: true, force: true });
       }
@@ -119,7 +113,6 @@ test("Bun HTTP dispatch supplies its server while Eden handle dispatch has no ad
 
 test("desktop Eden and the furinSync Eden plugin read/mutate the listening application without HTTP credentials", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-eden-"));
-  const previous = process.env.FURIN_APP_DATA_DIR;
   const values: string[] = [];
   const received: unknown[][] = [];
   const app = new Elysia()
@@ -192,11 +185,6 @@ test("desktop Eden and the furinSync Eden plugin read/mutate the listening appli
     try {
       await backend?.stop();
     } finally {
-      if (previous === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previous;
-      }
       await rm(data, { recursive: true, force: true });
     }
   }
@@ -204,7 +192,6 @@ test("desktop Eden and the furinSync Eden plugin read/mutate the listening appli
 
 test("both desktop transports are blocked during startup, update pause and shutdown", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-eden-lifecycle-"));
-  const previous = process.env.FURIN_APP_DATA_DIR;
   const started = Promise.withResolvers<void>();
   const releaseStartup = Promise.withResolvers<void>();
   const ready = Promise.withResolvers<{ origin: string; cookie?: string }>();
@@ -294,11 +281,6 @@ test("both desktop transports are blocked during startup, update pause and shutd
     try {
       await (await pending)?.quit();
     } finally {
-      if (previous === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previous;
-      }
       await rm(root, { recursive: true, force: true });
     }
   }

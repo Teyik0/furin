@@ -9,7 +9,6 @@ import { settleOnFakeClock } from "./support/clock";
 
 test("in-process Elysia owns one ephemeral listener, session and shutdown", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-data-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   let shutdowns = 0;
   let importedData: string | undefined;
   const app = createDesktopApp()
@@ -50,11 +49,6 @@ test("in-process Elysia owns one ephemeral listener, session and shutdown", asyn
     try {
       await backend?.stop();
     } finally {
-      if (previousData === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previousData;
-      }
       await rm(data, { recursive: true, force: true });
     }
   }
@@ -62,7 +56,6 @@ test("in-process Elysia owns one ephemeral listener, session and shutdown", asyn
 
 test("desktop rejects and cleans a server that booted during import", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-data-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   let shutdowns = 0;
   const app = new Elysia()
     .onStop(() => {
@@ -85,18 +78,12 @@ test("desktop rejects and cleans a server that booted during import", async () =
     expect(shutdowns).toBe(1);
   } finally {
     await app.stop(true);
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test("shutdown rejects after five seconds when a resource cleanup hangs", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-shutdown-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const app = createDesktopApp().get("/", () => "ready");
   const handle = setInterval(() => {
     /* Keep a resource handle alive during the hung cleanup. */
@@ -132,18 +119,12 @@ test("shutdown rejects after five seconds when a resource cleanup hangs", async 
     clearInterval(handle);
     release.resolve();
     await app.stop(true);
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test("callback readiness times out after thirty seconds and closes the listener and module", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-startup-timeout-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const entered = Promise.withResolvers<void>();
   let shutdowns = 0;
   jest.useFakeTimers();
@@ -183,18 +164,12 @@ test("callback readiness times out after thirty seconds and closes the listener 
     clearInterval(handle);
     await app.stop(true);
     await observed;
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test("one startup budget bounds async plugin activation and never listens after late resolution", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-plugin-timeout-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const plugin = new Elysia().get("/late", () => "late");
   const pending = Promise.withResolvers<typeof plugin>();
   const app = createDesktopApp().use(pending.promise);
@@ -241,18 +216,12 @@ test("one startup budget bounds async plugin activation and never listens after 
     await observed;
     await backend?.stop();
     await app.stop(true);
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test("the startup budget includes importing the application module", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-import-timeout-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   jest.useFakeTimers();
   const startup = startDesktopBackend(
     () =>
@@ -271,11 +240,6 @@ test("the startup budget includes importing the application module", async () =>
     expect(await observed).toContain("30 seconds");
   } finally {
     jest.useRealTimers();
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });

@@ -8,7 +8,6 @@ import { desktopApp } from "../src/server";
 
 test("desktopApp protects the original typed Elysia root before application wrappers", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-desktop-plugin-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const root = new Elysia({ prefix: "/api" }).decorate("answer", 42);
   const app = root
     .use(desktopApp({ restrictWebToLoopback: false }))
@@ -39,11 +38,6 @@ test("desktopApp protects the original typed Elysia root before application wrap
     try {
       await backend?.stop();
     } finally {
-      if (previousData === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previousData;
-      }
       await rm(data, { recursive: true, force: true });
     }
   }
@@ -52,7 +46,6 @@ test("desktopApp protects the original typed Elysia root before application wrap
 for (const mode of ["web", "desktop"] as const) {
   test(`plugin lifecycle initializes and drains once in ${mode}`, async () => {
     const data = await mkdtemp(join(tmpdir(), "furin-plugin-lifecycle-"));
-    const previousData = process.env.FURIN_APP_DATA_DIR;
     let starts = 0;
     let stops = 0;
     let ready = false;
@@ -91,11 +84,6 @@ for (const mode of ["web", "desktop"] as const) {
       try {
         await (backend?.stop() ?? app.stop(true));
       } finally {
-        if (previousData === undefined) {
-          delete process.env.FURIN_APP_DATA_DIR;
-        } else {
-          process.env.FURIN_APP_DATA_DIR = previousData;
-        }
         await rm(data, { recursive: true, force: true });
       }
     }
@@ -154,7 +142,6 @@ test("installing the desktop plugin after listening is rejected", async () => {
 
 test("Elysia startup failure cleans resources once and stops the listener", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-plugin-failure-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const previousExitCode = process.exitCode ?? 0;
   let stops = 0;
   const app = new Elysia()
@@ -173,11 +160,6 @@ test("Elysia startup failure cleans resources once and stops the listener", asyn
     expect(app.server).toBeUndefined();
   } finally {
     process.exitCode = previousExitCode;
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });

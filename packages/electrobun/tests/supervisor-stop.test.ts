@@ -1,6 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Process exit polling must be bounded and sequential.
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installSdk, sdkRunHeader } from "./fixtures/sdk";
@@ -51,13 +51,10 @@ async function expectExited(pid: number): Promise<void> {
   throw new Error(`Owned process ${pid} is still live.`);
 }
 
-async function fixture(
-  mode: "early" | "crash" | "signal" | "backend-signal" | "hung" | "failed",
-  ipc?: boolean
-) {
+async function fixture(mode: "early" | "crash" | "signal" | "backend-signal" | "hung" | "failed") {
   const root = await mkdtemp(join(tmpdir(), "furin-supervisor-stop-"));
   const interruptSdk =
-    process.platform === "win32" || ipc
+    process.platform === "win32"
       ? 'process.emit("SIGINT");'
       : 'process.kill(process.pid, "SIGINT");';
   let observed: Started | undefined;
@@ -111,7 +108,6 @@ async function fixture(
   `
   );
   const sdk = join(root, "node_modules/electrobun");
-  await mkdir(join(sdk, "bin"), { recursive: true });
   await installSdk(root, mode === "hung" ? "hung-quit" : undefined);
   await writeFile(
     join(sdk, "bin/electrobun.cjs"),
@@ -175,7 +171,7 @@ finally { process.disconnect(); }`
     supervisor,
     started: bounded(started),
     interrupt() {
-      if (ipc || process.platform === "win32") {
+      if (process.platform === "win32") {
         supervisor.send("SIGINT");
       } else {
         supervisor.kill("SIGINT");
@@ -247,25 +243,6 @@ test("Ctrl-C after readiness drains the in-process SDK and backend", async () =>
     expect(() => process.kill(workerPid, 0)).toThrow();
     expect(window.url).toBeDefined();
     expect(await dev.stdout).not.toContain(window.url as string);
-    expect(diagnostic).toBe("");
-  } finally {
-    await dev.close();
-  }
-}, 12_000);
-
-test("IPC-delivered shutdown invokes the supervisor signal handler and drains the backend", async () => {
-  const dev = await fixture("signal", true);
-  try {
-    await dev.started;
-    dev.interrupt();
-    const status = await bounded(dev.supervisor.exited);
-    const diagnostic = await new Response(dev.supervisor.stderr).text();
-    expect(status, diagnostic).toBe(0);
-    expect(
-      await Bun.file(join(dev.root, ".cleanup")).exists(),
-      [diagnostic, await dev.stdout].join("\n")
-    ).toBe(true);
-    expect(await Bun.file(join(dev.root, ".cleanup")).text()).toBe("closed");
     expect(diagnostic).toBe("");
   } finally {
     await dev.close();

@@ -8,7 +8,6 @@ import { createDesktopApp } from "../src/server";
 
 test("public source and bundled factory roots share the pure SDK controller registry", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-registry-bundle-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   let first: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
   let second: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
   try {
@@ -78,11 +77,6 @@ test("public source and bundled factory roots share the pure SDK controller regi
     try {
       await Promise.all([first?.stop(), second?.stop()]);
     } finally {
-      if (previousData === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previousData;
-      }
       await rm(root, { recursive: true, force: true });
     }
   }
