@@ -1,10 +1,18 @@
 import { expect, test } from "bun:test";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { createTmpApp } from "../support/app-fixtures.ts";
 import { runCli, runProcess } from "../support/process.ts";
 
-test("the production web server uses the source listen port in its own process", async () => {
+const ROUTE_MAP_ENTRY = '"/blog/:slug": typeof import("./src/pages/blog/[slug]").route;';
+const FILE_ROUTES_ENTRY = `    "/blog/[slug]": {
+      kind: "page";
+      pattern: "/blog/:slug";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: { slug: string };
+    };`;
+
+test("furin build writes route types and the production web server uses the source listen port in its own process", async () => {
   const fixture = createTmpApp("cli-app");
   try {
     const probe = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() });
@@ -15,8 +23,12 @@ test("the production web server uses the source listen port in its own process",
       `\napp.get("/api/pid", () => String(process.pid))
         .listen({ hostname: "127.0.0.1", port: ${port} });\n`
     );
+    rmSync(join(fixture.path, "furin-env.d.ts"));
     const built = await runCli(["build", "--target", "bun"], { cwd: fixture.path });
     expect(built.exitCode, built.stderr + built.stdout).toBe(0);
+    const routeTypes = readFileSync(join(fixture.path, "furin-env.d.ts"), "utf8");
+    expect(routeTypes).toContain(ROUTE_MAP_ENTRY);
+    expect(routeTypes).toContain(FILE_ROUTES_ENTRY);
     const launched = await runProcess(
       [
         process.execPath,

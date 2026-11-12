@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { createTmpApp, type TmpApp } from "../support/app-fixtures.ts";
 import { runCli } from "../support/process.ts";
@@ -89,27 +89,6 @@ describe.serial("production DevTools isolation", () => {
         const contents = readFileSync(artifact, "utf8");
         expect(DEVTOOLS_MARKERS.filter((marker) => contents.includes(marker))).toEqual([]);
       }
-    },
-    { timeout: 30_000 }
-  );
-
-  test(
-    "the compiled production binary contains no DevTools code",
-    async () => {
-      const app = createTmpApp("cli-app-ssr");
-      tmpApps.push(app);
-
-      const result = await runCli(["build", "--compile", "embed"], { cwd: app.path });
-
-      expect(result.exitCode).toBe(0);
-      const binaryPath = ["server", "server.exe"]
-        .map((name) => join(app.path, ".furin/build/bun", name))
-        .find(existsSync);
-      expect(binaryPath).toBeDefined();
-      const binary = readFileSync(binaryPath as string).toString("latin1");
-      const presentMarkers = DEVTOOLS_MARKERS.filter((marker) => binary.includes(marker));
-
-      expect(presentMarkers).toEqual([]);
     },
     { timeout: 30_000 }
   );

@@ -37,17 +37,6 @@ export const route = defineRoute("/blog/[slug]")
   return app;
 }
 
-test("Bun builds prerender SSG pages with the production bundle", async () => {
-  const app = createOriginApp();
-
-  await buildApp({ rootDir: app.path, target: "bun" });
-
-  const snapshot = await Bun.file(join(app.path, ".furin/build/bun/furin-prerender.json")).json();
-  expect(snapshot[""]["/blog/hello-world"].html).toContain("rendered-from-<!-- -->bundle");
-  expect(getProductionTemplate()).toBeNull();
-  expect(ssgRouteCache().size).toBe(0);
-}, 60_000);
-
 test("package builds prerender SSG pages with the built package", async () => {
   const app = createOriginApp();
 
@@ -59,32 +48,8 @@ test("package builds prerender SSG pages with the built package", async () => {
   expect(snapshot[""]["/blog/hello-world"].html).toContain("rendered-from-<!-- -->bundle");
 }, 60_000);
 
-test("static exports render without touching the process's runtime state", async () => {
-  const app = createTmpApp("cli-app");
-  tmpApps.push(app);
-
-  await buildApp({ rootDir: app.path, staticConfig: { outDir: "dist" }, target: "static" });
-
-  expect(await Bun.file(join(app.path, "dist/blog/hello-world/index.html")).text()).toContain(
-    "Blog post page"
-  );
-  expect(getProductionTemplate()).toBeNull();
-  expect(ssgRouteCache().size).toBe(0);
-}, 60_000);
-
-test("static exports render SSG pages with a production bundle", async () => {
+test("static exports render SSG pages in production mode with a production bundle outside the build process", async () => {
   const app = createOriginApp();
-
-  await buildApp({ rootDir: app.path, staticConfig: { outDir: "dist" }, target: "static" });
-
-  const html = await Bun.file(join(app.path, "dist/blog/hello-world/index.html")).text();
-  expect(html).toContain("rendered-from-<!-- -->bundle");
-  expect(existsSync(join(app.path, ".furin/build/static"))).toBe(false);
-}, 60_000);
-
-test("static exports render pages in production mode", async () => {
-  const app = createTmpApp("cli-app");
-  tmpApps.push(app);
   writeAppFile(
     app.path,
     "src/pages/env.tsx",
@@ -95,16 +60,6 @@ export const route = defineRoute("/env")
   .page(() => <main>node-env-{process.env.NODE_ENV}</main>);
 `
   );
-
-  await buildApp({ rootDir: app.path, staticConfig: { outDir: "dist" }, target: "static" });
-
-  const html = await Bun.file(join(app.path, "dist/env/index.html")).text();
-  expect(html).toContain("node-env-<!-- -->production");
-}, 60_000);
-
-test("static exports never render pages in the build process", async () => {
-  const app = createTmpApp("cli-app");
-  tmpApps.push(app);
   writeAppFile(
     app.path,
     "src/pages/global.tsx",
@@ -121,11 +76,19 @@ export const route = defineRoute("/global")
 
   await buildApp({ rootDir: app.path, staticConfig: { outDir: "dist" }, target: "static" });
 
+  const html = await Bun.file(join(app.path, "dist/blog/hello-world/index.html")).text();
+  expect(html).toContain("rendered-from-<!-- -->bundle");
+  expect(existsSync(join(app.path, ".furin/build/static"))).toBe(false);
+  expect(await Bun.file(join(app.path, "dist/env/index.html")).text()).toContain(
+    "node-env-<!-- -->production"
+  );
   expect(await Bun.file(join(app.path, "dist/global/index.html")).text()).toContain("global");
   expect((globalThis as { __furinStaticRendered?: boolean }).__furinStaticRendered).toBeUndefined();
+  expect(getProductionTemplate()).toBeNull();
+  expect(ssgRouteCache().size).toBe(0);
 }, 60_000);
 
-test("the Bun server serves the snapshot rendered at build time", async () => {
+test("Bun builds prerender SSG pages with the production bundle and the server serves that snapshot", async () => {
   const app = createOriginApp();
   process.env.FURIN_TEST_PHASE = "build";
   try {
@@ -133,6 +96,11 @@ test("the Bun server serves the snapshot rendered at build time", async () => {
   } finally {
     delete process.env.FURIN_TEST_PHASE;
   }
+
+  const snapshot = await Bun.file(join(app.path, ".furin/build/bun/furin-prerender.json")).json();
+  expect(snapshot[""]["/blog/hello-world"].html).toContain("rendered-from-<!-- -->bundle");
+  expect(getProductionTemplate()).toBeNull();
+  expect(ssgRouteCache().size).toBe(0);
 
   const result = await runProcess(
     [

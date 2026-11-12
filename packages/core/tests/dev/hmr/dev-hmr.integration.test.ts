@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 import { DEV_CLIENT_CHUNK_RE, extractDevClientEntry, getFreePort } from "../../support/hmr.ts";
-import { waitForHttp } from "../../support/http.ts";
+import { pollUntil, waitForHttp } from "../../support/http.ts";
 import { startProcess } from "../../support/process.ts";
 
 /**
@@ -210,13 +210,14 @@ describe.serial("dev HMR", () => {
 
     // Poll until SSR returns updated content (or timeout after ~10s)
     let html = "";
-    for (let i = 0; i < 40; i += 1) {
-      html = await (await fetch(`http://localhost:${port}/`)).text();
-      if (html.includes("Updated via HMR")) {
-        break;
-      }
-      await Bun.sleep(250);
-    }
+    await pollUntil(
+      async () => {
+        html = await (await fetch(`http://localhost:${port}/`)).text();
+        return html.includes("Updated via HMR");
+      },
+      40,
+      250
+    );
     expect(html).toContain("Updated via HMR");
     expect(html).not.toContain("Home page");
 
@@ -242,13 +243,14 @@ describe.serial("dev HMR", () => {
 
     // Poll until SSR reflects the second edit (or timeout after ~10s)
     let html = "";
-    for (let i = 0; i < 40; i += 1) {
-      html = await (await fetch(`http://localhost:${port}/`)).text();
-      if (html.includes("Second edit works")) {
-        break;
-      }
-      await Bun.sleep(250);
-    }
+    await pollUntil(
+      async () => {
+        html = await (await fetch(`http://localhost:${port}/`)).text();
+        return html.includes("Second edit works");
+      },
+      40,
+      250
+    );
     expect(html).toContain("Second edit works");
     expect(html).not.toContain("Updated via HMR");
 
@@ -259,17 +261,18 @@ describe.serial("dev HMR", () => {
   }, 15_000);
 
   test("editing root.tsx keeps nested hook layouts rendering without invalid hook crashes", async () => {
-    let response: Response | null = null;
+    let response: Response | undefined;
     let html = "";
 
-    for (let i = 0; i < 40; i += 1) {
-      response = await fetch(`http://localhost:${port}/docs`);
-      html = await response.text();
-      if (response.ok && html.includes("root-v1") && html.includes("Mobile nav")) {
-        break;
-      }
-      await Bun.sleep(250);
-    }
+    await pollUntil(
+      async () => {
+        response = await fetch(`http://localhost:${port}/docs`);
+        html = await response.text();
+        return response.ok && html.includes("root-v1") && html.includes("Mobile nav");
+      },
+      40,
+      250
+    );
 
     expect(response?.status).toBe(200);
     expect(html).toContain("root-v1");
@@ -293,16 +296,17 @@ describe.serial("dev HMR", () => {
       ].join("\n")
     );
 
-    let updatedResponse: Response | null = null;
+    let updatedResponse: Response | undefined;
     let updatedHtml = "";
-    for (let i = 0; i < 40; i += 1) {
-      updatedResponse = await fetch(`http://localhost:${port}/docs`);
-      updatedHtml = await updatedResponse.text();
-      if (updatedResponse.ok && updatedHtml.includes("root-v2")) {
-        break;
-      }
-      await Bun.sleep(250);
-    }
+    await pollUntil(
+      async () => {
+        updatedResponse = await fetch(`http://localhost:${port}/docs`);
+        updatedHtml = await updatedResponse.text();
+        return updatedResponse.ok && updatedHtml.includes("root-v2");
+      },
+      40,
+      250
+    );
 
     expect(updatedResponse?.status).toBe(200);
     expect(updatedHtml).toContain("root-v2");
@@ -359,21 +363,22 @@ describe.serial("dev HMR", () => {
     // would keep `/` pinned on `initialBundle` indefinitely.
     let refreshedHomeChunk: string | null = null;
     let latestHmrShell: string | null = initialBundle;
-    for (let i = 0; i < 40; i += 1) {
-      const hmrEntryHtml = await (await fetch(`http://localhost:${port}/_bun_hmr_entry`)).text();
-      latestHmrShell = extractDevClientEntry(hmrEntryHtml);
-      const homeHtml = await (await fetch(`http://localhost:${port}/`)).text();
-      refreshedHomeChunk = extractDevClientEntry(homeHtml);
-      if (
-        latestHmrShell &&
-        latestHmrShell !== initialBundle &&
-        refreshedHomeChunk &&
-        refreshedHomeChunk !== initialBundle
-      ) {
-        break;
-      }
-      await Bun.sleep(250);
-    }
+    await pollUntil(
+      async () => {
+        const hmrEntryHtml = await (await fetch(`http://localhost:${port}/_bun_hmr_entry`)).text();
+        latestHmrShell = extractDevClientEntry(hmrEntryHtml);
+        const homeHtml = await (await fetch(`http://localhost:${port}/`)).text();
+        refreshedHomeChunk = extractDevClientEntry(homeHtml);
+        return (
+          Boolean(latestHmrShell) &&
+          latestHmrShell !== initialBundle &&
+          Boolean(refreshedHomeChunk) &&
+          refreshedHomeChunk !== initialBundle
+        );
+      },
+      40,
+      250
+    );
 
     expect(latestHmrShell).not.toBe(initialBundle);
     expect(refreshedHomeChunk).not.toBe(initialBundle);
@@ -394,16 +399,17 @@ describe.serial("dev HMR", () => {
       ].join("\n")
     );
 
-    let response: Response | null = null;
+    let response: Response | undefined;
     let html = "";
-    for (let i = 0; i < 40; i += 1) {
-      response = await fetch(`http://localhost:${port}/`);
-      html = await response.text();
-      if (response.ok && html.includes("import &quot;./styles/globals.css&quot;")) {
-        break;
-      }
-      await Bun.sleep(250);
-    }
+    await pollUntil(
+      async () => {
+        response = await fetch(`http://localhost:${port}/`);
+        html = await response.text();
+        return response.ok && html.includes("import &quot;./styles/globals.css&quot;");
+      },
+      40,
+      250
+    );
 
     expect(response?.status).toBe(200);
     expect(html).toContain("import &quot;./styles/globals.css&quot;");

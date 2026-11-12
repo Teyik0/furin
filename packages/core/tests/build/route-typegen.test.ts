@@ -28,19 +28,3 @@ test("furin typegen writes furin-env.d.ts without starting the app", async () =>
     app.cleanup();
   }
 });
-
-test("furin build writes furin-env.d.ts for the root-mounted app", async () => {
-  const app = createTmpApp("cli-app");
-  try {
-    rmSync(join(app.path, "furin-env.d.ts"));
-
-    const result = await runCli(["build", "--target", "bun"], { cwd: app.path });
-
-    expect(result.exitCode).toBe(0);
-    const content = readFileSync(join(app.path, "furin-env.d.ts"), "utf8");
-    expect(content).toContain(ROUTE_MAP_ENTRY);
-    expect(content).toContain(FILE_ROUTES_ENTRY);
-  } finally {
-    app.cleanup();
-  }
-});
