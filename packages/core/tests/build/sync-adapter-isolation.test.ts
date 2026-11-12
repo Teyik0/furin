@@ -7,7 +7,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { treaty } from "@elysia/eden";
 import { Elysia } from "elysia";
@@ -358,11 +358,11 @@ async function installPackedPackage(
 ): Promise<void> {
   const destination = join(directory, "node_modules", ...name.split("/"));
   mkdirSync(destination, { recursive: true });
-  // GNU tar on Windows reads the drive letter of `-f C:/...` as a remote host:
-  // pass the archive by name from its own directory.
+  // GNU tar on Windows misreads absolute `C:\` paths in `-f` and `-C`: extract
+  // from the destination with a relative, forward-slash archive path.
   const result = await runProcess(
-    ["tar", "-xzf", basename(archive), "--strip-components=1", "-C", destination],
-    { cwd: dirname(archive), timeoutMs: 25_000 }
+    ["tar", "-xzf", relative(destination, archive).replaceAll("\\", "/"), "--strip-components=1"],
+    { cwd: destination, timeoutMs: 25_000 }
   );
   if (result.exitCode !== 0) {
     throw new Error(result.stderr);
