@@ -1,0 +1,19 @@
+.github/workflows/electrobun-latest.yaml
+  s_df67d91227c4b3::t_d8306f3e010ce1 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1da004c0d130b50803683109dec6ed5a2e76c1fa",
+  "prompts": {},
+  "sessions": {
+    "s_df67d91227c4b3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8db72b8-2db8-4e6b-b18d-01b078375b13",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
