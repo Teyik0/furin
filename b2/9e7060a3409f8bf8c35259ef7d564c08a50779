@@ -1,0 +1,50 @@
+packages/core/tests/runtime/plugin/not-found-sequence.test.ts
+  s_ee1fcc24a80de0::t_2a5d35d9838f63 6,20-23,26
+packages/core/tests/runtime/cache/page-cache-isr.test.ts
+  s_ee1fcc24a80de0::t_ce9bee07c82a5f 36
+  s_ee1fcc24a80de0::t_942ee809721943 58-63,612,615-623,625
+  s_ee1fcc24a80de0::t_8faca7187becde 163,189,530,554,582,607
+  s_ee1fcc24a80de0::t_fd430fe7694ab2 1,608
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_ee1fcc24a80de0::t_dc1415614e7037 18,23,100-103,171,177,186-189,200,207,211-212,556-563,599-606,959-963
+packages/core/tests/routing/discovery/patterns.test.ts
+  s_ee1fcc24a80de0::t_e1acfd43356769 21-44
+packages/core/tests/support/wait.ts
+  s_ee1fcc24a80de0::t_405474c2cd1094 1-15
+packages/core/tests/support/compile-context.ts
+  s_ee1fcc24a80de0::t_239358ba10b027 1-49
+  s_ee1fcc24a80de0::t_f0851e7e0f203b 50-51
+packages/core/tests/runtime/plugin/data-endpoint-render-cache.test.ts
+  s_ee1fcc24a80de0::t_2a5d35d9838f63 7,74-76
+packages/core/tests/contract/route-types.test.ts
+  s_ee1fcc24a80de0::t_f2684ec54e26ea 7,42,49,51-54,56
+packages/core/tests/routing/layouts/route-chain-layouts.test.ts
+  s_ee1fcc24a80de0::t_61a8a1c3726d88 23-26,28,38,47,58,70-73,75-90,99,101-122,124-161,163-183
+packages/core/tests/runtime/cache/page-cache-ssg.test.ts
+  s_ee1fcc24a80de0::t_8faca7187becde 135,148
+  s_ee1fcc24a80de0::t_ce9bee07c82a5f 27
+packages/core/tests/runtime/invalidation/render-revalidate-background.test.ts
+  s_ee1fcc24a80de0::t_8faca7187becde 160,190,238
+  s_ee1fcc24a80de0::t_ce9bee07c82a5f 16,96,123,146,177,184,202
+  s_ee1fcc24a80de0::t_6f27b92c1a76c6 148-149
+packages/core/tests/runtime/browser-events/browser-events-client.test.ts
+  s_ee1fcc24a80de0::t_6e0c8bef1b1948 1,260,263,266
+packages/core/tests/runtime/plugin/furinjs-runtime.test.ts
+  s_ee1fcc24a80de0::t_075525a05d35d7 9,50-51,88-164,169-187,193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b29e7060a3409f8bf8c35259ef7d564c08a50779",
+  "prompts": {},
+  "sessions": {
+    "s_ee1fcc24a80de0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dc1429f-f948-43fb-a015-32a96578a2b9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
