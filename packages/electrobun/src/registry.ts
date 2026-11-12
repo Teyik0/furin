@@ -88,7 +88,8 @@ export function activateDesktopApp(
   return state.validate(mode);
 }
 
-const hostKey: unique symbol = Symbol.for("@teyik0/furin-electrobun/host/v1");
+// v2: the slot holds DesktopHost; v1 held DesktopContext, so mixed bundles must not share it.
+const hostKey: unique symbol = Symbol.for("@teyik0/furin-electrobun/host/v2");
 const contextKey: unique symbol = Symbol.for("@teyik0/furin-electrobun/context/v1");
 const hostShared = globalThis as typeof globalThis & {
   [hostKey]?: DesktopHost;
