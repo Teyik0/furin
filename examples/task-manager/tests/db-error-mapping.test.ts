@@ -125,7 +125,7 @@ test("POST /cards on a missing board returns a 404 problem before touching the D
   expect(((await res.json()) as { status: number }).status).toBe(404);
 });
 
-test("bun:sqlite throws the raw driver error with its native code (sync path)", () => {
+test("bun:sqlite wraps the driver error in DrizzleQueryError with its native code (sync path)", () => {
   let thrown: unknown;
   try {
     db.insert(cards)
@@ -142,12 +142,9 @@ test("bun:sqlite throws the raw driver error with its native code (sync path)", 
     thrown = error;
   }
 
-  // Sync drivers bypass DrizzleQueryError: the native SQLiteError surfaces
-  // directly, carrying its own `code` (no `cause` indirection).
-  expect(thrown).toBeInstanceOf(Error);
-  expect((thrown as DrizzleQueryError).cause).toBeUndefined();
-  const { code } = thrown as { code?: string };
-  expect(code).toBeDefined();
+  // Drizzle 1.0 wraps sync driver errors too: the native SQLiteError is the `cause`.
+  expect(thrown).toBeInstanceOf(DrizzleQueryError);
+  const { code } = (thrown as DrizzleQueryError).cause as { code?: string };
   expect(String(code)).toMatch(SQLITE_CODE);
 });
 

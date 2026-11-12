@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { defineRelations } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 // ---------------------------------------------------------------------------
@@ -31,12 +31,9 @@ export const cards = sqliteTable("cards", {
 // Relations
 // ---------------------------------------------------------------------------
 
-export const boardsRelations = relations(boards, ({ many }) => ({
-  cards: many(cards),
-}));
-
-export const cardsRelations = relations(cards, ({ one }) => ({
-  board: one(boards, { fields: [cards.boardId], references: [boards.id] }),
+export const relations = defineRelations({ boards, cards }, (r) => ({
+  boards: { cards: r.many.cards() },
+  cards: { board: r.one.boards({ from: r.cards.boardId, to: r.boards.id }) },
 }));
 
 // ---------------------------------------------------------------------------

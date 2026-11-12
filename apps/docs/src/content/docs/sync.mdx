@@ -20,7 +20,8 @@ import { migrateSqliteSync } from "@teyik0/furin/sync/sqlite";
 import { requireUser } from "./auth";
 import { db } from "./db";
 
-// db is a Drizzle bun:sqlite database. Run this migration at deployment.
+// db is a Drizzle 1.x bun:sqlite database: drizzle({ client: sqlite }).
+// Run this migration at deployment.
 migrateSqliteSync(db.$client);
 
 export const sync = {

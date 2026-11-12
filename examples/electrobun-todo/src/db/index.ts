@@ -20,6 +20,6 @@ sqlite.run(`CREATE TABLE IF NOT EXISTS todo (
   created_at TEXT NOT NULL
 )`);
 
-export const db = drizzle(sqlite);
+export const db = drizzle({ client: sqlite });
 
 export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];

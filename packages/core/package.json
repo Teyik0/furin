@@ -194,14 +194,14 @@
     "@prisma/client-runtime-utils": "7.10.1",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "drizzle-orm": "0.45.4",
+    "drizzle-orm": "1.0.0-rc.5",
     "exact-mirror": "catalog:",
     "expect-type": "^1.4.0",
     "prisma": "7.10.1"
   },
   "peerDependencies": {
     "@types/bun": ">=1.4.0",
-    "drizzle-orm": "^0.45.4",
+    "drizzle-orm": "^1.0.0-rc.4",
     "elysia": "^2.0.0-rc.1",
     "evlog": "catalog:",
     "exact-mirror": ">=1.2.6",
