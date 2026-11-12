@@ -1,0 +1,673 @@
+packages/core/src/client/internal/runtime-types.ts
+  s_3548c3ff716ea7::t_32abe71c56e59b 4-5,28-29,33-34,50,54
+packages/core/src/server/render/static-params.ts
+  s_3548c3ff716ea7::t_ad5123e70f9afd 41,44
+packages/core/tests/dev/hmr/dev-routing-styles.integration.test.ts
+  s_3548c3ff716ea7::t_0ec226dabf28dc 91-95
+  s_3548c3ff716ea7::t_bbf4720a28a7b8 1-65,69-90,96-137,139-146
+  s_3548c3ff716ea7::t_57756815cc7fb2 66-68,138
+packages/core/tests/build/aot-resource-isolation.test.ts
+  s_3548c3ff716ea7::t_ed33c0aad70ad7 65
+examples/task-manager/tests/board-page-sync.test.tsx
+  s_3548c3ff716ea7::t_d5d628dbac9cd0 31
+packages/core/tests/build/hydrate/hydration-order.test.ts
+  s_3548c3ff716ea7::t_431cde293fde26 20,32,57,84
+packages/core/tests/rendering/errors/route-group-boundaries.test.tsx
+  s_3548c3ff716ea7::t_0ec226dabf28dc 35-39
+packages/core/src/server/router/discovery.ts
+  s_3548c3ff716ea7::t_e5deeb0c0400ef 87,104-105,108-109,116-118,137-138,142,144
+  s_3548c3ff716ea7::t_891fc1b22e298b 88-89,111-115
+  s_3548c3ff716ea7::t_838eb9f4c5cac9 252
+  s_3548c3ff716ea7::t_62bfc90f4c26e4 4-11,20,73-75,96-98,106-107,110,121,139-141,143,145-146,149,156-163,169-170,193-208,212-217,242-251,253,257,272,278,282-289,291,293-294,306,319-320,322-324,326-334,336-339,342-347,349,351-352,355-356,358,360-363,366-370,379,389,395-398,406-421,423,425,427-447,450,456,461,465-471,473,498-501,505-506,509-534,542,557,575
+  s_3548c3ff716ea7::t_4d8ccee2149a9c 422,424,426
+packages/core/src/plugin/route-modules.ts
+  s_3548c3ff716ea7::t_fd770252726334 25-27
+  s_3548c3ff716ea7::t_20ae91099f385e 7
+  s_3548c3ff716ea7::t_838eb9f4c5cac9 16-17
+apps/docs/src/content/docs/deployment.mdx
+  s_3548c3ff716ea7::t_a46da195568869 133
+  s_3548c3ff716ea7::t_95dc187a223594 317
+packages/core/tests/support/app-fixtures.ts
+  s_3548c3ff716ea7::t_4661eba0c8ee06 11,67-76
+packages/core/src/plugin/dev-routes.ts
+  s_3548c3ff716ea7::t_5cb3457f19a9c4 381-382,384,390-391,393,395,414
+apps/docs/src/pages/docs/index.tsx
+  s_3548c3ff716ea7::t_ce40a4dbea454c 9
+packages/core/tests/build/adapters/adapter-package.test.ts
+  s_3548c3ff716ea7::t_880dbb04df867d 76
+  s_3548c3ff716ea7::t_de4938783447b8 24,27,85,90,133-134,156-157
+packages/core/tests/build/typebox-tree-shaking.test.ts
+  s_3548c3ff716ea7::t_431cde293fde26 30,56
+packages/core/tests/dev/hmr/dev-hmr-aliased-footer.integration.test.ts
+  s_3548c3ff716ea7::t_cf157738418ee0 15
+packages/core/tests/fixtures/pages/nested-errors/blog/subpage/page.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-5
+packages/core/tests/contract/define-route-inference.type.test.ts
+  s_3548c3ff716ea7::t_506b3d711a4d90 135,139,142,145,147,149-151,153
+packages/core/tests/runtime/plugin/data-endpoint-render-cache.test.ts
+  s_3548c3ff716ea7::t_0ec226dabf28dc 81-83
+packages/core/tests/browser/composite-link.webview.test.ts
+  s_3548c3ff716ea7::t_517bbb9cd3ff6e 96-99,105-106,111,114,258
+apps/docs/src/content/docs/logging.mdx
+  s_3548c3ff716ea7::t_a46da195568869 19,40,44
+packages/core/tests/routing/validation/route-config.test.ts
+  s_3548c3ff716ea7::t_0a3f3dc9d88955 426
+  s_3548c3ff716ea7::t_eaf6dc571ecb21 42,50,52,62,67,71,74,79,86-87,90,93,96,110,138,141,143,146,164,172,190,199-200,202,206-207,210-211,214-215,218,221,224,228,231,251,266-267,272,275-282,284,290-296,299,304,312,318,321,327,344,348-349,353,377-380,456-457,459,462,471,489,492,497,501,505-506,510,512,514,518,530,538
+  s_3548c3ff716ea7::t_891fc1b22e298b 120-123,255-258,285-289
+  s_3548c3ff716ea7::t_fb74916b2bece1 175,178,182,185,465
+  s_3548c3ff716ea7::t_f984969fa0634e 381,384-420,423-425,427-448
+  s_3548c3ff716ea7::t_3dc57e64062c0f 382-383
+packages/core/src/build/entry-template.ts
+  s_3548c3ff716ea7::t_104a919f24ba8f 4
+  s_3548c3ff716ea7::t_1069d3b1c5d340 34,44
+packages/core/tests/rendering/errors/render-element-boundaries.test.tsx
+  s_3548c3ff716ea7::t_d17ae93d5c6f1f 58
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_3548c3ff716ea7::t_7cb3112a7c0555 232,234
+  s_3548c3ff716ea7::t_5ca04b10d251d0 48,167-168,418,505,672,705
+  s_3548c3ff716ea7::t_c75b964aa4e158 40
+  s_3548c3ff716ea7::t_0ec226dabf28dc 137-140,152,186,200,475-477,563-568,645-647,675-677,951,972-974,992,1056-1059,1086,1110-1113,1131,1154,1166,1180
+  s_3548c3ff716ea7::t_d6ece1e6951943 256,271,310,354,517,556,602,644,858,885,902,914,935
+  s_3548c3ff716ea7::t_5ae7e3aa4541dd 39
+  s_3548c3ff716ea7::t_1f43967045a6ef 38,103,118,249,662,694,718,754,759,829,833,841,845
+packages/core/src/build/route-types.ts
+  s_3548c3ff716ea7::t_0cc3401a7361d2 3,24-26,29,32-42,47-48
+packages/core/tests/fixtures/pages/route-groups/(admin)/layout.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-6
+packages/core/src/plugin/route-manifest.ts
+  s_3548c3ff716ea7::t_891fc1b22e298b 144-149,355
+  s_3548c3ff716ea7::t_6cc8776eac0730 76-77,162-184,198-199,217,227-261,270,273-275,277,280
+  s_3548c3ff716ea7::t_9895a5f06ca421 1,3-75,78,84-97,99-143,150-161,185-191,193-197,200-206,208-216,218-226,262-269,271,276,278-279,281-287,289-339,342-354,356-361,363-383,387-393,395-410,416
+  s_3548c3ff716ea7::t_572c4c22e8a9f3 340-341,362,384-386,394,411-415
+  s_3548c3ff716ea7::t_8edc35a7b66af2 2,79-83,98,192,207,272,288
+apps/docs/src/content/docs/layouts.mdx
+  s_3548c3ff716ea7::t_2b99d194c81160 3,7,10,31-33,36,39,50,53-54,73-96,99,101,124-125
+packages/core/tests/rendering/ssr/transport-lifecycle.test.tsx
+  s_3548c3ff716ea7::t_d17ae93d5c6f1f 88,130,145,232
+packages/core/tests/fixtures/pages/nested-errors/blog/page.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-5
+packages/core/tests/build/preload-manifest.test.ts
+  s_3548c3ff716ea7::t_431cde293fde26 55,61,82
+packages/core/tests/runtime/multi-instance/nested-mount.integration.test.ts
+  s_3548c3ff716ea7::t_9ee70816656a8e 67,117,153,198-199,242,250,288,332,334,393,437
+  s_3548c3ff716ea7::t_cb80033bbc729c 44,57-61
+examples/weather/tests/forecast-app/pages/page.tsx
+  s_3548c3ff716ea7::t_ce40a4dbea454c 1-10
+packages/core/tests/build/server-entry.integration.test.ts
+  s_3548c3ff716ea7::t_880dbb04df867d 11
+  s_3548c3ff716ea7::t_431cde293fde26 7-8
+CHANGELOG.md
+  s_3548c3ff716ea7::t_efb522635c24be 9-18
+packages/core/tests/fixtures/pages/default/dynamic/$id/route.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-8
+packages/core/tests/rendering/ssr/module-preload.test.tsx
+  s_3548c3ff716ea7::t_d17ae93d5c6f1f 66
+apps/docs/src/content/docs/caching.mdx
+  s_3548c3ff716ea7::t_431cde293fde26 43
+  s_3548c3ff716ea7::t_a46da195568869 114,126-127,229,242
+packages/core/src/client/define-route.ts
+  s_3548c3ff716ea7::t_e10afc5c4a3dd9 1-2,17-24,27-30,37,39,42-44,50-51,59-64,67,72
+packages/core/src/server/registrations.ts
+  s_3548c3ff716ea7::t_ed575fa80a69c5 1-3,5,9
+packages/core/tests/build/route-typegen.test.ts
+  s_3548c3ff716ea7::t_26f7598e1404b6 11
+  s_3548c3ff716ea7::t_431cde293fde26 7-8
+packages/core/tests/fixtures/pages/default/query-types/index.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 4
+  s_3548c3ff716ea7::t_10d3470248695e 2
+apps/docs/src/content/docs/routing.mdx
+  s_3548c3ff716ea7::t_fdd35dc3428be6 3,5-6,8-82,89,109,117,119,122-123,128-129,136,139,143,152-156,159-160,163,165,168-185,191,223-224,236,239-241,244,248,251-259,262,264,266,268,272,275,278,283-289,291-293,298-299,306-307,310,360
+  s_3548c3ff716ea7::t_d8b47ce9eb938c 317
+  s_3548c3ff716ea7::t_98e7d76582acf3 311
+packages/core/tests/fixtures/pages/default/with-loader/index.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 3
+packages/core/src/shared/route-specificity.ts
+  s_3548c3ff716ea7::t_9bc8172699c629 5-8
+packages/core/tests/fixtures/apps/hmr-aliased-footer/src/server.ts
+  s_3548c3ff716ea7::t_4661eba0c8ee06 5
+apps/scaffolder/src/pipeline/stages/2-selection.ts
+  s_3548c3ff716ea7::t_77ea38e14dc958 2,46-71
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_3548c3ff716ea7::t_1a4a3ec3e5b8dc 359-360,386,407,430,471,534,668,1589,1607,1648,1665,1697,1716,1741,1761,1864,2143,2154,2158,2209,2468,2481,2497,2540,2557,2810,2815,2819,2899,2904,2937
+  s_3548c3ff716ea7::t_0ec226dabf28dc 1625
+packages/core/tests/dev/hmr/deferred-page.fixture.ts
+  s_3548c3ff716ea7::t_5ca04b10d251d0 118
+packages/core/tests/client/boundaries/loader-fallback-hydration.test.tsx
+  s_3548c3ff716ea7::t_4e0dab30b89fe7 64,71,98,103,134-140,148
+packages/core/tests/fixtures/apps/cli-app/src/server.ts
+  s_3548c3ff716ea7::t_4661eba0c8ee06 9
+apps/docs/src/content/docs/getting-started.mdx
+  s_3548c3ff716ea7::t_63eada661056ab 21,24
+  s_3548c3ff716ea7::t_187e8ddb1d16b0 25,28,37,40,51,54-55,75,87,91,94,120
+packages/core/src/cli/index.ts
+  s_3548c3ff716ea7::t_d2dd7a94275bbc 7,25-39
+  s_3548c3ff716ea7::t_d94ce709f3d13b 148,164,243,251,276,286-287
+  s_3548c3ff716ea7::t_0ec226dabf28dc 217-218,254-256
+  s_3548c3ff716ea7::t_242324b43dd5cc 40-41
+packages/core/tests/fixtures/pages/default/nested/deep/route.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-5
+apps/docs/src/content/docs/plugins.mdx
+  s_3548c3ff716ea7::t_a46da195568869 69
+apps/scaffolder/templates/shared/README.md.ejs
+  s_3548c3ff716ea7::t_582fef74464da6 19-23
+packages/core/src/plugin/route-tree.ts
+  s_3548c3ff716ea7::t_43d8d79d54a2b9 1-3,17,19-20,24,29-31,34-35,38,41-45,49-50,53-59,61-62,66-70,79-80,82-83,87-89,92-97,113,120-121,125,127,130-136
+  s_3548c3ff716ea7::t_99622c2e4c03a7 5
+  s_3548c3ff716ea7::t_0ec226dabf28dc 46-48,73-78
+  s_3548c3ff716ea7::t_4d738e5ecc38b9 27
+packages/core/src/build/client.ts
+  s_3548c3ff716ea7::t_b45bd77b496446 57,139-140
+packages/core/tests/routing/errors/not-found-scan.test.ts
+  s_3548c3ff716ea7::t_45b56d6cd96762 10,17,24
+packages/core/src/server/router/patterns.ts
+  s_3548c3ff716ea7::t_9bc8172699c629 65-66,94-102,104,167-168
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_3548c3ff716ea7::t_a42934c93541fa 106,148-149,151-155,158,162,294
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  s_3548c3ff716ea7::t_9ee70816656a8e 141,167
+  s_3548c3ff716ea7::t_cdb2e062a65a60 40,57,62,284,344,349
+apps/scaffolder/src/engine/renderer.ts
+  s_3548c3ff716ea7::t_77ea38e14dc958 21-23,30
+packages/core/tests/routing/discovery/route-manifest.test.ts
+  s_3548c3ff716ea7::t_58b8984a158118 1-41,223
+  s_3548c3ff716ea7::t_34f1f79605d4da 193-194
+  s_3548c3ff716ea7::t_02a5c5bfcf55c1 42-43,50,63-70,77-83,90-113,121-123,129-161,169-171,178-183,191-192,195-198,207-222
+  s_3548c3ff716ea7::t_891fc1b22e298b 44-49,51-62,71-76,84-89,114-120,124-128,162-168,172-177,184-190,199-206
+packages/core/tests/fixtures/routes-v2/catch-all/docs/$.ts
+  s_3548c3ff716ea7::t_c772103ad4cc63 1-5,7
+  s_3548c3ff716ea7::t_c75b964aa4e158 6
+apps/scaffolder/tests/deps.test.ts
+  s_3548c3ff716ea7::t_0a5c582a53a005 17
+packages/core/tests/fixtures/pages/default/query-types/route.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-16
+packages/core/tests/runtime/plugin/browser-ingest-security.integration.test.ts
+  s_3548c3ff716ea7::t_c9c49f975772ca 14
+packages/core/tests/runtime/cache/page-cache-ssg.test.ts
+  s_3548c3ff716ea7::t_9912ad788b8f19 173-177
+packages/core/src/build/route-metadata.ts
+  s_3548c3ff716ea7::t_06df64a9ea28fd 28,32-35,76,86-94
+packages/core/src/plugin/route-config.ts
+  s_3548c3ff716ea7::t_96b1b6399a5b04 2,8-14,151,155,202,206,216,223,271-273,276-279,287,290,301-314,316-319,327,330,336,338-339,343-352,355-357,359-361,437-438,441-442,445,455-456,458-462
+  s_3548c3ff716ea7::t_0a3f3dc9d88955 315,320
+packages/core/tests/fixtures/routes-v2/catch-all/$.ts
+  s_3548c3ff716ea7::t_c772103ad4cc63 1-5,7
+  s_3548c3ff716ea7::t_c75b964aa4e158 6
+packages/core/tests/client/navigation/route-api.test.tsx
+  s_3548c3ff716ea7::t_d17ae93d5c6f1f 45
+packages/electrobun/tests/internal-dispatch-build.test.ts
+  s_3548c3ff716ea7::t_d65b361de3d094 79
+apps/scaffolder/src/index.ts
+  s_3548c3ff716ea7::t_77ea38e14dc958 47
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  s_3548c3ff716ea7::t_9ee70816656a8e 162,189,206,208,220,222,280,297-298
+  s_3548c3ff716ea7::t_c9c49f975772ca 164
+  s_3548c3ff716ea7::t_ad1a285a02fdc5 70,183,186
+packages/core/tests/routing/layouts/schema-merge.test.ts
+  s_3548c3ff716ea7::t_e30b7f507e02e5 385
+  s_3548c3ff716ea7::t_891fc1b22e298b 393-396
+packages/core/tests/fixtures/pages/default/dynamic/$id/index.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1,3-11
+  s_3548c3ff716ea7::t_10d3470248695e 2
+packages/core/tests/build/adapters/adapter-static-unsafe-path.test.ts
+  s_3548c3ff716ea7::t_73d28a1f685a42 17,20,22
+  s_3548c3ff716ea7::t_431cde293fde26 29,33
+apps/docs/src/content/desktop/migration.mdx
+  s_3548c3ff716ea7::t_a46da195568869 23
+apps/docs/src/content/docs/multi-instance.mdx
+  s_3548c3ff716ea7::t_0ce54a5e03e28e 10-11,16-19,22-23,39,101-102,109,117-118,130,149
+  s_3548c3ff716ea7::t_32eb4fff7e1625 154
+apps/scaffolder/templates/full/components.json.ejs
+  s_3548c3ff716ea7::t_582fef74464da6 1-20
+examples/task-manager/src/server.ts
+  s_3548c3ff716ea7::t_4e0dab30b89fe7 24
+packages/core/src/build/types.ts
+  s_3548c3ff716ea7::t_b45bd77b496446 31-32
+  s_3548c3ff716ea7::t_88648d33d2bf94 88,93-98
+  s_3548c3ff716ea7::t_d94ce709f3d13b 3,116-117
+apps/docs/src/content/desktop/first-window.mdx
+  s_3548c3ff716ea7::t_a46da195568869 22
+packages/core/tests/build/vercel-optional-sync.test.ts
+  s_3548c3ff716ea7::t_1e856f6a0c7322 28
+packages/core/tests/rendering/ssr/page-identity.test.tsx
+  s_3548c3ff716ea7::t_d17ae93d5c6f1f 68
+biome.jsonc
+  s_3548c3ff716ea7::t_7cb3112a7c0555 45,47-54
+  s_3548c3ff716ea7::t_5ad0621c2c4716 46
+  s_3548c3ff716ea7::t_333996bfb63a4e 44
+packages/core/tests/build/adapters/adapter-static.test.ts
+  s_3548c3ff716ea7::t_d5a277e96dd85c 259,261
+  s_3548c3ff716ea7::t_de4938783447b8 55-56,94,116,195-196,373,375
+packages/core/tests/fixtures/pages/default/query-default/index.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 4
+  s_3548c3ff716ea7::t_10d3470248695e 2
+packages/core/tests/fixtures/pages/default/schema-merge-parent/child/route.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-14
+packages/core/tests/dev/hmr/dev-diagnostics.integration.test.ts
+  s_3548c3ff716ea7::t_cf157738418ee0 344,347,351,701,707,729,747,753
+  s_3548c3ff716ea7::t_891fc1b22e298b 696,746
+packages/core/tests/rendering/ssr/isr-query-cache.test.tsx
+  s_3548c3ff716ea7::t_d17ae93d5c6f1f 50
+packages/core/tests/build/aot-prerender-isolation.test.ts
+  s_3548c3ff716ea7::t_ed33c0aad70ad7 31,150-153,182,215,262-263,291,362,410,436,490,565,592
+apps/docs/src/content/docs/rendering.mdx
+  s_3548c3ff716ea7::t_431cde293fde26 20
+  s_3548c3ff716ea7::t_a46da195568869 34,48,52,67-68,89,93,112,163,221,225
+packages/core/tests/fixtures/apps/cli-app-ssr/src/server.ts
+  s_3548c3ff716ea7::t_4661eba0c8ee06 9
+packages/core/tests/contract/furin-plugin-types.type.test.ts
+  s_3548c3ff716ea7::t_506b3d711a4d90 18,68,71
+packages/core/tests/support/compile-context.ts
+  s_3548c3ff716ea7::t_4e47c255c16a10 44-46
+  s_3548c3ff716ea7::t_e30b7f507e02e5 14,21
+examples/weather/src/server.ts
+  s_3548c3ff716ea7::t_d5d628dbac9cd0 7
+examples/weather/tests/weather-routes.test.ts
+  s_3548c3ff716ea7::t_d5d628dbac9cd0 6
+  s_3548c3ff716ea7::t_0ec226dabf28dc 14-16
+packages/core/tests/build/client-plugin.test.ts
+  s_3548c3ff716ea7::t_431cde293fde26 41,57
+packages/core/tests/fixtures/pages/default/nested/deep/index.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 3
+packages/core/src/build/discover-pages-process.ts
+  s_3548c3ff716ea7::t_b45bd77b496446 137
+packages/core/tests/routing/discovery/patterns.test.ts
+  s_3548c3ff716ea7::t_37986cf83d4a4b 15,83,105-129
+  s_3548c3ff716ea7::t_6867b2ab30a3df 130
+packages/core/tests/runtime/instance/instance.test.ts
+  s_3548c3ff716ea7::t_0ec226dabf28dc 132
+apps/scaffolder/src/cli.ts
+  s_3548c3ff716ea7::t_77ea38e14dc958 13
+packages/core/tests/fixtures/pages/default/schema-merge-parent/route.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-14
+packages/core/src/build/hydrate.ts
+  s_3548c3ff716ea7::t_0cc3401a7361d2 2
+  s_3548c3ff716ea7::t_6e00a0333f1f00 125-127,129,132
+  s_3548c3ff716ea7::t_62886f8470771b 8,498,525,544,546,580
+packages/core/src/routes.ts
+  s_3548c3ff716ea7::t_4d738e5ecc38b9 13
+  s_3548c3ff716ea7::t_3fb01e65ad52a7 12
+packages/core/src/server/internal.ts
+  s_3548c3ff716ea7::t_32abe71c56e59b 96-97,104
+  s_3548c3ff716ea7::t_4d738e5ecc38b9 145
+examples/task-manager/src/routes/board/route.tsx
+  s_3548c3ff716ea7::t_ce40a4dbea454c 1-95
+packages/core/tests/rendering/errors/test-routes.ts
+  s_3548c3ff716ea7::t_d17ae93d5c6f1f 58
+knip.config.ts
+  s_3548c3ff716ea7::t_99622c2e4c03a7 19,28,32
+apps/scaffolder/tests/generation.test.ts
+  s_3548c3ff716ea7::t_85159428594c0f 23,54,82,100,131,168
+packages/core/tests/runtime/plugin/furinjs-runtime.test.ts
+  s_3548c3ff716ea7::t_0ec226dabf28dc 190-193,228,266-269,313-320,349-352,396-398,421-424
+  s_3548c3ff716ea7::t_cf157738418ee0 280
+  s_3548c3ff716ea7::t_5ca04b10d251d0 207,381
+packages/core/tests/runtime/plugin/browser-ingest.test.ts
+  s_3548c3ff716ea7::t_5ca04b10d251d0 13
+  s_3548c3ff716ea7::t_0ec226dabf28dc 181-186
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_3548c3ff716ea7::t_431cde293fde26 52,543
+packages/core/tests/build/adapters/bundle-prerender.test.ts
+  s_3548c3ff716ea7::t_431cde293fde26 24,31
+  s_3548c3ff716ea7::t_073310efb08041 43
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_3548c3ff716ea7::t_431cde293fde26 401,553
+  s_3548c3ff716ea7::t_168f0dc717d3eb 55
+packages/core/src/build/index.ts
+  s_3548c3ff716ea7::t_88648d33d2bf94 69,75,84,93,97-99,140,160-164,188-191,211
+  s_3548c3ff716ea7::t_d94ce709f3d13b 13
+examples/electrobun-todo/src/server.ts
+  s_3548c3ff716ea7::t_4e0dab30b89fe7 26
+packages/core/src/client/router/types.ts
+  s_3548c3ff716ea7::t_96e9c3ecebadbf 39-52,55-71,201-207
+packages/core/tests/dev/hmr/dev-css-resource.integration.test.ts
+  s_3548c3ff716ea7::t_9ee70816656a8e 47
+  s_3548c3ff716ea7::t_c647297b6ce8f5 17-18
+packages/core/tests/rendering/document/document-root.test.tsx
+  s_3548c3ff716ea7::t_e4e18d829789a5 47
+  s_3548c3ff716ea7::t_0ec226dabf28dc 52-54
+packages/core/tests/build/elysia-aot.test.ts
+  s_3548c3ff716ea7::t_ed33c0aad70ad7 80
+packages/core/tests/runtime/plugin/not-found-sequence.test.ts
+  s_3548c3ff716ea7::t_0ec226dabf28dc 51-55,77-81
+apps/scaffolder/tests/templates.test.ts
+  s_3548c3ff716ea7::t_85159428594c0f 38,46,267,284,297-327,335-356,358-359
+apps/docs/src/content/docs/introduction.mdx
+  s_3548c3ff716ea7::t_187e8ddb1d16b0 10,20,26
+packages/core/tests/fixtures/pages/route-groups/(admin)/(settings)/users/[id]/page.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-11
+packages/core/tests/fixtures/apps/cli-app/furin-env.d.ts
+  s_3548c3ff716ea7::t_99622c2e4c03a7 8
+packages/core/tests/build/embed/build-embed.test.ts
+  s_3548c3ff716ea7::t_1e856f6a0c7322 82
+packages/core/tests/runtime/request-scope/request-scope-integration.test.ts
+  s_3548c3ff716ea7::t_9ee70816656a8e 98,115
+examples/task-manager/src/routes/board/$boardId/index.tsx
+  s_3548c3ff716ea7::t_ce40a4dbea454c 1-73
+packages/core/tests/runtime/plugin/evlog-response-lifecycle.integration.test.ts
+  s_3548c3ff716ea7::t_ccb571292bcce4 307-308
+packages/core/tests/routing/cache/dev-isr-loader-cache.scenario.ts
+  s_3548c3ff716ea7::t_5ae7e3aa4541dd 94,112
+packages/core/tests/fixtures/pages/group-boundaries/(outer)/(inner)/detail/page.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-5
+packages/core/tests/routing/conventions/route-plugin.test.ts
+  s_3548c3ff716ea7::t_891fc1b22e298b 20-23,36-39
+apps/scaffolder/src/args.ts
+  s_3548c3ff716ea7::t_0ec226dabf28dc 2-7
+  s_3548c3ff716ea7::t_77ea38e14dc958 12,34,134-139
+  s_3548c3ff716ea7::t_fd770252726334 60-62,84-112
+  s_3548c3ff716ea7::t_3bd3243d2f500a 113-114,140
+packages/core/src/client/router/link-utils.ts
+  s_3548c3ff716ea7::t_9bc8172699c629 80-82,94-104
+packages/core/src/server/router/types.ts
+  s_3548c3ff716ea7::t_32abe71c56e59b 25-29,33-38,40,45-46
+packages/core/tests/fixtures/pages/default/nested/index.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 3
+packages/core/tests/routing/validation/validation.test.ts
+  s_3548c3ff716ea7::t_19c051fa31d59c 6
+  s_3548c3ff716ea7::t_ac835c68712e44 14-21,120,124,131,133,140,142,151,156,164,169,178,183,186
+examples/weather/src/app/weather/[city]/page.tsx
+  s_3548c3ff716ea7::t_9c8f69bf507f27 3-5
+  s_3548c3ff716ea7::t_ce40a4dbea454c 1-2,6-27
+packages/core/tests/client/sync/mounted-sync.test.ts
+  s_3548c3ff716ea7::t_e4e18d829789a5 50
+examples/task-manager/src/routes/board/$boardId/card/$cardId.tsx
+  s_3548c3ff716ea7::t_ce40a4dbea454c 1-246
+apps/scaffolder/tests/ejs-renderer.test.ts
+  s_3548c3ff716ea7::t_78f4cc8ee2d44c 14
+packages/core/tests/contract/route-types.test.ts
+  s_3548c3ff716ea7::t_15dbb46f5516c6 59-116,310
+  s_3548c3ff716ea7::t_8f2dca539db367 117,148,150,152-153,164,166-167,170,178-179,201,205,207-211,213-215,222,225-246,248-249,252,255,258,261-263,269,271,273-274,281-282,290,293,296,299,302,305-309
+packages/core/tests/build/routes-plugin.test.ts
+  s_3548c3ff716ea7::t_85f8137d754da7 38
+  s_3548c3ff716ea7::t_40e4c598d27726 32,35-37,46-50,113,151,185,189,199-200,243,286,308-309,341,344,356-357
+packages/core/tests/rendering/rsc/rsc.scenario.tsx
+  s_3548c3ff716ea7::t_d17ae93d5c6f1f 67
+apps/docs/src/pages/docs/route.tsx
+  s_3548c3ff716ea7::t_ce40a4dbea454c 1-104
+packages/core/tests/fixtures/pages/route-groups/(admin)/(settings)/layout.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-5
+packages/core/tests/fixtures/pages/nested-not-found/blog/page.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-5
+packages/core/tests/rendering/errors/tanstack-route-boundaries.test.tsx
+  s_3548c3ff716ea7::t_5ae7e3aa4541dd 6,114-115,141
+  s_3548c3ff716ea7::t_0ec226dabf28dc 116-140,142
+  s_3548c3ff716ea7::t_58e30b85a9fc68 1-5,7-113
+packages/core/tests/fixtures/pages/default/dynamic-defer/$slug/index.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-2,4-13
+  s_3548c3ff716ea7::t_10d3470248695e 3
+packages/core/tests/routing/errors/furinjs-not-found.test.ts
+  s_3548c3ff716ea7::t_6539a48ed1efec 41-51,69,71,86,88,103,105,129,143
+examples/electrobun-todo/furin-env.d.ts
+  s_3548c3ff716ea7::t_5feeadeba76751 10
+packages/core/tests/runtime/invalidation/auto-invalidate.test.ts
+  s_3548c3ff716ea7::t_5ca04b10d251d0 404
+  s_3548c3ff716ea7::t_c63f70535557b1 388,392
+packages/core/tests/dev/hmr/invalid-page-export.test.ts
+  s_3548c3ff716ea7::t_9912ad788b8f19 5,19,25-29,36
+packages/core/tests/routing/discovery/scan-order.test.ts
+  s_3548c3ff716ea7::t_9912ad788b8f19 125,129-130
+  s_3548c3ff716ea7::t_a0d4848303138a 4-6,12,18-19,21,25-34,49,57,61,63,68,78,89,102,110,114,117-119,136-137,139-140,150,155,157,160,162-163,172,180,188-190,192,196,204-206,208-209
+packages/core/tests/fixtures/apps/cli-app-ssr/src/pages/blog/$slug.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-10
+examples/task-manager/tests/card-detail-page.test.tsx
+  s_3548c3ff716ea7::t_d5d628dbac9cd0 48
+examples/weather/src/app/weather/search/page.tsx
+  s_3548c3ff716ea7::t_ce40a4dbea454c 1-2,4-13
+  s_3548c3ff716ea7::t_9c8f69bf507f27 3
+packages/core/tests/fixtures/apps/cli-app/src/pages/blog/$slug.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-10
+packages/core/tests/routing/layouts/refresh-layout.test.ts
+  s_3548c3ff716ea7::t_e923190d55f22d 6-11,23-24,26,42-52,54,59-60,66-91,93-95,98,102,107,113-118,120,126,134,136,147-149,152-154,157-159,161-163,167-168,171,173-178
+packages/core/tests/support/production-app.ts
+  s_3548c3ff716ea7::t_e85e76d281b932 5
+  s_3548c3ff716ea7::t_4e47c255c16a10 80-82,100,117,119-121,138,164-168,181,185,188,205
+apps/scaffolder/templates/full/furin-env.d.ts.ejs
+  s_3548c3ff716ea7::t_582fef74464da6 7
+apps/docs/src/content/docs/comparison.mdx
+  s_3548c3ff716ea7::t_3b90398c5d8ff0 54,58
+packages/core/src/server/router/hmr.ts
+  s_3548c3ff716ea7::t_e368485b9ae12f 39,205,209-211,213-217,236,240,251-254,261,267,269-272,333-337,448-452,539-540,544-547,549-554
+  s_3548c3ff716ea7::t_4d738e5ecc38b9 348
+apps/docs/src/lib/docs.ts
+  s_3548c3ff716ea7::t_0ec226dabf28dc 60-61,70
+packages/core/src/furin.ts
+  s_3548c3ff716ea7::t_0ec226dabf28dc 5
+  s_3548c3ff716ea7::t_ed575fa80a69c5 92-97,135,148-154,238,245,289,342-343,347,349-351,358,388
+packages/core/tests/fixtures/pages/default/with-loader/route.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-19
+packages/core/tests/rendering/ssr/ppr-document.test.tsx
+  s_3548c3ff716ea7::t_d17ae93d5c6f1f 53,127
+packages/core/tests/runtime/devtools/devtools-plugin.test.ts
+  s_3548c3ff716ea7::t_9912ad788b8f19 79,116
+packages/core/tests/fixtures/pages/default/nested/route.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-5
+packages/core/tests/build/adapters/adapter-bun-client.test.ts
+  s_3548c3ff716ea7::t_431cde293fde26 42,47,66,70,98,140,149,177,183,205,212,251,257,286,292,309,315,332,357,376,398,416,421
+apps/docs/src/pages/docs/desktop/index.tsx
+  s_3548c3ff716ea7::t_ce40a4dbea454c 8
+packages/core/tests/browser/rsc-image-preload.webview.test.ts
+  s_3548c3ff716ea7::t_517bbb9cd3ff6e 20
+apps/scaffolder/src/pipeline/stages/3-design.ts
+  s_3548c3ff716ea7::t_77ea38e14dc958 12-16
+packages/core/tests/build/adapters/vercel-name-collision.integration.test.ts
+  s_3548c3ff716ea7::t_6f188b5fd5fdd3 13
+apps/scaffolder/templates/full/src/server.ts.ejs
+  s_3548c3ff716ea7::t_582fef74464da6 9
+apps/docs/src/server.ts
+  s_3548c3ff716ea7::t_4e0dab30b89fe7 79
+apps/scaffolder/templates/simple/furin-env.d.ts.ejs
+  s_3548c3ff716ea7::t_582fef74464da6 7
+apps/docs/src/content/docs/configuration.mdx
+  s_3548c3ff716ea7::t_448972b7ac7fb4 29-30,32,45,52-53,149-150,162-163,173
+packages/core/src/define-route.ts
+  s_3548c3ff716ea7::t_e10afc5c4a3dd9 8-9,655,659,668-671,674-675,677-679,683-684,688-689,692-694,713-714,791-800,803-804,824-836,910,914
+  s_3548c3ff716ea7::t_838eb9f4c5cac9 349,357-360,672-673
+  s_3548c3ff716ea7::t_20ae91099f385e 350-356,361-363,365,372-376,383-387,650-651,922,978,981,1039-1041
+apps/scaffolder/templates/manifest.json
+  s_3548c3ff716ea7::t_582fef74464da6 77-85,89-97,101-109,177,179,198-206,225-233,237-245
+packages/core/tests/dev/hmr/dev-hmr-cache-invalidation.integration.test.ts
+  s_3548c3ff716ea7::t_cf157738418ee0 24,36,87,91,168,174,177,181
+packages/core/tests/dev/hmr/dev-route-typegen-watch.integration.test.ts
+  s_3548c3ff716ea7::t_cf157738418ee0 29,84-85,98-99,144
+packages/core/tests/fixtures/pages/route-groups/(marketing)/page.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-6
+packages/core/tests/runtime/invalidation/render-revalidate-background.test.ts
+  s_3548c3ff716ea7::t_9912ad788b8f19 67-71,235-239
+packages/core/tests/rendering/errors/render-root-not-found.test.ts
+  s_3548c3ff716ea7::t_97cdf8f5e85fbe 29,36,70,93
+apps/scaffolder/README.md
+  s_3548c3ff716ea7::t_53614f1e5ed23e 38,42,56,64-76,97,99,135,137
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_3548c3ff716ea7::t_e0df608af26b00 372
+  s_3548c3ff716ea7::t_6f4897e22ea3f8 423,426
+  s_3548c3ff716ea7::t_431cde293fde26 592-593
+  s_3548c3ff716ea7::t_ed33c0aad70ad7 46,460-461,532-533
+  s_3548c3ff716ea7::t_f83ff5974388a6 87,92,131,133,142,149,151,160
+  s_3548c3ff716ea7::t_97f2720a98539f 546-547
+packages/core/tests/build/route-config-build.test.ts
+  s_3548c3ff716ea7::t_ed33c0aad70ad7 39
+  s_3548c3ff716ea7::t_880dbb04df867d 45
+packages/core/tests/fixtures/pages/default/dynamic-defer/$slug/route.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-8
+apps/scaffolder/templates/simple/src/server.ts.ejs
+  s_3548c3ff716ea7::t_582fef74464da6 12
+packages/core/tests/fixtures/routes-v2/root/boards/$id.ts
+  s_3548c3ff716ea7::t_cc41ecab8de7b2 1-13
+packages/core/tests/fixtures/pages/default/query-default/route.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-13
+examples/weather/furin-env.d.ts
+  s_3548c3ff716ea7::t_5feeadeba76751 10,13,16,19,22,30-32
+packages/core/tests/fixtures/pages/group-boundaries/(outer)/(inner)/page/page.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-20
+examples/task-manager/src/routes/board/$boardId/card/route.tsx
+  s_3548c3ff716ea7::t_ce40a4dbea454c 1-8
+packages/core/src/adapter/runtime-build.ts
+  s_3548c3ff716ea7::t_0ec226dabf28dc 15
+  s_3548c3ff716ea7::t_a6fe5d6aed55af 279,285
+  s_3548c3ff716ea7::t_b45bd77b496446 296,416
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  s_3548c3ff716ea7::t_9ee70816656a8e 463
+  s_3548c3ff716ea7::t_cf157738418ee0 34,230,235,269,321,324-325,329-333,346,371,398
+packages/core/tests/fixtures/routes-v2/root/boards/route.ts
+  s_3548c3ff716ea7::t_cc41ecab8de7b2 1-6
+packages/core/tests/build/adapters/build-fingerprint.test.ts
+  s_3548c3ff716ea7::t_de4938783447b8 191,239,252
+packages/core/tests/routing/discovery/segment-boundaries.test.ts
+  s_3548c3ff716ea7::t_9d1dff16a3404d 16,141-142,191
+  s_3548c3ff716ea7::t_e32f20d30458a2 12-13,23-24,27,33-34,41,66,87,100,122-140,143-190,192-193
+  s_3548c3ff716ea7::t_a39f9a520116a4 194-195
+packages/core/tests/runtime/plugin/data-endpoint-logging.integration.test.ts
+  s_3548c3ff716ea7::t_0ec226dabf28dc 20-23,36-39
+packages/core/tests/fixtures/pages/group-boundaries/(outer)/(inner)/detail/layout.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-19
+packages/core/tests/runtime/plugin/dev-routes-plugin.integration.test.ts
+  s_3548c3ff716ea7::t_f56a1dc8ff7ad9 68
+  s_3548c3ff716ea7::t_441c71716b67af 20,45
+apps/docs/src/content/docs/head-seo.mdx
+  s_3548c3ff716ea7::t_a46da195568869 6,10
+apps/docs/src/content/docs/defer.mdx
+  s_3548c3ff716ea7::t_431cde293fde26 9
+packages/core/src/adapter/package.ts
+  s_3548c3ff716ea7::t_84c0e1a478df79 201,209,220-221
+  s_3548c3ff716ea7::t_b45bd77b496446 59
+  s_3548c3ff716ea7::t_a6fe5d6aed55af 106,113,120,126
+apps/docs/src/content/docs/api-routes.mdx
+  s_3548c3ff716ea7::t_95dc187a223594 58
+  s_3548c3ff716ea7::t_a46da195568869 33,55,128
+packages/electrobun/tests/external-build.integration.test.ts
+  s_3548c3ff716ea7::t_d65b361de3d094 58
+packages/core/tests/routing/errors/error-scan.test.ts
+  s_3548c3ff716ea7::t_45b56d6cd96762 9,16,23
+packages/core/src/server/dev/runtime.ts
+  s_3548c3ff716ea7::t_fb7b907811f73d 18-21,37,80,82,112,135,151,276,308
+  s_3548c3ff716ea7::t_62886f8470771b 257
+  s_3548c3ff716ea7::t_ed575fa80a69c5 2
+  s_3548c3ff716ea7::t_0ec226dabf28dc 5,347
+packages/core/tests/fixtures/pages/default/schema-merge-parent/child/index.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 4
+packages/electrobun/tests/app-output.integration.test.ts
+  s_3548c3ff716ea7::t_d65b361de3d094 34
+packages/core/tests/fixtures/pages/route-groups/(marketing)/layout.tsx
+  s_3548c3ff716ea7::t_8cf78578e6b760 1-6
+packages/core/tests/client/boundaries/route-matches-hydration.test.tsx
+  s_3548c3ff716ea7::t_4e0dab30b89fe7 72
+  s_3548c3ff716ea7::t_d5b491476c154f 174-175,192-194,216,225
+packages/core/tests/runtime/cache/page-cache-isr.test.ts
+  s_3548c3ff716ea7::t_9912ad788b8f19 70-74
+apps/scaffolder/tests/scaffolded-project-typecheck.test.ts
+  s_3548c3ff716ea7::t_966371aa669a59 5
+  s_3548c3ff716ea7::t_85159428594c0f 53-56,64,100-107
+packages/core/src/config.ts
+  s_3548c3ff716ea7::t_d94ce709f3d13b 48,61,85,101-102
+packages/core/tests/routing/layouts/route-chain-layouts.test.ts
+  s_3548c3ff716ea7::t_e30b7f507e02e5 25,195,202
+apps/scaffolder/src/pipeline/stages/6-validation.ts
+  s_3548c3ff716ea7::t_77ea38e14dc958 35-38
+examples/task-manager/furin-env.d.ts
+  s_3548c3ff716ea7::t_5feeadeba76751 10,13-19,22,25,28,31-35,42-44
+packages/core/tests/build/routes-plugin-tanstack.test.ts
+  s_3548c3ff716ea7::t_9ca5b0918c92b4 1-91,95-104
+  s_3548c3ff716ea7::t_96ffcc7bee50b3 92-94
+packages/core/tests/rendering/ssr/static-params.test.ts
+  s_3548c3ff716ea7::t_cf157738418ee0 10,138,146,162
+  s_3548c3ff716ea7::t_0ec226dabf28dc 159-161
+  s_3548c3ff716ea7::t_d17ae93d5c6f1f 13
+packages/core/tests/routing/discovery/discovery-diagnostics.test.ts
+  s_3548c3ff716ea7::t_3b1869048ab691 5,29-32,41-42,45-49,54,56,59,66,70-71,80,83,95,99,115,118,120-121,124-126,129
+apps/docs/src/content/docs/cli.mdx
+  s_3548c3ff716ea7::t_3cb5d3ebb870af 48,72,105-106
+packages/core/src/plugin/route-registry.ts
+  s_3548c3ff716ea7::t_5cb3457f19a9c4 64,66,68,107,109,128,196
+packages/core/src/server/router/defined-route.ts
+  s_3548c3ff716ea7::t_32abe71c56e59b 3-4,11,16,51,55,81,85
+packages/core/tests/build/furin-registrations.test.ts
+  s_3548c3ff716ea7::t_10af490c40141e 39-40,53-54,58,73-74,93,134-135
+packages/core/tests/client/link/apply-link-params.test.ts
+  s_3548c3ff716ea7::t_6c76b7007db485 22-29
+  s_3548c3ff716ea7::t_ce4ceef481a449 30,34-35,39
+apps/scaffolder/src/pipeline/context.ts
+  s_3548c3ff716ea7::t_77ea38e14dc958 12-17,24-25,82,111-112,143
+apps/docs/src/content/docs/data-loading.mdx
+  s_3548c3ff716ea7::t_431cde293fde26 8,129
+  s_3548c3ff716ea7::t_a46da195568869 67,104,108
+packages/core/tests/runtime/plugin/route-topology-watcher.integration.test.ts
+  s_3548c3ff716ea7::t_15dbb46f5516c6 39,97,129,136,175,219,268,301,331,373,406,446
+packages/core/tests/runtime/cache/local-page-cache.test.tsx
+  s_3548c3ff716ea7::t_9912ad788b8f19 45
+examples/weather/tests/forecast-app/furin-env.d.ts
+  s_3548c3ff716ea7::t_9c8f69bf507f27 7,10
+packages/core/tests/rendering/rsc/rsc-static-export.test.ts
+  s_3548c3ff716ea7::t_0a833a3dd525f5 25-30
+apps/docs/src/content/docs/sync.mdx
+  s_3548c3ff716ea7::t_a46da195568869 40,272
+apps/docs/furin-env.d.ts
+  s_3548c3ff716ea7::t_35be93c2e557a0 10,14,16,19-20,22,28,34,40,46,52,58,64,70,73,76,82,88,94,100,106,112,118,124,130,136,142,148,154,160,166,172,178,184,190,196,202,208,214
+packages/core/tests/dev/hmr/dev-root-identity.integration.test.ts
+  s_3548c3ff716ea7::t_cf157738418ee0 47,89
+packages/core/tests/rendering/ssr/head-context.test.tsx
+  s_3548c3ff716ea7::t_d17ae93d5c6f1f 64,105,157
+packages/core/tests/build/ssr-discovery-isolation.test.ts
+  s_3548c3ff716ea7::t_ed33c0aad70ad7 34
+  s_3548c3ff716ea7::t_021dcdd90acf36 17,60
+packages/core/tests/build/discovery-metadata.test.ts
+  s_3548c3ff716ea7::t_765fa8757b8a56 9,18,21,35,38,60,86,107,120-125,133,140,145,157-162,170,181,186
+apps/docs/src/content/docs/error-handling.mdx
+  s_3548c3ff716ea7::t_9a68e00208c58c 5-6,8-17,42,72,78-80,86,95,111,115,133,138,141,145-187,190
+packages/core/src/adapter/static.ts
+  s_3548c3ff716ea7::t_b45bd77b496446 501
+packages/core/src/shared/utils/index.ts
+  s_3548c3ff716ea7::t_4d738e5ecc38b9 74
+packages/core/tests/client/sync/atomic-furin-sync.test.ts
+  s_3548c3ff716ea7::t_e4e18d829789a5 42,98
+  s_3548c3ff716ea7::t_4e0dab30b89fe7 173,181
+packages/core/tests/client/link/link.test.tsx
+  s_3548c3ff716ea7::t_1dfcc55790aa79 323,325-330
+  s_3548c3ff716ea7::t_ae8480cd117877 324
+packages/core/tests/routing/cache/cache-headers.test.ts
+  s_3548c3ff716ea7::t_5ae7e3aa4541dd 9
+  s_3548c3ff716ea7::t_891fc1b22e298b 28-31,79-82
+packages/core/tests/routing/discovery/route-groups.test.ts
+  s_3548c3ff716ea7::t_582fef74464da6 13,24,48,64,70
+apps/docs/src/components/hero-section.tsx
+  s_3548c3ff716ea7::t_135a2bebe072ed 3,16,44,60
+apps/docs/src/pages/index.tsx
+  s_3548c3ff716ea7::t_726588107a1eeb 16,27,58,120
+apps/scaffolder/tests/args.test.ts
+  s_3548c3ff716ea7::t_a79f9b92aa498e 15-25
+apps/scaffolder/tests/index.test.ts
+  s_3548c3ff716ea7::t_3679fed4445f81 11-16,27-28,47
+packages/core/tests/build/hydrate/dev-files.test.ts
+  s_3548c3ff716ea7::t_0a338a841c94e5 19,21,42,55,57,73,83,91,94
+packages/core/tests/build/plugin-registration.test.ts
+  s_3548c3ff716ea7::t_da03a9ca7e61b8 106
+packages/core/tests/contract/define-route-keyed.test.ts
+  s_3548c3ff716ea7::t_19db0db9b4255c 23,35,41,51,70,87,93,95,98,120,126,154-155,166-167,189,211-212,221,226,228,230,232-233,242-243
+packages/core/tests/dev/hmr/dev-hmr-parent-child.integration.test.ts
+  s_3548c3ff716ea7::t_a08deaf5ca1dca 20,23,64,77,81,103,108,178,185,201,206,237,247,265,269,312,316,471
+packages/core/tests/rendering/deferred/render-deferred-suspense.test.ts
+  s_3548c3ff716ea7::t_6e972ea6611c7f 25-29
+packages/core/tests/routing/discovery/route-dependencies.test.ts
+  s_3548c3ff716ea7::t_b12357efcd236a 21-23,30-31,38,41
+packages/core/tests/routing/discovery/symlinked-page.test.ts
+  s_3548c3ff716ea7::t_63c5233b3793f7 19,27,29,35,45
+packages/core/tests/runtime/plugin/react-singleton-integration.test.ts
+  s_3548c3ff716ea7::t_4b9393134cd428 155,157,174,180-181
+packages/electrobun/README.md
+  s_3548c3ff716ea7::t_82de5a7eb6a027 48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "57e32563f469fcc5d72a605d01389e153e27d2f3",
+  "prompts": {},
+  "sessions": {
+    "s_3548c3ff716ea7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "277c9017-b362-4fee-aab0-a0f1c68f2234",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
