@@ -51,10 +51,13 @@ jobs:
               ...context.repo,
               pull_number: Number(process.env.PR_NUMBER),
             });
-            const current = pull.state === "open" && pull.head.sha === process.env.MEASURED_SHA;
+            const current =
+              pull.state === "open" &&
+              pull.head.sha === process.env.MEASURED_SHA &&
+              pull.labels.some((label) => label.name === "benchmark");
             core.setOutput("current", String(current));
             if (!current) {
-              core.setFailed("The PR was closed or updated while this benchmark was queued.");
+              core.setFailed("The PR was closed, updated or unlabelled while this benchmark was queued.");
             }
 
       - name: Require Vercel credentials

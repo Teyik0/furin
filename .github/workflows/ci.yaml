@@ -182,9 +182,11 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            changed="$(git diff --name-only "$BASE_SHA...$HEAD_SHA")"
+          fi
           if [ "$GITHUB_EVENT_NAME" != pull_request ] ||
-            git diff --name-only "$BASE_SHA...$HEAD_SHA" |
-              grep -qE '^(packages/electrobun/|examples/electrobun-todo/|bun\.lock$|package\.json$|\.github/workflows/ci\.yaml$)'; then
+            grep -qE '^(packages/electrobun/|examples/electrobun-todo/|bun\.lock$|package\.json$|\.github/workflows/ci\.yaml$)' <<<"$changed"; then
             echo desktop=true >> "$GITHUB_OUTPUT"
           else
             echo desktop=false >> "$GITHUB_OUTPUT"
