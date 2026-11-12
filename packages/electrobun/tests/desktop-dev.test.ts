@@ -294,6 +294,51 @@ posix(
 );
 
 posix(
+  "a native edit before a relaunched shell connects relaunches it again",
+  async () => {
+    const project = await createProject();
+    const runs = join(project.root, "runs");
+    // The second shell announces its launch, then delays its channel connection.
+    await writeFile(
+      join(project.root, "node_modules/electrobun/bin/electrobun.cjs"),
+      `if (process.argv[2] === "run") {
+      const fs = require("node:fs");
+      const count = fs.existsSync(${JSON.stringify(runs)}) ? fs.readFileSync(${JSON.stringify(runs)}, "utf8").length : 0;
+      fs.appendFileSync(${JSON.stringify(runs)}, "r");
+      if (count === 1) await Bun.sleep(1500);
+    }
+    ${sdkRunHeader(project.root)}`
+    );
+    const child = project.start([process.execPath, CORE_CLI, "dev", "--desktop"]);
+    try {
+      await until(() => Bun.file(join(project.root, "window-url")).text(), "window");
+      await writeFile(join(project.root, "src/desktop.ts"), nativeEntry(project.shellPids, "two"));
+      await until(
+        async () => ((await Bun.file(runs).text()).length === 2 ? true : undefined),
+        "second shell launch"
+      );
+      await writeFile(
+        join(project.root, "src/desktop.ts"),
+        nativeEntry(project.shellPids, "three")
+      );
+      const pids = await until(async () => {
+        const all = await project.readPids();
+        return all.length === 3 ? all : undefined;
+      }, "third shell");
+      expect(pids.map(alive)).toEqual([false, false, true]);
+      expect(await interrupt(child)).toBe(0);
+    } finally {
+      if (child.exitCode === null) {
+        process.kill(-child.pid, "SIGKILL");
+        await child.exited;
+      }
+      await rm(project.root, { recursive: true, force: true });
+    }
+  },
+  60_000
+);
+
+posix(
   "fixing a native import after a failed rebuild relaunches the shell",
   async () => {
     const project = await createProject();
@@ -306,10 +351,14 @@ posix(
     appendFileSync(${JSON.stringify(project.shellPids)}, process.pid + "\\n");
     export default { ping: async () => reply };`
     );
+    const failed = join(project.root, "failed-build");
     // Like the SDK, a shell build fails while the native graph does not compile.
     await writeFile(
       join(project.root, "node_modules/electrobun/bin/electrobun.cjs"),
-      `if (process.argv[2] === "build" && require("node:fs").readFileSync(${JSON.stringify(imported)}, "utf8").includes("(")) process.exit(1);
+      `if (process.argv[2] === "build" && require("node:fs").readFileSync(${JSON.stringify(imported)}, "utf8").includes("(")) {
+      require("node:fs").writeFileSync(${JSON.stringify(failed)}, "failed");
+      process.exit(1);
+    }
     ${sdkRunHeader(project.root)}`
     );
     const child = project.start([process.execPath, CORE_CLI, "dev", "--desktop"]);
@@ -320,7 +369,11 @@ posix(
       expect(await app.post("/ping")).toEqual({ reply: "one" });
       await writeFile(imported, "export const reply = (;");
       const [first = 0] = await project.readPids();
-      await until(async () => (alive(first) ? undefined : true), "failed relaunch");
+      await until(async () => (alive(first) ? undefined : true), "shell exit");
+      await until(
+        async () => ((await Bun.file(failed).exists()) ? true : undefined),
+        "failed build"
+      );
       await writeFile(imported, 'export const reply = "fixed";');
       expect(
         await until(async () => {

@@ -95,6 +95,10 @@ function openChannel(owner: Owner) {
           (data) => socket.send(data),
           async (body) => handleShell(owner, body as ShellRequest)
         );
+        if (owner.restart) {
+          // A relaunch was requested before this shell connected: its quit had no peer.
+          owner.peer.request({ type: "quit" } satisfies DesktopCommand).catch(() => undefined);
+        }
       },
       message(socket, data) {
         if (socket === owner.socket) {
@@ -124,19 +128,23 @@ async function launchShell(owner: Owner): Promise<void> {
   };
   owner.building = true;
   let code: number;
-  do {
-    // A native edit during this build marks it stale: rebuild before launching a shell.
-    owner.stale = false;
-    const build = Bun.spawn([process.execPath, settings.sdk, "build", "--env=dev"], {
-      cwd: settings.generated,
-      env,
-      stdout: "inherit",
-      stderr: "inherit",
-    });
-    // biome-ignore lint/performance/noAwaitInLoops: Builds are sequential by design.
-    code = await build.exited;
-  } while (owner.stale);
-  owner.building = false;
+  try {
+    do {
+      // A native edit during this build marks it stale: rebuild before launching a shell.
+      owner.stale = false;
+      const build = Bun.spawn([process.execPath, settings.sdk, "build", "--env=dev"], {
+        cwd: settings.generated,
+        env,
+        stdout: "inherit",
+        stderr: "inherit",
+      });
+      // biome-ignore lint/performance/noAwaitInLoops: Builds are sequential by design.
+      code = await build.exited;
+    } while (owner.stale);
+  } finally {
+    // A failed spawn must not leave later native edits waiting on a build that never ends.
+    owner.building = false;
+  }
   if (code !== 0) {
     console.error("[furin-electrobun] Desktop shell build failed; waiting for native changes.");
     return;
