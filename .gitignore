@@ -42,6 +42,7 @@ PLAN*.md
 /packages/core/tests/fixtures/sync-prisma/generated/
 
 **/*.db*
+**/*.sqlite*
 **/.tmp/**
 .tmp*
 **/public/llms*
