@@ -248,40 +248,29 @@ describe("resolveRouteElement — boundary interleaving", () => {
 // ── buildErrorElement — errorMessageOf variants ──────────────────────────────
 
 describe("buildErrorElement — error message extraction", () => {
-  test("uses Error.message when error is an Error instance and no override is supplied", () => {
-    __setDevMode(true);
-    try {
-      const E: ErrorComponent = ({ error }) => <span>{error.message}</span>;
-      const el = buildErrorElement(
-        E,
-        new Error("something broke"),
-        "d1",
-        undefined,
-        500
-      ) as ReactElement;
-      expect((el.props as { error: { message: string } }).error.message).toBe("something broke");
-    } finally {
-      __setDevMode(originalDevMode);
-    }
-  });
+  const MessageError: ErrorComponent = ({ error }) => <span>{error.message}</span>;
 
-  test("uses the raw string when error is a plain string", () => {
+  test.each<[string, ErrorComponent | undefined, unknown, string]>([
+    [
+      "custom component, Error → its message",
+      MessageError,
+      new Error("something broke"),
+      "something broke",
+    ],
+    [
+      "custom component, string → the raw string",
+      MessageError,
+      "plain string error",
+      "plain string error",
+    ],
+    ["custom component, neither Error nor string → empty string", MessageError, 42, ""],
+    ["no component, Error → its message", undefined, new Error("boom"), "boom"],
+    ["no component, no message → generic message", undefined, 42, "An unexpected error occurred."],
+  ])("dev: %s", (_case, component, error, expected) => {
     __setDevMode(true);
     try {
-      const E: ErrorComponent = ({ error }) => <span>{error.message}</span>;
-      const el = buildErrorElement(E, "plain string error", "d2", undefined, 500) as ReactElement;
-      expect((el.props as { error: { message: string } }).error.message).toBe("plain string error");
-    } finally {
-      __setDevMode(originalDevMode);
-    }
-  });
-
-  test("returns empty string when error is neither Error nor string", () => {
-    __setDevMode(true);
-    try {
-      const E: ErrorComponent = ({ error }) => <span>{error.message}</span>;
-      const el = buildErrorElement(E, 42, "d3", undefined, 500) as ReactElement;
-      expect((el.props as { error: { message: string } }).error.message).toBe("");
+      const el = buildErrorElement(component, error, "d1", undefined, 500) as ReactElement;
+      expect((el.props as { error: { message: string } }).error.message).toBe(expected);
     } finally {
       __setDevMode(originalDevMode);
     }
@@ -290,9 +279,8 @@ describe("buildErrorElement — error message extraction", () => {
   test("prod: custom error component receives a generic internal error message", () => {
     __setDevMode(false);
     try {
-      const E: ErrorComponent = ({ error }) => <span>{error.message}</span>;
       const el = buildErrorElement(
-        E,
+        MessageError,
         new Error("database-password=secret"),
         "d3b",
         undefined,
@@ -304,69 +292,5 @@ describe("buildErrorElement — error message extraction", () => {
     } finally {
       __setDevMode(originalDevMode);
     }
-  });
-
-  test("prod: generic message when no component provided (no internal leak)", () => {
-    __setDevMode(false);
-    try {
-      const el = buildErrorElement(
-        undefined,
-        new Error("boom"),
-        "d4",
-        undefined,
-        500
-      ) as ReactElement;
-      expect((el.props as { error: { message: string } }).error.message).toBe(
-        "An unexpected error occurred."
-      );
-    } finally {
-      __setDevMode(originalDevMode);
-    }
-  });
-
-  test("dev: surfaces the real error message when no component provided", () => {
-    __setDevMode(true);
-    try {
-      const el = buildErrorElement(
-        undefined,
-        new Error("boom"),
-        "d4",
-        undefined,
-        500
-      ) as ReactElement;
-      expect((el.props as { error: { message: string } }).error.message).toBe("boom");
-    } finally {
-      __setDevMode(originalDevMode);
-    }
-  });
-
-  test("dev: falls back to generic message when the error has no message", () => {
-    __setDevMode(true);
-    try {
-      const el = buildErrorElement(undefined, 42, "d4b", undefined, 500) as ReactElement;
-      expect((el.props as { error: { message: string } }).error.message).toBe(
-        "An unexpected error occurred."
-      );
-    } finally {
-      __setDevMode(originalDevMode);
-    }
-  });
-
-  test("messageOverride wins over errorMessageOf — used by the loader pipeline for Response throws", () => {
-    const E: ErrorComponent = ({ error }) => <span>{error.message}</span>;
-    const el = buildErrorElement(
-      E,
-      new Error("internal stack info"),
-      "d5",
-      "Forbidden",
-      403
-    ) as ReactElement;
-    expect((el.props as { error: { message: string } }).error.message).toBe("Forbidden");
-  });
-
-  test("status is passed through to the error component", () => {
-    const E: ErrorComponent = ({ error }) => <span>{`s=${error.status}`}</span>;
-    const el = buildErrorElement(E, new Error("x"), "d6", undefined, 401) as ReactElement;
-    expect((el.props as { error: { status: number } }).error.status).toBe(401);
   });
 });

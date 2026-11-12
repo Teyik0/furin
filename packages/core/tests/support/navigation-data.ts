@@ -1,3 +1,6 @@
+import { toCrossJSON } from "seroval";
+import type { RuntimeData } from "../../src/client/internal/runtime-types.ts";
+
 const NAVIGATION_DATA_MARKER_RE = /[?&]_furin=data$/;
 
 /**
@@ -11,4 +14,12 @@ export function navigationDataPath(input: RequestInfo | URL, origin: string): st
     return null;
   }
   return url.pathname + url.search.replace(NAVIGATION_DATA_MARKER_RE, "");
+}
+
+/** Single-line NDJSON response (CrossJSON-serialised) for `?_furin=data` navigation requests. */
+export function makeNdjsonResponse(data: RuntimeData): Response {
+  return new Response(`${JSON.stringify(toCrossJSON(data))}\n`, {
+    headers: { "Content-Type": "application/x-ndjson" },
+    status: 200,
+  });
 }

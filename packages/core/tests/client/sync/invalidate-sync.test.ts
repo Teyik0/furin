@@ -1,4 +1,3 @@
-import { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { Elysia } from "elysia";
 import { invalidateSync } from "../../../src/furin.ts";
@@ -6,18 +5,16 @@ import { autoInvalidateRegistry } from "../../../src/server/auto-invalidate/inde
 import { __resetCacheState, isrCache, setISRCache } from "../../../src/server/cache/index.ts";
 import type { SyncNotifier } from "../../../src/server/sync/adapter.ts";
 import { furinSync } from "../../../src/server/sync/plugin.ts";
-import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/sqlite/index.ts";
 import { createSyncChangesPlugin } from "../../../src/server/sync/stream.ts";
 import { queryTag, queryTags } from "../../../src/shared/sync-query.ts";
+import { sqliteSync } from "../../helpers/sqlite-sync.ts";
 
 afterEach(() => {
   __resetCacheState();
   autoInvalidateRegistry.reset();
 });
 
-function sqliteSync(namespace: string) {
-  const database = new Database(":memory:");
-  migrateSqliteSync(database);
+function notifiedSqliteSync(namespace: string) {
   const published: string[] = [];
   const notifier: SyncNotifier = {
     publish: (cursor) => {
@@ -26,21 +23,13 @@ function sqliteSync(namespace: string) {
     },
     subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve() }),
   };
-  return {
-    database,
-    published,
-    sync: {
-      adapter: sqliteSyncAdapter({ database, namespace }),
-      notifier,
-      principal: () => "alice",
-    },
-  };
+  return { ...sqliteSync(namespace, notifier), published };
 }
 
 const board = { id: "/boards/:boardId", scope: { boardId: "alpha" } };
 
 test("invalidateSync() journals the GET URL outside a request and wakes subscribers", async () => {
-  const { database, published, sync } = sqliteSync("invalidate-sync-journal");
+  const { database, published, sync } = notifiedSqliteSync("invalidate-sync-journal");
   const app = new Elysia().use(furinSync(sync)).use(createSyncChangesPlugin(sync));
   try {
     await invalidateSync(sync, "/boards/:boardId", { boardId: "alpha" });
@@ -58,7 +47,7 @@ test("invalidateSync() journals the GET URL outside a request and wakes subscrib
 });
 
 test("invalidateSync() purges the pages built from the GET, for every value of an omitted param", async () => {
-  const { database, sync } = sqliteSync("invalidate-sync-pages");
+  const { database, sync } = notifiedSqliteSync("invalidate-sync-pages");
   const entry = { generatedAt: Date.now(), html: "board", ndjson: "{}\n", revalidate: 60 };
   setISRCache("/board/alpha", entry);
   setISRCache("/board/beta", entry);
@@ -80,7 +69,7 @@ test("invalidateSync() purges the pages built from the GET, for every value of a
 });
 
 test("invalidateSync() accepts cache tags, like the handler's invalidate()", async () => {
-  const { database, published, sync } = sqliteSync("invalidate-sync-tags");
+  const { database, published, sync } = notifiedSqliteSync("invalidate-sync-tags");
   const entry = { generatedAt: Date.now(), html: "stats", ndjson: "{}\n", revalidate: 60 };
   setISRCache("/stats", entry);
   autoInvalidateRegistry.registerLoaderTags("/stats", ["board-count"]);
@@ -98,7 +87,7 @@ test("invalidateSync() accepts cache tags, like the handler's invalidate()", asy
 });
 
 test("invalidateSync() accepts a page path and journals it for clients", async () => {
-  const { database, sync } = sqliteSync("invalidate-sync-path");
+  const { database, sync } = notifiedSqliteSync("invalidate-sync-path");
   setISRCache("/board/alpha", {
     generatedAt: Date.now(),
     html: "board",
@@ -118,7 +107,7 @@ test("invalidateSync() accepts a page path and journals it for clients", async (
 });
 
 test("a background invalidation with explicit provenance is targeted only for that principal", async () => {
-  const { database, sync } = sqliteSync("invalidate-sync-principal");
+  const { database, sync } = notifiedSqliteSync("invalidate-sync-principal");
   const alice = new Elysia().use(createSyncChangesPlugin(sync));
   const bob = new Elysia().use(createSyncChangesPlugin({ ...sync, principal: () => "bob" }));
   try {

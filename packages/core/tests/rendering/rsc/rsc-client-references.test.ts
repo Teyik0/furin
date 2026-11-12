@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { basename, dirname, extname, join } from "node:path";
 import { buildClient } from "../../../src/build/client.ts";
 import { generateClientReferenceEntry } from "../../../src/build/hydrate.ts";
 import {
@@ -17,10 +17,42 @@ import { registerClientLoader, requireClientModule } from "../../../src/rsc/clie
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 import { getFreePort } from "../../support/hmr.ts";
 import { waitForHttp } from "../../support/http.ts";
-import { runCli, startProcess } from "../../support/process.ts";
+import { type CliResult, runCli, runProcess, startProcess } from "../../support/process.ts";
 
 const temporaryDirectory = join(import.meta.dir, "../../../.tmp-tests");
 mkdirSync(temporaryDirectory, { recursive: true });
+
+const PROCESS_TIMEOUT_MS = 30_000;
+
+async function withTempDirectory<T>(run: (directory: string) => Promise<T>): Promise<T> {
+  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
+  try {
+    return await run(directory);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+}
+
+/** Bundles `entry` for Bun with React and the Furin RSC runtime external, then runs the bundle. */
+async function buildAndRun(
+  entry: string,
+  options: { define?: { [key: string]: string }; plugins: Bun.BunPlugin[]; splitting?: boolean },
+  env: { [key: string]: string } | undefined
+): Promise<{ build: Bun.BuildOutput; result: CliResult }> {
+  const outdir = join(dirname(entry), "output");
+  const build = await Bun.build({
+    ...options,
+    entrypoints: [entry],
+    external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
+    outdir,
+    target: "bun",
+  });
+  const result = await runProcess(
+    [process.execPath, join(outdir, `${basename(entry, extname(entry))}.js`)],
+    { cwd: process.cwd(), env, timeoutMs: PROCESS_TIMEOUT_MS }
+  );
+  return { build, result };
+}
 
 test("a failed Flight client import can recover on its next attempt", async () => {
   const id = `test:${crypto.randomUUID()}`;
@@ -49,8 +81,7 @@ test("client references share their identity across Windows and browser import p
 test.each(["js", "cjs", "cts"])(
   "SSR preserves the native default of a CommonJS client module (.%s)",
   async (extension) => {
-    const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-    try {
+    await withTempDirectory(async (directory) => {
       await Bun.write(
         join(directory, `counter.${extension}`),
         '"use client"; import { useState } from "react"; module.exports = function Counter() { const [count] = useState(0); return "CJS_COUNTER" + count; };'
@@ -65,31 +96,23 @@ import Counter from "./counter.${extension}";
 const tree = await renderServerComponent(createElement(Counter));
 console.log(await new Response(await renderToReadableStream(tree)).text());`
       );
-      const built = await Bun.build({
-        entrypoints: [entry],
-        external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
-        outdir: join(directory, "output"),
-        plugins: [clientReferencesPlugin(undefined)],
-        target: "bun",
-      });
+      const {
+        build: built,
+        result: { exitCode: status, stderr: errors, stdout: output },
+      } = await buildAndRun(
+        entry,
+        {
+          plugins: [clientReferencesPlugin(undefined)],
+        },
+        undefined
+      );
       expect(built.success).toBe(true);
-      const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
-        stdout: "pipe",
-        stderr: "pipe",
-      });
-      const [status, output, errors] = await Promise.all([
-        child.exited,
-        new Response(child.stdout).text(),
-        new Response(child.stderr).text(),
-      ]);
       expect({ status, output: output.trim(), errors }).toEqual({
         status: 0,
         output: "CJS_COUNTER0",
         errors: "",
       });
-    } finally {
-      rmSync(directory, { force: true, recursive: true });
-    }
+    });
   }
 );
 
@@ -101,8 +124,7 @@ test.each([
 ])(
   "SSR renders a named CommonJS client export through Flight ($exports, sideEffects: $sideEffects, splitting: $splitting)",
   async ({ exports, sideEffects, splitting }) => {
-    const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-    try {
+    await withTempDirectory(async (directory) => {
       const clientPackage = join(directory, "node_modules/client-package");
       await Bun.write(
         join(clientPackage, "package.json"),
@@ -122,32 +144,24 @@ import { Counter } from "client-package";
 const tree = await renderServerComponent(createElement(Counter));
 console.log(await new Response(await renderToReadableStream(tree)).text());`
       );
-      const built = await Bun.build({
-        entrypoints: [entry],
-        external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
-        outdir: join(directory, "output"),
-        plugins: [clientReferencesPlugin(undefined)],
-        splitting,
-        target: "bun",
-      });
+      const {
+        build: built,
+        result: { exitCode: status, stderr: errors, stdout: output },
+      } = await buildAndRun(
+        entry,
+        {
+          plugins: [clientReferencesPlugin(undefined)],
+          splitting,
+        },
+        undefined
+      );
       expect(built.success).toBe(true);
-      const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
-        stdout: "pipe",
-        stderr: "pipe",
-      });
-      const [status, output, errors] = await Promise.all([
-        child.exited,
-        new Response(child.stdout).text(),
-        new Response(child.stderr).text(),
-      ]);
       expect({ status, output: output.trim(), errors }).toEqual({
         status: 0,
         output: "CJS_NAMED0",
         errors: "",
       });
-    } finally {
-      rmSync(directory, { force: true, recursive: true });
-    }
+    });
   }
 );
 
@@ -160,8 +174,7 @@ test.each([
 ])(
   "client boundary discovery includes the canonical module of a shared reexport: %s",
   async (reexport) => {
-    const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-    try {
+    await withTempDirectory(async (directory) => {
       const counter = join(directory, "counter.ts");
       const barrel = join(directory, "barrel.ts");
       const direct = join(directory, "direct.ts");
@@ -182,17 +195,14 @@ test.each([
       await registerServerBoundaries(second);
       expect(second.map(({ id }) => id)).toContain(clientModuleId(counter));
       expect(second.map(({ id }) => id)).toContain(clientModuleId(barrel));
-    } finally {
-      rmSync(directory, { force: true, recursive: true });
-    }
+    });
   }
 );
 
 test.each(["loader", "layout"])(
   "client boundary discovery preserves tree shaking for %s imports",
   async (mode) => {
-    const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-    try {
+    await withTempDirectory(async (directory) => {
       await Bun.write(
         join(directory, "dependency.ts"),
         `"use client";
@@ -229,15 +239,12 @@ ${mode === "loader" ? ".loader(async () => ({ tree: await createCompositeCompone
       const code = (await Promise.all(files.map((path) => Bun.file(path).text()))).join("\n");
       expect(code.includes("UNUSED_CLIENT_BOUNDARY_EXPORT")).toBe(false);
       expect(code.includes("UNUSED_ROOT_CLIENT_BOUNDARY_EXPORT")).toBe(mode === "loader");
-    } finally {
-      rmSync(directory, { force: true, recursive: true });
-    }
+    });
   }
 );
 
 test("memo, forwardRef and lazy client components render through Flight and direct SSR", async () => {
-  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-  try {
+  await withTempDirectory(async (directory) => {
     await Bun.write(
       join(directory, "label.tsx"),
       `import { useState } from "react";
@@ -262,38 +269,29 @@ const tree = await renderServerComponent(page);
 console.log(await new Response(await renderToReadableStream(tree)).text());
 console.log(await new Response(await renderToReadableStream(page)).text());`
     );
-    const build = await Bun.build({
-      entrypoints: [join(directory, "entry.tsx")],
-      external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
-      outdir: join(directory, "output"),
-      plugins: [clientReferencesPlugin(undefined)],
-      splitting: true,
-      target: "bun",
-    });
+    const {
+      build,
+      result: { exitCode, stderr, stdout },
+    } = await buildAndRun(
+      join(directory, "entry.tsx"),
+      {
+        plugins: [clientReferencesPlugin(undefined)],
+        splitting: true,
+      },
+      undefined
+    );
     expect(build.success).toBe(true);
-    const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
-      stderr: "pipe",
-      stdout: "pipe",
-    });
-    const [exitCode, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
     const html = "<b>m1</b><i>f2</i><i>mf2</i><u>l0</u>";
     expect({ exitCode, stdout: stdout.trim(), stderr }).toEqual({
       exitCode: 0,
       stdout: `${html}\n${html}`,
       stderr: "",
     });
-  } finally {
-    rmSync(directory, { force: true, recursive: true });
-  }
+  });
 });
 
 test("a Flight render leaves the client module's components unchanged", async () => {
-  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-  try {
+  await withTempDirectory(async (directory) => {
     await Bun.write(
       join(directory, "label.tsx"),
       "export default function Label() { return <u>l</u>; }"
@@ -327,24 +325,18 @@ console.log(JSON.stringify({
   objectOwnKeys: [Memo, Forward, Lazy].flatMap((value) => Reflect.ownKeys(value).filter((key) => key === "$$id")),
 }));`
     );
-    const build = await Bun.build({
-      entrypoints: [join(directory, "entry.tsx")],
-      external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
-      outdir: join(directory, "output"),
-      plugins: [clientReferencesPlugin(undefined)],
-      splitting: true,
-      target: "bun",
-    });
+    const {
+      build,
+      result: { exitCode, stderr, stdout },
+    } = await buildAndRun(
+      join(directory, "entry.tsx"),
+      {
+        plugins: [clientReferencesPlugin(undefined)],
+        splitting: true,
+      },
+      undefined
+    );
     expect(build.success).toBe(true);
-    const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
-      stderr: "pipe",
-      stdout: "pipe",
-    });
-    const [exitCode, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
     expect({ exitCode, stderr }).toEqual({ exitCode: 0, stderr: "" });
     expect(JSON.parse(stdout)).toEqual({
       html: "<s>p</s><b>m</b><i>f</i><u>l</u>",
@@ -355,14 +347,11 @@ console.log(JSON.stringify({
       lazyInit: true,
       objectOwnKeys: [],
     });
-  } finally {
-    rmSync(directory, { force: true, recursive: true });
-  }
+  });
 });
 
 test("a client module imported while Flight renders an async server component renders as a client reference", async () => {
-  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-  try {
+  await withTempDirectory(async (directory) => {
     await Bun.write(
       join(directory, "counter.tsx"),
       `"use client";
@@ -379,37 +368,28 @@ const tree = await createCompositeComponent(async () => {
 });
 console.log(await new Response(await renderToReadableStream(<CompositeComponent src={tree} />)).text());`
     );
-    const build = await Bun.build({
-      entrypoints: [join(directory, "entry.tsx")],
-      external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
-      outdir: join(directory, "output"),
-      plugins: [clientReferencesPlugin(undefined)],
-      splitting: true,
-      target: "bun",
-    });
+    const {
+      build,
+      result: { exitCode, stderr, stdout },
+    } = await buildAndRun(
+      join(directory, "entry.tsx"),
+      {
+        plugins: [clientReferencesPlugin(undefined)],
+        splitting: true,
+      },
+      undefined
+    );
     expect(build.success).toBe(true);
-    const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
-      stderr: "pipe",
-      stdout: "pipe",
-    });
-    const [exitCode, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
     expect({ exitCode, stdout: stdout.trim(), stderr }).toEqual({
       exitCode: 0,
       stdout: "<b>0</b>",
       stderr: "",
     });
-  } finally {
-    rmSync(directory, { force: true, recursive: true });
-  }
+  });
 });
 
 test("SSR registration does not collide with client module bindings", async () => {
-  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-  try {
+  await withTempDirectory(async (directory) => {
     await Bun.write(
       join(directory, "counter.tsx"),
       `"use client";
@@ -426,31 +406,23 @@ import { Counter } from "./counter.tsx";
 const tree = await renderServerComponent(<Counter />);
 console.log(await new Response(await renderToReadableStream(tree)).text());`
     );
-    const build = await Bun.build({
-      entrypoints: [join(directory, "entry.tsx")],
-      external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
-      outdir: join(directory, "output"),
-      plugins: [clientReferencesPlugin(undefined)],
-      target: "bun",
-    });
+    const {
+      build,
+      result: { exitCode, stderr, stdout },
+    } = await buildAndRun(
+      join(directory, "entry.tsx"),
+      {
+        plugins: [clientReferencesPlugin(undefined)],
+      },
+      undefined
+    );
     expect(build.logs).toEqual([]);
-    const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
-      stderr: "pipe",
-      stdout: "pipe",
-    });
-    const [exitCode, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
     expect({ exitCode, stdout: stdout.trim(), stderr }).toEqual({
       exitCode: 0,
       stdout: "<b>implementationregister0</b>",
       stderr: "",
     });
-  } finally {
-    rmSync(directory, { force: true, recursive: true });
-  }
+  });
 });
 
 test.each([
@@ -459,8 +431,7 @@ test.each([
 ])(
   "SSR registers a client reexport whose source module is evaluated first in a cycle ($registered)",
   async ({ names }) => {
-    const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-    try {
+    await withTempDirectory(async (directory) => {
       await Bun.write(
         join(directory, "counter.tsx"),
         `import { Component, useState } from "react";
@@ -483,45 +454,36 @@ import { Counter, Title } from "./boundary.tsx";
 const tree = await renderServerComponent(<><Counter /><Title /></>);
 console.log(await new Response(await renderToReadableStream(tree)).text());`
       );
-      const build = await Bun.build({
-        entrypoints: [join(directory, "entry.tsx")],
-        external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
-        outdir: join(directory, "output"),
-        plugins: [
-          clientReferencesPlugin(
-            names?.map((name) => ({
-              chunks: [],
-              id: clientModuleId(join(directory, "boundary.tsx")),
-              name,
-            }))
-          ),
-        ],
-        target: "bun",
-      });
+      const {
+        build,
+        result: { exitCode, stderr, stdout },
+      } = await buildAndRun(
+        join(directory, "entry.tsx"),
+        {
+          plugins: [
+            clientReferencesPlugin(
+              names?.map((name) => ({
+                chunks: [],
+                id: clientModuleId(join(directory, "boundary.tsx")),
+                name,
+              }))
+            ),
+          ],
+        },
+        undefined
+      );
       expect(build.success).toBe(true);
-      const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
-        stderr: "pipe",
-        stdout: "pipe",
-      });
-      const [exitCode, stdout, stderr] = await Promise.all([
-        child.exited,
-        new Response(child.stdout).text(),
-        new Response(child.stderr).text(),
-      ]);
       expect({ exitCode, stdout: stdout.trim(), stderr }).toEqual({
         exitCode: 0,
         stdout: "<b>0!</b><i>!</i>",
         stderr: "",
       });
-    } finally {
-      rmSync(directory, { force: true, recursive: true });
-    }
+    });
   }
 );
 
 test("SSR registers only the client exports the RSC graph references", async () => {
-  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-  try {
+  await withTempDirectory(async (directory) => {
     const counter = join(directory, "counter.tsx");
     await Bun.write(
       counter,
@@ -538,41 +500,32 @@ import { Counter } from "./counter.tsx";
 const tree = await renderServerComponent(<Counter />);
 console.log(await new Response(await renderToReadableStream(tree)).text());`
     );
-    const build = await Bun.build({
-      entrypoints: [join(directory, "entry.tsx")],
-      external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
-      outdir: join(directory, "output"),
-      plugins: [
-        clientReferencesPlugin([{ chunks: [], id: clientModuleId(counter), name: "Counter" }]),
-      ],
-      target: "bun",
-    });
+    const {
+      build,
+      result: { exitCode, stderr, stdout },
+    } = await buildAndRun(
+      join(directory, "entry.tsx"),
+      {
+        plugins: [
+          clientReferencesPlugin([{ chunks: [], id: clientModuleId(counter), name: "Counter" }]),
+        ],
+      },
+      undefined
+    );
     expect(build.success).toBe(true);
     expect(await build.outputs[0]?.text()).not.toContain("UNREFERENCED_CLIENT_EXPORT");
-    const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
-      stderr: "pipe",
-      stdout: "pipe",
-    });
-    const [exitCode, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
     expect({ exitCode, stdout: stdout.trim(), stderr }).toEqual({
       exitCode: 0,
       stdout: "<b>0</b>",
       stderr: "",
     });
-  } finally {
-    rmSync(directory, { force: true, recursive: true });
-  }
+  });
 });
 
 test.each([{ splitting: false }, { splitting: true }])(
   "a side-effect-free client package renders through Flight (splitting: $splitting)",
   async ({ splitting }) => {
-    const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-    try {
+    await withTempDirectory(async (directory) => {
       mkdirSync(join(directory, "output"));
       const clientPackage = join(directory, "node_modules/client-package");
       await Bun.write(
@@ -596,36 +549,27 @@ import { Counter } from "client-package";
 const tree = await renderServerComponent(<Counter />);
 console.log(await new Response(await renderToReadableStream(tree)).text());`
       );
-      const build = await Bun.build({
-        entrypoints: [join(directory, "entry.tsx")],
-        external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
-        outdir: join(directory, "output"),
-        plugins: [clientReferencesPlugin(undefined)],
-        splitting,
-        target: "bun",
-      });
+      const {
+        build,
+        result: { exitCode, stderr, stdout },
+      } = await buildAndRun(
+        join(directory, "entry.tsx"),
+        {
+          plugins: [clientReferencesPlugin(undefined)],
+          splitting,
+        },
+        undefined
+      );
       expect(build.success).toBe(true);
-      const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
-        stderr: "pipe",
-        stdout: "pipe",
-      });
-      const [exitCode, stdout, stderr] = await Promise.all([
-        child.exited,
-        new Response(child.stdout).text(),
-        new Response(child.stderr).text(),
-      ]);
       expect(stderr).toBe("");
       expect(exitCode).toBe(0);
       expect(stdout.trim()).toBe("<button>0</button>");
-    } finally {
-      rmSync(directory, { force: true, recursive: true });
-    }
+    });
   }
 );
 
 test("the react-server graph replaces a client boundary with references and emits its manifest", async () => {
-  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-  try {
+  await withTempDirectory(async (directory) => {
     await Bun.write(
       join(directory, "counter.tsx"),
       `"use client";
@@ -651,9 +595,7 @@ export default function Counter() {
     );
     const code = (await Promise.all(files.map((path) => Bun.file(path).text()))).join("\n");
     expect(code).not.toContain("CLIENT_IMPLEMENTATION_MARKER");
-  } finally {
-    rmSync(directory, { force: true, recursive: true });
-  }
+  });
 });
 
 test.each([
@@ -674,8 +616,7 @@ test.each([
     source: 'module.exports = { Counter: function Counter() { return "CJS_IMPLEMENTATION"; } };',
   },
 ])("the react-server graph preserves a CommonJS $name reference", async ({ name, source }) => {
-  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-  try {
+  await withTempDirectory(async (directory) => {
     const counter = join(directory, "counter.js");
     const root = join(directory, "root.tsx");
     await Bun.write(counter, `"use client"; ${source}`);
@@ -699,17 +640,14 @@ test.each([
     );
     const code = (await Promise.all(files.map((path) => Bun.file(path).text()))).join("\n");
     expect(code).not.toContain("CJS_IMPLEMENTATION");
-  } finally {
-    rmSync(directory, { force: true, recursive: true });
-  }
+  });
 });
 
 async function buildClientReferenceNames(
   files: { [name: string]: string },
   root: string
 ): Promise<string[]> {
-  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-  try {
+  return await withTempDirectory(async (directory) => {
     await Promise.all(
       Object.entries({ ...files, "root.tsx": root }).map(([name, source]) =>
         Bun.write(join(directory, name), source)
@@ -722,9 +660,7 @@ async function buildClientReferenceNames(
       undefined
     );
     return manifest.clientReferences.map(({ name }) => name);
-  } finally {
-    rmSync(directory, { force: true, recursive: true });
-  }
+  });
 }
 
 test.each([
@@ -796,8 +732,7 @@ __exportStar(require("./counter.js"), exports);`,
 });
 
 test("SSR client registration does not classify shadowed module and exports as CommonJS", async () => {
-  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-  try {
+  await withTempDirectory(async (directory) => {
     await Bun.write(
       join(directory, "component.ts"),
       '"use client"; export function local(module, exports) { return module.exports + exports; }'
@@ -807,30 +742,23 @@ test("SSR client registration does not classify shadowed module and exports as C
       entry,
       'import { local } from "./component.ts"; console.log(local({ exports: "LOCAL" }, "_VALUE"));'
     );
-    const built = await Bun.build({
-      entrypoints: [entry],
-      outdir: join(directory, "output"),
-      plugins: [clientReferencesPlugin(undefined)],
-      target: "bun",
-    });
+    const {
+      build: built,
+      result: { exitCode: status, stderr: errors, stdout: output },
+    } = await buildAndRun(
+      entry,
+      {
+        plugins: [clientReferencesPlugin(undefined)],
+      },
+      undefined
+    );
     expect(built.logs).toEqual([]);
-    const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const [status, output, errors] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
     expect({ status, output: output.trim(), errors }).toEqual({
       status: 0,
       output: "LOCAL_VALUE",
       errors: "",
     });
-  } finally {
-    rmSync(directory, { force: true, recursive: true });
-  }
+  });
 });
 
 test.each(["development", "production", "compiled"])(
@@ -866,21 +794,33 @@ export const route = defineRoute("/").config({ mode: "isr", revalidate: 300 })
         expect(result.exitCode, result.stderr + result.stdout).toBe(0);
       } else if (mode === "production") {
         const buildPath = join(import.meta.dir, "../../../src/build/index.ts");
-        const child = Bun.spawn(
+        const {
+          exitCode: status,
+          stderr: errors,
+          stdout: output,
+        } = await runProcess(
           [
             process.execPath,
             "-e",
-            `const { buildApp } = await import(${JSON.stringify(buildPath)}); await buildApp({ rootDir: ${JSON.stringify(app.path)}, target: "bun" });`,
+            `const { buildApp } = await import(${JSON.stringify(buildPath)}); await buildApp({ analyze: true, rootDir: ${JSON.stringify(app.path)}, target: "bun" });`,
           ],
-          { stdout: "pipe", stderr: "pipe" }
+          { cwd: process.cwd(), timeoutMs: PROCESS_TIMEOUT_MS }
         );
-        const [status, output, errors] = await Promise.all([
-          child.exited,
-          new Response(child.stdout).text(),
-          new Response(child.stderr).text(),
-        ]);
         expect({ errors, status }).toEqual({ errors: "", status: 0 });
         expect(output).toContain("Production client build complete");
+        // The server bundle registers only the client exports its RSC graph references.
+        const metafile = (await Bun.file(
+          join(app.path, ".furin/build/analysis/bun-server.json")
+        ).json()) as Bun.BuildMetafile;
+        const bundled = Object.values(metafile.outputs).flatMap((bundle) =>
+          Object.entries(bundle.inputs)
+            .filter(([, input]) => input.bytesInOutput > 0)
+            .map(([path]) => path.replaceAll("\\", "/"))
+        );
+        expect(bundled.some((path) => path.includes("client/link.tsx"))).toBe(true);
+        expect(
+          bundled.filter((path) => path.includes("client/router/navigation-controller"))
+        ).toEqual([]);
       }
       const port = await getFreePort();
       const server = startProcess(
@@ -937,52 +877,10 @@ export const route = defineRoute("/").config({ mode: "isr", revalidate: 300 })
   { timeout: 30_000 }
 );
 
-test("a production server bundle registers only the client exports its RSC graph references", async () => {
-  const app = createTmpApp("cli-app");
-  try {
-    writeAppFile(
-      app.path,
-      "src/pages/index.tsx",
-      `import { defineRoute } from "@teyik0/furin";
-import { Link } from "@teyik0/furin/link";
-import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";
-export const route = defineRoute("/").config({ mode: "ssr" })
-  .loader(async () => ({ header: await createCompositeComponent(() => <Link to="/blog/hello">Blog</Link>) }))
-  .page(({ header }) => <CompositeComponent src={header} />);`
-    );
-    const buildPath = join(import.meta.dir, "../../../src/build/index.ts");
-    const child = Bun.spawn(
-      [
-        process.execPath,
-        "-e",
-        `const { buildApp } = await import(${JSON.stringify(buildPath)}); await buildApp({ analyze: true, rootDir: ${JSON.stringify(app.path)}, target: "bun" });`,
-      ],
-      { stdout: "pipe", stderr: "pipe" }
-    );
-    const [status, errors] = await Promise.all([child.exited, new Response(child.stderr).text()]);
-    expect({ errors, status }).toEqual({ errors: "", status: 0 });
-    const metafile = (await Bun.file(
-      join(app.path, ".furin/build/analysis/bun-server.json")
-    ).json()) as Bun.BuildMetafile;
-    const bundled = Object.values(metafile.outputs).flatMap((output) =>
-      Object.entries(output.inputs)
-        .filter(([, input]) => input.bytesInOutput > 0)
-        .map(([path]) => path.replaceAll("\\", "/"))
-    );
-    expect(bundled.some((path) => path.includes("client/link.tsx"))).toBe(true);
-    expect(bundled.filter((path) => path.includes("client/router/navigation-controller"))).toEqual(
-      []
-    );
-  } finally {
-    app.cleanup();
-  }
-}, 30_000);
-
 test.each(["development", "production"])(
   "a Flight-only client component reexported by a barrel hydrates and handles clicks (%s)",
   async (mode) => {
-    const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-    try {
+    await withTempDirectory(async (directory) => {
       await Bun.write(
         join(directory, "counter.tsx"),
         `"use client";
@@ -1005,25 +903,18 @@ const tree = await renderServerComponent(<Counter />);
 const html = await new Response(await renderToReadableStream(tree)).text();
 console.log(JSON.stringify({ html, bytes: [...getRscSourceState(tree).bytes] }));`
       );
-      const server = await Bun.build({
-        define: { "process.env.NODE_ENV": JSON.stringify(mode) },
-        entrypoints: [join(directory, "server.tsx")],
-        external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
-        outdir: join(directory, "server"),
-        plugins: [clientReferencesPlugin(undefined)],
-        target: "bun",
-      });
+      const {
+        build: server,
+        result: { exitCode: status, stderr: errors, stdout: payload },
+      } = await buildAndRun(
+        join(directory, "server.tsx"),
+        {
+          define: { "process.env.NODE_ENV": JSON.stringify(mode) },
+          plugins: [clientReferencesPlugin(undefined)],
+        },
+        { NODE_ENV: mode }
+      );
       expect(server.success).toBe(true);
-      const child = Bun.spawn([process.execPath, join(directory, "server/server.js")], {
-        stdout: "pipe",
-        stderr: "pipe",
-        env: { ...process.env, NODE_ENV: mode },
-      });
-      const [status, payload, errors] = await Promise.all([
-        child.exited,
-        new Response(child.stdout).text(),
-        new Response(child.stderr).text(),
-      ]);
       expect(errors).toBe("");
       expect(status).toBe(0);
       await Bun.write(join(directory, "payload.json"), payload);
@@ -1059,27 +950,23 @@ await waitForDom(() => document.querySelector("button")?.textContent === "1", un
 console.log(JSON.stringify({ text: document.querySelector("button").textContent, errors, webpack: "__webpack_require__" in globalThis }));
 await uninstallDom();`
       );
-      const hydrated = Bun.spawn([process.execPath, join(directory, "run.ts")], {
-        stdout: "pipe",
-        stderr: "pipe",
+      const {
+        exitCode: browserStatus,
+        stderr: browserErrors,
+        stdout: result,
+      } = await runProcess([process.execPath, join(directory, "run.ts")], {
+        cwd: process.cwd(),
+        timeoutMs: PROCESS_TIMEOUT_MS,
       });
-      const [browserStatus, result, browserErrors] = await Promise.all([
-        hydrated.exited,
-        new Response(hydrated.stdout).text(),
-        new Response(hydrated.stderr).text(),
-      ]);
       expect(browserErrors).toBe("");
       expect(browserStatus).toBe(0);
       expect(JSON.parse(result)).toEqual({ text: "1", errors: [], webpack: false });
-    } finally {
-      rmSync(directory, { force: true, recursive: true });
-    }
+    });
   }
 );
 
 test("memo exports sharing a client function keep their own references and hydrate", async () => {
-  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-  try {
+  await withTempDirectory(async (directory) => {
     await Bun.write(
       join(directory, "counter.tsx"),
       `"use client";
@@ -1100,25 +987,18 @@ const tree = await renderServerComponent(<><Plain /><First /><Second /></>);
 const html = await new Response(await renderToReadableStream(tree)).text();
 console.log(JSON.stringify({ html, bytes: [...getRscSourceState(tree).bytes] }));`
     );
-    const server = await Bun.build({
-      define: { "process.env.NODE_ENV": JSON.stringify("development") },
-      entrypoints: [join(directory, "server.tsx")],
-      external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
-      outdir: join(directory, "server"),
-      plugins: [clientReferencesPlugin(undefined)],
-      target: "bun",
-    });
+    const {
+      build: server,
+      result: { exitCode: status, stderr: errors, stdout: payload },
+    } = await buildAndRun(
+      join(directory, "server.tsx"),
+      {
+        define: { "process.env.NODE_ENV": JSON.stringify("development") },
+        plugins: [clientReferencesPlugin(undefined)],
+      },
+      { NODE_ENV: "development" }
+    );
     expect(server.success).toBe(true);
-    const child = Bun.spawn([process.execPath, join(directory, "server/server.js")], {
-      stdout: "pipe",
-      stderr: "pipe",
-      env: { ...process.env, NODE_ENV: "development" },
-    });
-    const [status, payload, errors] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
     expect(errors).toBe("");
     expect(status).toBe(0);
     const rows = new TextDecoder().decode(new Uint8Array(JSON.parse(payload).bytes)).split("\n");
@@ -1168,19 +1048,16 @@ await waitForDom(() => document.querySelectorAll("button")[2]?.textContent === "
 console.log(JSON.stringify({ text: [...document.querySelectorAll("button")].map((button) => button.textContent), errors }));
 await uninstallDom();`
     );
-    const hydrated = Bun.spawn([process.execPath, join(directory, "run.ts")], {
-      stdout: "pipe",
-      stderr: "pipe",
+    const {
+      exitCode: browserStatus,
+      stderr: browserErrors,
+      stdout: result,
+    } = await runProcess([process.execPath, join(directory, "run.ts")], {
+      cwd: process.cwd(),
+      timeoutMs: PROCESS_TIMEOUT_MS,
     });
-    const [browserStatus, result, browserErrors] = await Promise.all([
-      hydrated.exited,
-      new Response(hydrated.stdout).text(),
-      new Response(hydrated.stderr).text(),
-    ]);
     expect(browserErrors).toBe("");
     expect(browserStatus).toBe(0);
     expect(JSON.parse(result)).toEqual({ text: ["0", "0", "1"], errors: [] });
-  } finally {
-    rmSync(directory, { force: true, recursive: true });
-  }
+  });
 });

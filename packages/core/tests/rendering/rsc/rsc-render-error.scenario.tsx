@@ -1,9 +1,9 @@
-import type { Context } from "elysia";
 import { createContext, createElement, useContext } from "react";
 import { HeadContent, Scripts } from "../../../src/client/document.tsx";
 import { createCompositeComponent, FurinRscRenderError } from "../../../src/rsc.tsx";
 import { renderSSR } from "../../../src/server/render/index.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
+import { createMockLoaderContext } from "../../support/loader-context.ts";
 
 process.env.FURIN_RSC_CODEC_PATH = "";
 
@@ -47,16 +47,10 @@ const root = {
       ),
   },
 } satisfies RootLayout;
-const context = {
-  cookie: {},
-  headers: {},
-  params: {},
+const context = createMockLoaderContext({
   path: "/rsc-error",
-  query: {},
-  redirect: (url: string) => new Response(null, { headers: { Location: url }, status: 302 }),
   request: new Request("http://localhost/rsc-error"),
-  set: { headers: {} },
-} as unknown as Context;
+});
 const response = await renderSSR(resolved, context, root, undefined);
 const html = await response.text();
 

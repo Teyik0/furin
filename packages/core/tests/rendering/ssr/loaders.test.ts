@@ -1,6 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import type { Context } from "elysia";
-import type { HTTPHeaders } from "elysia/types";
 import type { WideEvent } from "evlog";
 import { FurinRscRenderError } from "../../../src/rsc/render-error.ts";
 import { runInSyntheticRenderScope } from "../../../src/server/context-logger.ts";
@@ -14,25 +13,12 @@ import {
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { captureEvlogEvents } from "../../support/evlog-capture.ts";
+import { createMockLoaderContext } from "../../support/loader-context.ts";
 
 const originalDevMode = IS_DEV;
 afterAll(() => __setDevMode(originalDevMode));
 
 const CACHED_PUBLIC_LOADERS_RE = /Cached public loaders/;
-
-function createMockLoaderContext(overrides: Partial<Context>): Context {
-  return {
-    cookie: {},
-    headers: {},
-    params: {},
-    path: "/test",
-    query: {},
-    redirect: (url: string) => new Response(null, { headers: { Location: url }, status: 302 }),
-    request: new Request("http://localhost/test"),
-    set: { headers: {} as HTTPHeaders },
-    ...overrides,
-  } as Context;
-}
 
 /** Runs `route`'s loaders in a synthetic render and returns the drained wide event. */
 async function runLoadersLogged(

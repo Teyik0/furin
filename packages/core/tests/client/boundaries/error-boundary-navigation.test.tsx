@@ -11,32 +11,11 @@ import {
 import type { ErrorProps } from "../../../src/shared/error.ts";
 import { ROUTE_MATCHES_KEY } from "../../../src/shared/route-matches.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
+import { makeRouterContext } from "../../support/router.ts";
 
 const ROOT_PATH_RE = /^\/$/;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function makeRouterContext(overrides: Partial<RouterContextValue> | undefined): RouterContextValue {
-  return {
-    basePath: "",
-    currentHref: "/",
-    defaultPreload: "intent",
-    defaultPreloadDelay: 50,
-    defaultPreloadStaleTime: 30_000,
-    invalidatePrefetch: () => {
-      /* noop */
-    },
-    isNavigating: false,
-    navigate: () => Promise.resolve(),
-    prefetch: () => {
-      /* noop */
-    },
-    refresh: () => Promise.resolve(),
-    search: {},
-    searchRoutes: [],
-    ...(overrides ?? {}),
-  };
-}
 
 function ThrowOnRender(): React.ReactElement {
   throw new Error("boom");

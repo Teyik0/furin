@@ -191,6 +191,7 @@ describe("Deferred hydration registry — race orders", () => {
 
   test("multiple keys: mixed orders resolve independently", async () => {
     const reg = bootRegistry(["a", "b", "c"]);
+    expect(reg._deferredKeys).toEqual(["a", "b", "c"]);
 
     // "a" arrives before hydrate
     runResolutionScript(reg, "a", "alpha", "resolve");

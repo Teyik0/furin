@@ -1,24 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type { Context } from "elysia";
-import type { HTTPHeaders } from "elysia/types";
 import { defer } from "../../../src/client";
 import type { RuntimeData } from "../../../src/client/internal/runtime-types.ts";
 import { runLoaders } from "../../../src/server/render/loaders.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
-
-function makeCtx(overrides: Partial<Context> = {}): Context {
-  return {
-    cookie: {},
-    headers: {},
-    params: {},
-    path: "/test",
-    query: {},
-    redirect: (url: string) => new Response(null, { headers: { Location: url }, status: 302 }),
-    request: new Request("http://localhost/test"),
-    set: { headers: {} as HTTPHeaders },
-    ...overrides,
-  } as Context;
-}
+import { createMockLoaderContext } from "../../support/loader-context.ts";
 
 function makeRoute(
   pageLoader: ((ctx: RuntimeData) => unknown) | undefined,
@@ -51,7 +36,7 @@ function makeRoute(
 describe("runLoaders — DeferredData", () => {
   test("normal loader (without defer) → syncData contains everything, deferredPromises absent", async () => {
     const route = makeRoute(() => ({ count: 42, title: "hello" }), []);
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {
@@ -65,7 +50,7 @@ describe("runLoaders — DeferredData", () => {
   test("loader with defer() → syncData contains scalars, deferredPromises the Promises", async () => {
     const statsPromise = Promise.resolve(99);
     const route = makeRoute(() => defer({ stats: statsPromise, title: "hello" }), []);
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {
@@ -83,7 +68,7 @@ describe("runLoaders — DeferredData", () => {
       () => defer({ __isDeferred: "user-data", stats: Promise.resolve(99) }),
       []
     );
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {
@@ -104,7 +89,7 @@ describe("runLoaders — DeferredData", () => {
     );
     const route = makeRoute(() => defer({ x: slowPromise }), []);
 
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     // runLoaders should return immediately without waiting for the slow Promise
@@ -125,7 +110,7 @@ describe("runLoaders — DeferredData", () => {
         }),
       []
     );
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {
@@ -146,7 +131,7 @@ describe("runLoaders — DeferredData", () => {
     };
     const route = makeRoute(() => defer({ stats: thenable, title: "hello" }), []);
 
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {
@@ -160,7 +145,7 @@ describe("runLoaders — DeferredData", () => {
 
   test("loader in routeChain (non-page) → normal data, no deferred split", async () => {
     const route = makeRoute(() => ({ pageTitle: "page" }), [() => ({ routeData: "from-route" })]);
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {
@@ -170,28 +155,12 @@ describe("runLoaders — DeferredData", () => {
     expect(result.deferredPromises).toBeUndefined();
   });
 
-  test("route loader returning defer() → deferred fields stream alongside page data", async () => {
-    const route = makeRoute(
-      () => ({ pageTitle: "page" }),
-      [() => defer({ shared: Promise.resolve("layout-async") })]
-    );
-    const result = await runLoaders(route, makeCtx());
-
-    expect(result.type).toBe("data");
-    if (result.type !== "data") {
-      return;
-    }
-    expect(result.syncData).toMatchObject({ pageTitle: "page" });
-    expect(result.deferredPromises?.shared).toBeInstanceOf(Promise);
-    expect(await result.deferredPromises?.shared).toBe("layout-async");
-  });
-
   test("layout deferred + page sync → layout Promises split, layout scalars merged into syncData", async () => {
     const route = makeRoute(
       () => ({ count: 3, pageTitle: "page" }),
       [() => defer({ user: "alice", widgets: Promise.resolve(["w1", "w2"]) })]
     );
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {
@@ -208,7 +177,7 @@ describe("runLoaders — DeferredData", () => {
       () => defer({ pageTitle: "page", stats: Promise.resolve(42) }),
       [() => defer({ user: "alice", widgets: Promise.resolve(["w1"]) })]
     );
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {
@@ -226,7 +195,7 @@ describe("runLoaders — DeferredData", () => {
       () => ({ pageTitle: "page" }),
       [() => ({ org: "acme" }), () => defer({ user: "alice", widgets: Promise.resolve(["w1"]) })]
     );
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {
@@ -245,7 +214,7 @@ describe("runLoaders — DeferredData", () => {
       () => defer({ stats: pagePromise }),
       [() => defer({ stats: layoutPromise })]
     );
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {
@@ -263,7 +232,7 @@ describe("runLoaders — DeferredData", () => {
       /* intentional */
     });
     const route = makeRoute(() => ({ pageTitle: "page" }), [() => defer({ broken: rejected })]);
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {
@@ -279,7 +248,7 @@ describe("runLoaders — DeferredData", () => {
     // deferred field with a sync one. The wire would then ship the sync value
     // AND a stale deferred resolution chunk for the same key.
     const route = makeRoute(() => ({ stats: 42 }), [() => defer({ stats: Promise.resolve(999) })]);
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {
@@ -292,7 +261,7 @@ describe("runLoaders — DeferredData", () => {
 
   test("key switching from layout-sync to page-deferred → page-deferred wins exclusively (stale sync is dropped)", async () => {
     const route = makeRoute(() => defer({ stats: Promise.resolve(999) }), [() => ({ stats: 42 })]);
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {
@@ -319,7 +288,7 @@ describe("runLoaders — DeferredData", () => {
       },
       [() => defer({ slow: Promise.resolve("from-parent") })]
     );
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {
@@ -336,7 +305,7 @@ describe("runLoaders — DeferredData", () => {
       (ctx: RuntimeData) => defer({ mySlow: ctx.slow as Promise<string>, scalar: "ok" }),
       [() => defer({ slow: Promise.resolve("from-parent") })]
     );
-    const result = await runLoaders(route, makeCtx());
+    const result = await runLoaders(route, createMockLoaderContext({}));
 
     expect(result.type).toBe("data");
     if (result.type !== "data") {

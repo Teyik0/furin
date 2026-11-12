@@ -159,54 +159,6 @@ describeWithPostgres("PostgresSyncAdapter", () => {
     }
   });
 
-  test("atomically persists replay response and invalidations", async () => {
-    const mutation = await adapter.beginMutation({
-      fingerprint: "fingerprint",
-      key: "mutation",
-      principal: "user",
-    });
-    expect(mutation.kind).toBe("execute");
-    if (mutation.kind !== "execute") {
-      throw new Error("Expected an executable mutation");
-    }
-
-    const result = await adapter.completeMutation({
-      invalidations: [{ kind: "path", path: "/projects", type: "page" }],
-      lease: mutation.lease,
-      response: {
-        body: new TextEncoder().encode("created"),
-        headers: [["content-type", "text/plain"]],
-        status: 201,
-      },
-    });
-    expect(result).toEqual({ cursor: "1", kind: "committed" });
-
-    const replay = await adapter.beginMutation({
-      fingerprint: "fingerprint",
-      key: "mutation",
-      principal: "user",
-    });
-    expect(replay).toEqual({
-      kind: "replay",
-      response: {
-        body: new TextEncoder().encode("created"),
-        headers: [["content-type", "text/plain"]],
-        status: 201,
-      },
-    });
-    expect(await adapter.readChanges({ after: "0", limit: 10 })).toEqual({
-      changes: [
-        {
-          cursor: "1",
-          invalidations: [{ kind: "path", path: "/projects", type: "page" }],
-        },
-      ],
-      cursor: "1",
-      hasMore: false,
-      reset: false,
-    });
-  });
-
   test("supports mutation keys larger than a PostgreSQL btree entry", async () => {
     const key = Array.from({ length: 300 }, () => crypto.randomUUID()).join(":");
     const response = {

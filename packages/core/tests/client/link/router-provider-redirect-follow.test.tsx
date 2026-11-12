@@ -1,13 +1,12 @@
 /// <reference lib="dom" />
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { act, createElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { toCrossJSON } from "seroval";
 import type { RuntimeData } from "../../../src/client/internal/runtime-types.ts";
-import { Link, RouterProvider } from "../../../src/client/link.tsx";
+import { Link } from "../../../src/client/link.tsx";
 import type { ClientRoute } from "../../../src/client/router/index.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
-import { navigationDataPath } from "../../support/navigation-data.ts";
+import { makeNdjsonResponse, navigationDataPath } from "../../support/navigation-data.ts";
+import { dispatchReactEvent, flushReactUpdates, renderRouterAt } from "../../support/router.ts";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -31,90 +30,6 @@ function makeRoute(path: string, linkTo: string): ClientRoute {
     }),
     pattern: path,
     regex: new RegExp(`^${path}$`),
-  };
-}
-
-async function dispatchReactEvent(target: EventTarget, event: Event): Promise<void> {
-  await act(async () => {
-    target.dispatchEvent(event);
-    await Promise.resolve();
-  });
-}
-
-async function flushReactUpdates(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve();
-  });
-}
-
-/** Returns a single-line NDJSON response (CrossJSON-serialised) for `?_furin=data` navigation requests. */
-function makeNdjsonResponse(data: RuntimeData): Response {
-  const ndjson = JSON.stringify(toCrossJSON(data));
-  return new Response(ndjson, { headers: { "Content-Type": "application/x-ndjson" }, status: 200 });
-}
-
-interface RenderRouterResult {
-  cleanup: () => void;
-  container: HTMLDivElement;
-  root: Root;
-}
-
-async function renderRouterWithLink(
-  routes: ClientRoute[],
-  initialPath: string | undefined
-): Promise<RenderRouterResult> {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-
-  const win = globalThis as unknown as Window & typeof globalThis;
-  const path = initialPath ?? "/";
-  win.location.href = `http://localhost:3000${path}`;
-  win.history.replaceState(null, "", path);
-
-  let initialMatch:
-    | (ClientRoute & {
-        component: React.ComponentType<RuntimeData>;
-        pageRoute: unknown;
-      })
-    | null = null;
-  const rawMatch = routes.find((r) => r.regex.test(path));
-  if (rawMatch) {
-    const mod = await rawMatch.load();
-    initialMatch = {
-      ...rawMatch,
-      component: mod.default.component,
-      pageRoute: mod.default._route,
-    };
-  }
-
-  act(() => {
-    root.render(
-      createElement(RouterProvider, {
-        autoRefresh: true,
-        basePath: "",
-        defaultPreload: "intent",
-        defaultPreloadDelay: 50,
-        defaultPreloadStaleTime: 30_000,
-        initialData: {},
-        initialDigest: undefined,
-        initialMatch,
-        prefetchCacheSize: 50,
-        root: null,
-        routes,
-      } as any)
-    );
-  });
-
-  return {
-    cleanup: () => {
-      act(() => {
-        root.unmount();
-      });
-      container.remove();
-    },
-    container,
-    root,
   };
 }
 
@@ -231,7 +146,7 @@ describe("RouterProvider server-side redirect follow", () => {
         makeRoute("/page-b", "/page-a"),
         makeRoute("/page-c", "/page-a"),
       ];
-      const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+      const { container, cleanup } = await renderRouterAt(routes, "/page-a", undefined);
       currentCleanup = cleanup;
 
       const anchor = container.querySelector("a") as HTMLAnchorElement;
@@ -271,7 +186,7 @@ describe("RouterProvider server-side redirect follow", () => {
       makeRoute("/page-b", "/page-a"),
       makeRoute("/page-c", "/page-a"),
     ];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    const { container, cleanup } = await renderRouterAt(routes, "/page-a", undefined);
     currentCleanup = cleanup;
 
     await dispatchReactEvent(
@@ -299,7 +214,7 @@ describe("RouterProvider server-side redirect follow", () => {
   test("scrolls to a guard redirect fragment on the current page", async () => {
     guardRedirect = true;
     const routes = [makeRoute("/page-b", "/page-c"), makeRoute("/page-c", "/page-b")];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-c");
+    const { container, cleanup } = await renderRouterAt(routes, "/page-c", undefined);
     currentCleanup = cleanup;
     const scrollIntoView = mock(() => undefined);
     const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
@@ -325,7 +240,7 @@ describe("RouterProvider server-side redirect follow", () => {
       makeRoute("/page-b", "/page-a"),
       makeRoute("/page-c", "/page-a"),
     ];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    const { container, cleanup } = await renderRouterAt(routes, "/page-a", undefined);
     currentCleanup = cleanup;
     const anchor = container.querySelector("a") as HTMLAnchorElement;
 
@@ -347,7 +262,7 @@ describe("RouterProvider server-side redirect follow", () => {
       makeRoute("/page-b", "/page-a"),
       makeRoute("/page-c", "/page-a"),
     ];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    const { container, cleanup } = await renderRouterAt(routes, "/page-a", undefined);
     currentCleanup = cleanup;
 
     await dispatchReactEvent(
@@ -374,7 +289,7 @@ describe("RouterProvider server-side redirect follow", () => {
       makeRoute("/page-c", "/page-a"),
       makeRoute("/page-d", "/page-a"),
     ];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    const { container, cleanup } = await renderRouterAt(routes, "/page-a", undefined);
     currentCleanup = cleanup;
 
     await dispatchReactEvent(
@@ -426,7 +341,7 @@ describe("RouterProvider server-side redirect follow", () => {
       makeRoute("/page-c", "/page-a"),
       makeRoute("/page-d", "/page-a"),
     ];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    const { container, cleanup } = await renderRouterAt(routes, "/page-a", undefined);
     currentCleanup = cleanup;
 
     await dispatchReactEvent(

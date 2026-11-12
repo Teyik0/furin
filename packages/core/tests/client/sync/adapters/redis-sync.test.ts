@@ -103,56 +103,6 @@ describeWithRedis("Redis sync", () => {
     });
   });
 
-  test("atomically persists replay response and invalidations", async () => {
-    const mutation = await adapter.beginMutation({
-      fingerprint: "fingerprint",
-      key: "mutation",
-      principal: "user",
-    });
-    expect(mutation.kind).toBe("execute");
-    if (mutation.kind !== "execute") {
-      throw new Error("Expected an executable mutation");
-    }
-    const completed = await adapter.completeMutation({
-      invalidations: [{ kind: "tags", tags: ["projects"] }],
-      lease: mutation.lease,
-      response: {
-        body: new TextEncoder().encode("created"),
-        headers: [["content-type", "text/plain"]],
-        status: 201,
-      },
-    });
-    expect(completed.kind).toBe("committed");
-    if (completed.kind !== "committed" || completed.cursor === undefined) {
-      throw new Error("Expected a committed cursor");
-    }
-    expect(
-      await adapter.beginMutation({
-        fingerprint: "fingerprint",
-        key: "mutation",
-        principal: "user",
-      })
-    ).toEqual({
-      kind: "replay",
-      response: {
-        body: new TextEncoder().encode("created"),
-        headers: [["content-type", "text/plain"]],
-        status: 201,
-      },
-    });
-    expect(await adapter.readChanges({ after: "0-0", limit: 10 })).toEqual({
-      changes: [
-        {
-          cursor: completed.cursor,
-          invalidations: [{ kind: "tags", tags: ["projects"] }],
-        },
-      ],
-      cursor: completed.cursor,
-      hasMore: false,
-      reset: false,
-    });
-  });
-
   test("rejects an old owner after takeover", async () => {
     const first = await adapter.beginMutation({
       fingerprint: "fingerprint",

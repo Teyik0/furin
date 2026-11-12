@@ -1,18 +1,16 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import type { Context } from "elysia";
-import type { HTTPHeaders } from "elysia/types";
-import { createElement, type ElementType, type ReactNode } from "react";
-import { HeadContent, Scripts } from "../../../src/client/document.tsx";
-import type { RuntimePage, RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
+import { createElement, type ElementType } from "react";
+import type { RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
 import { defineRootRoute } from "../../../src/define-route.ts";
 import { renderRootNotFound, renderSSR, renderToHTML } from "../../../src/server/render/index.ts";
 import { runPublicLoaders } from "../../../src/server/render/loaders.ts";
 import { adaptDefinedLayout } from "../../../src/server/router/defined-route.ts";
-import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { type NotFoundComponent, notFound } from "../../../src/shared/not-found.ts";
 import { findRouteFailure } from "../../../src/shared/route-matches.ts";
+import { createMockLoaderContext } from "../../support/loader-context.ts";
+import { createTestRoot, createTestRoute, ROOT_ROUTE } from "./test-routes.ts";
 
 const originalDevMode = IS_DEV;
 afterAll(() => __setDevMode(originalDevMode));
@@ -34,73 +32,10 @@ async function documentData(html: string): Promise<{ [key: string]: unknown }> {
   return (await parseDeferredNdjson(body, undefined)).syncData;
 }
 
-const ROOT_ROUTE: RuntimeRoute = {
-  __type: "FURIN_ROUTE",
-  layout: ({ children }: { children: ReactNode | undefined }) =>
-    createElement(
-      "html",
-      { lang: "en" },
-      createElement("head", null, createElement(HeadContent)),
-      createElement(
-        "body",
-        null,
-        createElement("div", { "data-testid": "root-layout" }, children),
-        createElement(Scripts)
-      )
-    ),
-};
-
 const BlogNotFound: NotFoundComponent = () =>
   createElement("div", { "data-testid": "blog-not-found" }, "Blog 404");
 const RootNotFound: NotFoundComponent = () =>
   createElement("div", { "data-testid": "root-not-found" }, "Root 404");
-
-function createTestRoot(notFoundComponent: NotFoundComponent | undefined): RootLayout {
-  return {
-    notFound: notFoundComponent,
-    path: "/test-pages",
-    route: ROOT_ROUTE,
-  };
-}
-
-function createTestRoute(options: {
-  component: RuntimePage["component"];
-  loader: RuntimePage["loader"] | undefined;
-  notFound: NotFoundComponent | undefined;
-  pattern: string;
-}): ResolvedRoute {
-  return {
-    mode: "ssr",
-    page: {
-      __type: "FURIN_PAGE",
-      _route: ROOT_ROUTE,
-      component: options.component,
-      ...(options.loader ? { loader: options.loader } : {}),
-    },
-    path: `/test-pages${options.pattern}/index.tsx`,
-    pattern: options.pattern,
-    routeChain: [ROOT_ROUTE],
-    // The page's own directory boundary, inside the root layout.
-    segmentBoundaries: options.notFound
-      ? [{ depth: 0, notFound: options.notFound, path: `/test-pages${options.pattern}` }]
-      : [],
-    tags: [],
-  };
-}
-
-function createMockLoaderContext(overrides: Partial<Context>) {
-  return {
-    cookie: {},
-    headers: {},
-    params: {},
-    path: "/test",
-    query: {},
-    redirect: (url: string) => new Response(null, { headers: { Location: url }, status: 302 }),
-    request: new Request("http://localhost/test"),
-    set: { headers: {} as HTTPHeaders },
-    ...overrides,
-  } as Context;
-}
 
 __setDevMode(false);
 
@@ -133,7 +68,7 @@ describe("renderToHTML — not-found handling", () => {
     const response = await renderSSR(
       route,
       context,
-      { ...createTestRoot(RootNotFound), route: rootRoute },
+      { ...createTestRoot({ notFound: RootNotFound }), route: rootRoute },
       result
     );
     expect(response.status).toBe(404);
@@ -162,7 +97,7 @@ describe("renderToHTML — not-found handling", () => {
         renderSSR(
           route,
           createMockLoaderContext({ path: "/blog" }),
-          { ...createTestRoot(RootNotFound), route: rootRoute },
+          { ...createTestRoot({ notFound: RootNotFound }), route: rootRoute },
           undefined
         ),
         Bun.sleep(100).then(() => undefined),
@@ -228,7 +163,7 @@ describe("renderToHTML — not-found handling", () => {
       const response = await renderSSR(
         route,
         createMockLoaderContext({ path: "/blog" }),
-        { ...createTestRoot(RootNotFound), route: rootRoute },
+        { ...createTestRoot({ notFound: RootNotFound }), route: rootRoute },
         undefined
       );
       expect(response.status).toBe(status);
@@ -257,7 +192,7 @@ describe("renderToHTML — not-found handling", () => {
       },
     };
     const response = await renderRootNotFound(
-      { ...createTestRoot(RootNotFound), route: rootRoute },
+      { ...createTestRoot({ notFound: RootNotFound }), route: rootRoute },
       new Request("http://localhost/unknown")
     );
     expect(response.status).toBe(404);
@@ -296,7 +231,7 @@ describe("renderToHTML — not-found handling", () => {
       const response = await renderSSR(
         route,
         createMockLoaderContext({ path: "/blog" }),
-        { ...createTestRoot(RootNotFound), route: rootRoute },
+        { ...createTestRoot({ notFound: RootNotFound }), route: rootRoute },
         undefined
       );
 
@@ -341,7 +276,7 @@ describe("renderToHTML — not-found handling", () => {
     const response = await renderSSR(
       route,
       createMockLoaderContext({ path: "/blog" }),
-      { ...createTestRoot(RootNotFound), route: rootRoute },
+      { ...createTestRoot({ notFound: RootNotFound }), route: rootRoute },
       undefined
     );
 
@@ -368,7 +303,7 @@ describe("renderToHTML — not-found handling", () => {
     const rendered = await renderToHTML(
       routeWithNotFound,
       createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(RootNotFound)
+      createTestRoot({ notFound: RootNotFound })
     );
 
     expect(rendered.html).toContain("Blog 404");
@@ -388,7 +323,7 @@ describe("renderToHTML — not-found handling", () => {
     const response = await renderSSR(
       routeWithNotFound,
       createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(RootNotFound),
+      createTestRoot({ notFound: RootNotFound }),
       undefined
     );
 
@@ -411,7 +346,7 @@ describe("renderToHTML — not-found handling", () => {
     const response = await renderSSR(
       routeWithNotFound,
       createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(RootNotFound),
+      createTestRoot({ notFound: RootNotFound }),
       undefined
     );
 
@@ -441,7 +376,7 @@ describe("renderToHTML — not-found handling", () => {
     const rendered = await renderToHTML(
       routeWithNotFound,
       createMockLoaderContext({ path: "/with-loader" }),
-      createTestRoot(undefined)
+      createTestRoot({})
     );
 
     expect(rendered.html).toContain("404 — NOT FOUND");

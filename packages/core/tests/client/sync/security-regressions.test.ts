@@ -1,25 +1,12 @@
-import { Database } from "bun:sqlite";
 import { expect, spyOn, test } from "bun:test";
 import { type Context, Elysia } from "elysia";
 import { furinSync } from "../../../src/server/sync/plugin.ts";
-import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/sqlite/index.ts";
 import { createSyncChangesPlugin } from "../../../src/server/sync/stream.ts";
 import { queryTag } from "../../../src/shared/sync-query.ts";
-
-function testSync() {
-  const database = new Database(":memory:");
-  migrateSqliteSync(database);
-  return {
-    database,
-    options: {
-      adapter: sqliteSyncAdapter({ database, namespace: crypto.randomUUID() }),
-      principal: () => "alice",
-    },
-  };
-}
+import { sqliteSync } from "../../helpers/sqlite-sync.ts";
 
 test("successful JSON status and code fields do not disable mutation replay", async () => {
-  const { database, options } = testSync();
+  const { database, sync: options } = sqliteSync(crypto.randomUUID(), undefined);
   let executions = 0;
   const app = new Elysia().use(furinSync(options)).post("/result", () => {
     executions += 1;
@@ -46,7 +33,7 @@ test("successful JSON status and code fields do not disable mutation replay", as
 });
 
 test("unreplayable response retries keep the JSON fallback's representation headers", async () => {
-  const { database, options } = testSync();
+  const { database, sync: options } = sqliteSync(crypto.randomUUID(), undefined);
   let executions = 0;
   const app = new Elysia().use(furinSync(options)).post("/download", () => {
     executions += 1;
@@ -87,7 +74,7 @@ test("unreplayable response retries keep the JSON fallback's representation head
 test.each([42, true, "plain text", { ok: true }, [1]] as const)(
   "mutation replay preserves its native HTTP content type: %s",
   async (value) => {
-    const { database, options } = testSync();
+    const { database, sync: options } = sqliteSync(crypto.randomUUID(), undefined);
     const app = new Elysia().use(furinSync(options)).post("/primitive", () => value);
     const send = () =>
       app.handle(
@@ -110,7 +97,7 @@ test.each([42, true, "plain text", { ok: true }, [1]] as const)(
 test.each([201, 303, 500] as const)(
   "Response replay preserves the effective HTTP status %s",
   async (status) => {
-    const { database, options } = testSync();
+    const { database, sync: options } = sqliteSync(crypto.randomUUID(), undefined);
     let executions = 0;
     const app = new Elysia().use(furinSync(options)).post("/response", ({ set }) => {
       executions += 1;
@@ -140,7 +127,7 @@ test.each([201, 303, 500] as const)(
 );
 
 test("bodyless status responses replay without serializing the status wrapper", async () => {
-  const { database, options } = testSync();
+  const { database, sync: options } = sqliteSync(crypto.randomUUID(), undefined);
   const app = new Elysia()
     .use(furinSync(options))
     .post("/empty", ({ status }) => status(201, null));
@@ -164,18 +151,18 @@ test("bodyless status responses replay without serializing the status wrapper", 
 });
 
 test("mounted mutation uses its own Sync principal and adapter", async () => {
-  const first = testSync();
-  const second = testSync();
-  const parentReservations = spyOn(first.options.adapter, "beginMutation");
-  const parentCompletions = spyOn(first.options.adapter, "completeMutation");
-  const childReservations = spyOn(second.options.adapter, "beginMutation");
-  const childCompletions = spyOn(second.options.adapter, "completeMutation");
+  const first = sqliteSync(crypto.randomUUID(), undefined);
+  const second = sqliteSync(crypto.randomUUID(), undefined);
+  const parentReservations = spyOn(first.sync.adapter, "beginMutation");
+  const parentCompletions = spyOn(first.sync.adapter, "completeMutation");
+  const childReservations = spyOn(second.sync.adapter, "beginMutation");
+  const childCompletions = spyOn(second.sync.adapter, "completeMutation");
   let authorized = false;
   let executions = 0;
   const child = new Elysia({ prefix: "/child" })
     .use(
       furinSync({
-        ...second.options,
+        ...second.sync,
         principal: ({ status }: Context) => {
           if (!authorized) {
             throw status(401);
@@ -188,7 +175,7 @@ test("mounted mutation uses its own Sync principal and adapter", async () => {
       executions += 1;
       return { secret: "child" };
     });
-  const app = new Elysia().use(furinSync(first.options)).use(child);
+  const app = new Elysia().use(furinSync(first.sync)).use(child);
   const send = () =>
     app.handle(
       new Request("http://localhost/child/private", {
@@ -220,7 +207,7 @@ test("mounted mutation uses its own Sync principal and adapter", async () => {
 });
 
 test("Unicode and comma invalidation paths survive mutation completion and replay", async () => {
-  const { database, options } = testSync();
+  const { database, sync: options } = sqliteSync(crypto.randomUUID(), undefined);
   const paths = ["/東京", "/items/first,second", "/literal%20"];
   let executions = 0;
   const app = new Elysia().use(furinSync(options)).post("/paths", ({ invalidate }) => {
@@ -253,7 +240,7 @@ test("Unicode and comma invalidation paths survive mutation completion and repla
 });
 
 test("reordered values of repeated query parameters cannot replay another request", async () => {
-  const { database, options } = testSync();
+  const { database, sync: options } = sqliteSync(crypto.randomUUID(), undefined);
   const app = new Elysia().use(furinSync(options)).post("/choice", ({ request }) => ({
     choice: new URL(request.url).searchParams.get("choice"),
   }));
@@ -273,7 +260,7 @@ test("reordered values of repeated query parameters cannot replay another reques
 });
 
 test("Unicode URL params survive read and invalidation response headers", async () => {
-  const { database, options } = testSync();
+  const { database, sync: options } = sqliteSync(crypto.randomUUID(), undefined);
   const identity = { id: "/places/:city", scope: { city: "東京🌸" } };
   const url = `http://localhost/places/${encodeURIComponent("東京🌸")}`;
   const app = new Elysia()
@@ -298,7 +285,7 @@ test("Unicode URL params survive read and invalidation response headers", async 
 });
 
 test("change catch-up authorizes requests and keeps other users' resources private", async () => {
-  const { database, options } = testSync();
+  const { database, sync: options } = sqliteSync(crypto.randomUUID(), undefined);
   let principalCalls = 0;
   const sync = {
     ...options,
@@ -382,7 +369,7 @@ test("change catch-up authorizes requests and keeps other users' resources priva
 });
 
 test("principal catch-up paginates ordered changes without losing the next cursor", async () => {
-  const { database, options } = testSync();
+  const { database, sync: options } = sqliteSync(crypto.randomUUID(), undefined);
   const app = new Elysia()
     .use(furinSync(options))
     .use(createSyncChangesPlugin(options))
@@ -417,7 +404,7 @@ test("principal catch-up paginates ordered changes without losing the next curso
 });
 
 test("historical journal rows without principal provenance trigger a private reset", async () => {
-  const { database, options } = testSync();
+  const { database, sync: options } = sqliteSync(crypto.randomUUID(), undefined);
   const app = new Elysia()
     .use(furinSync(options))
     .use(createSyncChangesPlugin(options))
@@ -454,7 +441,7 @@ test.each([
 ] as const)(
   "%s mutations authorize before reservation and replay (precompiled: %s)",
   async (method, precompiled) => {
-    const { database, options } = testSync();
+    const { database, sync: options } = sqliteSync(crypto.randomUUID(), undefined);
     const reservations = spyOn(options.adapter, "beginMutation");
     let authorized = false;
     let authorizationCalls = 0;
@@ -506,7 +493,7 @@ test.each([
 );
 
 test("an unbound parent cannot execute a standalone child mutation outside Sync", async () => {
-  const { database, options } = testSync();
+  const { database, sync: options } = sqliteSync(crypto.randomUUID(), undefined);
   let executions = 0;
   const child = new Elysia().use(furinSync(options)).post("/private", () => {
     executions += 1;
@@ -530,7 +517,7 @@ test("an unbound parent cannot execute a standalone child mutation outside Sync"
 test.each([false, true])(
   "mounted mutation replays respect the final parent's guard (precompiled: %s)",
   async (precompiled) => {
-    const { database, options } = testSync();
+    const { database, sync: options } = sqliteSync(crypto.randomUUID(), undefined);
     let authorized = true;
     let executions = 0;
     const child = new Elysia().use(furinSync(options)).post("/private", () => {

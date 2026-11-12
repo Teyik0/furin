@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import type { Context } from "elysia";
-import type { HTTPHeaders } from "elysia/types";
 import { HeadContent, Scripts } from "../../../src/client/document.tsx";
 import { clientModule, type HeadOptions, preloadClientModule } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute } from "../../../src/furin.ts";
@@ -15,21 +14,16 @@ import {
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
+import { createMockLoaderContext } from "../../support/loader-context.ts";
 
 const SCENE_KEY = "__FURIN_CLIENT_MODULE_scene__";
 const MODULE_PRELOAD_RE = /<link rel="modulepreload"[^>]*?href="([^"]+)"/g;
 
 function createContext(): Context {
-  return {
-    cookie: {},
-    headers: {},
-    params: {},
+  return createMockLoaderContext({
     path: "/canvas",
-    query: {},
-    redirect: (url: string) => new Response(null, { headers: { Location: url }, status: 302 }),
     request: new Request("http://localhost/canvas"),
-    set: { headers: {} as HTTPHeaders },
-  } as Context;
+  });
 }
 
 function createCanvasRoute(

@@ -12,30 +12,15 @@ import {
   searchSnapshotFromRouterContext,
 } from "../../../src/client/router/search-store.ts";
 import { useDomTests } from "../../support/dom.ts";
+import { makeRouterContext as makeBaseRouterContext } from "../../support/router.ts";
 
 const PRODUCTS_RE = /^\/products$/;
 
 function makeRouterContext(overrides: Partial<RouterContextValue> | undefined): RouterContextValue {
-  return {
-    basePath: "",
-    currentHref: "/",
+  return makeBaseRouterContext({
     currentPattern: new URL(overrides?.currentHref ?? "/", "http://furin.local").pathname,
-    defaultPreload: "intent",
-    defaultPreloadDelay: 50,
-    defaultPreloadStaleTime: 30_000,
-    invalidatePrefetch: (_path, _type) => {
-      /* noop */
-    },
-    isNavigating: false,
-    navigate: (_href, _opts) => Promise.resolve(),
-    prefetch: (_href, _opts) => {
-      /* noop */
-    },
-    refresh: (_opts) => Promise.resolve(),
-    search: {},
-    searchRoutes: [],
     ...(overrides ?? {}),
-  };
+  });
 }
 
 async function renderWithRouter(

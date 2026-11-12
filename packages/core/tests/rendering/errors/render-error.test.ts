@@ -1,88 +1,22 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import type { Context } from "elysia";
-import type { HTTPHeaders } from "elysia/types";
-import { createElement, type ReactNode } from "react";
-import { HeadContent, Scripts } from "../../../src/client/document.tsx";
-import type { RuntimePage, RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
+import { createElement } from "react";
 import { runInSyntheticRenderScope } from "../../../src/server/context-logger.ts";
 import { setFurinEvlogOptions } from "../../../src/server/evlog.ts";
 import { createInstance, withInstance } from "../../../src/server/instance.ts";
 import { renderSSR, renderToHTML } from "../../../src/server/render/index.ts";
-import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import type { ErrorComponent } from "../../../src/shared/error.ts";
 import { captureEvlogEvents } from "../../support/evlog-capture.ts";
+import { createMockLoaderContext } from "../../support/loader-context.ts";
+import { createTestRoot, createTestRoute } from "./test-routes.ts";
 
 const originalDevMode = IS_DEV;
 afterAll(() => __setDevMode(originalDevMode));
-
-const ROOT_ROUTE: RuntimeRoute = {
-  __type: "FURIN_ROUTE",
-  layout: ({ children }: { children: ReactNode | undefined }) =>
-    createElement(
-      "html",
-      { lang: "en" },
-      createElement("head", null, createElement(HeadContent)),
-      createElement(
-        "body",
-        null,
-        createElement("div", { "data-testid": "root-layout" }, children),
-        createElement(Scripts)
-      )
-    ),
-};
 
 const RootError: ErrorComponent = () =>
   createElement("div", { "data-testid": "root-error" }, "Root error");
 const BlogError: ErrorComponent = () =>
   createElement("div", { "data-testid": "blog-error" }, "Blog error");
-
-function createTestRoot(error: ErrorComponent | undefined): RootLayout {
-  return {
-    error,
-    path: "/test-pages",
-    route: ROOT_ROUTE,
-  };
-}
-
-function createTestRoute(options: {
-  component: RuntimePage["component"];
-  error: ErrorComponent | undefined;
-  loader: RuntimePage["loader"] | undefined;
-  pattern: string;
-}): ResolvedRoute {
-  return {
-    mode: "ssr",
-    page: {
-      __type: "FURIN_PAGE",
-      _route: ROOT_ROUTE,
-      component: options.component,
-      ...(options.loader ? { loader: options.loader } : {}),
-    },
-    path: `/test-pages${options.pattern}/index.tsx`,
-    pattern: options.pattern,
-    routeChain: [ROOT_ROUTE],
-    // The page's own directory boundary, inside the root layout.
-    segmentBoundaries: options.error
-      ? [{ depth: 0, error: options.error, path: `/test-pages${options.pattern}` }]
-      : [],
-    tags: [],
-  };
-}
-
-function createMockLoaderContext(overrides: Partial<Context>) {
-  return {
-    cookie: {},
-    headers: {},
-    params: {},
-    path: "/test",
-    query: {},
-    redirect: (url: string) => new Response(null, { headers: { Location: url }, status: 302 }),
-    request: new Request("http://localhost/test"),
-    set: { headers: {} as HTTPHeaders },
-    ...overrides,
-  } as Context;
-}
 
 __setDevMode(false);
 
@@ -100,7 +34,7 @@ describe("renderToHTML — error handling", () => {
     const rendered = await renderToHTML(
       routeWithError,
       createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(RootError)
+      createTestRoot({ error: RootError })
     );
 
     expect(rendered.html).toContain("Blog error");
@@ -120,7 +54,7 @@ describe("renderToHTML — error handling", () => {
     const response = await renderSSR(
       routeWithError,
       createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(RootError),
+      createTestRoot({ error: RootError }),
       undefined
     );
 
@@ -130,46 +64,37 @@ describe("renderToHTML — error handling", () => {
     expect(body).toContain("Blog error");
   });
 
-  test("falls back to the built-in 500 component when no error.tsx exists", async () => {
-    const routeWithError = createTestRoute({
-      component: () => createElement("div", { "data-testid": "with-loader" }, "With loader"),
-      error: undefined,
-      loader: () => {
-        throw new Error("kaboom");
-      },
-      pattern: "/with-loader",
-    });
+  test.each<[string, unknown, string]>([
+    ["an Error", new Error("kaboom"), "kaboom"],
+    ["a string", "plain string boom", "plain string boom"],
+    ["a non-Error object", { secret: "leaked-payload" }, "leaked-payload"],
+  ])(
+    "falls back to the built-in 500 component with a digest and no leaked payload when the loader throws %s without error.tsx",
+    async (_kind, thrown, payload) => {
+      const routeWithError = createTestRoute({
+        component: () => createElement("div", { "data-testid": "with-loader" }, "With loader"),
+        error: undefined,
+        loader: () => {
+          throw thrown;
+        },
+        pattern: "/with-loader",
+      });
 
-    const rendered = await renderToHTML(
-      routeWithError,
-      createMockLoaderContext({ path: "/with-loader" }),
-      createTestRoot(undefined)
-    );
+      const rendered = await renderToHTML(
+        routeWithError,
+        createMockLoaderContext({ path: "/with-loader" }),
+        createTestRoot({})
+      );
 
-    expect(rendered.html).toContain("500 — ERROR");
-    expect(rendered.html).toContain("An unexpected error occurred.");
-  });
-
-  test("renders the built-in 500 component with a string error (no message)", async () => {
-    const routeWithError = createTestRoute({
-      component: () => createElement("div", { "data-testid": "with-loader" }, "With loader"),
-      error: undefined,
-      loader: () => {
-        // biome-ignore lint/style/useThrowOnlyError: intentional non-Error throw for coverage
-        throw "plain string boom";
-      },
-      pattern: "/with-loader",
-    });
-
-    const rendered = await renderToHTML(
-      routeWithError,
-      createMockLoaderContext({ path: "/with-loader" }),
-      createTestRoot(undefined)
-    );
-
-    expect(rendered.html).toContain("500 — ERROR");
-    expect(rendered.html).toContain("An unexpected error occurred.");
-  });
+      expect(rendered.html).toContain("500 — ERROR");
+      // buildErrorElement passes a generic public message to the default
+      // component instead of the raw thrown value.
+      expect(rendered.html).toContain("An unexpected error occurred.");
+      expect(rendered.html).not.toContain(payload);
+      expect(rendered.html).not.toContain("[object Object]");
+      expect(rendered.html).toMatch(DIGEST_RE);
+    }
+  );
 
   // A shell failure cannot be attributed to a segment, so it renders the root
   // error.tsx in the minimal document — the same tree the client hydrates.
@@ -186,7 +111,7 @@ describe("renderToHTML — error handling", () => {
     const response = await renderSSR(
       routeWithShellError,
       createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(RootError),
+      createTestRoot({ error: RootError }),
       undefined
     );
 
@@ -209,7 +134,7 @@ describe("renderToHTML — error handling", () => {
     const response = await renderSSR(
       routeWithShellError,
       createMockLoaderContext({ path: "/with-loader" }),
-      createTestRoot(undefined),
+      createTestRoot({}),
       undefined
     );
 
@@ -232,8 +157,10 @@ describe("renderToHTML — error handling", () => {
     const response = await renderSSR(
       routeWithDoubleFailure,
       createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(() => {
-        throw new Error("error-tsx-boom");
+      createTestRoot({
+        error: () => {
+          throw new Error("error-tsx-boom");
+        },
       }),
       undefined
     );
@@ -259,7 +186,7 @@ describe("renderToHTML — error handling", () => {
     const response = await renderSSR(
       routeWithUnauthorized,
       createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(RootError),
+      createTestRoot({ error: RootError }),
       undefined
     );
 
@@ -271,7 +198,14 @@ describe("renderToHTML — error handling", () => {
     expect(body).toContain("Blog error"); // segment-level error.tsx renders
   });
 
-  test("error.tsx receives the thrown Response.status via error.status prop", async () => {
+  test.each<[string, unknown, string[]]>([
+    [
+      "the thrown Response status and body",
+      new Response("nope", { status: 403 }),
+      ["status=403", "msg=nope"],
+    ],
+    ["status 500 for a plain Error (regression)", new Error("boom"), ["status=500"]],
+  ])("error.tsx receives %s via error props", async (_case, thrown, expected) => {
     const ErrorWithStatus = ({
       error,
     }: {
@@ -284,45 +218,11 @@ describe("renderToHTML — error handling", () => {
         createElement("span", null, `msg=${error.message}`)
       );
 
-    const routeWithForbidden = createTestRoute({
-      component: () => createElement("div", { "data-testid": "blog-index" }, "Blog"),
-      error: ErrorWithStatus,
-      loader: () => {
-        throw new Response("nope", { status: 403 });
-      },
-      pattern: "/blog",
-    });
-
-    const rendered = await renderToHTML(
-      routeWithForbidden,
-      createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(RootError)
-    );
-
-    // The user error.tsx received status=403 — the Response status, not a
-    // hard-coded 500.
-    expect(rendered.html).toContain("status=403");
-    // The Response body is exposed as the public message.
-    expect(rendered.html).toContain("msg=nope");
-  });
-
-  test("plain Error throws still surface error.status === 500 by default (regression)", async () => {
-    const ErrorWithStatus = ({
-      error,
-    }: {
-      error: { message: string; digest: string; status: number };
-    }) =>
-      createElement(
-        "div",
-        { "data-testid": "error-with-status" },
-        createElement("span", null, `status=${error.status}`)
-      );
-
     const routeWithError = createTestRoute({
       component: () => createElement("div", { "data-testid": "blog-index" }, "Blog"),
       error: ErrorWithStatus,
       loader: () => {
-        throw new Error("boom");
+        throw thrown;
       },
       pattern: "/blog",
     });
@@ -330,36 +230,12 @@ describe("renderToHTML — error handling", () => {
     const rendered = await renderToHTML(
       routeWithError,
       createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(RootError)
+      createTestRoot({ error: RootError })
     );
 
-    expect(rendered.html).toContain("status=500");
-  });
-
-  test("renders the built-in 500 component with no message for non-Error, non-string throws", async () => {
-    const routeWithError = createTestRoute({
-      component: () => createElement("div", { "data-testid": "with-loader" }, "With loader"),
-      error: undefined,
-      loader: () => {
-        // biome-ignore lint/style/useThrowOnlyError: intentional non-Error throw for coverage
-        throw { secret: "leaked-payload" };
-      },
-      pattern: "/with-loader",
-    });
-
-    const rendered = await renderToHTML(
-      routeWithError,
-      createMockLoaderContext({ path: "/with-loader" }),
-      createTestRoot(undefined)
-    );
-
-    expect(rendered.html).toContain("500 — ERROR");
-    // The thrown object's contents must NOT be surfaced to the client.
-    // buildErrorElement passes a generic public message to the default
-    // component instead of the raw payload.
-    expect(rendered.html).not.toContain("leaked-payload");
-    expect(rendered.html).not.toContain("[object Object]");
-    expect(rendered.html).toContain("An unexpected error occurred.");
+    for (const text of expected) {
+      expect(rendered.html).toContain(text);
+    }
   });
 });
 
@@ -374,25 +250,6 @@ const CUSTOM_ERROR_DIGEST_RE = /digest=[0-9a-f]{10}/;
 const FURIN_ERROR_DIGEST_RE = /"digest":"[0-9a-f]{10}"/;
 
 describe("renderToHTML — digest", () => {
-  test("default error component renders a 10-hex-char digest", async () => {
-    const routeWithError = createTestRoute({
-      component: () => createElement("div", { "data-testid": "with-loader" }, "With loader"),
-      error: undefined,
-      loader: () => {
-        throw new Error("boom");
-      },
-      pattern: "/with-loader",
-    });
-
-    const rendered = await renderToHTML(
-      routeWithError,
-      createMockLoaderContext({ path: "/with-loader" }),
-      createTestRoot(undefined)
-    );
-
-    expect(rendered.html).toMatch(DIGEST_RE);
-  });
-
   test("user-defined error component receives a digest prop", async () => {
     const CustomError = ({ error }: { error: { message: string; digest: string } }) =>
       createElement(
@@ -414,38 +271,10 @@ describe("renderToHTML — digest", () => {
     const rendered = await renderToHTML(
       routeWithError,
       createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(RootError)
+      createTestRoot({ error: RootError })
     );
 
     expect(rendered.html).toMatch(CUSTOM_ERROR_DIGEST_RE);
-  });
-
-  test("identical errors produce identical digests across renders", async () => {
-    const fixedErr = new Error("stable");
-    fixedErr.stack = "Error: stable\n  at frozen (/frozen:1:1)";
-    const routeWithError = createTestRoute({
-      component: () => createElement("div", { "data-testid": "with-loader" }, "With loader"),
-      error: undefined,
-      loader: () => {
-        throw fixedErr;
-      },
-      pattern: "/with-loader",
-    });
-
-    const a = await renderToHTML(
-      routeWithError,
-      createMockLoaderContext({ path: "/with-loader" }),
-      createTestRoot(undefined)
-    );
-    const b = await renderToHTML(
-      routeWithError,
-      createMockLoaderContext({ path: "/with-loader" }),
-      createTestRoot(undefined)
-    );
-    const digestA = a.html.match(DIGEST_RE)?.[0];
-    const digestB = b.html.match(DIGEST_RE)?.[0];
-    expect(digestA).toBeDefined();
-    expect(digestA).toBe(digestB);
   });
 });
 
@@ -465,7 +294,7 @@ describe("renderSSR — digest", () => {
         renderSSR(
           routeWithError,
           createMockLoaderContext({ path: "/blog" }),
-          createTestRoot(RootError),
+          createTestRoot({ error: RootError }),
           undefined
         ),
       { route: "/blog" }
@@ -487,7 +316,7 @@ describe("renderSSR — digest", () => {
     const response = await renderSSR(
       routeWithError,
       createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(RootError),
+      createTestRoot({ error: RootError }),
       {
         error: new Error("private"),
         headers: {},
@@ -527,7 +356,7 @@ describe("renderSSR — digest", () => {
           renderSSR(
             routeWithError,
             createMockLoaderContext({ path: "/blog" }),
-            createTestRoot(RootError),
+            createTestRoot({ error: RootError }),
             undefined
           ),
         { route: "/blog" }

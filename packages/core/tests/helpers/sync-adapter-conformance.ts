@@ -42,6 +42,9 @@ export function testSyncAdapterConformance(getAdapter: () => SyncAdapter): void 
       response,
     });
     expect(completed.kind).toBe("committed");
+    if (completed.kind !== "committed" || completed.cursor === undefined) {
+      throw new Error("Expected a committed cursor");
+    }
     expect(
       await adapter.beginMutation({
         fingerprint: "conformance-body",
@@ -50,15 +53,19 @@ export function testSyncAdapterConformance(getAdapter: () => SyncAdapter): void 
       })
     ).toEqual({ kind: "replay", response });
 
-    const changes = await adapter.readChanges({
-      after: completed.kind === "committed" ? initialCursor(completed.cursor) : undefined,
-      limit: 10,
+    expect(
+      await adapter.readChanges({ after: initialCursor(completed.cursor), limit: 10 })
+    ).toEqual({
+      changes: [
+        {
+          cursor: completed.cursor,
+          invalidations: [{ kind: "path", path: "/conformance", type: "page" }],
+        },
+      ],
+      cursor: completed.cursor,
+      hasMore: false,
+      reset: false,
     });
-    expect(changes.reset).toBe(false);
-    expect(changes.changes).toHaveLength(1);
-    expect(changes.changes[0]?.invalidations).toEqual([
-      { kind: "path", path: "/conformance", type: "page" },
-    ]);
   });
 
   test("conforms to conflict and abort semantics", async () => {
