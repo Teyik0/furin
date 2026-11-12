@@ -1,0 +1,92 @@
+packages/core/src/furin.ts
+  s_3548c3ff716ea7::t_20ed095e429d87 348-352
+apps/scaffolder/README.md
+  s_3548c3ff716ea7::t_71077bf47cb009 43
+packages/core/src/server/router/patterns.ts
+  s_3548c3ff716ea7::t_20ed095e429d87 77-78
+packages/core/src/plugin/route-manifest.ts
+  s_3548c3ff716ea7::t_20ed095e429d87 342,345-346
+packages/core/tests/routing/discovery/route-manifest.test.ts
+  s_3548c3ff716ea7::t_840382e3348e69 10-11
+packages/core/tests/build/config/cli-config.test.ts
+  s_3548c3ff716ea7::t_8ab42d95bfeaeb 46,55-68
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_3548c3ff716ea7::t_2f70aebdec3a34 346
+  s_3548c3ff716ea7::t_ff9e4376d17882 131-138,239-244
+  s_3548c3ff716ea7::t_a3bb8f6e58dd41 129-130
+.github/workflows/vercel-benchmark.yaml
+  s_3548c3ff716ea7::t_d6e02e313a0fd2 68
+packages/core/tests/routing/validation/route-config.test.ts
+  s_3548c3ff716ea7::t_b8ffcb1f7a4a99 420-426,435
+  s_3548c3ff716ea7::t_71405c2d053c01 419
+packages/core/tests/routing/layouts/refresh-layout.test.ts
+  s_3548c3ff716ea7::t_b8ffcb1f7a4a99 61,72,79
+apps/scaffolder/tests/args.test.ts
+  s_3548c3ff716ea7::t_509a6a68678ed1 82
+  s_3548c3ff716ea7::t_71077bf47cb009 26-30
+apps/scaffolder/src/args.ts
+  s_3548c3ff716ea7::t_71077bf47cb009 81-84
+packages/core/tests/contract/optional-route-pattern.type.test.ts
+  s_3548c3ff716ea7::t_8b25bf6c295408 1-5,14-15,19-23,27-38
+  s_3548c3ff716ea7::t_2f70aebdec3a34 16,24-26
+  s_3548c3ff716ea7::t_ad1fc4ad7f15ac 6-13,17-18
+packages/core/tests/dev/hmr/dev-hmr-parent-child.integration.test.ts
+  s_3548c3ff716ea7::t_20ed095e429d87 27,36,94,242-243,301,367,445,449,452,456
+apps/scaffolder/src/index.ts
+  s_3548c3ff716ea7::t_71077bf47cb009 48
+.github/workflows/ci.yaml
+  s_3548c3ff716ea7::t_d6e02e313a0fd2 258,267
+packages/core/src/client/router/link-utils.ts
+  s_3548c3ff716ea7::t_20ed095e429d87 94-96
+packages/core/src/build/elysia-aot.ts
+  s_3548c3ff716ea7::t_20ed095e429d87 61,64
+apps/docs/src/content/docs/routing.mdx
+  s_3548c3ff716ea7::t_73be4cb13ec00d 16
+packages/core/src/client/router/types.ts
+  s_3548c3ff716ea7::t_419b7a62eccfee 51-52,56-67,72-74
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  s_3548c3ff716ea7::t_20ed095e429d87 263,326,335
+CHANGELOG.md
+  s_3548c3ff716ea7::t_71077bf47cb009 10
+packages/core/src/cli/index.ts
+  s_3548c3ff716ea7::t_20ed095e429d87 31,286
+packages/core/src/server/router/types.ts
+  s_3548c3ff716ea7::t_20ed095e429d87 33-36
+packages/core/tests/rendering/errors/tanstack-route-boundaries.test.tsx
+  s_3548c3ff716ea7::t_b8ffcb1f7a4a99 75-76
+  s_3548c3ff716ea7::t_0d2a231a5a5ced 73-74
+apps/docs/src/content/desktop/first-window.mdx
+  s_3548c3ff716ea7::t_999718a66a1f2f 22,28
+apps/scaffolder/src/pipeline/context.ts
+  s_3548c3ff716ea7::t_20ed095e429d87 15
+apps/docs/tests/landing-composite.test.tsx
+  s_3548c3ff716ea7::t_20ed095e429d87 20
+apps/docs/src/content/docs/logging.mdx
+  s_3548c3ff716ea7::t_20b6c0c2a14396 76,91,109,127
+packages/core/tests/dev/hmr/dev-hmr-cache-invalidation.integration.test.ts
+  s_3548c3ff716ea7::t_20ed095e429d87 12,29
+apps/scaffolder/tests/package.test.ts
+  s_3548c3ff716ea7::t_2f70aebdec3a34 50-59
+packages/core/src/cli/config.ts
+  s_3548c3ff716ea7::t_71077bf47cb009 194-199
+apps/docs/src/content/docs/error-handling.mdx
+  s_3548c3ff716ea7::t_999718a66a1f2f 85-86
+packages/core/src/adapter/package.ts
+  s_3548c3ff716ea7::t_1e32b7fc4b155a 3-7,100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "59a5f242738f0938479c186488a4453e32998d1e",
+  "prompts": {},
+  "sessions": {
+    "s_3548c3ff716ea7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "277c9017-b362-4fee-aab0-a0f1c68f2234",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
