@@ -25,7 +25,7 @@ export default createDesktopApp().get("/", () => "ready").onStop(() => { appendF
         app: { name: "Fixture", identifier: "local.furin.fixture", version: "1.0.0" },
         dataDir: join(root, "data"),
       },
-      { mode: "build", root, serverEntry: entry }
+      { electrobunVersion: "2.0.2", mode: "build", root, serverEntry: entry }
     );
     await installSdk(root, "failed-window");
     const bundle = join(root, "bundle/app");

@@ -5,10 +5,10 @@ Start with a working Furin application and Bun 1.4 or later.
 ## Install the package
 
 ```sh
-bun add -d @teyik0/furin-electrobun
+bun add -d @teyik0/furin-electrobun electrobun@~2.0.2
 ```
 
-The pinned Electrobun SDK is an optional dependency of the package. If optional dependencies were omitted, install it explicitly with `bun add -d electrobun@2.0.2`.
+Electrobun is a peer dependency in the range `~2.0.2` (2.0.2 up to, but excluding, 2.1.0). Your project chooses the release: its launcher selects the paired runtime, and `furin-electrobun prepare`, `dev` and `build` stop with `electrobun <version> is installed; Furin supports ~2.0.2` when the installed release is outside that range.
 
 In this repository, run `bun install` and start from the `examples/electrobun-todo` application instead.
 

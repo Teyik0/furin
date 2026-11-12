@@ -174,7 +174,6 @@
         "typebox": "^1.3.34",
       },
       "optionalPeers": [
-        "@types/bun",
         "drizzle-orm",
       ],
     },
@@ -188,15 +187,14 @@
         "@elysia/eden": "2.0.0-rc.1",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
+        "electrobun": "2.0.6",
         "elysia": "catalog:",
         "react": "catalog:",
         "react-dom": "catalog:",
       },
-      "optionalDependencies": {
-        "electrobun": "2.0.2",
-      },
       "peerDependencies": {
         "@teyik0/furin": ">=0.9.0-alpha.1 <0.10.0",
+        "electrobun": "~2.0.2",
         "elysia": "^2.0.0-rc.1",
         "react": "^19.3.1",
       },
@@ -1198,7 +1196,7 @@
 
     "ejs": ["ejs@7.0.2", "", { "bin": { "ejs": "bin/cli.js" } }, "sha512-LcDSEP6Oclb9sTiSyG0MpG0RuKvLDRxCOOt+2sIk+kdk1rMkFU8SRnT0qaNt5zvU0LOV1YXXOvIoZL/sKwabvw=="],
 
-    "electrobun": ["electrobun@2.0.2", "", { "bin": { "electrobun": "bin/electrobun.cjs" } }, "sha512-UDs2iTNs6qYCzdWiFch/0DtxrsijNDr1WFDQfRmSA3Iouv0iEzyCF5mh4uDxkwNnAbuwFyow36EiVTYP4DRzig=="],
+    "electrobun": ["electrobun@2.0.6", "", { "bin": { "electrobun": "bin/electrobun.cjs" } }, "sha512-qt3x6Ko7F7ufM3tGCtGSpHoGPsXioIdZP/dU4Gd7o7Imzoy+c3hqi0IWaecXkJY5fE5e3gTivhmwu9iob6furA=="],
 
     "electron-to-chromium": ["electron-to-chromium@1.5.449", "", {}, "sha512-dKeYk/3SFQz+nXi5whp3OuJzeWABEG4zCtkWJ9+Vby1E1iFM2y0gElRtQvNXRPJTsj8WAF4HMP7hvP790QtJ9g=="],
 
