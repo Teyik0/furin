@@ -27,9 +27,12 @@ async function run(cwd: string, args: string[]): Promise<string> {
 }
 
 // Release-only: exercises the real registry and installs the generated project.
-test.skipIf(process.env.FURIN_SCAFFOLDER_RELEASE_SMOKE !== "1").each(["simple", "full"])(
-  "the packed scaffolder installs independently and generates a buildable %s project",
-  async (template) => {
+test.skipIf(process.env.FURIN_SCAFFOLDER_RELEASE_SMOKE !== "1").each([
+  ["simple", "tanstack"],
+  ["full", "nextjs"],
+])(
+  "the packed scaffolder installs independently and generates a buildable %s project (%s style)",
+  async (template, style) => {
     const root = await mkdtemp(join(tmpdir(), "furin-scaffolder-release-"));
     try {
       const packageRoot = resolve(import.meta.dir, "..");
@@ -53,7 +56,7 @@ test.skipIf(process.env.FURIN_SCAFFOLDER_RELEASE_SMOKE !== "1").each(["simple", 
         "--template",
         template,
         "--style",
-        "tanstack",
+        style,
         "--yes",
         "--no-install",
       ]);

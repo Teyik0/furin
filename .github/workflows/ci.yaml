@@ -282,13 +282,15 @@ jobs:
           path: .benchmark
           persist-credentials: false
 
-      # Both revisions support file-id routes; compare the same workload on each.
+      # The same workload on each revision. Furin before the routing styles
+      # needs the benchmark's legacy pages tree (selected in the build step).
       - name: Checkout baseline benchmark
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: Teyik0/furin-vercel-benchmarks
           ref: 76df39c9e174a46175712691838de87144a8d658
           path: .benchmark-base
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Cache bun
@@ -367,6 +369,9 @@ jobs:
           furin_tarball="$(find "$RUNNER_TEMP/furin-base-package" -maxdepth 1 -type f -name '*.tgz' -print -quit)"
           test -n "$furin_tarball"
           cd "$GITHUB_WORKSPACE/.benchmark-base"
+          if [ ! -f "$RUNNER_TEMP/furin-benchmark-base/packages/core/src/plugin/route-manifest.ts" ]; then
+            git checkout --detach 0eabe4369a98d0d072019336f5050555725746e1
+          fi
           base_elysia_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.elysia)' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
           react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
           react_types_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog["@types/react"])' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
