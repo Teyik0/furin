@@ -30,7 +30,7 @@ bun create furin@latest my-app --template full
 
 ## Documentation
 
-Full API reference, rendering modes, routing, and deployment guides at **[teyik0.github.io/furin](https://teyik0.github.io/furin/)**. Desktop packaging with Electrobun is covered in the [desktop guides](https://teyik0.github.io/furin/docs/desktop).
+Full API reference, rendering modes, routing, and deployment guides at **[teyik0.github.io/furin](https://teyik0.github.io/furin/)**. Desktop packaging with Electrobun `~2.0.2` is covered in the [desktop guides](https://teyik0.github.io/furin/docs/desktop).
 
 ## Monorepo
 
@@ -59,8 +59,8 @@ GitHub Release selects **one** npm package through its tag:
 
 | Release tag | Package | Version source |
 |---|---|---|
-| `v0.7.0-alpha.5` | `@teyik0/furin` | `packages/core/package.json` |
-| `electrobun-v0.1.0` | `@teyik0/furin-electrobun` | `packages/electrobun/package.json` |
+| `v0.9.0-alpha.1` | `@teyik0/furin` | `packages/core/package.json` |
+| `electrobun-v0.2.0` | `@teyik0/furin-electrobun` | `packages/electrobun/package.json` |
 | `create-furin-v0.4.1` | `create-furin` | `apps/scaffolder/package.json` |
 
 To release, update only the selected manifest and the Bun lockfile, commit the
