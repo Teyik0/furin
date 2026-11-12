@@ -1,0 +1,108 @@
+packages/core/tests/rendering/deferred/deferred-render.test.ts
+  s_ee1fcc24a80de0::t_6b2573b4bcd083 2-3
+packages/core/tests/rendering/ssr/module-preload.test.tsx
+  s_ee1fcc24a80de0::t_63f69945301146 17,23,26
+packages/core/tests/rendering/rsc/rsc-client-references.test.ts
+  s_ee1fcc24a80de0::t_1012ada49af0f7 27,30,650
+  s_ee1fcc24a80de0::t_dbb5dcbc32982f 99-104,106-108,147-152,155-157,272,274-277,280-282,328,330-333,336-338,371,373-376,379-381,409,411-414,416-418,457,459-462,472-474,503,505-508,512-514,552,554-557,560-562,745-750,752-754,906-911,914-916,992-993,995,998-1000
+  s_ee1fcc24a80de0::t_6c5f5f04bea848 84,115,127,164,205,242,247,290,294,350,354,388,392,425,434,481,486,522,528,567,572,598,883,964,969,1062
+  s_ee1fcc24a80de0::t_6a068c65ddcbcd 105,153-154,278-279,334-335,377-378,415,463-471,509-511,558-559,751,912-913,990-991,994,996-997
+  s_ee1fcc24a80de0::t_31fee991315370 3,20,25-26,28-29,31-56,177,198,273,329,372,410,458,504,553,619,643,663,735,761,797-801,807,953-959,1051-1057
+  s_ee1fcc24a80de0::t_5b53dd3e153178 805,811-823
+packages/core/tests/rendering/errors/render-element-boundaries.test.tsx
+  s_ee1fcc24a80de0::t_dcead22690e086 251,253-269,272-273,283
+packages/core/tests/client/link/router-provider-redirect-follow.test.tsx
+  s_ee1fcc24a80de0::t_fec8e898bc9670 5,9
+  s_ee1fcc24a80de0::t_b85e1925431914 8
+  s_ee1fcc24a80de0::t_73bddd0721379f 149,189,217,243,265,292,344
+packages/core/tests/client/sync/invalidate-sync.test.ts
+  s_ee1fcc24a80de0::t_ca278011fb0057 10
+  s_ee1fcc24a80de0::t_96ddb939838683 17,26,32,50,72,90,110
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_ee1fcc24a80de0::t_49055fa70c2c5f 19,78,85-91,145,467,555,614,670,777,914,962,1015,1078,1106,1139,1179,1228,1262,1318,1386,1446,1513,1562,1569
+  s_ee1fcc24a80de0::t_5d0b3f4d2b21ce 7
+  s_ee1fcc24a80de0::t_ed0755136fdbd6 9,20,183,185-188,240,242-245,310,312-315,387-389,857-859
+packages/core/tests/client/sync/security-regressions.test.ts
+  s_ee1fcc24a80de0::t_96ddb939838683 9,36,77,100,130,154-159,165,178,210,243,263,288,372,407,444,496,520
+  s_ee1fcc24a80de0::t_ca278011fb0057 6
+packages/core/tests/rendering/deferred/render-deferred-suspense.test.ts
+  s_ee1fcc24a80de0::t_63f69945301146 4
+packages/core/tests/client/link/router-provider-intercept.test.tsx
+  s_ee1fcc24a80de0::t_73bddd0721379f 185,235,238,255,282,307,342,401,436
+  s_ee1fcc24a80de0::t_fec8e898bc9670 11,15
+  s_ee1fcc24a80de0::t_b85e1925431914 14
+  s_ee1fcc24a80de0::t_caa6d06af4fbab 71-85,141,148-150,153
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_ee1fcc24a80de0::t_6210481e58d985 373,1123,1140-1143,1183,1328,1515
+  s_ee1fcc24a80de0::t_04d2752e384306 4,39-54,173,287,1160,1210
+packages/core/tests/rendering/rsc/rsc-render-error.scenario.tsx
+  s_ee1fcc24a80de0::t_63f69945301146 6,50,53
+packages/core/tests/rendering/errors/test-routes.ts
+  s_ee1fcc24a80de0::t_9d50711223ff4a 1-63
+packages/core/tests/rendering/errors/render-error.test.ts
+  s_ee1fcc24a80de0::t_63f69945301146 10
+  s_ee1fcc24a80de0::t_9d50711223ff4a 2,11,37,57,114,137,160-163,189,233,274,297,319,359
+  s_ee1fcc24a80de0::t_b7618b419fd8dc 67-81,83-87,89-97,201-208,225,236-238
+packages/core/tests/rendering/errors/render-not-found.test.ts
+  s_ee1fcc24a80de0::t_63f69945301146 12
+  s_ee1fcc24a80de0::t_9d50711223ff4a 2-3,13,71,100,166,195,234,279,306,326,349,379
+packages/core/tests/client/link/scroll-restoration.test.tsx
+  s_ee1fcc24a80de0::t_fec8e898bc9670 5,9-14
+  s_ee1fcc24a80de0::t_b85e1925431914 8
+  s_ee1fcc24a80de0::t_73bddd0721379f 54-55,57,59
+packages/core/tests/helpers/sync-adapter-conformance.ts
+  s_ee1fcc24a80de0::t_1bf42b4678dbfb 45-46
+  s_ee1fcc24a80de0::t_ded27a47c3f762 47,56-67
+packages/core/tests/support/navigation-data.ts
+  s_ee1fcc24a80de0::t_43adb080099a7d 1-3,18-24
+  s_ee1fcc24a80de0::t_787a8c0020a55a 25
+packages/core/tests/client/boundaries/error-boundary-navigation.test.tsx
+  s_ee1fcc24a80de0::t_663bdf9e960a00 14
+packages/core/tests/client/navigation/use-search.test.tsx
+  s_ee1fcc24a80de0::t_663bdf9e960a00 15,20,23
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_ee1fcc24a80de0::t_63f69945301146 16
+packages/core/tests/support/router.ts
+  s_ee1fcc24a80de0::t_3bbe623185fcd2 1-128
+packages/core/tests/client/link/link.test.tsx
+  s_ee1fcc24a80de0::t_9b2e7962f7d113 623-669,671,698-723,726-776,779-785,788-792
+  s_ee1fcc24a80de0::t_663bdf9e960a00 35
+packages/core/tests/helpers/sqlite-sync.ts
+  s_ee1fcc24a80de0::t_96ddb939838683 1-10,16-17
+  s_ee1fcc24a80de0::t_ca278011fb0057 11-15
+packages/core/tests/client/link/interactive.test.tsx
+  s_ee1fcc24a80de0::t_0decedfe31fca5 66-71,392-397,404,630-634,639,685-689,694
+  s_ee1fcc24a80de0::t_663bdf9e960a00 12
+packages/core/tests/rendering/deferred/deferred-hydration-race.test.ts
+  s_ee1fcc24a80de0::t_6b2573b4bcd083 194
+packages/core/tests/support/loader-context.ts
+  s_ee1fcc24a80de0::t_edf6c0fbc9a3be 1-17
+packages/core/tests/rendering/ssr/head-context.test.tsx
+  s_ee1fcc24a80de0::t_63f69945301146 11,14,17
+packages/core/tests/client/sync/query-sync.test.ts
+  s_ee1fcc24a80de0::t_96ddb939838683 9,42
+  s_ee1fcc24a80de0::t_ca278011fb0057 6
+packages/core/tests/rendering/deferred/deferred-loaders.test.ts
+  s_ee1fcc24a80de0::t_63f69945301146 6,39,53,71,92,113,134,148,163,180,198,217,235,251,264,291,308
+packages/core/tests/rendering/rsc/rsc.scenario.tsx
+  s_ee1fcc24a80de0::t_63f69945301146 28,140
+packages/core/tests/client/sync/imperative-invalidation.test.ts
+  s_ee1fcc24a80de0::t_ca278011fb0057 12
+  s_ee1fcc24a80de0::t_96ddb939838683 30,59,85,162,272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "52f7be1942b6b7b66ad795d8d71e16a8e804ff83",
+  "prompts": {},
+  "sessions": {
+    "s_ee1fcc24a80de0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dc1429f-f948-43fb-a015-32a96578a2b9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
