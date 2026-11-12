@@ -238,14 +238,14 @@
   height: 4rem;
 }
 
-.docs-workbench > :where(header nav) > a {
+.docs-workbench > :where(header) > :where(nav) > a {
   gap: 0.7rem;
 }
-.docs-workbench > :where(header nav) > a > span:first-of-type {
+.docs-workbench > :where(header) > :where(nav) > a > span:first-of-type {
   font-size: 1.25rem;
   letter-spacing: -0.05em;
 }
-.docs-workbench > :where(header nav) > a img {
+.docs-workbench > :where(header) > :where(nav) > a img {
   width: 23px;
   height: 23px;
 }
@@ -656,13 +656,13 @@
   .docs-workbench > header > nav {
     gap: 0.6rem;
   }
-  .docs-workbench > :where(header nav) > a {
+  .docs-workbench > :where(header) > :where(nav) > a {
     gap: 0.35rem;
   }
-  .docs-workbench > :where(header nav) > a > span:first-of-type {
+  .docs-workbench > :where(header) > :where(nav) > a > span:first-of-type {
     font-size: 1rem;
   }
-  .docs-workbench > :where(header nav) > a img {
+  .docs-workbench > :where(header) > :where(nav) > a img {
     width: 18px;
     height: 18px;
   }

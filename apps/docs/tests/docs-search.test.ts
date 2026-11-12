@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { DOCS_CARDS } from "../src/lib/docs";
+import { getDocsPlatform } from "../src/lib/docs-platform";
 import {
   buildSearchEntriesForDoc,
   getSearchIndexEntries,
@@ -127,11 +128,7 @@ test("search stays inside the selected documentation", async () => {
       const body = (await response.json()) as { results: Array<{ href: string }> };
       expect(response.status).toBe(200);
       expect(body.results.length).toBeGreaterThan(0);
-      expect(
-        body.results.every(
-          (result) => result.href.startsWith("/docs/desktop") === (platform === "desktop")
-        )
-      ).toBe(true);
+      expect(body.results.every((result) => getDocsPlatform(result.href) === platform)).toBe(true);
     })
   );
 });

@@ -71,6 +71,44 @@ export function RootLayout({ children }: { children: React.ReactNode }) {
         </header>
 
         <main className="pt-14">{children}</main>
+
+        {isDocs ? null : (
+          <footer className="border-border border-t bg-background">
+            <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+              <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
+                <p className="text-muted-foreground text-sm">
+                  Built with Furin: React meta-framework on Bun + Elysia
+                </p>
+                <div className="flex gap-6">
+                  <a
+                    className="text-muted-foreground text-sm transition-colors hover:text-foreground"
+                    href="https://github.com/teyik0/furin"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    GitHub
+                  </a>
+                  <a
+                    className="text-muted-foreground text-sm transition-colors hover:text-foreground"
+                    href="https://elysiajs.com"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    Elysia
+                  </a>
+                  <a
+                    className="text-muted-foreground text-sm transition-colors hover:text-foreground"
+                    href="https://bun.com"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    Bun
+                  </a>
+                </div>
+              </div>
+            </div>
+          </footer>
+        )}
       </div>
     </ThemeProvider>
   );

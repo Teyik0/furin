@@ -14,7 +14,11 @@ export const route = defineRootRoute()
           // biome-ignore lint/security/noDangerouslySetInnerHtml: static application-owned theme bootstrap.
           dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
         />
-        <link href="https://teyik0.github.io/furin/llms.txt" rel="describedby" />
+        <link
+          href="https://teyik0.github.io/furin/llms.txt"
+          rel="describedby"
+          type="text/markdown"
+        />
         <HeadContent />
       </head>
       <body>

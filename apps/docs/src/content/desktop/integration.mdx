@@ -61,7 +61,7 @@ Every controller call is asynchronous, with plain-data (JSON) arguments and resu
 | `desktop.native` | Commands exported by the [native entrypoint](/docs/desktop/native-apis#call-native-code-from-elysia), typed from it |
 | `desktop.quit()` / `desktop.restart()` | Coordinated shutdown with window fencing and one-time backend cleanup |
 | `desktop.updates.install()` | Install a downloaded update after draining the backend |
-| `desktop.browser.open(path?)` | Open an app path (default `/`) in the system browser with a fresh one-use session; resolves to `false` on TLS listeners |
+| `desktop.browser.open(path?)` | Open an application path (default `/`) in the system browser with a fresh one-use session. Returns `false` when the browser cannot be opened, always on TLS listeners |
 | `desktop.associations.read(target)` / `requestDefault(target)` | Read or request file-association and URL-scheme defaults |
 | `desktop.snapshot()` | `{ background, phase, trayVisible, webviews, windows }` |
 
@@ -70,6 +70,6 @@ Every controller call is asynchronous, with plain-data (JSON) arguments and resu
 
 ## Authentication and storage
 
-Managed desktop windows use authenticated bootstrap URLs, and a regular browser does not share a window's session. To accept network clients, authenticate them with the `admission` option of `desktopApp()` rather than removing the desktop session boundary.
+Managed desktop windows are authenticated: over HTTP through one-use bootstrap URLs, over TLS through a verified native session cookie installed before navigation. A regular browser does not share a window's session. To accept network clients, authenticate them with the `admission` option of `desktopApp()` rather than removing the desktop session boundary.
 
 The host resolves the data directory (`desktop.dataDir`, or a per-identifier app-data folder by default) and sets `FURIN_APP_DATA_DIR` before importing the application. Build persistent paths from it instead of the working directory, with a fallback for Web-only runs where it is unset.

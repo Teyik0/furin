@@ -1,6 +1,6 @@
 # React and the typed desktop bridge
 
-`useDesktop()` detects the interface currently displaying your page and exposes one built-in action: opening a URL in the system browser. It is safe to import and render during SSR, and needs no provider, server action or application endpoint.
+`useDesktop()` detects the interface currently displaying your page and exposes one built-in action: opening an external URL in its associated application, the system browser for HTTP(S) and the mail client for `mailto:`. It is safe to import and render during SSR, and needs no provider, server action or application endpoint.
 
 ## Detect the current interface
 
@@ -22,7 +22,7 @@ export function InterfaceStatus() {
 
 This describes the current interface, not the backend. A remote browser connected to a desktop backend remains `web`.
 
-## Open the system browser
+## Open an external URL
 
 ```tsx
 import { useState } from "react";

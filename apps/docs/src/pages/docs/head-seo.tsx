@@ -19,6 +19,11 @@ export const route = defineRoute("/docs/head-seo")
   .head(() => ({
     links: [
       {
+        rel: "describedby",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/llms.txt",
+      },
+      {
         rel: "alternate",
         type: "text/markdown",
         href: "https://teyik0.github.io/furin/docs/head-seo.md",
