@@ -1,0 +1,34 @@
+# Desktop updates
+
+Use the original Electrobun Updater for update discovery, downloads and status. Furin coordinates installation with the application lifecycle so the backend can shut down before SDK handoff.
+
+## Configure release delivery
+
+Set the application's identity and version through `desktop.app` (`app.version` defaults to your `package.json` version) and the SDK's `release` settings in `furin.config.ts`.
+
+Follow [Electrobun's update guide](https://docs.electrobun.dev/electrobun/guides/updates/) for hosting release artifacts, channels and the `Updater` checking and downloading API. Furin adds no update transport of its own.
+
+## Coordinate installation
+
+An independent API can access the host through `desktopContext`:
+
+```ts
+import { desktopContext } from "@teyik0/furin-electrobun/server";
+import { Elysia, status } from "elysia";
+
+export const updates = new Elysia({ prefix: "/api/desktop" })
+  .use(desktopContext)
+  .post("/install-update", async ({ desktop }) => {
+    if (!desktop) return status(409, { error: "Desktop unavailable" });
+    await desktop.updates.install();
+    return { ok: true };
+  });
+```
+
+Mount this in your application's authenticated API. `install()` rejects until the SDK `Updater` has downloaded an update. It then stops the backend (running your `.onStop()` hooks) before handing off to the SDK, so the process may exit before the caller receives a response. If the handoff fails, the host shows an error dialog and restarts the application.
+
+Outside the update flow, use `desktop.restart()` for a coordinated restart and `desktop.quit()` for shutdown.
+
+## Links from the interface
+
+For a download link that should open in the system browser, use [`useDesktop().browser.open()`](/docs/desktop/bridge). It does not transfer the WebView's session or authenticate the download. The host-side `desktop.browser.open(path)` is different: it opens an app path in the system browser with a fresh application session.

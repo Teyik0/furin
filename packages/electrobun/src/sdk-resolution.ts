@@ -36,6 +36,13 @@ export async function prepareSdkResolution(
         compilerOptions: {
           paths: Object.fromEntries(Object.entries(aliases).map(([name, path]) => [name, [path]])),
         },
+        // An extending tsconfig replaces `files` and `include` separately, and a
+        // config with `files` alone checks nothing else. Both carry the native
+        // types, and `include` also covers the project's sources (this file
+        // lives in `<project>/.furin/electrobun`, which wildcards skip), so
+        // either one surviving keeps the application and its native types checked.
+        files: ["native-env.d.ts"],
+        include: ["native-env.d.ts", "../../**/*"],
       },
       null,
       2

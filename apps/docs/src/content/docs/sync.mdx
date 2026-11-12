@@ -10,10 +10,11 @@ Use it for repeatable application mutations whose response is small and whose cl
 
 ## Configure One Runtime
 
-Bind the ORM once in the adapter configuration, then pass the same runtime object to the page plugin and mutation plugin:
+Bind the ORM once in the adapter configuration, then pass the same `sync` object to the page plugin and the mutation plugin:
 
 ```ts
 // src/sync.ts
+import type { FurinSyncOptions } from "@teyik0/furin/sync";
 import { drizzleSyncAdapter } from "@teyik0/furin/sync/drizzle";
 import { migrateSqliteSync } from "@teyik0/furin/sync/sqlite";
 import { requireUser } from "./auth";
@@ -25,61 +26,8 @@ migrateSqliteSync(db.$client);
 export const sync = {
   adapter: drizzleSyncAdapter({ db, namespace: "my-app" }),
   principal: ({ request }) => requireUser(request).id,
-};
+} satisfies FurinSyncOptions;
 ```
-
-`namespace` separates applications sharing the same database. `principal` must return a stable, non-empty identity; it scopes idempotency keys so two users can safely use the same client-generated key.
-
-### Adapter Factories And AOT
-
-When constructing the adapter requires runtime services, pass a synchronous factory:
-
-```ts
-export const sync = {
-  adapter: () => drizzleSyncAdapter({ db, namespace: "my-app" }),
-  principal: ({ request }) => requireUser(request).id,
-};
-```
-
-Pass the same `sync` object to `furinSync(sync)` and `furin({ sync })`. During normal composition, Furin calls the factory once, validates the real adapter, secret and notifier, and shares that runtime between mutations, browser event transports, recovery and `invalidateSync`. Factory errors reject composition before `.listen()`. SQLite and PostgreSQL transaction types remain inferred from the factory's return value. Factories returning a promise are unsupported.
-
-During mount discovery and AOT compilation, Furin installs the same hooks, macros and routes without invoking the factory. Elysia's compiled handlers are attached to the real functions and resources when the application starts. Requests and `invalidateSync` never initialize a factory: compose a Sync plugin before using them.
-
-The factory does not suppress effects in imported modules. Use Elysia's `inAotBuild()` guard in the module that owns service acquisition:
-
-```ts
-import { inAotBuild } from "elysia";
-
-if (!inAotBuild()) {
-  // Await the application's existing service acquisition and migrations here.
-  // Assign its resources before composing the application and calling listen().
-}
-```
-
-If a dependency opens SQLite at import time, move that import inside the guarded block as well. Read services inside handlers, factories and authentication callbacks, rather than while declaring them. Routes and schemas must remain declarable without those resources. Do not use `onStart` to acquire resources that must be ready before the socket opens.
-
-AOT remains enabled. The guard covers discovery and compilation; SSG/ISR prerendering executes loaders normally and still requires their resources. The application owns its database and service scope; Furin releases its event subscriptions without closing the borrowed database.
-
-Authenticate the request inside `principal`, for example by verifying a signed session as `requireUser` does above. The same callback authorizes journal recovery at the change endpoint. Never return an unverified header or a client-supplied user ID: hashing a principal separates journal entries but does not authenticate a request.
-
-### Principal Secret
-
-Furin sends a hash of the principal to the browser (the `session` of identified reads, used to drop a previous user's cached data) and stores it in the journal's `principal_hash`. Without a secret this is plain SHA-256, so an email or sequential ID can be recovered by hashing guesses. Set `secret` to key it with HMAC-SHA256:
-
-```ts
-export const sync = {
-  adapter: drizzleSyncAdapter({ db, namespace: "my-app" }),
-  principal: ({ request }) => requireUser(request).id,
-  secret: process.env.FURIN_SYNC_SECRET, // e.g. `openssl rand -base64 32`
-};
-```
-
-- The secret must be at least 32 characters; shorter values throw at startup. Never prefix the variable with `FURIN_PUBLIC_`.
-- Use the same secret on every node. Browsers compare `session` values across responses, and a node with another secret looks like a different user and clears that browser's queries.
-- Setting or rotating the secret is safe. Journal entries hashed with the previous value no longer match, so recovery takes the full-refresh path described in [Browser Catch-Up](#browser-catch-up), and browsers refetch their queries once.
-- Production logs a warning once per adapter when `secret` is missing.
-
-This follows the same model as `BETTER_AUTH_SECRET` (better-auth), `AUTH_SECRET` (Auth.js, at least 32 characters), and Next.js's `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`. Each is a server-only key that must match across instances. You can reuse your authentication library's secret value, but a dedicated one can be rotated on its own.
 
 ```ts
 // src/server.ts
@@ -94,11 +42,64 @@ new Elysia()
   .listen(3000);
 ```
 
-Passing `sync` to `furin()` mounts the change endpoints and injects the browser event transport automatically.
+`satisfies FurinSyncOptions` types the callbacks while keeping the adapter's inferred transaction type; later snippets omit that import.
 
-The final application mounting `furin({ sync })` also binds the effective Elysia response guards, models and normalization used inside native transactions. With standalone Elysia, install `furinSync(sync)` on the final application as well as any separately typed route modules. An unbound parent application is rejected before the business callback runs; Furin never commits using only a child's response schema. If you remount a complete application in another root and call `handle()` directly, bind `furinSync(sync)` on that final root too.
+- `namespace` separates applications sharing the same database.
+- `principal` must authenticate the request and return a stable, non-empty identity, for example by verifying a signed session as `requireUser` does above. It scopes idempotency keys, so two users can safely use the same client-generated key, and the same callback authorizes journal recovery. Never return an unverified header or a client-supplied user ID: hashing a principal separates journal entries but does not authenticate a request.
+- Passing `sync` to `furin()` mounts the change endpoints and injects the browser event transport.
+- The optional `path` property moves the durable endpoints from `/_furin/sync`; with `path: "/_internal/sync"`, catch-up is served at `/_internal/sync/changes`. Browser notifications always use `/_furin/events` under the Furin instance prefix.
 
-The optional `path` property changes the durable endpoint base from `/_furin/sync`; for example, `path: "/_internal/sync"` exposes catch-up at `/_internal/sync/changes`. Browser notifications use `/_furin/events` under the Furin instance prefix.
+`mutation()` validates and normalizes its response with the guards and models of the final application. The application that mounts `furin({ sync })` is bound automatically. Without Furin (standalone Elysia), or when you remount a complete application under another root and call `handle()` on it, install `furinSync(sync)` on that final root as well. A mutation reached through an unbound root is rejected before the business callback runs; Furin never commits using only a child's response schema.
+
+### Principal Secret
+
+Furin sends a hash of the principal to the browser (the `session` of identified reads, used to drop a previous user's cached data) and stores it in the journal's `principal_hash`. Without a secret this is plain SHA-256, so an email or sequential ID can be recovered by hashing guesses. Set `secret` to key it with HMAC-SHA256:
+
+```ts
+export const sync = {
+  adapter: drizzleSyncAdapter({ db, namespace: "my-app" }),
+  principal: ({ request }) => requireUser(request).id,
+  secret: process.env.FURIN_SYNC_SECRET, // e.g. `openssl rand -base64 32`
+} satisfies FurinSyncOptions;
+```
+
+- The secret must be at least 32 characters; shorter values throw at startup. Never prefix the variable with `FURIN_PUBLIC_`.
+- Use the same secret on every node. Browsers compare `session` values across responses, and a node with another secret looks like a different user and clears that browser's queries.
+- Setting or rotating the secret is safe. Journal entries hashed with the previous value no longer match, so recovery takes the full-refresh path described in [Browser Catch-Up](#browser-catch-up), and browsers refetch their queries once.
+- Production logs a warning once per adapter when `secret` is missing.
+
+Like `BETTER_AUTH_SECRET` or Auth.js's `AUTH_SECRET`, it is a server-only key that must match across instances. You can reuse your authentication library's secret, but a dedicated one can be rotated on its own.
+
+### Adapter Factories And AOT
+
+When constructing the adapter requires runtime services, pass a synchronous factory instead of an instance:
+
+```ts
+export const sync = {
+  adapter: () => drizzleSyncAdapter({ db, namespace: "my-app" }),
+  principal: ({ request }) => requireUser(request).id,
+} satisfies FurinSyncOptions;
+```
+
+Furin calls the factory once when `furinSync(sync)` or `furin({ sync })` is composed, validates the adapter, secret and notifier, and shares that runtime between mutations, browser event transports, recovery and `invalidateSync`. Factory errors reject composition before `.listen()`. SQLite and PostgreSQL transaction types remain inferred from the factory's return value. Factories returning a promise are unsupported. Requests and `invalidateSync` never initialize a factory: compose a Sync plugin before using them.
+
+During mount discovery and AOT compilation, Furin installs the same hooks, macros and routes without invoking the factory; Elysia attaches the compiled handlers to the real resources when the application starts. The factory does not suppress effects in imported modules, so guard service acquisition with Elysia's `inAotBuild()` in the module that owns it:
+
+```ts
+import { inAotBuild } from "elysia";
+
+if (!inAotBuild()) {
+  // Await the application's existing service acquisition and migrations here.
+  // Assign its resources before composing the application and calling listen().
+}
+```
+
+- If a dependency opens SQLite at import time, move that import inside the guarded block too.
+- Read services inside handlers, factories and authentication callbacks, not while declaring them: routes and schemas must remain declarable without those resources.
+- Do not use `onStart` to acquire resources that must be ready before the socket opens.
+- The guard covers discovery and compilation only. SSG/ISR prerendering executes loaders normally and still requires their resources.
+
+The application owns its database and service scope; Furin releases its event subscriptions without closing the borrowed database.
 
 ## Declare Synced Mutations
 
@@ -123,19 +124,23 @@ export const api = new Elysia({ prefix: "/api" })
   );
 ```
 
-All non-`GET`/`HEAD`/`OPTIONS` routes covered by the plugin participate in sync. A successful mutation invalidates the GET at its own URL; [`invalidate()`](#identify-reads-by-url) adds GET URLs, cache tags or pages. With an ORM adapter, return `mutation(callback)` and perform all dependent reads and writes through its native, fully inferred `tx`. Furin reserves the idempotency key before running the handler. The native transaction locks and rechecks that reservation, then commits business writes, the replayable response and journal together. Cache invalidation and notifications run after commit; the cache itself is outside the database transaction.
+Every non-`GET`/`HEAD`/`OPTIONS` route covered by the plugin participates in sync. A successful mutation invalidates the GET at its own URL; [`invalidate()`](#identify-reads-by-url) adds GET URLs, cache tags or pages.
 
-Drizzle currently supports `bun:sqlite` and `bun-sql` PostgreSQL. SQLite callbacks and response validators must be synchronous; PostgreSQL callbacks may be async. A failed business result (`4xx`/`5xx`), exception, response-schema validation, serialization, lease check or journal write rolls back the entire transaction. Atomic responses must be bounded JSON, text, or bodyless `Response` values such as redirects. Async PostgreSQL transactions also accept body-bearing `Response` values with an explicit `Content-Length` up to 1 MiB; Bun SQLite transactions require bodyless `Response` values.
+With an ORM adapter, return `mutation(callback)` and perform all dependent reads and writes through its native, fully inferred `tx`:
 
-Once PostgreSQL has checked and locked the reservation, that transaction retains ownership until commit or rollback. Another request cannot take over an expired lease while the transaction holds its lock. The ORM's own transaction timeout still applies.
+- Furin reserves the idempotency key before running the handler. The native transaction locks and rechecks that reservation, then commits business writes, the replayable response and the journal entry together. Cache invalidation and notifications run after commit; the cache itself is outside the database transaction.
+- A failed business result (`4xx`/`5xx`), exception, response-schema validation, serialization, lease check or journal write rolls back the entire transaction.
+- Once PostgreSQL has checked and locked the reservation, that transaction keeps ownership until commit or rollback; another request cannot take over an expired lease meanwhile. The ORM's own transaction timeout still applies.
+- The callback resolves to its real native value on the first execution, preserving Prisma dates and Drizzle types. A replay or idempotency conflict short-circuits the HTTP handler instead of fabricating an ORM value from JSON. Build the complete response in the callback and return its result directly: response-changing hooks and work after the callback are outside the transaction.
+- Calls to the global database client and external side effects do not become transactional.
 
-The callback resolves to its real native value on the first execution, preserving Prisma dates and Drizzle types. A replay or idempotency conflict short-circuits the HTTP handler; it does not fabricate a native ORM value from JSON. Put the complete response construction in the callback and return its result directly. Response-changing hooks and work after the callback are outside the transaction. Calls to the global database client and external side effects do not become transactional automatically.
+Drizzle supports `bun:sqlite` and `bun-sql` PostgreSQL. SQLite callbacks and response validators must be synchronous; PostgreSQL callbacks may be async. Atomic responses must be bounded JSON, text, or bodyless `Response` values such as redirects. Async PostgreSQL transactions also accept body-bearing `Response` values with an explicit `Content-Length` up to 1 MiB; Bun SQLite transactions require bodyless `Response` values.
 
 ### Prisma 7 with PostgreSQL
 
 ```ts
 import { prismaSyncAdapter } from "@teyik0/furin/sync/prisma";
-import { PollingSyncNotifier } from "@teyik0/furin/sync";
+import { type FurinSyncOptions, PollingSyncNotifier } from "@teyik0/furin/sync";
 import { prisma } from "./db";
 
 const adapter = prismaSyncAdapter({ client: prisma, namespace: "my-app" });
@@ -144,7 +149,7 @@ export const sync = {
   // Distributed production runtimes require an explicit notifier.
   notifier: new PollingSyncNotifier(adapter, 250),
   principal: ({ request }) => requireUser(request).id,
-};
+} satisfies FurinSyncOptions;
 
 // Inside an Elysia handler using furinSync(sync):
 return mutation(tx =>
@@ -152,7 +157,9 @@ return mutation(tx =>
 );
 ```
 
-Run the existing `@teyik0/furin/sync/postgres/migration.sql` migration on that same PostgreSQL database. Prisma 7 keeps its generated transaction client and model inference; the adapter does not require custom Prisma models for the journal. Prisma 8 and other Prisma database providers are not supported by this adapter. Drizzle PostgreSQL uses the same migration and also requires an explicit notifier in production.
+Run `@teyik0/furin/sync/postgres/migration.sql` (see [PostgreSQL](#postgresql)) on the same PostgreSQL database. Prisma 7 keeps its generated transaction client and model inference; the journal needs no custom Prisma models. Prisma 8 and other Prisma database providers are not supported. Drizzle PostgreSQL uses the same migration and also requires an explicit notifier in production.
+
+### Opt Out Of Replay
 
 Set `idempotent: false` for routes whose request or response cannot be replayed safely:
 
@@ -160,7 +167,7 @@ Set `idempotent: false` for routes whose request or response cannot be replayed 
 .post("/uploads", { idempotent: false }, uploadFile)
 ```
 
-Such a route ignores `Idempotency-Key`, stores no response to replay and cannot use `mutation()`: every request runs. Its invalidations still apply once it succeeds: caches are purged, the caller receives them, and they are journaled and broadcast. Their journal entries carry no principal, so other browsers refresh all their live reads rather than only the affected ones. Typical exclusions include uploads, downloads, streams, payment initiation, and handlers with deliberately non-repeatable external effects.
+Such a route ignores `Idempotency-Key`, stores no response and cannot use `mutation()`: every request runs. Its invalidations still apply once it succeeds: caches are purged, the caller receives them, and they are journaled and broadcast. Their journal entries carry no principal, so other browsers refresh all their live reads rather than only the affected ones. Typical exclusions include uploads, downloads, streams, payment initiation, and handlers with deliberately non-repeatable external effects.
 
 ## Identify Reads By URL
 
@@ -178,7 +185,16 @@ new Elysia().use(furinSync(sync))
 
 The server stamps every successful data GET with its URL identity and the principal's session in the `x-furin-query` response header. A successful mutation invalidates the GET at its own URL: `POST /boards/alpha/cards` refreshes `GET /boards/alpha/cards`, `PATCH /cards/c1` refreshes `GET /cards/c1`. A rollback publishes no invalidation.
 
-To invalidate another resource, call `invalidate(pattern, params?)` from the handler context. Params are typed from the pattern; an omitted param matches every value of it (`invalidate("/boards/:boardId")` refreshes every board). `invalidate({ tags: ["posts"] })` targets cached paths that declared those tags, and `invalidate({ path: "/blog", type: "layout" })` a page (`type: "page"`, one exact path) or a layout (the path and its descendants). Calls are additive, share the mutation's headers and journal entry, and are discarded unless the mutation succeeds or commits:
+To invalidate other resources, call `invalidate()` from the handler context:
+
+| Call | Invalidates |
+|---|---|
+| `invalidate(pattern, params?)` | GETs matching a pattern; an omitted param matches every value (`invalidate("/boards/:boardId")` refreshes every board) |
+| `invalidate({ tags: ["posts"] })` | Cached paths that declared those tags |
+| `invalidate({ path: "/blog", type: "page" })` | One exact page path |
+| `invalidate({ path: "/blog", type: "layout" })` | A path and its descendants |
+
+Calls are additive, share the mutation's headers and journal entry, and are discarded unless the mutation succeeds or commits. Calls from hooks, such as a `guard()`'s `beforeHandle`, add up with the handler's:
 
 ```ts
 .delete("/cards/:id", ({ params, mutation, invalidate, problem }) =>
@@ -194,7 +210,7 @@ To invalidate another resource, call `invalidate(pattern, params?)` from the han
 
 In a `mutation()` route, call `invalidate()` before the callback returns: a later call throws in development and is ignored in production. Calling `invalidate()` while handling a `GET` throws.
 
-Register the application once to type the patterns. They are the app's GET routes, prefix included; unknown routes, routes without a GET and wrong param names are type errors:
+Register the application once to type the patterns. They are the app's GET routes, prefix included; unknown routes, routes without a GET and wrong param names are type errors. Without a registered app, `invalidate()` accepts any path and params:
 
 ```ts
 // src/api/index.ts
@@ -203,9 +219,9 @@ declare module "@teyik0/furin" {
 }
 ```
 
-Without a registered app, `invalidate()` accepts any path and params. Calls from hooks, such as a `guard()`'s `beforeHandle`, add up with the handler's.
+### Invalidate Outside A Request
 
-Outside a request (a cron job, a webhook consumer), call `invalidateSync()` with the same `sync` options and any target `invalidate()` takes. It purges the pages built from it, then journals and broadcasts the invalidation, as a mutation would:
+From a cron job or webhook consumer, call `invalidateSync()` with the same `sync` options and any target `invalidate()` takes. It purges the pages built from it, then journals and broadcasts the invalidation, as a mutation would. The adapter journals the change and the notifier wakes connected clients, including those served by other processes sharing the adapter:
 
 ```ts
 import { invalidateSync } from "@teyik0/furin";
@@ -216,16 +232,39 @@ await invalidateSync(sync, { tags: ["board-count"] });
 await invalidateSync(sync, { path: "/board", type: "layout" });
 ```
 
-Without principal provenance these entries intentionally produce a full reset when clients recover them. For a worker acting for a known, verified principal, pass explicit provenance to keep query invalidations targeted:
+Without principal provenance, clients recovering these entries perform a full reset. For a worker acting for a known, verified principal, pass explicit provenance to keep query invalidations targeted:
 
 ```ts
 await invalidateSync(sync, "/api/boards/:boardId", { boardId }, { principal: ownerId });
 await invalidateSync(sync, { tags: ["board-count"] }, { principal: ownerId });
 ```
 
-The application determines `ownerId` in trusted server code. This option does not authenticate a user or grant access. SQLite, PostgreSQL and Redis store the principal hash using the existing journal column/field; no migration is needed. Another principal never receives these tags or scopes. Mixed-principal pages, historical entries and custom adapters without trusted provenance still produce a conservative full reset. The optional second argument of `SyncAdapter.appendInvalidations(invalidations, principal?)` lets custom adapters persist provenance; custom adapters still recover through resets, since persisting this argument alone does not opt them into the built-in provenance trust boundary.
+The application determines `ownerId` in trusted server code; this option does not authenticate a user or grant access. SQLite, PostgreSQL and Redis store the principal hash in the existing journal column/field, so no migration is needed, and another principal never receives these tags or scopes. Mixed-principal pages, historical entries and custom adapters still produce a conservative full reset. Custom adapters receive provenance as the optional second argument of `SyncAdapter.appendInvalidations(invalidations, principal?)`, but persisting it does not opt them into the built-in provenance trust boundary: they still recover through resets.
 
-The options select the runtime: the adapter journals the change and the notifier wakes connected clients, including those served by other processes sharing the adapter.
+## Call A Mutation
+
+Register the `furinSync` Eden plugin on an ordinary Eden client. Mutations keep their arguments and typed `{ data, error }` results:
+
+```ts
+import { treaty } from "@elysia/eden";
+import { furinSync } from "@teyik0/furin/client";
+import type { Api } from "./server";
+
+export const api = treaty<Api>(origin, { headers: auth }).use(furinSync).api;
+// On the server (isomorphic code): treaty(serverApi).use(furinSync).api
+
+const { data, error } = await api.posts.post({ title: "Hello" });
+```
+
+- A plain call stays a plain Eden call. Without a client key, the server generates one: the mutation still runs transactionally, invalidates and broadcasts, but a resend is not deduplicated.
+- A call that passes an options object gets an automatic `Idempotency-Key` and the typed `optimistic` option. Each call gets a new key, even when calls share an options object. The plugin temporarily replaces that object's `headers` and restores it once Eden has read them, so do not inspect it while a call is pending.
+- Explicit keys are respected, including Eden header callbacks and `fetch.headers`. Never reuse an explicit key across sessions or principals.
+- `x-furin-queries` invalidations in a mutation response refresh the client's live queries whether or not options were passed.
+- Reads and subscriptions keep Eden behavior. The plugin requires Eden 2.0.0-rc.1 or later.
+
+All Eden configuration (`fetcher`, headers, interceptors, date parsing and error behavior) stays on `treaty()`. Retries belong to [`useMutation`](#retry).
+
+## Live Reads In Loaders
 
 Every GET has a live query, `.get.live(options?)`, on a client using the `furinSync` Eden plugin. Await it in a loader to track the read:
 
@@ -239,9 +278,11 @@ export const route = defineRoute("/board/[boardId]")
   });
 ```
 
-No matching loader tag is needed. Furin registers the dependency of every completed live read, so cache tags and sync refreshes target the route. A plain `await api.…get()` stays an untracked Eden call. Keep credentials on the server-side Eden client request: tracking does not forward the page request's authentication headers automatically. Use SSR or request loaders for personalized reads; public SSG/ISR loaders must remain public.
+No matching loader tag is needed: Furin registers the dependency of every completed live read, so cache tags and sync refreshes target the route. A plain `await api.…get()` stays an untracked Eden call.
 
-A read's response body is sent to the browser, so `useQuery` and `cache.update` start from it without a GET, only when the loader output already exposes all of it by object identity: either the whole response (`return { initialCards: data }`) or every top-level field as an object or array (`return { board: data.board, cards: data.cards }`). Otherwise only the dependency travels and the browser fetches the GET when it needs it. A loader that reads `{ displayName, passwordResetToken }` and returns `displayName`, or returns `board` and `cards` but not a scalar `total`, never sends the rest of the response.
+Tracking does not forward the page request's authentication headers: keep credentials on the server-side Eden client request. Use SSR or request loaders for personalized reads; public SSG/ISR loaders must remain public.
+
+The read's response body is sent to the browser, so `useQuery` and `cache.update` start from it without a GET, only when the loader output already exposes all of it by object identity: either the whole response (`return { initialCards: data }`) or every top-level field as an object or array (`return { board: data.board, cards: data.cards }`). Otherwise only the dependency travels and the browser fetches the GET when it needs it. A loader that reads `{ displayName, passwordResetToken }` and returns `displayName`, or returns `board` and `cards` but not a scalar `total`, never sends the rest of the response.
 
 ### Update Loader Props With One GET Projection
 
@@ -259,7 +300,7 @@ Keep objects and arrays from the GET in the loader result:
 })
 ```
 
-One projection updates the shared GET cache and these loader props:
+One projection then updates the shared GET cache and these loader props:
 
 ```ts
 optimistic(cache) {
@@ -272,7 +313,7 @@ optimistic(cache) {
 }
 ```
 
-No `useQuery`, route target or second optimistic transform is required. Furin records object-reference paths before serialization, projects props from the shared snapshot and retains the confirmed loader values for rollback. Nested object properties and whole arrays are supported, including cached public loaders. Derive counts and filters in the page: copied objects, array-element selections and computed scalars do not carry automatic bindings. The explicit route snapshot API below remains available for those transformations.
+No `useQuery`, route target or second optimistic transform is required. Furin records object-reference paths before serialization, projects props from the shared snapshot and retains the confirmed loader values for rollback. Nested object properties and whole arrays are supported, including cached public loaders. Derive counts and filters in the page: copied objects, array-element selections and computed scalars do not carry automatic bindings. Use a [route snapshot target](#route-snapshot-targets) for those transformations.
 
 The same mapping works for `requestLoader` and `defer()` fields after they resolve:
 
@@ -290,7 +331,7 @@ The same mapping works for `requestLoader` and `defer()` fields after they resol
 ))
 ```
 
-GET dependencies and bindings travel with each resolved field, so a slow sibling does not delay them. The prop stays a promise compatible with `Await` and React `use()`. A `cache.update` of the board GET updates these cards and rolls back on failure. Sync invalidations also refresh the affected route and expire its prefetched snapshot. Private reads remain request scoped and are not stored in the public PPR shell; configure the Eden request credentials explicitly as described above.
+GET dependencies and bindings travel with each resolved field, so a slow sibling does not delay them. The prop stays a promise compatible with `Await` and React `use()`. A `cache.update` of the board GET updates these cards and rolls back on failure. Sync invalidations also refresh the affected route and expire its prefetched snapshot. Private reads remain request scoped and are not stored in the public PPR shell.
 
 ### Optional Query Subscriptions
 
@@ -311,7 +352,7 @@ function DoneCount({ boardId }: { boardId: string }) {
 }
 ```
 
-Consumers of the same GET, query arguments and request options share one cache entry and fetch. Completed loader reads with only `query` options hydrate the default cache without an initial browser GET. Reads with explicit request options, such as authorization headers, retain their loader bindings and PPR metadata under an isolated, opaque seed identity; browser consumers fetch their own variant because the server's credentials cannot be assumed to match. `select` derives a value from the shared data without changing its identity. The hook returns `data`, `error` and `isFetching`. Awaiting a live query, or calling `await api.…get()` directly, still returns Eden's original result and performs a request.
+The hook returns `data`, `error` and `isFetching`. `select` derives a value from the shared data without changing its identity. Awaiting a live query, or calling `await api.…get()` directly, still returns Eden's original result and performs a request.
 
 Query arguments remain inferred from the GET schema and are passed to `.live()`:
 
@@ -321,15 +362,202 @@ useQuery(api.cards.get.live({ query: { boardId, column: "done" } }), {
 });
 ```
 
-An invalidation refreshes every cached query variant of that URL, whatever its query string. Other params remain separate unless the invalidation omits them. Per-call authorization and other request options isolate cache entries. Client-wide defaults still belong to that client's session: create a fresh client when authentication changes and remount the authenticated router (or perform a full navigation). Response session identities also clear data from a previous principal and reject its late responses.
+Cache sharing and invalidation:
 
-### Continuous Subscriptions Outside React
+- Consumers of the same GET, query arguments and request options share one cache entry and fetch.
+- Completed loader reads with only `query` options hydrate the default cache without an initial browser GET. Reads with explicit request options, such as authorization headers, keep their loader bindings and PPR metadata under an isolated, opaque seed identity; browser consumers fetch their own variant because the server's credentials cannot be assumed to match.
+- An invalidation refreshes every cached query variant of that URL, whatever its query string. Other params remain separate unless the invalidation omits them.
+- Client-wide defaults belong to that client's session: create a fresh client when authentication changes and remount the authenticated router (or perform a full navigation). Response session identities also clear data from a previous principal and reject its late responses.
 
-Use `@teyik0/furin/sync/client` in a Bun desktop process or another runtime with Fetch, WebSocket and AbortController support. This entrypoint imports neither React nor server adapters and requires no DOM or router. It exports the same Eden `furinSync` plugin as `furin/client`.
+## Mutation State In React
 
-`await api.state.get.live()` remains a single Eden request. Creating a sync client or observing its connection state opens nothing. `subscribe()` starts a persistent connection; `reconnect()` explicitly restarts it. SSR loaders keep their existing request-scoped behavior.
+`useMutation` adds React state to an existing mutation without changing its arguments:
 
-Here is a complete Bun client for a remote Furin application whose exported `App` type includes `GET /state` returning `{ value: number }`. Import that type only; the server is not executed in the desktop process. The server must configure `furin({ sync })` as above and authenticate both reads and `sync.principal`.
+```tsx
+import { useMutation } from "@teyik0/furin/client";
+import { useRouter } from "@teyik0/furin/link";
+
+function DeleteCard({ cardId }: { cardId: string }) {
+  const router = useRouter();
+  const remove = useMutation(api.cards({ id: cardId }).delete, {
+    onSuccess: async () => {
+      await router.navigate("/boards");
+    },
+  });
+
+  return (
+    <>
+      <button disabled={remove.isPending} onClick={() => remove.mutate()}>
+        Delete card
+      </button>
+      {remove.error ? <p>Could not delete the card.</p> : null}
+    </>
+  );
+}
+```
+
+The hook returns `data`, `error`, `isPending`, `mutate`, `mutateAsync` and `reset`. `mutate` returns `void` and reports failures through `error` and the optional `onError` callback. `mutateAsync` resolves with the response's `data`, or rejects with the same error exposed to `onError`. If `onError` throws, `mutateAsync` rejects with that exception instead.
+
+### Errors
+
+Every exposed error has Eden's `{ status, value }` shape, with `value.detail` guaranteed to be a string at runtime and in TypeScript:
+
+- An API error whose object payload already contains a string `detail` is unchanged.
+- Otherwise the hook creates an `EdenFetchError` that keeps the HTTP status and the inferred fields of object payloads and adds `detail`. A nonempty text body becomes the detail; empty, null, array or other primitive bodies use `"Mutation failed"`. The original error is kept in `cause`, unmodified.
+- Network errors and other exceptions, including failures in `onSuccess` and Eden's synthetic errors without an HTTP response, become an `EdenFetchError` with `status: 0` and the exception's message (or `"Mutation failed"` for non-Error values) in `value.detail`. Status `0` is a client-side sentinel, not an HTTP status.
+
+There is one error callback, with no separate native `Error` branch:
+
+```tsx
+const save = useMutation(api.cards({ id: cardId }).patch, {
+  onError(error) {
+    setErrorMessage(error.value.detail);
+    // error.status === 0 distinguishes client-side exceptions when needed.
+  },
+});
+```
+
+Use `error.status` to narrow a specific response. The hook guarantees `detail`, not runtime validation of the other fields against the server's schema, and normalized messages are not localized. Direct Eden calls keep their native response contract.
+
+### Concurrency
+
+Calls run in parallel. `isPending` stays true until every call and its awaited `onSuccess` or `onError` callback finishes. Only the most recently started call publishes `data` or `error`; callbacks still run for each call. The hook does not deduplicate calls or provide a mutation lock, so disable the relevant controls while pending if the UI should prevent repeated submissions. `reset()` clears the displayed result and prevents earlier in-flight calls from publishing it again, but does not cancel those requests or their callbacks.
+
+### Retry
+
+Retry is a `useMutation` option. `retry: 2` means two additional attempts, three requests maximum. The default is `0`. The hook can also own the optimistic projection, which receives the `mutate()` arguments:
+
+```tsx
+const save = useMutation(api.cards({ id: cardId }).patch, {
+  retry: 2,
+  optimistic(cache, { title }) {
+    cache.update(api.cards({ id: cardId }).get.live(), card => ({ ...card, title }));
+  },
+});
+
+save.mutate({ title });
+```
+
+- Each `mutate()` call generates one `Idempotency-Key`. Only `409 FURIN_MUTATION_IN_PROGRESS` is retried, and every attempt reuses that key and one optimistic contribution.
+- Furin respects `Retry-After`; otherwise it uses exponential delays. Cancellation stops waiting.
+- Business errors, payload mismatch, lost leases, server errors, and network failures are never blindly retried. The client keeps this conservative policy even when an ORM adapter makes the server write atomic.
+- Given an Eden method, the hook always passes an options object, so the plugin attaches the key. Given a function, the key attaches only if the function calls an Eden method synchronously with an options object, for example `(title) => api.cards({ id }).patch({ title }, {})`. Otherwise that call is not retried and development builds warn.
+
+A missing response does not prove the domain write failed. After an ambiguous outcome, the optimistic view remains until loader revalidation reconciles it. The hook returns the Eden result; revalidation is automatic and the router reports its failures separately.
+
+### External APIs
+
+The hook does not require an Eden client. Any asynchronous function returning `{ data, error }` works, with `error: null` indicating success:
+
+```tsx
+async function deleteExternalCard(cardId: string) {
+  const response = await fetch(`/external-api/cards/${encodeURIComponent(cardId)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    return { data: null, error: new Error("Could not delete the card") };
+  }
+  return { data: null, error: null };
+}
+
+const remove = useMutation(deleteExternalCard);
+// remove.mutate(cardId)
+```
+
+This supplies mutation state and callbacks, not Furin Sync integration: an external API needs its own cache refresh strategy unless it implements the Sync protocol. Furin's page server still uses Elysia; the business API does not have to.
+
+## Optimistic Updates
+
+Inside an `optimistic(cache)` option, `cache.update(target, transform)` projects a change onto a loaded GET or route snapshot; `cache.update()` and `optimistic()` return `void`. The same rules apply to every target:
+
+- A cache miss is a no-op.
+- Transforms must be pure: Furin reapplies them over confirmed data. Generate temporary IDs and timestamps before the call.
+- Each mutation owns its contribution. A definitive rejection removes only that contribution; success keeps it until fresh data replaces it.
+- Reads and revalidations racing pending writes cannot apply an insert or increment twice: revalidation of a projected snapshot waits for its local requests to settle, while navigation to other snapshots stays available. Concurrent writes to the same entity still require an application policy such as version checks or serialization.
+- Awaiting the mutation waits for its Eden response, not the final query/loader refresh.
+
+### Reuse A Mutation And Its Optimism
+
+Use an ordinary application function to centralize the API call and its projection:
+
+```ts
+// src/mutations/cards.ts
+export function completeCard(boardId: string, cardId: string) {
+  return api.cards({ id: cardId }).patch({ column: "done" }, {
+    optimistic(cache) {
+      cache.update(api.boards({ boardId }).cards.get.live(), cards =>
+        cards.map(card => card.id === cardId ? { ...card, column: "done" } : card)
+      );
+    },
+  });
+}
+
+// Any button, menu or keyboard shortcut:
+await completeCard(boardId, cardId);
+```
+
+The list and its selected count update together. For a filtered GET, target the same arguments:
+
+```ts
+cache.update(
+  api.cards.get.live({ query: { boardId, column: "done" } }),
+  cards => cards.filter(card => card.id !== cardId)
+);
+```
+
+Different endpoints remain different representations. Update each loaded representation explicitly when both should change immediately:
+
+```ts
+optimistic(cache) {
+  cache.update(api.cards({ id: cardId }).get.live(), card => ({ ...card, title }));
+  cache.update(api.boards({ boardId }).cards.get.live(), cards =>
+    cards.map(card => card.id === cardId ? { ...card, title } : card)
+  );
+}
+```
+
+Furin does not normalize entities or execute relational live queries. Tags remain the lower-level mechanism for non-Eden reads and writes outside the mutation plugin. Shared public page caches only store a render after its discovered query dependencies were covered by its cache lease; the first dependency-discovery render may be served with `no-store`.
+
+### Route Snapshot Targets
+
+Target a route pattern to update the loader snapshot already rendered by the router:
+
+```tsx
+const { error } = await api.cards({ id: cardId }).patch(
+  { column: "done" },
+  {
+    optimistic(cache) {
+      cache.update("/board/:boardId", (loader) => ({
+        ...loader,
+        initialCards: loader.initialCards.map((card) =>
+          card.id === cardId ? { ...card, column: "done" } : card
+        ),
+      }));
+    },
+  }
+);
+```
+
+The page keeps rendering its `initialCards` loader prop: no copied `useState(initialData)`, setter, rollback callback, or manual synchronization is needed. The generated `RouteMap` offers route completion and infers loader fields from the target; generate `furin-env.d.ts` before using typed targets. A route pattern updates only the active loaded snapshot for that route, whatever its path and query parameters, and the transform returns complete loader data for that route. A successful response keeps its contribution until fresh loaders replace it in the same router publication. Optimistic mutations revalidate automatically even with `autoRefresh: false`. Loaders must read committed writes; Furin cannot establish that guarantee for an eventually consistent replica or external service.
+
+To target an exact query snapshot rather than the active route, use a typed URL target:
+
+```ts
+cache.update({ path: "/posts", search: { category: "news" } }, (loader) => ({
+  ...loader,
+  posts: loader.posts.filter((post) => post.id !== deletedId),
+}));
+```
+
+## Subscriptions Outside React
+
+### Remote Client
+
+Use `@teyik0/furin/sync/client` in a Bun desktop process or another runtime with Fetch, WebSocket and AbortController support. This entrypoint imports neither React nor server adapters and needs no DOM or router. It exports the same Eden `furinSync` plugin as `@teyik0/furin/client`.
+
+`await api.state.get.live()` remains a single Eden request. Creating a sync client or observing its connection state opens nothing. `subscribe()` starts a persistent connection; `reconnect()` explicitly restarts it.
+
+Here is a complete Bun client for a remote Furin application whose exported `App` type includes `GET /state` returning `{ value: number }`. Import that type only; the server is not executed in the desktop process. The server must configure `furin({ sync })` and authenticate both reads and `sync.principal`.
 
 ```ts
 // follow-state.ts — run with bun follow-state.ts
@@ -394,23 +622,31 @@ try {
 }
 ```
 
-All subscriptions of one client share its socket, journal cursor and query cache. Identical reads from the same Eden client share a fetch. `subscribe()` immediately delivers the cached snapshot, then reports data, typed Eden errors and fetching changes. Stopping a subscription removes its observer; the client retains its connection for reuse until `close()`. `close()` is idempotent: it removes listeners, closes the socket, cancels reconnect/reset timers, aborts owned HTTP requests and releases the cache. Late responses cannot restore it, even if a fetch adapter ignores cancellation.
+Lifecycle:
 
-The first read waits until the server has installed notification delivery and journal recovery has completed. Invalidations arriving during a read are coalesced and cause a subsequent read. Network reconnections preserve the cursor and catch up from the existing journal. Browser query subscriptions use the same query store and recovery engine; the router additionally invalidates page and loader snapshots.
+- All subscriptions of one client share its socket, journal cursor and query cache. Identical reads from the same Eden client share a fetch.
+- `subscribe()` immediately delivers the cached snapshot, then reports data, typed Eden errors and fetching changes. Stopping a subscription removes its observer; the client keeps its connection for reuse until `close()`.
+- `close()` is idempotent: it removes listeners, closes the socket, cancels reconnect/reset timers, aborts owned HTTP requests and releases the cache. Late responses cannot restore it, even if a fetch adapter ignores cancellation.
+- The first read waits until the server has installed notification delivery and journal recovery has completed. Invalidations arriving during a read are coalesced and cause a subsequent read. Network reconnections preserve the cursor and catch up from the journal. Browser query subscriptions use the same query store and recovery engine; the router additionally invalidates page and loader snapshots.
 
-Configure one client per Furin application URL and authentication context. `url` includes the application's mount path, for example `https://example.com/desktop`. For a server configured with `sync.path: "/internal/sync"`, pass `syncPath: "/internal/sync"`; it is resolved under that mount path. A query from another origin is rejected. Do not mix per-query credentials from different principals within a client. Client `headers` are applied to recovery and subscribed Eden reads; keep the Eden configuration consistent for one-shot reads and mutations too. Explicit Eden `fetch.headers` and `onRequest` hooks remain Eden's responsibility and must not override that context with different credentials.
+Options:
 
-`headers` accepts a value or an async callback. `fetch` accepts standard request settings such as `credentials: "include"`, used for recovery and subscribed reads. `fetcher` customizes recovery HTTP requests; live reads retain their Eden fetcher. With explicit headers, `createWebSocket` is required so credentials reach the upgrade too. The factory only constructs a runtime socket; it does not implement Furin's protocol. Browser cookie authentication can use the native WebSocket without a factory. Node.js 22+ can use the built ESM entrypoint and a WebSocket adapter already supplied by the host for authenticated upgrades; Furin adds no socket dependency and does not provide a cookie jar. The autonomous client currently targets the Bun server WebSocket transport, not Vercel's SSE transport.
+- Configure one client per Furin application URL and authentication context. `url` includes the application's mount path, for example `https://example.com/desktop`. For a server configured with `sync.path: "/internal/sync"`, pass `syncPath: "/internal/sync"`; it is resolved under that mount path. A query from another origin is rejected.
+- `headers` accepts a value or an async callback, applied to recovery and subscribed Eden reads. Keep the Eden configuration consistent for one-shot reads and mutations too; explicit Eden `fetch.headers` and `onRequest` hooks must not override that context with different credentials. Do not mix per-query credentials from different principals within a client.
+- `fetch` accepts standard request settings such as `credentials: "include"`, used for recovery and subscribed reads. `fetcher` customizes recovery HTTP requests; live reads keep their Eden fetcher.
+- With explicit headers, `createWebSocket` is required so credentials reach the upgrade too. The factory only constructs a runtime socket; it does not implement Furin's protocol. Browser cookie authentication can use the native WebSocket without a factory. Node.js 22+ can use the built ESM entrypoint with a WebSocket adapter supplied by the host for authenticated upgrades; Furin adds no socket dependency and provides no cookie jar.
+- The remote client targets the Bun server WebSocket transport, not Vercel's SSE transport.
 
-`getConnectionState()` returns `{ status, error }`. Status is `idle`, `connecting`, `connected`, `reconnecting`, `unauthorized` or `closed`; `subscribeConnection()` observes changes. HTTP 401/403 from recovery or event authentication, and HTTP 401 from a subscribed GET, stop automatic reconnection. A query's HTTP 403 is a resource denial: its typed Eden error is delivered and its cached data removed, while other subscriptions continue. Other connection failures retry with bounded exponential backoff. WebSocket APIs can hide an upgrade's HTTP status: recovery is checked over HTTP first, but an upgrade-only rejection cannot always be classified by a generic socket. An adapter that can inspect that rejection should reject with `new SyncClientError(message, 401)` or `403`. Applications do not handle Furin's socket close codes.
+Connection state: `getConnectionState()` returns `{ status, error, reason? }` and `subscribeConnection()` observes changes. Status is `idle`, `connecting`, `connected`, `reconnecting`, `unauthorized` or `closed`.
 
-After changing credentials or identity, call `reconnect()` explicitly. Its existing default aborts prior requests, clears the previous context's data and cursor, then reconnects using the current header callback. For credential renewal within the same identity and access scope, `reconnect({ preserveCache: true })` retains snapshots and the cursor while fencing old responses and reevaluating active queries. The application owns token refresh and its retry policy; Furin does not silently retry an authorization denial. Avoid changing a header callback's principal while leaving its old socket connected.
-
-Authentication is checked when opening the event connection and on each HTTP recovery/read. Use the optional connection-validity hook below to react to revocation or expiry while the journal is silent. Roles, revoked devices, file permissions and observation of a torrent engine remain application logic. As with browser sync, notifications invalidate snapshots: subscribers receive current query values, not a lossless stream of every intermediate business event.
+- HTTP 401/403 from recovery or event authentication, and HTTP 401 from a subscribed GET, stop automatic reconnection (`unauthorized`).
+- A query's HTTP 403 is a resource denial: its typed Eden error is delivered and its cached data removed, while other subscriptions continue.
+- Other connection failures retry with bounded exponential backoff.
+- WebSocket APIs can hide an upgrade's HTTP status. Recovery is checked over HTTP first, but an upgrade-only rejection cannot always be classified by a generic socket; an adapter that can inspect that rejection should reject with `new SyncClientError(message, 401)` or `403`. Applications do not handle Furin's socket close codes.
 
 ### In-Process Subscriptions
 
-When the consumer and the Elysia application share a Bun process, use `createLocalSyncClient` from the server entrypoint. It returns the same `SyncClient` as `createSyncClient`, so subscription callbacks, connection state, credential changes and shutdown use the same API:
+When the consumer and the Elysia application share a Bun process, use `createLocalSyncClient` from the server entrypoint. It returns the same `SyncClient` as `createSyncClient`, so subscriptions, connection state, credential changes and shutdown use the same API:
 
 ```ts
 import { treaty } from "@elysia/eden";
@@ -434,11 +670,12 @@ stop();
 client.close();
 ```
 
-Pass the original, composed Elysia application to both `treaty(app)` and `createLocalSyncClient`. A live query from another application or a URL-based Eden client is rejected, even if the synthetic origins match. Use the same `sync` configuration as the server. Its existing recovery endpoint must be installed by `furin({ sync })` or, for standalone Elysia, `createSyncChangesPlugin(sync)`. The factory neither registers routes nor starts a listener. It works before or after the application starts listening; application services and their startup/shutdown remain owned by the host. Import the server application from a module that guards any `.listen()` call with `import.meta.main` if startup is host-controlled.
+- Pass the original, composed Elysia application to both `treaty(app)` and `createLocalSyncClient`. A live query from another application or a URL-based Eden client is rejected, even if the synthetic origins match.
+- Use the same `sync` configuration as the server. Its recovery endpoint must be installed by `furin({ sync })` or, for standalone Elysia, `createSyncChangesPlugin(sync)`. The factory neither registers routes nor starts a listener, and works before or after the application starts listening. Application services and their startup/shutdown stay owned by the host; if startup is host-controlled, import the application from a module that guards `.listen()` with `import.meta.main`.
+- The transport receives cursor notifications from the server coordinator and executes recovery requests through `app.handle()`; live reads keep Eden's in-process dispatch. No HTTP connection, socket, DOM or React runtime is required, and one notifier subscription is shared across queries. Durable adapters and distributed notifiers can still contact their own database or service.
+- `syncPath` overrides the recovery base path within the composed app. For an application mounted under `/desktop`, pass `syncPath: "/desktop/_furin/sync"` if that is where the endpoint is registered. Otherwise it defaults to `sync.path` or `/_furin/sync`. No URL or WebSocket factory is needed.
 
-The transport receives cursor notifications from the existing server coordinator and executes recovery requests through `app.handle()`. Live reads retain Eden's own in-process dispatch. No HTTP connection, socket, DOM or React runtime is required. The same cache, catch-up engine, initial-read barrier and generation checks are used for local and remote clients. One notifier subscription is shared across queries, and closing releases it. Durable adapters and distributed notifiers can still contact their own database or service.
-
-Local dispatch does not invent a principal or bypass application authorization. Both reads and recovery run through the application's handlers. If authentication uses request headers, share the same request configuration:
+Local dispatch does not invent a principal or bypass application authorization: reads and recovery run through the application's handlers. If authentication uses request headers, share the same request configuration:
 
 ```ts
 const request = {
@@ -451,30 +688,32 @@ const client = createLocalSyncClient({ app, sync, ...request });
 client.reconnect();
 ```
 
-Per-query request overrides must remain consistent with that authentication context, as for the remote client. A global authentication refusal suspends automatic recovery; a resource's 403 only affects that query. Local clients also acquire the optional connection-validity hook through an authorized `app.handle()` request, once per connection, using the real Elysia context. Ordinary live reads, SSR loaders and journal recovery requests do not acquire validity leases.
+Per-query request overrides must stay consistent with that authentication context, as for the remote client. Local clients acquire the optional [connection-validity hook](#connection-validity) through an authorized `app.handle()` request, once per connection, using the real Elysia context.
 
-`syncPath` overrides the recovery base path within the composed app. For an application mounted under `/desktop`, for example, pass `syncPath: "/desktop/_furin/sync"` if that is where the existing endpoint is registered. Otherwise it defaults to `sync.path` or `/_furin/sync`. No remote URL or WebSocket factory is needed.
+### Credentials And Reconnection
 
-### Authentication Context and Connection Validity
+Use one dynamic `headers` callback as the credential provider for Eden and Sync. It may await your application's token acquisition or renewal and is called for authentication, recovery and subscribed reads. Furin imposes no JWT, token storage, auth SDK or React hook. With HttpOnly cookies, omit explicit headers in the browser: Fetch and the same-origin event transport send the cookie without exposing it to JavaScript. A Bun host supplies its own cookie jar if it needs one.
 
-Keep the existing dynamic `headers` callback as the credential provider. It may await your application's token acquisition or renewal and is called for authentication, recovery and subscribed reads. Use one provider for Eden and Sync. No JWT, token storage, auth SDK or React hook is imposed. With HttpOnly cookies, omit explicit headers in the browser: Fetch and the same-origin event transport send the cookie without exposing its contents to JavaScript. A Bun host supplies its own cookie jar if it needs one.
+The client cache is memory owned by that `SyncClient` and shared by its observers. While a connection restarts, its state carries `reason: "network" | "credentials" | "context"`; `reason` is absent once connected.
 
-The client cache is memory owned by that `SyncClient`, shared by its observers. Its policy is explicit:
-
-During a restart, connection state optionally includes `reason: "network" | "credentials" | "context"`. Existing status values are unchanged; `reason` is absent once connected. This separates ordinary recovery from credential renewal and conservative access-context changes without exposing transport details.
-
-- A network reconnect retains snapshots and the journal cursor. Recovery stays targeted, and interrupted reads are retried.
-- `client.reconnect({ preserveCache: true })` renews credentials for the same user, tenant and access scope. It retains snapshots and the cursor, cancels/fences old reads, then reevaluates active queries. Inactive snapshots remain stale until subscribed again. Retained values remain visible while their replacement loads.
-- `client.reconnect()` is the conservative action for permission, user or tenant changes. It immediately clears all snapshots in that client and its cursor, fences old reads, reauthenticates and reloads active queries. It does not erase an application's own database or copies of earlier values.
-- Recovery identifies the server-verified principal with an opaque hash. A different principal forces a clear even if cache preservation was requested. Include the tenant in the principal when tenants are distinct access contexts. Furin cannot infer tenant or permission boundaries omitted by the application.
+- **Network reconnect** (`network`): keeps snapshots and the journal cursor. Recovery stays targeted, and interrupted reads are retried.
+- **`client.reconnect({ preserveCache: true })`** (`credentials`): renews credentials for the same user, tenant and access scope. It keeps snapshots and the cursor, cancels and fences old reads, then reevaluates active queries. Inactive snapshots stay stale until subscribed again; kept values remain visible while their replacement loads.
+- **`client.reconnect()`** (`context`): the conservative action for permission, user or tenant changes. It immediately clears all snapshots and the cursor, fences old reads, reauthenticates and reloads active queries. It does not erase the application's own copies of earlier values.
+- Recovery identifies the server-verified principal with an opaque hash. A different principal forces a clear even if cache preservation was requested. Include the tenant in the principal when tenants are distinct access contexts; Furin cannot infer tenant or permission boundaries the application omits.
 - A global authentication refusal clears snapshots and pauses automatic attempts until the application calls `reconnect()`. The provider can also reject with `SyncClientError(message, 401)` or `403` when credentials are definitively unavailable. A resource's 403 is not a global refusal.
 
-For a permission change, expiry or revocation that produces no Sync mutation, optionally associate a validity lease with the authenticated event connection:
+The application owns token refresh and its retry policy; Furin does not silently retry an authorization denial. Call `reconnect()` explicitly after changing credentials or identity, rather than changing a header callback's principal while its old socket stays connected.
+
+In the browser, the built-in transport checks authentication over HEAD using same-origin cookies before connecting. After a global refusal and a successful application cookie refresh, `router.refresh()` resumes Sync; a full navigation also starts a new runtime. A context change invalidates query and loader caches, cancels pending navigations and deferred transports, and prevents old navigation results from publishing even when cancellation is ignored. New-context refreshes do not wait for those obsolete requests. Current loaders refresh according to `autoRefresh`. User or tenant switches in a router application still require a fresh authenticated router or full navigation.
+
+### Connection Validity
+
+Authentication is checked when opening the event connection and on each HTTP recovery/read. For a permission change, expiry or revocation that produces no Sync mutation, optionally associate a validity lease with the authenticated event connection:
 
 ```ts
 import type { FurinSyncOptions } from "@teyik0/furin/sync";
 
-const sync: FurinSyncOptions = {
+const sync = {
   adapter,
   principal: async context => (await auth.requireSession(context)).principal,
   connection: async context => {
@@ -494,209 +733,16 @@ const sync: FurinSyncOptions = {
       },
     };
   },
-};
+} satisfies FurinSyncOptions;
 ```
 
-`auth` in this example is your service: it validates credentials, provides a principal, and exposes a fresh `{ signal, expiresAt, release }` watch. Furin does not implement those rules. Pass this same `sync` configuration to Furin or the standalone Elysia integration. Omitting `connection` acquires no application validity resource.
+`auth` here is your service: it validates credentials, provides a principal, and exposes a fresh `{ signal, expiresAt, release }` watch. Furin does not implement those rules. Omitting `connection` acquires no validity resource.
 
-The hook runs once per authenticated WebSocket, SSE or local event connection, not per query or recovery request. Furin observes an already-aborted signal immediately and invokes the returned `release()` exactly once on normal closure, interrupted validity, failed opening or late asynchronous acquisition after closure. Furin logs a release exception and continues its own cleanup. The application must release partially acquired resources itself if its hook throws before returning a lease.
+- The hook runs once per authenticated WebSocket, SSE or local event connection, not per query, recovery request or SSR loader.
+- Furin observes an already-aborted signal immediately and calls the returned `release()` exactly once on normal closure, interrupted validity, failed opening or late asynchronous acquisition after closure. A release exception is logged and cleanup continues. If the hook throws before returning a lease, it must release its partially acquired resources itself.
+- An aborted signal means **reauthenticate**, not **permanently denied**. Furin discards the old access snapshots, fences in-flight reads and recovers using current credentials, even if the journal cursor has not changed. Because the signal does not distinguish expiry from changed permissions, this path conservatively clears snapshots; renew with `reconnect({ preserveCache: true })` before expiry when the access context is known to be unchanged. Repeated interrupted leases use bounded retry delays; a 401/403 during connection authentication stops retries. Supply a fresh signal after reauthentication.
 
-An interrupted signal means **reauthenticate**, not **permanently denied**. Furin discards the old access snapshots, fences in-flight reads and recovers using current credentials, even if the journal cursor has not changed. Because the signal does not distinguish expiry from changed permissions, this automatic path conservatively clears snapshots; use explicit cache-preserving renewal before expiry when the access context is known to be unchanged. Repeated interrupted leases use bounded retry delays; a 401/403 during connection authentication stops retries. Supply a fresh validity signal after reauthentication.
-
-The built-in browser transport checks authentication over HEAD using same-origin cookies before connecting. After a global refusal and a successful application cookie refresh, the existing `router.refresh()` resumes Sync; a full navigation also starts a new runtime. A context change invalidates query and loader caches, cancels pending navigations and deferred transports, and prevents old navigation results from publishing even when cancellation is ignored. New-context refreshes do not wait for those obsolete requests to finish. Current loaders refresh according to `autoRefresh`. User/tenant switches in a router application still require a fresh authenticated router or full navigation, as described above. Autonomous and local clients use `client.reconnect()` directly.
-
-Without this hook, an open, silent connection cannot detect an application revocation by itself. With it, timely detection depends on the application delivering the signal, including across server processes when needed. The signal is not a durable journal entry: a permission change missed while disconnected needs an explicit application `reconnect()` or an application access revision represented in the principal. Furin cannot retract values already copied outside its cache. Every query and mutation must still enforce its own authorization; the connection lease never grants resource access.
-
-### Mutation State In React
-
-`useMutation` adds React state to an existing mutation without changing its arguments:
-
-```tsx
-import { useMutation } from "@teyik0/furin/client";
-import { useRouter } from "@teyik0/furin/link";
-
-function DeleteCard({ cardId }: { cardId: string }) {
-  const router = useRouter();
-  const remove = useMutation(api.cards({ id: cardId }).delete, {
-    onSuccess: async () => {
-      await router.navigate("/boards");
-    },
-  });
-
-  return (
-    <>
-      <button disabled={remove.isPending} onClick={() => remove.mutate()}>
-        Delete card
-      </button>
-      {remove.error ? <p>Could not delete the card.</p> : null}
-    </>
-  );
-}
-```
-
-The hook returns `data`, `error`, `isPending`, `mutate`, `mutateAsync` and `reset`. `mutate` returns `void` and reports failures through `error` and the optional `onError` callback. `mutateAsync` resolves with the response's `data`, or rejects with the same error exposed to `onError`. Every exposed error has Eden's `{ status, value }` shape, with `value.detail` guaranteed to be a string at runtime and in TypeScript.
-
-An API error whose object payload already contains a string `detail` remains unchanged. Otherwise the hook creates an `EdenFetchError`, keeping the HTTP status and the inferred fields of object payloads while adding `detail`. A nonempty text body becomes the detail; empty, null, array or other primitive bodies use `"Mutation failed"`. The original error is retained in `cause`, without mutating it.
-
-Network errors and other exceptions, including failures in `onSuccess` and Eden's synthetic errors without an HTTP response, become an `EdenFetchError` with `status: 0` and the exception's message in `value.detail` (or `"Mutation failed"` for non-Error exceptions). Status `0` is a client-side sentinel, not an HTTP response code. This normalization belongs to `useMutation`; direct Eden calls retain their native response contract. There is one error callback, with no separate native `Error` branch:
-
-```tsx
-const save = useMutation(api.cards({ id: cardId }).patch, {
-  onError(error) {
-    setErrorMessage(error.value.detail);
-    // error.status === 0 distinguishes client-side exceptions when needed.
-  },
-});
-```
-
-Object payloads retain their endpoint-specific fields; use `error.status` to narrow a specific response when needed. The hook guarantees the `detail` field, not runtime validation of every other field against the server's TypeScript schema. Normalized messages are not localized or tailored to a particular UI. `mutateAsync` also rejects if an `onError` callback throws.
-
-Calls run in parallel. `isPending` stays true until every call and its awaited `onSuccess` or `onError` callback finishes. Only the most recently started call publishes `data` or `error`; callbacks still run for each call. Disable the relevant controls while pending if the UI should prevent repeated submissions. The hook does not deduplicate calls or provide a shared mutation lock. `reset()` clears the displayed result and prevents earlier in-flight calls from publishing it again, but does not cancel those requests or their callbacks.
-
-Eden's body and options stay inferred, including optimistic updates. The hook can also own the projection, and it receives the `mutate()` arguments:
-
-```tsx
-const save = useMutation(api.cards({ id: cardId }).patch, {
-  retry: 2,
-  optimistic(cache, { title }) {
-    cache.update(api.cards({ id: cardId }).get.live(), card => ({ ...card, title }));
-  },
-});
-
-save.mutate({ title });
-```
-
-Each `mutate()` call generates one `Idempotency-Key`. `retry` adds attempts only after `409 FURIN_MUTATION_IN_PROGRESS`, and every attempt reuses that key and one optimistic contribution (see [Retry](#retry)). Given an Eden method, the hook always passes an options object, so the plugin attaches the key. Given a function, the key attaches only if the function calls an Eden method synchronously with an options object, for example `(title) => api.cards({ id }).patch({ title }, {})`. Otherwise that call is not retried and development builds warn.
-
-### External APIs
-
-The hook does not require an Eden client. Any asynchronous function returning `{ data, error }` works, with `error: null` indicating success:
-
-```tsx
-async function deleteExternalCard(cardId: string) {
-  const response = await fetch(`/external-api/cards/${encodeURIComponent(cardId)}`, {
-    method: "DELETE",
-  });
-  if (!response.ok) {
-    return { data: null, error: new Error("Could not delete the card") };
-  }
-  return { data: null, error: null };
-}
-
-const remove = useMutation(deleteExternalCard);
-// remove.mutate(cardId)
-```
-
-This supplies mutation state and callbacks, not Furin Sync integration: an external API needs its own cache refresh strategy unless it implements the Sync protocol. Furin's page server still uses Elysia; the business API does not have to. A static export can be hosted without an Elysia server.
-
-### Reuse A Mutation And Its Optimism
-
-```ts
-// src/mutations/cards.ts
-export function completeCard(boardId: string, cardId: string) {
-  return api.cards({ id: cardId }).patch({ column: "done" }, {
-    optimistic(cache) {
-      cache.update(api.boards({ boardId }).cards.get.live(), cards =>
-        cards.map(card => card.id === cardId ? { ...card, column: "done" } : card)
-      );
-    },
-  });
-}
-
-// Any button, menu or keyboard shortcut:
-await completeCard(boardId, cardId);
-```
-
-The list and its selected count update together. Use an ordinary application function to centralize the API call and its projection. A cache miss is a no-op. A definitive rejection removes only that mutation's contribution; success retains it until a fresh GET confirms the view. Reads racing pending writes cannot apply an insert or increment twice. Transforms must be pure; generate temporary IDs before the call. Awaiting the mutation waits for its Eden response, not the final query/loader refresh.
-
-For a filtered GET, target the same arguments:
-
-```ts
-cache.update(
-  api.cards.get.live({ query: { boardId, column: "done" } }),
-  cards => cards.filter(card => card.id !== cardId)
-);
-```
-
-Different endpoints remain different representations. Update each loaded representation explicitly when both should change immediately:
-
-```ts
-optimistic(cache) {
-  cache.update(api.cards({ id: cardId }).get.live(), card => ({ ...card, title }));
-  cache.update(api.boards({ boardId }).cards.get.live(), cards =>
-    cards.map(card => card.id === cardId ? { ...card, title } : card)
-  );
-}
-```
-
-Furin does not normalize entities or execute relational live queries. Tags remain the lower-level mechanism for non-Eden reads and writes outside the mutation plugin. Shared public page caches only store a render after its discovered query dependencies were covered by its cache lease; the first dependency-discovery render may be served with `no-store`.
-
-## Call A Mutation
-
-Register the `furinSync` Eden plugin on an ordinary Eden client. Mutations keep their arguments and typed `{ data, error }` results:
-
-```ts
-import { treaty } from "@elysia/eden";
-import { furinSync } from "@teyik0/furin/client";
-import type { Api } from "./server";
-
-export const api = treaty<Api>(origin, { headers: auth }).use(furinSync).api;
-// On the server (isomorphic code): treaty(serverApi).use(furinSync).api
-
-const { data, error } = await api.posts.post({ title: "Hello" });
-```
-
-A plain call stays a plain Eden call. Without a client key, the server generates one: the mutation still runs transactionally, invalidates and broadcasts, but a resend is not deduplicated. A call that passes an options object gets an automatic `Idempotency-Key` and the typed `optimistic` option. Explicit keys are respected, including Eden header callbacks and `fetch.headers`. Each call gets a new key, even when calls share an options object, and the plugin never alters that object. `x-furin-queries` invalidations in a mutation response refresh the client's live queries whether or not options were passed. Never reuse an explicit key across sessions or principals. Reads and subscriptions keep Eden behavior. The plugin requires Eden 2.0.0-rc.1 or later.
-
-All Eden configuration (`fetcher`, headers, interceptors, date parsing and error behavior) stays on `treaty()`. Retries belong to [`useMutation`](#mutation-state-in-react).
-
-### Existing Route Snapshot Targets
-
-Update the loader snapshot already rendered by the router:
-
-```tsx
-const { error } = await api.cards({ id: cardId }).patch(
-  { column: "done" },
-  {
-    optimistic(cache) {
-      cache.update("/board/:boardId", (loader) => ({
-        ...loader,
-        initialCards: loader.initialCards.map((card) =>
-          card.id === cardId ? { ...card, column: "done" } : card
-        ),
-      }));
-    },
-  }
-);
-```
-
-The page continues rendering its `initialCards` loader prop. No copied `useState(initialData)`, setter, rollback callback, or manual synchronization is needed. The generated `RouteMap` offers route completion and infers loader fields from the target. A route pattern updates the active URL, including its path and query parameters. The transform returns complete loader data for that route; `cache.update()` and `optimistic()` return `void`. Generate `furin-env.d.ts` before using typed optimistic targets.
-
-Only the active loaded snapshot is projected. A cache miss is a no-op. To target an exact query snapshot rather than the active route, use a typed URL target:
-
-```ts
-cache.update({ path: "/posts", search: { category: "news" } }, (loader) => ({
-  ...loader,
-  posts: loader.posts.filter((post) => post.id !== deletedId),
-}));
-```
-
-Transforms must be pure: Furin reapplies them over confirmed data. Create temporary IDs and timestamps before the call. Each mutation owns its contribution. A definitive business error removes only that contribution. A successful response keeps its contribution until fresh loaders replace it in the same router publication. Optimistic mutations revalidate automatically even with `autoRefresh: false`. Loaders must read committed writes; Furin cannot establish that guarantee for an eventually consistent replica or external service.
-
-To prevent inserts or increments from being applied twice, revalidation of a projected snapshot waits for its local requests to settle. Navigation to other snapshots stays available. Concurrent writes to the same entity still require an application policy such as version checks or serialization.
-
-### Retry
-
-Retry is a `useMutation` option. `retry: 2` means two additional attempts, three requests maximum. The default is `0`:
-
-```ts
-const complete = useMutation(api.cards({ id: cardId }).patch, { retry: 2 });
-complete.mutate({ column: "done" });
-```
-
-Only `409 FURIN_MUTATION_IN_PROGRESS` is automatically retried, with the same key and one optimistic contribution. Furin respects `Retry-After`; otherwise it uses exponential delays. Cancellation stops waiting. Business errors, payload mismatch, lost leases, server errors, and network failures are never blindly retried.
-
-A missing response does not prove the domain write failed. After an ambiguous outcome, the optimistic view remains until loader revalidation reconciles it. The API returns the Eden result; revalidation is automatic and its failures are reported by the router separately. The client conservatively keeps this retry policy even when an ORM adapter makes the server write atomic.
+Without this hook, an open, silent connection cannot detect a revocation by itself. With it, timely detection depends on the application delivering the signal, across server processes when needed. The signal is not a durable journal entry: a permission change missed while disconnected needs an explicit `reconnect()` or an access revision represented in the principal. Furin cannot retract values already copied outside its cache, and roles, revoked devices or file permissions remain application logic. Every query and mutation must still enforce its own authorization; the lease never grants resource access. As with browser sync, notifications invalidate snapshots: subscribers receive current query values, not a lossless stream of every intermediate business event.
 
 ## Replay Semantics
 
@@ -706,28 +752,28 @@ The adapter keys a mutation by principal, method, pathname, and idempotency key,
 |---|---|
 | First request | Acquires a lease and runs the handler |
 | Same key and same request after success | Replays the stored response |
-| Same key while the first request is running | `409 FURIN_MUTATION_IN_PROGRESS` |
+| Same key while the first request is running | `409 FURIN_MUTATION_IN_PROGRESS`; retrying after it completes replays its response |
 | Same key with a different payload | `409 FURIN_IDEMPOTENCY_MISMATCH` |
 | Missing key | Runs with a server-generated key; not deduplicated |
 | Invalid key | `400 FURIN_INVALID_IDEMPOTENCY_KEY` |
-| Unsupported request body | `415` |
-| Lost mutation lease before commit | `503` |
+| Unsupported request body | `415 FURIN_UNSUPPORTED_SYNC_BODY` |
+| Lost mutation lease before commit | `503 FURIN_SYNC_LEASE_LOST` |
 
-Only successful `2xx` and `3xx` results are committed. Stored bodies are limited to 1 MiB; hop-by-hop, authentication, and cookie headers are excluded from replay. ORM adapters roll back unreplayable results before commit. A concurrent request for a reserved key receives `409 FURIN_MUTATION_IN_PROGRESS`; retrying after the first request completes replays its response.
+Only successful `2xx` and `3xx` results are committed. Stored bodies are limited to 1 MiB; hop-by-hop, authentication, and cookie headers are excluded from replay. ORM adapters roll back unreplayable results before commit.
 
-The standalone `sqliteSyncAdapter`, `postgresSyncAdapter` and `redisSyncAdapter` retain the separate handler/receipt lifecycle. They atomically store the receipt and journal together, but cannot include writes through an independent domain connection. Their bounded `Response` support requires a valid `Content-Length`; an unreplayable successful result is stored as a safe framework error. Use ORM adapters plus `mutation(tx => ...)` for atomic domain writes. Furin cannot make a third-party API call exactly once.
+The standalone `sqliteSyncAdapter`, `postgresSyncAdapter` and `redisSyncAdapter` keep a separate handler/receipt lifecycle. They store the receipt and journal atomically, but cannot include writes made through an independent domain connection. Their bounded `Response` support requires a valid `Content-Length`; an unreplayable successful result is stored as a safe framework error. Use an ORM adapter plus `mutation(tx => ...)` for atomic domain writes. Furin cannot make a third-party API call exactly once.
 
 ## Browser Catch-Up
 
-After a commit, the notifier wakes connected browsers with the latest cursor. The generated client then reads ordered pages from the `/_furin/sync/changes` recovery endpoint, invalidates prefetched routes, and refreshes the active route when affected.
+After a commit, the notifier wakes connected browsers with the latest cursor. The client then reads ordered pages from the `/_furin/sync/changes` recovery endpoint, invalidates prefetched routes, and refreshes the active route when affected.
 
-Built-in adapters return paginated changes attributable to the current principal. If recovery crosses another principal's changes, older entries without principal provenance, or a custom adapter without that provenance, Furin invalidates all cached queries and prefetched routes instead of exposing journal scopes. With `autoRefresh: true`, it also reloads the active route's loaders. With `autoRefresh: false`, active loaders refresh on the next navigation or an explicit router refresh. Existing adapter implementations remain compatible; background provenance is an optional argument to `appendInvalidations`.
+Built-in adapters return paginated changes attributable to the current principal. If recovery crosses another principal's changes, older entries without principal provenance, or a custom adapter without that provenance, Furin invalidates all cached queries and prefetched routes instead of exposing journal scopes. With `autoRefresh: true`, it also reloads the active route's loaders; with `autoRefresh: false`, they refresh on the next navigation or an explicit router refresh.
 
-Bursts of commits are coalesced so one busy writer cannot make every browser reload continuously. Each server process wakes its browsers at most once per 100 ms, always with the latest cursor. Each browser runs a reset-driven full refresh at most once per second. Both limits fire on the trailing edge, so the final state is always fetched.
+Bursts of commits are coalesced: each server process wakes its browsers at most once per 100 ms, always with the latest cursor, and each browser runs a reset-driven full refresh at most once per second. Both limits fire on the trailing edge, so the final state is always fetched.
 
-The wake-up transport is best-effort. Correctness comes from the durable adapter journal and cursor catch-up, so a missed browser event or notifier outage delays discovery but does not erase committed changes.
+The wake-up transport is best-effort. Correctness comes from the durable adapter journal and cursor catch-up, so a missed browser event or notifier outage delays discovery but does not lose committed changes.
 
-Furin multiplexes sync, development diagnostics, and DevTools notifications over one versioned `/_furin/events` connection per page on Bun servers. The Vercel adapter uses Server-Sent Events for sync notifications through its HTTP handler. The browser reconnects when the event stream closes and catches up through the durable journal. Application code should use the `furinSync` Eden plugin and the router contract rather than either internal endpoint directly.
+On Bun servers, sync, development diagnostics, and DevTools share one versioned `/_furin/events` WebSocket per page. The Vercel adapter streams sync notifications over Server-Sent Events through its HTTP handler. The browser reconnects when the event stream closes and catches up through the journal. Use the `furinSync` Eden plugin and the router rather than either internal endpoint.
 
 ## Adapter Choice
 
@@ -739,13 +785,11 @@ Furin multiplexes sync, development diagnostics, and DevTools notifications over
 | Redis as the durable sync store | Redis |
 | PostgreSQL durability with faster wake-ups | PostgreSQL plus Redis notifier |
 
-Production rejects process-local adapters such as SQLite `:memory:`.
+Production rejects process-local adapters such as SQLite `:memory:`. In development, Furin polls the adapter cursor when no notifier is configured; production with a distributed adapter (PostgreSQL, Redis, Prisma, Drizzle PostgreSQL) requires an explicit notifier.
 
 ### PostgreSQL
 
-Apply the bundled idempotent schema bootstrap through the CLI or your migration system:
-
-Run it when upgrading an existing database too: the journal's nullable `principal_hash` column is added without changing existing entries. Those entries use the full-refresh recovery path.
+Apply the bundled idempotent schema bootstrap through the CLI or your migration system, including when upgrading an existing database: the journal's nullable `principal_hash` column is added without changing existing entries, which then use the full-refresh recovery path.
 
 ```sh
 FURIN_SYNC_POSTGRES_URL=postgres://... \
@@ -766,14 +810,14 @@ const sync = {
     sql: new SQL(directDatabaseUrl),
   }),
   principal: ({ request }) => requireUser(request).id,
-};
+} satisfies FurinSyncOptions;
 ```
 
 Use a direct PostgreSQL connection for the notifier's `LISTEN`; a transaction pooler may drop immediate notifications. Furin checks the durable cursor every 15 seconds to recover missed wake-ups. The adapter's SQL connection may use a pooler.
 
 ### Redis Notifier
 
-In development, Furin polls the adapter cursor when no notifier is configured. Production with a distributed adapter requires an explicit notifier. Redis is another option for immediate wake-ups across replicas:
+Redis is another option for immediate wake-ups across replicas:
 
 ```ts
 import { RedisClient, SQL } from "bun";
@@ -787,11 +831,11 @@ const sync = {
     namespace: "my-app",
   }),
   principal: ({ request }) => requireUser(request).id,
-};
+} satisfies FurinSyncOptions;
 ```
 
 The notifier carries cursors only. The adapter remains the source of truth.
 
 ## Lower-Level Alternative
 
-Use `furinInvalidate()` for the same handler `invalidate()` without idempotency or a change journal: a successful mutation purges the server caches built from its targets and its own URL, and only the initiating response reports them (`X-Furin-Revalidate`, `x-furin-queries`). Use Furin Sync when retries and cross-client catch-up are part of the mutation contract. See [Caching](/docs/caching) for the cache layers themselves.
+Use `furinInvalidate()` for the same handler `invalidate()` without idempotency or a change journal: a successful mutation purges the server caches built from its targets and its own URL, and only the initiating response reports them (`X-Furin-Revalidate`, `x-furin-queries`). See [API Routes](/docs/api-routes#invalidation-after-a-mutation). Use Furin Sync when retries and cross-client catch-up are part of the mutation contract. See [Caching](/docs/caching) for the cache layers themselves.

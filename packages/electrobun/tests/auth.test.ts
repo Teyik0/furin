@@ -7,7 +7,6 @@ import { createDesktopApp } from "../src/server";
 
 test("bootstrap credentials never pass through prior application hooks or wrappers", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-auth-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const hookPaths: string[] = [];
   const wrapPaths: string[] = [];
   let bodyCalls = 0;
@@ -68,18 +67,12 @@ test("bootstrap credentials never pass through prior application hooks or wrappe
     expect((await fetch(`${backend.origin}/`)).status).toBe(403);
   } finally {
     await backend.stop();
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test("instance cookies coexist on loopback without authenticating another backend or cross-site requests", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-auth-pair-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   let first: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
   let second: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
   try {
@@ -134,11 +127,6 @@ test("instance cookies coexist on loopback without authenticating another backen
     try {
       await Promise.all([first?.stop(), second?.stop()]);
     } finally {
-      if (previousData === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previousData;
-      }
       await rm(data, { recursive: true, force: true });
     }
   }
@@ -146,7 +134,6 @@ test("instance cookies coexist on loopback without authenticating another backen
 
 test("spent bootstrap remains bound while cleanup drains and both listeners close on shutdown", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-bootstrap-drain-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const entered = Promise.withResolvers<void>();
   const cleanup = Promise.withResolvers<void>();
   const backend = await startDesktopBackend(
@@ -174,11 +161,6 @@ test("spent bootstrap remains bound while cleanup drains and both listeners clos
   } finally {
     cleanup.resolve();
     await backend.stop();
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });

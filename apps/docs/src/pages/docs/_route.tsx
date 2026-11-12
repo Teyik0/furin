@@ -2,10 +2,10 @@ import { defineRoute } from "@teyik0/furin";
 import { Link } from "@teyik0/furin/link";
 import { DocsMobileNav } from "@/components/docs-mobile-nav";
 import { DocsPager } from "@/components/docs-pager";
-import { DocsRootToggle } from "@/components/docs-root-toggle";
 import { DocsToc } from "@/components/docs-toc";
 import { GiscusComments } from "@/components/giscus-comments";
-import { getDocsSidebarSections } from "@/lib/docs";
+import { DOCS_CARDS, getDocsNavigation } from "@/lib/docs";
+import { getDocsPlatform } from "@/lib/docs-platform";
 
 export const route = defineRoute("/docs/_route")
   .config({ mode: "ssg" })
@@ -13,62 +13,90 @@ export const route = defineRoute("/docs/_route")
     // `path` is injected by Furin from componentProps (ctx.path server-side,
     // state.data.path client-side) — always correct on SSR and SPA navigation.
     const pathname = typeof path === "string" ? path : "/";
+    const navigation = getDocsNavigation(pathname);
+    const platform = getDocsPlatform(pathname);
+    const current = DOCS_CARDS.find((doc) => doc.href === pathname);
+    const currentSection = navigation.find((entry) =>
+      entry.items.some((doc) => doc.href === pathname)
+    );
 
     return (
-      <div className="flex w-full">
-        {/* Fumadocs-style shell: the nav is docked to the left edge of the
-            viewport, full height under the fixed header, with its own column
-            and border. */}
-        <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] shrink-0 self-start overflow-y-auto px-6 pt-8 pb-10 [scrollbar-width:none] lg:block lg:w-[248px] [&::-webkit-scrollbar]:hidden">
-          <DocsRootToggle pathname={pathname} />
-          <nav className="mt-6 space-y-6">
-            {getDocsSidebarSections(pathname).map((section) => (
-              <div key={section.title}>
-                <p className="mb-2 font-medium text-[11px] text-foreground uppercase tracking-[0.2em]">
-                  {section.title}
-                </p>
-                <ul className="space-y-1">
-                  {section.items.map((item) => (
-                    <li key={item.href}>
-                      <Link
-                        activeProps={({
-                          isActive,
-                        }: {
-                          isActive: boolean;
-                        }): React.AnchorHTMLAttributes<HTMLAnchorElement> =>
-                          isActive
-                            ? {
-                                className:
-                                  "block rounded-lg px-3 py-1.5 text-[13px] transition-colors bg-accent text-foreground",
-                              }
-                            : {}
-                        }
-                        className="block rounded-lg px-3 py-1.5 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        to={item.href}
-                      >
-                        {item.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </nav>
-        </aside>
+      <div className="workbench-layout">
+        <div className="workbench-mobile-nav lg:hidden">
+          <DocsMobileNav pathname={pathname} />
+        </div>
 
-        <div className="min-w-0 flex-1">
-          <div className="px-4 pt-8 sm:px-6 lg:hidden">
-            <DocsMobileNav />
-          </div>
-
-          <div className="flex items-start justify-center gap-10 px-4 py-8 pb-16 sm:px-6">
-            <div className="w-full min-w-0 max-w-[calc(48rem-4rem)]">
-              {children}
-              <DocsPager pathname={pathname} />
-              <GiscusComments key={pathname} />
+        <div className="workbench-grid">
+          <aside className="workbench-sidebar hidden lg:block">
+            <nav aria-label="Documentation" className="workbench-navigation">
+              {navigation.map((section) => (
+                <div key={section.title}>
+                  <p className="mb-2 font-semibold text-foreground text-xs uppercase tracking-[0.24em]">
+                    {section.title}
+                  </p>
+                  <ul className="space-y-1">
+                    {section.items.map((item, itemIndex) => (
+                      <li key={item.href}>
+                        <Link
+                          activeProps={({
+                            isActive,
+                          }: {
+                            isActive: boolean;
+                          }): React.AnchorHTMLAttributes<HTMLAnchorElement> =>
+                            isActive
+                              ? {
+                                  className: "workbench-nav-link is-active",
+                                }
+                              : {}
+                          }
+                          className="workbench-nav-link"
+                          to={item.href}
+                        >
+                          <span aria-hidden="true" className="workbench-nav-index">
+                            {String(itemIndex + 1).padStart(2, "0")}
+                          </span>
+                          {item.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </nav>
+            <div className="workbench-sidebar-footer">
+              Built on
+              <br />
+              <span>
+                {platform === "desktop" ? "Furin · Electrobun · Bun" : "React · Elysia · Bun"}
+              </span>
+              <br />
+              <br />
+              風鈴 / Small by design.
             </div>
+          </aside>
 
-            <DocsToc key={pathname} />
+          <div className="workbench-editor">
+            <div className="workbench-reading-grid">
+              <div className="workbench-article">
+                <div className="workbench-breadcrumb">
+                  <Link to="/docs">Docs</Link>
+                  {platform === "desktop" ? (
+                    <>
+                      <span aria-hidden="true">/</span>
+                      <Link to="/docs/desktop">Desktop</Link>
+                    </>
+                  ) : null}
+                  <span aria-hidden="true">/</span>
+                  <span>{currentSection?.title}</span>
+                  <span aria-hidden="true">/</span>
+                  <span className="workbench-current">{current?.label}</span>
+                </div>
+                {children}
+                <DocsPager pathname={pathname} />
+                <GiscusComments key={pathname} />
+              </div>
+              <DocsToc key={pathname} />
+            </div>
           </div>
         </div>
       </div>

@@ -1,14 +1,14 @@
-import { expect, test } from "bun:test";
+import { expect, jest, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Elysia } from "elysia";
 import { startDesktopBackend } from "../src/runtime";
 import { createDesktopApp } from "../src/server";
+import { settleOnFakeClock } from "./support/clock";
 
 test("in-process Elysia owns one ephemeral listener, session and shutdown", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-data-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   let shutdowns = 0;
   let importedData: string | undefined;
   const app = createDesktopApp()
@@ -49,11 +49,6 @@ test("in-process Elysia owns one ephemeral listener, session and shutdown", asyn
     try {
       await backend?.stop();
     } finally {
-      if (previousData === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previousData;
-      }
       await rm(data, { recursive: true, force: true });
     }
   }
@@ -61,7 +56,6 @@ test("in-process Elysia owns one ephemeral listener, session and shutdown", asyn
 
 test("desktop rejects and cleans a server that booted during import", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-data-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   let shutdowns = 0;
   const app = new Elysia()
     .onStop(() => {
@@ -84,18 +78,12 @@ test("desktop rejects and cleans a server that booted during import", async () =
     expect(shutdowns).toBe(1);
   } finally {
     await app.stop(true);
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test("shutdown rejects after five seconds when a resource cleanup hangs", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-shutdown-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const app = createDesktopApp().get("/", () => "ready");
   const handle = setInterval(() => {
     /* Keep a resource handle alive during the hung cleanup. */
@@ -114,36 +102,32 @@ test("shutdown rejects after five seconds when a resource cleanup hangs", async 
       data,
       "build"
     );
+    jest.useFakeTimers();
     const stopped = backend.stop();
-    const outcome = await Promise.race([
-      stopped.then(
-        () => "unexpected success",
-        (error: Error) => error.message
-      ),
-      Bun.sleep(6000).then(() => "shutdown never settled"),
-    ]);
-    expect(outcome).toContain("5 seconds");
+    const observed = stopped.then(
+      () => "unexpected success",
+      (error: Error) => error.message
+    );
+    expect(await settleOnFakeClock(observed, 10_000)).toBeGreaterThanOrEqual(5000);
+    jest.useRealTimers();
+    expect(await observed).toContain("5 seconds");
     expect(backend.stop()).toBe(stopped);
     expect(shutdowns).toBe(1);
     await expect(fetch(app.server?.url ?? "http://127.0.0.1:1")).rejects.toThrow();
   } finally {
+    jest.useRealTimers();
     clearInterval(handle);
     release.resolve();
     await app.stop(true);
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
-}, 8000);
+});
 
 test("callback readiness times out after thirty seconds and closes the listener and module", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-startup-timeout-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const entered = Promise.withResolvers<void>();
   let shutdowns = 0;
+  jest.useFakeTimers();
   const handle = setInterval(() => {
     /* Resource owned by the imported module. */
   }, 1000);
@@ -170,35 +154,29 @@ test("callback readiness times out after thirty seconds and closes the listener 
   );
   try {
     await entered.promise;
-    const outcome = await Promise.race([
-      observed,
-      Bun.sleep(31_000).then(() => "startup never settled"),
-    ]);
-    expect(outcome).toContain("30 seconds");
+    expect(await settleOnFakeClock(observed, 60_000)).toBeGreaterThanOrEqual(30_000);
+    jest.useRealTimers();
+    expect(await observed).toContain("30 seconds");
     expect(shutdowns).toBe(1);
     expect(app.server).toBeUndefined();
   } finally {
+    jest.useRealTimers();
     clearInterval(handle);
     await app.stop(true);
     await observed;
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
-}, 40_000);
+});
 
 test("one startup budget bounds async plugin activation and never listens after late resolution", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-plugin-timeout-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const plugin = new Elysia().get("/late", () => "late");
   const pending = Promise.withResolvers<typeof plugin>();
   const app = createDesktopApp().use(pending.promise);
   let startups = 0;
   let shutdowns = 0;
   let backend: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
+  jest.useFakeTimers();
   const startup = startDesktopBackend(
     () =>
       Promise.resolve({
@@ -221,11 +199,9 @@ test("one startup budget bounds async plugin activation and never listens after 
     (error: Error) => error.message
   );
   try {
-    const outcome = await Promise.race([
-      observed,
-      Bun.sleep(31_000).then(() => "startup never settled"),
-    ]);
-    expect(outcome).toContain("30 seconds");
+    expect(await settleOnFakeClock(observed, 60_000)).toBeGreaterThanOrEqual(30_000);
+    jest.useRealTimers();
+    expect(await observed).toContain("30 seconds");
     expect(shutdowns).toBe(0);
     expect(app.server).toBeUndefined();
     pending.resolve(plugin);
@@ -235,22 +211,18 @@ test("one startup budget bounds async plugin activation and never listens after 
     expect(app.server).toBeUndefined();
     expect(shutdowns).toBe(0);
   } finally {
+    jest.useRealTimers();
     pending.resolve(plugin);
     await observed;
     await backend?.stop();
     await app.stop(true);
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
-}, 40_000);
+});
 
 test("the startup budget includes importing the application module", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-import-timeout-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
+  jest.useFakeTimers();
   const startup = startDesktopBackend(
     () =>
       new Promise<never>(() => {
@@ -264,17 +236,10 @@ test("the startup budget includes importing the application module", async () =>
     (error: Error) => error.message
   );
   try {
-    const outcome = await Promise.race([
-      observed,
-      Bun.sleep(31_000).then(() => "startup never settled"),
-    ]);
-    expect(outcome).toContain("30 seconds");
+    expect(await settleOnFakeClock(observed, 60_000)).toBeGreaterThanOrEqual(30_000);
+    expect(await observed).toContain("30 seconds");
   } finally {
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
+    jest.useRealTimers();
     await rm(data, { recursive: true, force: true });
   }
-}, 40_000);
+});

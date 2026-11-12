@@ -5,6 +5,36 @@ import { loadCliConfig } from "./config";
 
 const PORT = /^\d+$/;
 
+/** The hot worker serves the backend; the desktop integration owns the native shell. */
+async function desktopIntegration(cwd: string, openBrowser: boolean) {
+  let entry: string;
+  let integration: string;
+  try {
+    entry = Bun.resolveSync("@teyik0/furin-electrobun/dev", cwd);
+    integration = Bun.resolveSync("@teyik0/furin-electrobun/desktop-dev", cwd);
+  } catch (cause) {
+    throw new Error("Install @teyik0/furin-electrobun to run this desktop configuration.", {
+      cause,
+    });
+  }
+  const addon: {
+    prepareDesktopDevelopment: (
+      cwd: string,
+      openBrowser: boolean
+    ) => Promise<{ [name: string]: string }>;
+  } = await import(pathToFileURL(entry).href);
+  return { integration, env: await addon.prepareDesktopDevelopment(cwd, openBrowser) };
+}
+
+function webIntegration(cwd: string): { integration: string; env: { [name: string]: string } } {
+  try {
+    return { integration: Bun.resolveSync("@teyik0/furin-electrobun/web-dev", cwd), env: {} };
+  } catch {
+    // Web-only apps can run without the optional desktop integration installed.
+    return { integration: "", env: {} };
+  }
+}
+
 export async function runDevelopment(cwd: string, args: string[]): Promise<void> {
   const { values } = parseArgs({
     args: args.filter((arg) => arg !== "--"),
@@ -16,36 +46,20 @@ export async function runDevelopment(cwd: string, args: string[]): Promise<void>
   }
   const config = await loadCliConfig(cwd);
   const hasDesktop = config.desktop !== undefined;
-  if (hasDesktop && !values.web) {
-    if (values.port !== undefined) {
-      throw new Error("--port is only available with --web.");
-    }
-    let entry: string;
-    try {
-      entry = Bun.resolveSync("@teyik0/furin-electrobun/dev", cwd);
-    } catch (cause) {
-      throw new Error("Install @teyik0/furin-electrobun to run this desktop configuration.", {
-        cause,
-      });
-    }
-    const addon: { runDesktopDevelopment: (cwd: string, openBrowser: boolean) => Promise<void> } =
-      await import(pathToFileURL(entry).href);
-    await addon.runDesktopDevelopment(cwd, !values.desktop);
-    return;
-  }
-  if (values.desktop) {
+  if (values.desktop && !hasDesktop) {
     throw new Error("Add desktop to furin.config.ts before using --desktop.");
   }
-  const port = values.port ?? process.env.PORT;
+  const desktop = hasDesktop && !values.web;
+  if (desktop && values.port !== undefined) {
+    throw new Error("--port is only available with --web.");
+  }
+  const port = desktop ? undefined : (values.port ?? process.env.PORT);
   if (port !== undefined && (!PORT.test(port) || Number(port) > 65_535)) {
     throw new Error("Invalid development port.");
   }
-  let webDevelopment = "";
-  try {
-    webDevelopment = Bun.resolveSync("@teyik0/furin-electrobun/web-dev", cwd);
-  } catch {
-    // Web-only apps can run without the optional desktop integration installed.
-  }
+  const { integration, env } = desktop
+    ? await desktopIntegration(cwd, !values.desktop)
+    : webIntegration(cwd);
   const child = Bun.spawn(
     [
       process.execPath,
@@ -53,10 +67,11 @@ export async function runDevelopment(cwd: string, args: string[]): Promise<void>
       join(import.meta.dir, "dev-worker.ts"),
       resolve(config.rootDir, config.serverEntry ?? "src/server.ts"),
       port ?? "",
-      webDevelopment,
+      integration,
     ],
     {
       cwd: config.rootDir,
+      env: { ...process.env, ...env },
       stdin: "inherit",
       stdout: "inherit",
       stderr: "inherit",

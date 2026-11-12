@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 import { extractDevClientEntry, getFreePort } from "../../support/hmr.ts";
+import { pollUntil } from "../../support/http.ts";
 import { startProcess } from "../../support/process.ts";
 
 const CATALOG_RUNS = /data-test="catalog-runs">(\d+)<\/span>/;
@@ -113,19 +114,18 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
     });
 
     // Wait for server to come up.
-    let ready = false;
-    for (let i = 0; i < 80; i += 1) {
-      try {
-        const r = await fetch(`http://localhost:${port}/`);
-        if (r.ok) {
-          ready = true;
-          break;
+    const ready = await pollUntil(
+      async () => {
+        try {
+          return (await fetch(`http://localhost:${port}/`)).ok;
+        } catch {
+          // not ready yet
+          return false;
         }
-      } catch {
-        // not ready yet
-      }
-      await Bun.sleep(250);
-    }
+      },
+      80,
+      250
+    );
     if (!ready) {
       throw new Error(`server failed to start on port ${port}`);
     }
@@ -186,14 +186,15 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
 
     // Step 3: wait for Bun to rebundle — `/_bun_hmr_entry` should flip to a new chunk URL.
     let latestShellChunk: string | null = initialChunk;
-    for (let i = 0; i < 40; i += 1) {
-      const hmrHtml = await (await fetch(`http://localhost:${port}/_bun_hmr_entry`)).text();
-      latestShellChunk = extractDevClientEntry(hmrHtml);
-      if (latestShellChunk && latestShellChunk !== initialChunk) {
-        break;
-      }
-      await Bun.sleep(250);
-    }
+    await pollUntil(
+      async () => {
+        const hmrHtml = await (await fetch(`http://localhost:${port}/_bun_hmr_entry`)).text();
+        latestShellChunk = extractDevClientEntry(hmrHtml);
+        return Boolean(latestShellChunk) && latestShellChunk !== initialChunk;
+      },
+      40,
+      250
+    );
     expect(latestShellChunk).not.toBeNull();
     expect(latestShellChunk).not.toBe(initialChunk);
 
@@ -205,22 +206,23 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
     // rebuild several times during this loop, so we must compare the home
     // page's chunk URL against the *current* shell chunk, not a captured one.
     let homeHtmlAfter = "";
-    let homeChunkAfter: string | null = null;
+    let homeChunkAfter: string | null | undefined;
     let currentShellChunk: string | null = latestShellChunk;
-    for (let i = 0; i < 40; i += 1) {
-      homeHtmlAfter = await (await fetch(`http://localhost:${port}/`)).text();
-      homeChunkAfter = extractDevClientEntry(homeHtmlAfter);
-      const hmrHtml = await (await fetch(`http://localhost:${port}/_bun_hmr_entry`)).text();
-      currentShellChunk = extractDevClientEntry(hmrHtml);
-      if (
-        homeChunkAfter !== null &&
-        homeChunkAfter === currentShellChunk &&
-        homeChunkAfter !== initialChunk
-      ) {
-        break;
-      }
-      await Bun.sleep(250);
-    }
+    await pollUntil(
+      async () => {
+        homeHtmlAfter = await (await fetch(`http://localhost:${port}/`)).text();
+        homeChunkAfter = extractDevClientEntry(homeHtmlAfter);
+        const hmrHtml = await (await fetch(`http://localhost:${port}/_bun_hmr_entry`)).text();
+        currentShellChunk = extractDevClientEntry(hmrHtml);
+        return (
+          homeChunkAfter !== null &&
+          homeChunkAfter === currentShellChunk &&
+          homeChunkAfter !== initialChunk
+        );
+      },
+      40,
+      250
+    );
 
     expect(homeHtmlAfter).toContain("ISR home page");
     expect(homeChunkAfter).toBe(currentShellChunk);

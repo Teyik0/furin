@@ -39,6 +39,11 @@
       "bun": "./src/client.ts",
       "import": "./dist/client.js"
     },
+    "./desktop-dev": {
+      "types": "./dist/desktop-dev.d.ts",
+      "bun": "./src/desktop-dev.ts",
+      "import": "./dist/desktop-dev.js"
+    },
     "./web-dev": {
       "types": "./dist/web-dev.d.ts",
       "bun": "./src/web-dev.ts",
@@ -59,7 +64,7 @@
   "scripts": {
     "build": "bun build.ts",
     "fix": "ultracite fix",
-    "test": "bun test --isolate tests",
+    "test": "bun test --isolate --parallel=2 tests",
     "tscheck": "bun prepare-sdk.ts && tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
@@ -72,8 +77,8 @@
   },
   "peerDependencies": {
     "@teyik0/furin": ">=0.9.0-alpha.0 <0.10.0",
-    "elysia": "catalog:",
-    "react": "catalog:"
+    "elysia": "^2.0.0-rc.1",
+    "react": "^19.3.1"
   },
   "peerDependenciesMeta": {
     "react": {

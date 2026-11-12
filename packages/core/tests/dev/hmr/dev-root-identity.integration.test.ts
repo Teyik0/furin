@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 import { getFreePort } from "../../support/hmr.ts";
-import { waitForHttp } from "../../support/http.ts";
+import { pollUntil, waitForHttp } from "../../support/http.ts";
 import { startProcess } from "../../support/process.ts";
 
 /**
@@ -89,13 +89,14 @@ describe.serial("dev root module identity", () => {
     writeAppFile(app.path, "src/pages/root.tsx", rootSource("root-v2"));
 
     let notFoundHtml = "";
-    for (let i = 0; i < 40; i += 1) {
-      notFoundHtml = await (await fetch(`http://localhost:${port}/missing`)).text();
-      if (notFoundHtml.includes("root-v2")) {
-        break;
-      }
-      await Bun.sleep(250);
-    }
+    await pollUntil(
+      async () => {
+        notFoundHtml = await (await fetch(`http://localhost:${port}/missing`)).text();
+        return notFoundHtml.includes("root-v2");
+      },
+      40,
+      250
+    );
     expect(notFoundHtml).toContain("root-v2");
 
     const pageHtml = await (await fetch(`http://localhost:${port}/`)).text();

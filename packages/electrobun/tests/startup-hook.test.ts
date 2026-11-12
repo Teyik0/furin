@@ -7,7 +7,6 @@ import { createDesktopApp } from "../src/server";
 
 test("desktop initializes application resources before serving authenticated requests", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-startup-hook-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   let ready = false;
   const app = createDesktopApp().get("/", () => (ready ? "ready" : "starting"));
   let shutdowns = 0;
@@ -37,11 +36,6 @@ test("desktop initializes application resources before serving authenticated req
     try {
       await backend?.stop();
     } finally {
-      if (previousData === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previousData;
-      }
       await rm(data, { recursive: true, force: true });
     }
   }

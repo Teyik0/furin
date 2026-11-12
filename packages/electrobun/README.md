@@ -1,6 +1,8 @@
 # @teyik0/furin-electrobun
 
-Furin desktop packaging with Electrobun 2.0.2 and one Bun main process. Your React DOM pages, SSR, API, Eden client and sync code serve both web and desktop.
+Furin desktop packaging with Electrobun 2.0.2 and one Bun main process in production. Your React DOM pages, SSR, API, Eden client and sync code serve both web and desktop.
+
+Guides: [teyik0.github.io/furin/docs/desktop](https://teyik0.github.io/furin/docs/desktop). Requires Bun 1.4+, `@teyik0/furin` `>=0.9.0-alpha.0 <0.10.0` and Elysia `^2.0.0-rc.1`.
 
 ## Setup
 
@@ -9,7 +11,7 @@ bun add -d @teyik0/furin-electrobun
 bunx --bun @teyik0/furin-electrobun init
 ```
 
-Declare packaging in `furin.config.ts`. The primary window belongs in the Elysia root:
+Without a `furin.config.ts`, `init` creates one with a `desktop` section. If you already have one, add `desktop` first (below), or `init` stops without changing anything. Declare packaging in `furin.config.ts`; the primary window belongs in the Elysia root:
 
 ```ts
 // furin.config.ts
@@ -112,41 +114,51 @@ import { Elysia, status } from "elysia";
 
 export const api = new Elysia({ prefix: "/api" })
   .use(desktopContext)
-  .post("/minimize", ({ desktop }) => {
+  .post("/minimize", async ({ desktop }) => {
     if (!desktop) return status(409, { error: "Desktop unavailable" });
-    desktop.window?.minimize();
+    await desktop.window.minimize();
     return { ok: true };
   });
 ```
 
 `desktopContext` is a named, deduplicated dependency provider. It only injects the live `DesktopContext | null`; it does not register another root, listener or window. `desktopApp` installs it automatically. Independent plugins explicitly `.use(desktopContext)` to get their own static types. Web mode gets `null` without loading native SDK code.
 
-`desktop.window` is a readonly getter returning the current **original SDK BrowserWindow**, or `undefined` after it closes. It includes every native method and the original `webview`/RPC types. `desktop.open()` reactivates main or creates it again and returns that real instance. Before native readiness, it throws immediately; do not call it at native-module top level or await it during startup.
+The Elysia `desktop` context is **asynchronous and serializable in every mode**: in a packaged app it calls the native host in the same process, in development it crosses a local channel to the native shell (see [Development and production](#development-and-production)). Arguments and results are plain data in both cases, so code that works in development behaves identically once packaged.
+
+`desktop.window` controls the main window with the SDK's serializable `BrowserWindow` methods, under their original names: `minimize`, `maximize`, `isMinimized`, `getSize`, `setSize`, `getFrame`, `setFrame`, `setTitle`, `setAlwaysOnTop`, `setFullScreen`, `center`, `show`, `close`, `requestClose` and similar. Each returns a promise and rejects when that window is not open. `desktop.open()` shows the main window or creates it again.
 
 ```ts
-const options = desktop.windows.create("options", {
+const options = await desktop.windows.create("options", {
   path: "/options",
   title: "Options",
   frame: { width: 640, height: 480 },
-  rpc,
 });
-// BrowserWindow<typeof rpc>, including BrowserView<typeof rpc>.
-options.webview.rpc;
-desktop.windows.get("options"); // BrowserWindow | undefined
+await options.center();
+await desktop.windows.get("options").close();
 ```
 
-Each additional window gets its own one-use authenticated bootstrap URL. Names are dynamic strings; a lookup cannot infer a schema from an unrelated string declaration. Keep the inferred result of `create` when exact RPC typing matters. The ambient main getter uses the SDK's default RPC type. No generated named-window declarations are involved.
+Each additional window gets its own one-use authenticated bootstrap URL. Window options exclude `rpc`, webviews and event handlers: those native objects stay in the native module, through `getDesktopHost()`.
 
-Furin reserves managed window URLs, HTML, views root and navigation rules. Other SDK options pass through. Managed windows without RPC default to sandboxed; supplying RPC enables its SDK transport unless you explicitly choose sandbox mode. Trusted native code can use original SDK methods to change a window later. Raw SDK windows/views are also available and are outside Furin's managed authentication and ownership.
+Furin reserves managed window URLs, HTML, views root and navigation rules. Other SDK options pass through. Managed windows without RPC default to sandboxed. Raw SDK windows/views are also available and are outside Furin's managed authentication and ownership.
 
 ## Native modules use the original SDK
 
-The optional `build.bun.entrypoint` module registers native integrations. It runs internally after the application module loads, before Elysia startup/listening. It must not start the backend or declare a primary window.
+The optional `build.bun.entrypoint` module registers native integrations and declares the native commands Elysia may call. It runs in the native process: after the application module loads in a packaged app, and in the long-lived native shell during development. It must not start the backend or declare a primary window.
 
 ```ts
 // src/desktop.ts
-import { ApplicationMenu } from "electrobun/main";
-import { getDesktopHost } from "@teyik0/furin-electrobun/host";
+import { defineNative, getDesktopHost } from "@teyik0/furin-electrobun/host";
+import { ApplicationMenu, Utils } from "electrobun/main";
+
+export default defineNative({
+  notify: async (title: string, body: string) => {
+    Utils.showNotification({ title, body });
+  },
+  pickFolder: async () => {
+    const [path] = await Utils.openFileDialog({ canChooseDirectory: true, canChooseFiles: false });
+    return path ?? null;
+  },
+});
 
 ApplicationMenu.setApplicationMenu([
   { label: "Relay", submenu: [{ label: "Open Relay", action: "open" }, { role: "quit" }] },
@@ -157,9 +169,19 @@ ApplicationMenu.on("application-menu-clicked", () => {
 });
 ```
 
-Handle deep links and associated files directly with `Electrobun.events.on("open-url", handler)` in this native entrypoint, using the original SDK's `event.data.url` payload. Files arrive as `file:` URLs. Declare URL schemes/file associations in `desktop.app.urlSchemes` / `desktop.app.fileAssociations`. Furin forwards launch inputs and secondary-instance inputs to this SDK event after host readiness; direct OS events follow the SDK lifecycle. Coordinate application startup dependencies in your native handler when needed. Furin provides no `onOpen` option or native-module export contract.
+Elysia calls the default export through `desktop.native`, fully typed without any declaration in your code: `prepare`, `dev` and `build` generate `.furin/electrobun/native-env.d.ts` from the native entrypoint, and the generated `.furin/electrobun/tsconfig.json` your project extends includes it. The backend never imports native code; it only receives its type.
 
-`getDesktopHost()` returns the same controller as route context, or `null` outside the managed host. Original `electrobun/main` and all devkit public subpaths remain available: ApplicationMenu, ContextMenu, Tray, Utils, GlobalShortcut, Screen, Session, BrowserWindow, BrowserView/RPC, GpuWindow, WGPUView and WebGPU. Use SDK menus with their original tooltip/hidden/data/roles/actions; create and update SDK trays directly. Furin installs no replacement menus or tray.
+```ts
+.post("/export", async ({ desktop }) => {
+  const folder = await desktop?.native.pickFolder(); // string | null, or undefined on the web
+  if (folder) await desktop?.native.notify("Export complete", folder);
+  return { folder };
+})
+```
+
+Handle deep links and associated files directly with `Electrobun.events.on("open-url", handler)` in this native entrypoint, using the original SDK's `event.data.url` payload. Files arrive as `file:` URLs. Declare URL schemes/file associations in `desktop.app.urlSchemes` / `desktop.app.fileAssociations`. Furin forwards launch inputs and secondary-instance inputs to this SDK event after host readiness; direct OS events follow the SDK lifecycle. Coordinate application startup dependencies in your native handler when needed. Furin provides no `onOpen` option; the only native-module export it reads is the `defineNative` default export.
+
+`getDesktopHost()` returns the native controller with original SDK objects (`window`, `windows.create(name, { path, rpc })` returning the SDK `BrowserWindow<T>`), or `null` outside the native process. Original `electrobun/main` and all devkit public subpaths remain available: ApplicationMenu, ContextMenu, Tray, Utils, GlobalShortcut, Screen, Session, BrowserWindow, BrowserView/RPC, GpuWindow, WGPUView and WebGPU. Use SDK menus with their original tooltip/hidden/data/roles/actions; create and update SDK trays directly. Furin installs no replacement menus or tray.
 
 Native callbacks run outside HTTP; catch both synchronous errors and rejected promises there. Elysia `.onError()` handles HTTP errors. Application resource lifecycle uses Elysia `.onStart()`/`.onStop()`. Keep native SDK value imports confined to native modules; shared server modules use context and type-only imports.
 
@@ -183,21 +205,37 @@ bunx --bun furin-electrobun prepare
 }
 ```
 
-Preserve your existing compiler options instead of copying the example's second extends path. `prepare`, `dev` and desktop builds regenerate exact aliases from the SDK export map; rerun preparation after relocating a checkout. Published Furin declarations reference original `electrobun/main` types, never a build machine's absolute paths. No GUI is needed to prepare/typecheck. First preparation needs network access; later runs reuse Hutch's cache. The optional SDK dependency is pinned to 2.0.2; install it explicitly if optional dependencies were omitted. All tools run through Bun.
+Preserve your existing compiler options instead of copying the example's second extends path. `prepare`, `dev` and desktop builds regenerate exact aliases from the SDK export map; rerun preparation after relocating a checkout. Published Furin declarations reference original `electrobun/main` types, never a build machine's absolute paths. No GUI is needed to prepare/typecheck. First preparation needs network access; later runs reuse the SDK cache. The optional SDK dependency is pinned to 2.0.2; if optional dependencies were omitted, install it with `bun add -d electrobun@2.0.2`. All tools run through Bun.
 
 ## Development and production
 
-`init` adds `build:desktop`, preserves existing dev commands and config, and registers this launcher in `bunfig.toml`:
+`init` adds `build:desktop`, adds `dev` only when missing, preserves existing config, and registers this launcher in `bunfig.toml`:
 
 ```toml
 preload = ["@teyik0/furin-electrobun/preload"]
 ```
 
 ```sh
-bun --hot src/server.ts       # native and authenticated browser, one backend
-bunx --bun furin dev --web    # web mode, no SDK initialization
-bun run build:desktop        # package the native app
+bun --hot src/server.ts         # native and authenticated browser, one backend
+bunx --bun furin dev --desktop  # native window only
+bunx --bun furin dev --web      # web mode, no SDK initialization
+bun run build:desktop           # package the native app into .furin/electrobun/build
 ```
+
+Desktop development runs two processes so backend edits never relaunch the app:
+
+```
+bun --hot backend (Elysia, API, SSR, sync)  ⇄  native shell (Electrobun windows, menus, tray, src/desktop.ts)
+   reloads in place on backend edits            authenticated loopback channel; relaunched only for native edits
+```
+
+| You edit | What happens |
+| --- | --- |
+| a route, API, database or sync module | Bun `--hot` reloads the backend in place; windows stay open and `globalThis` state survives |
+| a page or component | Bun HMR / React Fast Refresh, as before |
+| the native entrypoint or its imports | only the native shell is rebuilt and relaunched; the backend keeps running |
+
+Quitting the desktop app ends the development session; Ctrl-C stops the backend, then the shell (forced after five seconds if its native quit hangs). `desktop.restart()` relaunches only the shell in development. Keep the listener port fixed (`port: 0` gets a new port on every reload, which relaunches the shell). A packaged app remains one process: the same `desktop` calls run in-process.
 
 Web-only development evaluates the source entry and honors its direct `.listen(...)`, including the hostname, TLS, port and Elysia startup/stop hooks. Keep that call outside `import.meta.main`; keep standalone process signal handlers inside the guard. For example:
 
@@ -213,7 +251,7 @@ There is no startup wrapper to export. `--port` (then `PORT`) overrides only the
 
 With `desktopApp`, the CLI opens an authenticated owner session in the system browser, without starting Electrobun. Its single-use bootstrap URL expires after one minute and is sent directly to the browser, never printed or saved. It uses the application origin (HTTP or HTTPS), a host-only HttpOnly SameSite=Strict cookie, and Secure on HTTPS. HTTPS development needs a certificate trusted by the browser. Only a verified cookie on the exact local origin, from a loopback TCP peer without forwarded headers, sets `desktopSession: true`. `desktopHost` remains false, the native host context remains null, and the React desktop client remains in web mode. Missing/invalid owner cookies and remote requests continue through the application's admission policy; existing paired remote authentication is unchanged. No consumer client changes or remote-access setting changes are required. This bootstrap is activated only by the development CLI and never by production/package startup. A loopback or wildcard TCP listener and an available system browser are required.
 
-The preload only activates for the configured hot server entry. Frontend edits use Bun HMR/React Fast Refresh and retain the window. Backend/native dependency edits cause a controlled full process restart; native modules are never hot-reloaded and backend state is not promised to survive. External packages/assets/native dependencies stay with the relocatable Furin artifact. Compiled/AOT dispatch preserves app identity and the in-process Eden security boundary.
+The preload only activates for the configured hot server entry and hands off to `furin dev`. Native modules are never hot-reloaded in place. External packages/assets/native dependencies stay with the relocatable Furin artifact. Compiled/AOT dispatch preserves app identity and the in-process Eden security boundary.
 
 See [native-host.md](./native-host.md) for session, listener, storage and lifecycle details, and [the todo example](../../examples/electrobun-todo) for working code.
 
@@ -260,11 +298,11 @@ export function DownloadLink({ url }: { url: string }) {
           event.preventDefault();
           setError(null);
           void desktop.browser.open(url).then((result) => {
-            if (!result.ok) setError("Impossible d’ouvrir le navigateur système.");
+            if (!result.ok) setError("Could not open the system browser.");
           });
         }}
       >
-        Télécharger la mise à jour
+        Download the update
       </a>
       {error && <p role="alert">{error}</p>}
     </>
@@ -275,6 +313,6 @@ export function DownloadLink({ url }: { url: string }) {
 // <DownloadLink url="/api/updates/download" />
 ```
 
-SSR and Web render a regular anchor. Once the desktop handshake succeeds, clicking uses the system browser. In Tofu, replace the call to `POST /api/updates/open-download` with this hook and delete that action endpoint; keep `GET /api/updates/download` solely to serve the file. These Tofu routes are not part of this repository.
+SSR and Web render a regular anchor. Once the desktop handshake succeeds, clicking uses the system browser. This replaces backend endpoints that open a download natively; keep only the endpoint that serves the file (see [the migration guide](https://teyik0.github.io/furin/docs/desktop/migration)).
 
 **Authentication:** the system browser does not necessarily share the webview's cookies, local storage or application session. This API opens the supplied URL without forwarding credentials, adding tokens, or issuing a session bootstrap. A protected download may therefore require browser sign-in or an application-issued, short-lived download URL with appropriate scope. Furin's private loopback listener also requires its desktop cookie, so opening its plain `/api/updates/download` URL in a separate browser may return 401. Use a download URL the system browser can legitimately access; do not expose the desktop bootstrap cookie or remove listener/authentication protections to make it work. The host-side `desktop.browser.open(path)` remains a separate existing operation for launching the application with its own session-bootstrap policy.

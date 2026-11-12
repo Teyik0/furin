@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { treaty } from "@elysia/eden";
 import { Elysia, t } from "elysia";
-import { Suspense, use } from "react";
+import { type ReactNode, Suspense, use } from "react";
 import { defer, furinSync } from "../../../src/client.ts";
 import { Await, defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { revalidateTag } from "../../../src/server/auto-invalidate";
@@ -36,6 +36,22 @@ afterEach(async () => {
   __resetCompileContext();
   await Promise.resolve();
 });
+function AccountUser({ data }: { data: Promise<unknown> }) {
+  return <strong>{String(use(data))}</strong>;
+}
+
+/** A PPR page shell: public `heading`, private `user` resumed into its Suspense hole. */
+function AccountShell({ heading, user }: { heading: ReactNode; user: Promise<unknown> }) {
+  return (
+    <main>
+      <h1>{heading}</h1>
+      <Suspense fallback={<span>Loading</span>}>
+        <AccountUser data={user} />
+      </Suspense>
+    </main>
+  );
+}
+
 const STATE_LENGTH_RE = /state-length=(\d+)/;
 const originalDevMode = IS_DEV;
 const rootTerminal = defineRootRoute()
@@ -154,14 +170,11 @@ test("SSR deferred responses stay private when a loader sets Cache-Control", asy
       })
       .page(({ user }) => (
         <Suspense fallback="Loading">
-          <User data={user} />
+          <AccountUser data={user} />
         </Suspense>
       )),
     undefined
   );
-  function User({ data }: { data: Promise<unknown> }) {
-    return <strong>{String(use(data))}</strong>;
-  }
   const response = await app.handle(
     new Request("http://localhost/account", { headers: { cookie: "session=Alice" } })
   );
@@ -266,15 +279,12 @@ describe.serial("partial prerendering", () => {
         publicCalls += 1;
         return { catalog: publicCalls, date: new Date("2026-01-01") };
       });
-    function User({ data }: { data: Promise<string> }) {
-      return <strong>{use(data)}</strong>;
-    }
     const { app } = await mountAccount(
       route.page(({ catalog, date, user }) => (
         <main>
           {catalog}:{date.toISOString()}
           <Suspense fallback="loading">
-            <User data={user} />
+            <AccountUser data={user} />
           </Suspense>
         </main>
       )),
@@ -360,17 +370,7 @@ describe.serial("partial prerendering", () => {
         publicCalls += 1;
         return { catalog: "Shoes" };
       });
-    function User({ data }: { data: Promise<unknown> }) {
-      return <strong>{String(use(data))}</strong>;
-    }
-    const page = route.page(({ catalog, user }) => (
-      <main>
-        <h1>{catalog}</h1>
-        <Suspense fallback={<span>Loading</span>}>
-          <User data={user} />
-        </Suspense>
-      </main>
-    ));
+    const page = route.page(({ catalog, user }) => <AccountShell heading={catalog} user={user} />);
     const { app } = await mountAccount(page, undefined);
 
     const aliceResponse = await app.handle(
@@ -1107,48 +1107,6 @@ describe.serial("partial prerendering", () => {
     }
   });
 
-  test("keys PPR public shells by query string", async () => {
-    let publicCalls = 0;
-    const route = defineRoute("/")
-      .config({
-        mode: "isr",
-        query: t.Object({ view: t.Optional(t.String()) }),
-        revalidate: 60,
-      })
-      .requestLoader(() => ({ user: "alice" }))
-      .loader(({ query }) => {
-        publicCalls += 1;
-        return { view: query.view ?? "" };
-      });
-    function User({ data }: { data: Promise<string> }) {
-      return <strong>{use(data)}</strong>;
-    }
-    const page = route.page(({ user, view }) => (
-      <main>
-        <h1>{view}</h1>
-        <Suspense fallback={<span>Loading</span>}>
-          <User data={user} />
-        </Suspense>
-      </main>
-    ));
-    const { app } = await mountAccount(page, undefined);
-
-    const alpha = await app
-      .handle(new Request("http://localhost/account?view=alpha"))
-      .then((response) => response.text());
-    const beta = await app
-      .handle(new Request("http://localhost/account?view=beta"))
-      .then((response) => response.text());
-
-    expect(alpha).toContain("alpha");
-    expect(beta).toContain("beta");
-    expect(publicCalls).toBe(2);
-
-    expect(invalidatePprRoute("/account", "page")).toBe(true);
-    await app.handle(new Request("http://localhost/account?view=alpha"));
-    expect(publicCalls).toBe(3);
-  });
-
   test("keys PPR public shells on declared query params only, in canonical order", async () => {
     const observed: unknown[] = [];
     const route = defineRoute("/")
@@ -1162,17 +1120,7 @@ describe.serial("partial prerendering", () => {
         observed.push({ ...query });
         return { view: query.view ?? "" };
       });
-    function User({ data }: { data: Promise<string> }) {
-      return <strong>{use(data)}</strong>;
-    }
-    const page = route.page(({ user, view }) => (
-      <main>
-        <h1>{view}</h1>
-        <Suspense fallback={<span>Loading</span>}>
-          <User data={user} />
-        </Suspense>
-      </main>
-    ));
+    const page = route.page(({ user, view }) => <AccountShell heading={view} user={user} />);
     const { app } = await mountAccount(page, undefined);
 
     for (const search of [
@@ -1189,6 +1137,10 @@ describe.serial("partial prerendering", () => {
       { sort: "new", view: "alpha" },
       { sort: "new", view: "beta" },
     ]);
+
+    expect(invalidatePprRoute("/account", "page")).toBe(true);
+    await app.handle(new Request("http://localhost/account?view=alpha&sort=new"));
+    expect(observed).toHaveLength(3);
   });
 
   test("keys PPR public shells on declared query values as the schema decodes them", async () => {
@@ -1204,16 +1156,8 @@ describe.serial("partial prerendering", () => {
         observed.push({ ...query });
         return { page: query.page };
       });
-    function User({ data }: { data: Promise<string> }) {
-      return <strong>{use(data)}</strong>;
-    }
     const page = route.page(({ page: current, user }) => (
-      <main>
-        <h1>{current}</h1>
-        <Suspense fallback={<span>Loading</span>}>
-          <User data={user} />
-        </Suspense>
-      </main>
+      <AccountShell heading={current} user={user} />
     ));
     const { app } = await mountAccount(page, undefined);
 
@@ -1236,17 +1180,7 @@ describe.serial("partial prerendering", () => {
         observed.push({ ...query });
         return { catalog: "Shoes" };
       });
-    function User({ data }: { data: Promise<string> }) {
-      return <strong>{use(data)}</strong>;
-    }
-    const page = route.page(({ catalog, user }) => (
-      <main>
-        <h1>{catalog}</h1>
-        <Suspense fallback={<span>Loading</span>}>
-          <User data={user} />
-        </Suspense>
-      </main>
-    ));
+    const page = route.page(({ catalog, user }) => <AccountShell heading={catalog} user={user} />);
     const { app } = await mountAccount(page, undefined);
 
     const first = await app
@@ -1272,16 +1206,8 @@ describe.serial("partial prerendering", () => {
         publicCalls += 1;
         return { catalog };
       });
-    function User({ data }: { data: Promise<string> }) {
-      return <strong>{use(data)}</strong>;
-    }
     const page = route.page(({ catalog: loadedCatalog, user }) => (
-      <main>
-        <h1>{loadedCatalog}</h1>
-        <Suspense fallback={<span>Loading</span>}>
-          <User data={user} />
-        </Suspense>
-      </main>
+      <AccountShell heading={loadedCatalog} user={user} />
     ));
     const { app } = await mountAccount(page, undefined);
 
@@ -1384,9 +1310,6 @@ describe.serial("partial prerendering", () => {
   }
 
   function mountQueryAccount(onPublic: () => void, onPrivate: () => void) {
-    function User({ data }: { data: Promise<string> }) {
-      return <strong>{use(data)}</strong>;
-    }
     return mountAccount(
       defineRoute("/")
         .config({
@@ -1402,14 +1325,7 @@ describe.serial("partial prerendering", () => {
           onPublic();
           return { view: query.view ?? "" };
         })
-        .page(({ user, view }) => (
-          <main>
-            <h1>{view}</h1>
-            <Suspense fallback={<span>Loading</span>}>
-              <User data={user} />
-            </Suspense>
-          </main>
-        )),
+        .page(({ user, view }) => <AccountShell heading={view} user={user} />),
       undefined
     );
   }
@@ -1596,17 +1512,7 @@ describe.serial("partial prerendering", () => {
         throw new Error("private boom");
       })
       .loader(() => ({ catalog: "Shoes" }));
-    function User({ data }: { data: Promise<string> }) {
-      return <strong>{String(use(data))}</strong>;
-    }
-    const page = route.page(({ catalog, user }) => (
-      <main>
-        <h1>{catalog}</h1>
-        <Suspense fallback={<span>Loading</span>}>
-          <User data={user} />
-        </Suspense>
-      </main>
-    ));
+    const page = route.page(({ catalog, user }) => <AccountShell heading={catalog} user={user} />);
     const { app } = await mountAccount(page, undefined);
 
     const html = await app

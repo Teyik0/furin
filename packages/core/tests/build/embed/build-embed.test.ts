@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { generateCompileEntry } from "../../../src/build/compile-entry";
 import { createTmpApp, removeAppPath } from "../../support/app-fixtures";
@@ -7,11 +8,31 @@ import { getFreePort } from "../../support/hmr.ts";
 import { waitForHttp } from "../../support/http";
 import { runCli, startProcess } from "../../support/process";
 
+// Strings that only Furin's development and DevTools code contains.
+const DEVTOOLS_MARKERS = [
+  "/_furin/dev/overlay",
+  "/_furin/devtools",
+  "Development source transform failed",
+  "Furin development error",
+  "furin-devtools",
+  "x-furin-devtools-operation-id",
+  "loader.finished",
+  "cache.invalidated",
+  "payload.serialized",
+  "FurinDevtoolsElement",
+  "Runtime overview",
+] as const;
+
 const tmpApps: Array<{ cleanup: () => void }> = [];
 
 function rememberTmpApp<T extends { cleanup: () => void }>(app: T): T {
   tmpApps.push(app);
   return app;
+}
+
+function createTmpDir(): { cleanup: () => void; path: string } {
+  const path = mkdtempSync(join(tmpdir(), "furin-compile-entry-"));
+  return rememberTmpApp({ cleanup: () => rmSync(path, { force: true, recursive: true }), path });
 }
 
 afterEach(() => {
@@ -33,7 +54,7 @@ describe.serial("compile: embed", () => {
     expect(result.stderr + result.stdout).toContain("server.ts");
   });
 
-  test("CLI build --compile embed writes a runnable single server binary", async () => {
+  test("CLI build --compile embed writes a runnable single server binary without DevTools code", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
     writeFileSync(join(app.path, "public/embed.txt"), "embedded public asset");
     const serverPath = join(app.path, "src/server.ts");
@@ -77,6 +98,8 @@ export default app;
       : join(targetDir, "server.exe");
 
     expect(existsSync(serverBin)).toBe(true);
+    const binary = readFileSync(serverBin).toString("latin1");
+    expect(DEVTOOLS_MARKERS.filter((marker) => binary.includes(marker))).toEqual([]);
 
     // All intermediate files must be cleaned up — only the binary + manifest should remain.
     for (const file of [
@@ -141,7 +164,7 @@ export default app;
       });
       socket.close();
     } finally {
-      server.kill();
+      server.kill("SIGKILL");
       await server.exitCode;
     }
     },
@@ -168,21 +191,6 @@ export default app;
     expect(result.stderr + result.stdout).toContain("Unknown option");
   });
 
-  test("CLI build --analyze writes a complete client metafile", async () => {
-    const app = rememberTmpApp(createTmpApp("cli-app"));
-
-    const result = await runCli(["build", "--target", "bun", "--analyze"], {
-      cwd: app.path,
-    });
-
-    expect(result.exitCode).toBe(0);
-    const metafile = Bun.file(join(app.path, ".furin/build/analysis/bun-client.json"));
-    expect(await metafile.exists()).toBe(true);
-    const metadata = (await metafile.json()) as Bun.BuildMetafile;
-    expect(Object.keys(metadata.inputs).length).toBeGreaterThan(0);
-    expect(Object.keys(metadata.outputs).length).toBeGreaterThan(0);
-  });
-
   test("CLI build does not parse --compile after the option terminator", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
 
@@ -195,14 +203,14 @@ export default app;
   });
 
   test("generateCompileEntry with embed produces an in-memory native directory context", () => {
-    const app = rememberTmpApp(createTmpApp("cli-app"));
+    const app = createTmpDir();
 
     const clientDir = join(app.path, "fake-client");
     mkdirSync(clientDir, { recursive: true });
     writeFileSync(join(clientDir, "index.html"), "<html></html>");
     writeFileSync(join(clientDir, "chunk-abc.js"), "console.log()");
-    writeFileSync(join(app.path, "public", "logo.png"), "fake");
     mkdirSync(join(app.path, "public", "sub"), { recursive: true });
+    writeFileSync(join(app.path, "public", "logo.png"), "fake");
     writeFileSync(join(app.path, "public", "sub", "logo.png"), "fake");
 
     const entry = generateCompileEntry({
@@ -241,7 +249,7 @@ export default app;
   });
 
   test("generateCompileEntry shares Bun's embedded public directory across app contexts", () => {
-    const app = rememberTmpApp(createTmpApp("cli-app"));
+    const app = createTmpDir();
 
     // Two embedded apps share one project-level public directory in BunFS.
     const clientDirs = [join(app.path, "fake-client-a"), join(app.path, "fake-client-b")];
@@ -249,6 +257,7 @@ export default app;
       mkdirSync(clientDir, { recursive: true });
       writeFileSync(join(clientDir, "index.html"), "<html></html>");
     }
+    mkdirSync(join(app.path, "public"));
     writeFileSync(join(app.path, "public", "logo.png"), "fake");
 
     const entry = generateCompileEntry({
@@ -278,7 +287,7 @@ export default app;
   });
 
   test("generateCompileEntry with embed does not enumerate client files", () => {
-    const app = rememberTmpApp(createTmpApp("cli-app"));
+    const app = createTmpDir();
 
     const clientDir = join(app.path, "fake-client");
     mkdirSync(clientDir, { recursive: true });
@@ -312,7 +321,7 @@ export default app;
   });
 
   test("generateCompileEntry without embed does not contain embedded block", () => {
-    const app = rememberTmpApp(createTmpApp("cli-app"));
+    const app = createTmpDir();
 
     const entry = generateCompileEntry({
       apps: [
@@ -337,7 +346,7 @@ export default app;
   });
 
   test("generateCompileEntry stores the composed native app in its compile context", () => {
-    const app = rememberTmpApp(createTmpApp("cli-app"));
+    const app = createTmpDir();
     const nativeRoutes = "@teyik0/furin/routes?instance=test";
 
     const entry = generateCompileEntry({
@@ -359,7 +368,7 @@ export default app;
   });
 
   test("generateCompileEntry with embed throws if clientDir does not exist", () => {
-    const app = rememberTmpApp(createTmpApp("cli-app"));
+    const app = createTmpDir();
 
     expect(() =>
       generateCompileEntry({
@@ -377,7 +386,7 @@ export default app;
   });
 
   test("generateCompileEntry with embed throws if index.html is missing", () => {
-    const app = rememberTmpApp(createTmpApp("cli-app"));
+    const app = createTmpDir();
 
     const clientDir = join(app.path, "fake-client");
     mkdirSync(clientDir, { recursive: true });

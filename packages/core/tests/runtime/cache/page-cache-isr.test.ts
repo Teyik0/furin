@@ -1,4 +1,4 @@
-import { afterAll, afterEach, expect, test } from "bun:test";
+import { afterAll, afterEach, expect, jest, test } from "bun:test";
 import { join } from "node:path";
 import { treaty } from "@elysia/eden";
 import { type Context, Elysia } from "elysia";
@@ -33,6 +33,7 @@ import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { notFound } from "../../../src/shared/not-found.ts";
 import { queryTag } from "../../../src/shared/sync-query.ts";
+import { waitFor } from "../../support/wait.ts";
 
 const originalDevMode = IS_DEV;
 afterAll(() => __setDevMode(originalDevMode));
@@ -54,22 +55,12 @@ function createContext(path: string): Context {
   } as Context;
 }
 
-function createDeferred(): { promise: Promise<void>; resolve: () => void } {
-  let resolve!: () => void;
-  const promise = new Promise<void>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
-  return { promise, resolve };
-}
-
-async function waitFor(predicate: () => boolean): Promise<void> {
-  const deadline = Date.now() + 2000;
-  while (!predicate()) {
-    if (Date.now() >= deadline) {
-      throw new Error("Timed out waiting for the ISR render to start");
-    }
-    // biome-ignore lint/performance/noAwaitInLoops: bounded polling waits for an observable render state.
-    await Bun.sleep(1);
+/** Advances faked timers in 10ms steps, letting promise continuations and I/O run between them. */
+async function advanceFakeTime(ms: number): Promise<void> {
+  for (let elapsed = 0; elapsed < ms; elapsed += 10) {
+    jest.advanceTimersByTime(10);
+    // biome-ignore lint/performance/noAwaitInLoops: each step must settle before time advances again.
+    await new Promise((resolve) => setImmediate(resolve));
   }
 }
 
@@ -169,7 +160,7 @@ async function runInvalidationRace(): Promise<void> {
     throw new Error("Route /isr-page not found");
   }
 
-  const gate = createDeferred();
+  const gate = Promise.withResolvers<void>();
   let loaderCalls = 0;
   let renderStarted = false;
   const route: ResolvedRoute = {
@@ -195,7 +186,7 @@ async function runInvalidationRace(): Promise<void> {
     const firstRender = withInstance(instance, () =>
       handleISR(route, createContext("/isr-page"), result.root, instance.buildId)
     );
-    await waitFor(() => renderStarted);
+    await waitFor(() => renderStarted, "Timed out waiting for the ISR render to start", 2000);
     await revalidatePath("/isr-page", "page");
     gate.resolve();
     await firstRender;
@@ -536,7 +527,7 @@ async function runConcurrentISRMisses(): Promise<void> {
     throw new Error("Route /isr-page not found");
   }
 
-  const gate = createDeferred();
+  const gate = Promise.withResolvers<void>();
   let loaderCalls = 0;
   const route: ResolvedRoute = {
     ...matched,
@@ -560,7 +551,7 @@ async function runConcurrentISRMisses(): Promise<void> {
     const first = withInstance(instance, () =>
       handleISR(route, createContext("/isr-page"), result.root, instance.buildId)
     );
-    await waitFor(() => loaderCalls === 1);
+    await waitFor(() => loaderCalls === 1, "Timed out waiting for the ISR render to start", 2000);
     const second = withInstance(instance, () =>
       handleISR(route, createContext("/isr-page"), result.root, instance.buildId)
     );
@@ -588,7 +579,7 @@ async function runSlowConcurrentISRMisses(): Promise<void> {
     throw new Error("Route /isr-page not found");
   }
 
-  const gate = createDeferred();
+  const gate = Promise.withResolvers<void>();
   let loaderCalls = 0;
   const route: ResolvedRoute = {
     ...matched,
@@ -613,15 +604,25 @@ async function runSlowConcurrentISRMisses(): Promise<void> {
     const leader = withInstance(instance, () =>
       handleISR(route, createContext("/isr-page"), result.root, instance.buildId)
     );
-    await waitFor(() => loaderCalls === 1);
+    await waitFor(() => loaderCalls === 1, "Timed out waiting for the ISR render to start", 2000);
+    jest.useFakeTimers();
     const follower = withInstance(instance, () =>
       handleISR(route, followerContext, result.root, instance.buildId)
     );
-    await Bun.sleep(2100);
+    await advanceFakeTime(2100);
     expect(loaderCalls).toBe(1);
     gate.resolve();
-    await Promise.all([leader, follower]);
+    let settled = false;
+    const renders = Promise.all([leader, follower]).finally(() => {
+      settled = true;
+    });
+    while (!settled) {
+      // biome-ignore lint/performance/noAwaitInLoops: the follower polls on faked timers until the leader's entry lands.
+      await advanceFakeTime(10);
+    }
+    await renders;
   } finally {
+    jest.useRealTimers();
     gate.resolve();
     resetPageCacheAdapter(instance);
   }

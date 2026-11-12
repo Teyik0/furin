@@ -1,13 +1,12 @@
 #!/usr/bin/env bun
-// biome-ignore-all lint/performance/noAwaitInLoops: Restart supervision and readiness polling must be sequential.
-import { existsSync, statSync, watch } from "node:fs";
-import { realpath, rm, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, posix, relative, resolve, sep, win32 } from "node:path";
+import { realpath, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, posix, resolve, sep, win32 } from "node:path";
+import type { DesktopConfig } from "./config";
 import { prepareDesktop } from "./prepare";
 import { initDesktop, loadDesktopConfig, loadFurinProject } from "./project";
-import { withShutdownDeadline } from "./runtime";
 import { prepareSdkResolution } from "./sdk-resolution";
-import { canonicalDesktopPath, resolveDesktopDataDir } from "./storage";
+import { defaultDesktopDataDir, resolveDesktopDataDir } from "./storage";
 
 const MODULE_PATH = /.*/;
 const WINDOWS_BASE = /^[a-z]:[\\/]|^\\\\/i;
@@ -19,7 +18,7 @@ export function backendInputPath(base: string, path: string): string {
   return api.resolve(base, api === win32 ? path.replace(WINDOWS_DRIVE_INPUT, "$1") : path);
 }
 
-async function backendDependencies(
+export async function backendDependencies(
   root: string,
   entries: string[],
   sdkAliases: { [specifier: string]: string },
@@ -90,6 +89,7 @@ async function coreCli(root: string): Promise<string> {
   let directory: string | undefined = dirname(Bun.resolveSync("@teyik0/furin", root));
   while (directory) {
     const file = Bun.file(join(directory, "package.json"));
+    // biome-ignore lint/performance/noAwaitInLoops: Walk up package directories sequentially.
     if (await file.exists()) {
       const pkg: { name?: string; bin?: { furin?: string } } = await file.json();
       if (pkg.name === "@teyik0/furin" && pkg.bin?.furin) {
@@ -127,18 +127,108 @@ async function run(command: string[], cwd: string, env: NodeJS.ProcessEnv): Prom
   }
 }
 
+/** Shared by the hot backend and the native shell for one development session. */
+export interface DesktopDevelopmentSettings {
+  config: DesktopConfig & { app: DesktopConfig["app"] & { version: string } };
+  dataDir: string;
+  generated: string;
+  nativeAliases: { [specifier: string]: string };
+  /** Relative to root. */
+  nativeEntry: string | undefined;
+  openBrowser: boolean;
+  root: string;
+  sdk: string;
+  sdkAliases: { [specifier: string]: string };
+}
+
+function developmentDataDir(identifier: string): string {
+  const home = homedir();
+  const xdg = process.env.XDG_DATA_HOME;
+  let root = xdg && isAbsolute(xdg) ? xdg : join(home, ".local/share");
+  if (process.platform === "darwin") {
+    root = join(home, "Library/Application Support");
+  } else if (process.platform === "win32") {
+    root = process.env.LOCALAPPDATA ?? join(home, "AppData/Local");
+  }
+  return defaultDesktopDataDir(root, identifier, "dev");
+}
+
+/** Prepares the SDK and returns the environment of Furin's hot development worker. */
+export async function prepareDesktopDevelopment(
+  cwd: string,
+  openBrowser: boolean
+): Promise<{ [name: string]: string }> {
+  const config = await loadDesktopConfig(cwd);
+  const project = await loadFurinProject(cwd);
+  const sdk = sdkBootstrap(cwd);
+  const env = { ...process.env, NODE_ENV: "development" };
+  const generated = await prepareDesktop(cwd, config, { ...project, mode: "dev" });
+  await run([process.execPath, sdk, "prepare", "--env=dev"], generated, env);
+  const settings: DesktopDevelopmentSettings = {
+    config,
+    dataDir:
+      config.dataDir === undefined
+        ? developmentDataDir(config.app.identifier)
+        : await resolveDesktopDataDir(config.dataDir, {
+            channel: "dev",
+            env,
+            mode: "dev",
+            root: project.root,
+          }),
+    generated,
+    nativeEntry: config.build?.bun?.entrypoint,
+    nativeAliases: Object.fromEntries(
+      Object.entries(config.build?.bun?.alias ?? {}).map(([name, target]) => [
+        name,
+        target.startsWith(".") ? resolve(project.root, target) : target,
+      ])
+    ),
+    openBrowser,
+    root: project.root,
+    sdk,
+    sdkAliases: await prepareSdkResolution(generated),
+  };
+  const path = join(generated, "dev.json");
+  await writeFile(path, JSON.stringify(settings), { mode: 0o600 });
+  return { FURIN_DESKTOP_DEV: path, NODE_ENV: "development" };
+}
+
+/** One development orchestrator: Furin's hot worker owns the backend and the native shell. */
+export async function runDesktopDevelopment(cwd: string, openBrowser: boolean): Promise<void> {
+  const child = Bun.spawn(
+    [process.execPath, await coreCli(cwd), "dev", ...(openBrowser ? [] : ["--desktop"])],
+    { cwd, stdin: "inherit", stdout: "inherit", stderr: "inherit" }
+  );
+  // The core CLI drains its worker; repeated signals from the terminal group are idempotent.
+  const forward = (signal: NodeJS.Signals) => child.kill(signal);
+  process.on("SIGINT", forward);
+  process.on("SIGTERM", forward);
+  try {
+    const code = await child.exited;
+    if (code !== 0) {
+      throw new Error(`Desktop development exited (${code}).`);
+    }
+  } finally {
+    process.off("SIGINT", forward);
+    process.off("SIGTERM", forward);
+  }
+}
+
 export async function desktopCommand(
   command: string,
   cwd: string,
-  buildEnvironment?: "dev" | "stable",
-  development?: { openBrowser: boolean }
+  buildEnvironment?: "dev" | "stable"
 ): Promise<void> {
   if (command === "init") {
     await initDesktop(cwd);
     console.log("Desktop scripts configured through furin.config.ts.");
     return;
   }
-  if (command !== "dev" && command !== "build" && command !== "prepare") {
+  if (command === "dev") {
+    await runDesktopDevelopment(cwd, false);
+    return;
+  }
+  if (command !== "build" && command !== "prepare") {
     throw new Error("Usage: furin-electrobun init | prepare | dev | build");
   }
   const config = await loadDesktopConfig(cwd);
@@ -147,7 +237,6 @@ export async function desktopCommand(
   const env = {
     ...process.env,
     NODE_ENV: command === "build" ? "production" : "development",
-    FURIN_DEV_OPEN_BROWSER: development?.openBrowser ? "1" : "0",
   };
   const channel = command === "build" ? (buildEnvironment ?? "stable") : "dev";
   if (command === "build") {
@@ -171,396 +260,12 @@ export async function desktopCommand(
     mode: command === "build" ? "build" : "dev",
   });
   await run([process.execPath, sdk, "prepare", `--env=${channel}`], generated, env);
-  const sdkAliases = await prepareSdkResolution(generated);
+  await prepareSdkResolution(generated);
   if (command === "prepare") {
     return;
   }
-  if (command === "build") {
-    await run([process.execPath, sdk, "build", `--env=${channel}`], generated, env);
-  }
-  if (command === "build") {
-    console.log(`Desktop build: ${join(generated, "build")}`);
-    return;
-  }
-  await runDesktopDev(
-    project.root,
-    project.serverEntry,
-    config.dataDir === undefined
-      ? undefined
-      : await resolveDesktopDataDir(config.dataDir, {
-          channel: "dev",
-          env,
-          mode: "dev",
-          root: project.root,
-        }),
-    generated,
-    sdk,
-    env,
-    join(generated, "main.ts"),
-    sdkAliases,
-    Object.fromEntries(
-      Object.entries(config.build?.bun?.alias ?? {}).map(([name, target]) => [
-        name,
-        target.startsWith(".") ? resolve(project.root, target) : target,
-      ])
-    )
-  );
-}
-
-function stoppedByUser(child: Bun.Subprocess, stopping: boolean): boolean {
-  return (
-    stopping &&
-    (child.signalCode === "SIGINT" ||
-      child.signalCode === "SIGTERM" ||
-      (process.platform === "win32" && (child.exitCode === 130 || child.exitCode === 143)))
-  );
-}
-
-async function terminateOwnedWindow(window: Bun.Subprocess): Promise<void> {
-  if (process.platform === "win32") {
-    // Windows has no POSIX process groups. taskkill follows the live bootstrap's
-    // descendants, not orphans whose bootstrap already exited. POSIX groups
-    // likewise cannot own descendants that deliberately start a new session.
-    if (window.exitCode === null && window.signalCode === null) {
-      const killer = Bun.spawn(["taskkill", "/PID", String(window.pid), "/T", "/F"], {
-        stdout: "ignore",
-        stderr: "ignore",
-      });
-      try {
-        const status = await withShutdownDeadline(killer.exited);
-        if (status !== 0 && window.exitCode === null && window.signalCode === null) {
-          throw new Error(`Desktop window tree termination failed (${status}).`);
-        }
-      } finally {
-        if (killer.exitCode === null) {
-          killer.kill("SIGKILL");
-        }
-        await killer.exited;
-      }
-    }
-  } else {
-    try {
-      process.kill(-window.pid, "SIGKILL");
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
-        throw error;
-      }
-    }
-  }
-  await window.exited;
-}
-
-async function stopOwnedDevWorker(
-  backend: Bun.Subprocess,
-  control: string,
-  isStopping: () => boolean
-): Promise<void> {
-  try {
-    await writeFile(control, crypto.randomUUID());
-    const status = await withShutdownDeadline(backend.exited);
-    if (status !== 0 && !stoppedByUser(backend, isStopping())) {
-      const failure = Bun.file(join(dirname(control), "failure.json"));
-      if (await failure.exists()) {
-        const diagnostic: { kind?: string } = await failure.json();
-        if (diagnostic.kind === "shutdown-timeout") {
-          throw new Error("Desktop shutdown exceeded 5 seconds; forced termination is required.");
-        }
-      }
-      throw new Error(`Desktop dev backend shutdown failed (${status}).`);
-    }
-  } catch (error) {
-    if (backend.exitCode === null) {
-      backend.kill("SIGKILL");
-      await backend.exited;
-    }
-    throw error;
-  }
-}
-
-async function waitForDevReady(
-  backend: Bun.Subprocess,
-  ready: string,
-  isStopping: () => boolean
-): Promise<boolean> {
-  const deadline = Date.now() + 30_000;
-  while (!(await Bun.file(ready).exists())) {
-    if (isStopping()) {
-      return false;
-    }
-    if (backend.exitCode !== null) {
-      throw new Error(`Desktop dev backend exited (${backend.exitCode}) before listening.`);
-    }
-    if (Date.now() > deadline) {
-      throw new Error("Desktop dev backend did not become ready.");
-    }
-    await Bun.sleep(50);
-  }
-  return !isStopping();
-}
-
-async function watchBackend(
-  root: string,
-  serverEntry: string,
-  dataDir: string | undefined,
-  customHost: string | undefined,
-  onChange: () => void,
-  sdkAliases: { [specifier: string]: string },
-  nativeAliases: { [specifier: string]: string }
-) {
-  // Use the same realpath API for every ownership key: Windows sync realpath
-  // can retain 8.3 aliases while async realpath expands them.
-  const canonicalRoot = await realpath(root);
-  const entries = [serverEntry, ...(customHost ? [customHost] : [])].map((path) =>
-    join(canonicalRoot, relative(root, path))
-  );
-  let dependencies = new Set(entries);
-  const changed = new Set<string>();
-  let scanning = false;
-  let compilationFailed = false;
-  let sourceChanged = Promise.withResolvers<void>();
-  const canonicalData = dataDir
-    ? await canonicalDesktopPath(resolve(dataDir), process.platform === "win32" ? win32 : posix)
-    : undefined;
-  const dataPath = canonicalData ? relative(canonicalRoot, canonicalData) : undefined;
-  const ownedData =
-    dataPath && dataPath !== ".." && !dataPath.startsWith(`..${sep}`) && !isAbsolute(dataPath)
-      ? join(canonicalRoot, dataPath)
-      : undefined;
-  // Follow runtime ownership: JSX can belong to the backend and plain TS to
-  // the frontend. Bun's frontend server owns modules outside this import graph.
-  const watcher = watch(root, { recursive: true }, (_event, filename) => {
-    if (!filename) {
-      return;
-    }
-    const path = join(canonicalRoot, filename);
-    if (
-      filename
-        .split(sep)
-        .some((part) => part.startsWith(".") || ["node_modules", "dist", "build"].includes(part)) ||
-      (ownedData && (path === ownedData || path.startsWith(`${ownedData}${sep}`))) ||
-      statSync(path, { throwIfNoEntry: false })?.isDirectory()
-    ) {
-      return;
-    }
-    if (scanning) {
-      changed.add(path);
-    } else if (compilationFailed) {
-      sourceChanged.resolve();
-    } else if (dependencies.has(path)) {
-      onChange();
-    }
-  });
-  return {
-    close: () => watcher.close(),
-    async refresh(stopped: Promise<void>) {
-      let canceled = false;
-      const cancellation = stopped.then(() => {
-        canceled = true;
-      });
-      try {
-        let retry: boolean;
-        do {
-          sourceChanged = Promise.withResolvers<void>();
-          changed.clear();
-          scanning = true;
-          const next = await backendDependencies(canonicalRoot, entries, sdkAliases, nativeAliases);
-          scanning = false;
-          if (canceled) {
-            return false;
-          }
-          compilationFailed = next === undefined;
-          if (!next) {
-            // A failed build has no complete graph. Retain the last good graph
-            // and observe all eligible source changes until a scan succeeds.
-            if (changed.size === 0) {
-              await Promise.race([sourceChanged.promise, cancellation]);
-              if (canceled) {
-                return false;
-              }
-            }
-            retry = true;
-            continue;
-          }
-          retry = [...changed].some((path) => dependencies.has(path) || next.has(path));
-          dependencies = next;
-        } while (retry);
-        return true;
-      } finally {
-        scanning = false;
-      }
-    },
-  };
-}
-
-async function runDevWindow(
-  backend: Bun.Subprocess,
-  stopped: Promise<void>,
-  generated: string,
-  sdk: string,
-  env: NodeJS.ProcessEnv,
-  isStopping: () => boolean
-) {
-  const window = Bun.spawn([process.execPath, sdk, "run", "--env=dev"], {
-    cwd: generated,
-    env,
-    stdout: "inherit",
-    stderr: "inherit",
-    detached: process.platform !== "win32",
-  });
-  try {
-    await Promise.race([window.exited, backend.exited, stopped]);
-    await writeFile(join(generated, "control"), crypto.randomUUID());
-    const windowStatus = await withShutdownDeadline(window.exited);
-    if (windowStatus !== 0 && !stoppedByUser(window, isStopping())) {
-      throw new Error(`Desktop window exited (${windowStatus}).`);
-    }
-  } finally {
-    await terminateOwnedWindow(window);
-  }
-}
-
-async function launchDevBackend(
-  root: string,
-  generated: string,
-  sdk: string,
-  env: NodeJS.ProcessEnv,
-  customHost: boolean
-): Promise<Bun.Subprocess> {
-  const customEnv = {
-    ...env,
-    FURIN_DESKTOP_DEV: join(generated, "dev.json"),
-    BUN_OPTIONS:
-      `${env.BUN_OPTIONS ?? ""} ${(await Bun.file(join(root, "bunfig.toml")).exists()) ? JSON.stringify(`--config=${join(root, "bunfig.toml")}`) : ""}`.trim(),
-  };
-  return Bun.spawn(
-    customHost
-      ? [process.execPath, sdk, "run", "--env=dev"]
-      : [process.execPath, join(generated, "dev-server.ts")],
-    {
-      cwd: customHost ? generated : root,
-      env: customHost ? customEnv : env,
-      stdout: "inherit",
-      stderr: "inherit",
-      detached: !!customHost && process.platform !== "win32",
-    }
-  );
-}
-
-async function stopDevBackend(
-  backend: Bun.Subprocess,
-  control: string,
-  isStopping: () => boolean,
-  customHost: boolean
-) {
-  try {
-    await stopOwnedDevWorker(backend, control, isStopping);
-  } finally {
-    if (customHost) {
-      await terminateOwnedWindow(backend);
-    }
-  }
-}
-
-export function cancelPendingStartup(backend: Bun.Subprocess | undefined, ready: string) {
-  if (backend && !existsSync(ready) && backend.exitCode === null) {
-    backend.kill("SIGTERM");
-  }
-}
-
-async function runDesktopDev(
-  root: string,
-  serverEntry: string,
-  dataDir: string | undefined,
-  generated: string,
-  sdk: string,
-  env: NodeJS.ProcessEnv,
-  customHost: string | undefined,
-  sdkAliases: { [specifier: string]: string },
-  nativeAliases: { [specifier: string]: string }
-): Promise<void> {
-  // No signal-based hot reload: managed SDK Bun does not implement SIGUSR.
-  // A file command asks the running window to use the public close/quit APIs.
-  let stopping = false;
-  let restart = false;
-  let backend: Bun.Subprocess | undefined;
-  const { promise: stopped, resolve: signalStop } = Promise.withResolvers<void>();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const control = join(generated, "control");
-  const ready = join(generated, "ready.json");
-  const requestStop = async () => {
-    await writeFile(control, crypto.randomUUID());
-  };
-  const watcher = await watchBackend(
-    root,
-    serverEntry,
-    dataDir,
-    customHost,
-    () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        restart = true;
-        requestStop().catch(console.error);
-      }, 150);
-    },
-    sdkAliases,
-    nativeAliases
-  );
-  const stop = () => {
-    stopping = true;
-    signalStop();
-    requestStop().catch(console.error);
-    // Before readiness the helper cannot read control yet. SIGTERM cancels
-    // startup; ready workers continue to drain through the public control path.
-    cancelPendingStartup(backend, ready);
-  };
-  process.on("SIGINT", stop);
-  process.on("SIGTERM", stop);
-  try {
-    do {
-      if (stopping) {
-        return;
-      }
-      restart = false;
-      let canceledStartup = false;
-      await writeFile(control, "");
-      await rm(ready, { force: true });
-      await rm(join(generated, "failure.json"), { force: true });
-      await rm(join(generated, "restart"), { force: true });
-      if (!(await watcher.refresh(stopped))) {
-        return;
-      }
-      if (customHost) {
-        await run([process.execPath, sdk, "build", "--env=dev"], generated, env);
-        if (stopping || restart) {
-          continue;
-        }
-      }
-      backend = await launchDevBackend(root, generated, sdk, env, !!customHost);
-      try {
-        if (!(await waitForDevReady(backend, ready, () => stopping || restart))) {
-          canceledStartup = true;
-          cancelPendingStartup(backend, ready);
-          continue;
-        }
-        if (customHost) {
-          await Promise.race([backend.exited, stopped]);
-          continue;
-        }
-        await runDevWindow(backend, stopped, generated, sdk, env, () => stopping);
-      } finally {
-        await stopDevBackend(backend, control, () => stopping || canceledStartup, !!customHost);
-        backend = undefined;
-        if (await Bun.file(join(generated, "restart")).exists()) {
-          restart = true;
-        }
-      }
-    } while (restart && !stopping);
-  } finally {
-    watcher.close();
-    clearTimeout(timer);
-    process.off("SIGINT", stop);
-    process.off("SIGTERM", stop);
-  }
+  await run([process.execPath, sdk, "build", `--env=${channel}`], generated, env);
+  console.log(`Desktop build: ${join(generated, "build")}`);
 }
 
 if (import.meta.main) {

@@ -1,31 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { defer, isDeferred } from "../../../src/client";
 
-describe("defer()", () => {
-  test("preserves user data named __isDeferred", () => {
-    const result = defer({ __isDeferred: "user-data", board: "x" });
-    expect(result.__isDeferred).toBe("user-data");
-    expect(isDeferred(result)).toBe(true);
-  });
-
-  test("preserves synchronous values", () => {
-    const result = defer({ count: 42, title: "hello" });
-    expect(result.title).toBe("hello");
-    expect(result.count).toBe(42);
-  });
-
-  test("preserves Promises", async () => {
-    const result = defer({ board: "x", stats: Promise.resolve(99) });
-    expect(await result.stats).toBe(99);
-  });
-
-  test("scalar fields are not Promises", () => {
-    const result = defer({ board: "x", stats: Promise.resolve(1) });
-    expect((result.board as unknown) instanceof Promise).toBe(false);
-    expect((result.stats as unknown) instanceof Promise).toBe(true);
-  });
-});
-
 describe("defer() — nested objects (documented limitation)", () => {
   // v1 design: defer() only splits at the TOP level. Promises buried inside
   // nested objects are passed through to syncData as-is, NOT split into

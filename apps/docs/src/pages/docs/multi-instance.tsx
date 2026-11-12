@@ -16,6 +16,18 @@ export const route = defineRoute("/docs/multi-instance")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "describedby",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/llms.txt",
+      },
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/multi-instance.md",
+      },
+    ],
     meta: [{ title: "Multi-Instance & Micro-Frontends — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

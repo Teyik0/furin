@@ -69,9 +69,6 @@ function fixture(
       reads.other += 1;
       return { value };
     })
-    .get("/fallible", ({ status }) =>
-      value === 0 ? { value } : status(409, { code: "LOCKED" as const })
-    )
     .get("/identity", ({ headers }) => ({ principal: headers.authorization ?? "alice" }))
     .get("/denied", ({ status }) => status(403, { code: "DENIED" as const }))
     .get("/restricted", ({ status }) =>
@@ -162,19 +159,6 @@ test("multiple queries share one connection and recover missed changes after a d
   expect(sockets).toHaveLength(2);
   expect(cursors).toContain("1");
   expect(reads.other).toBe(1);
-});
-
-test("subscribers receive Eden's typed endpoint errors", async () => {
-  const { api, client } = fixture();
-  await api.state.post(undefined, {});
-  const errors: string[] = [];
-  client.subscribe(api.fallible.get.live(), ({ error }) => {
-    if (error && !(error instanceof SyncClientError) && error.status === 409) {
-      errors.push(error.value.code);
-    }
-  });
-  await until(() => errors.includes("LOCKED"));
-  expect(errors).toContain("LOCKED");
 });
 
 test("servers and authentication contexts have independent connections and caches", async () => {

@@ -18,73 +18,30 @@ test("decoded route params preserve their segment boundary in rendered cache pat
 });
 
 describe("filePathToPattern", () => {
-  test("converts index route to root", () => {
-    expect(filePathToPattern("index.tsx")).toBe("/");
-  });
-
-  test("converts simple route", () => {
-    expect(filePathToPattern("about.tsx")).toBe("/about");
-  });
-
-  test("converts nested route", () => {
-    expect(filePathToPattern("blog/index.tsx")).toBe("/blog");
-  });
-
-  test("converts nested route with filename", () => {
-    expect(filePathToPattern("blog/post.tsx")).toBe("/blog/post");
-  });
-
-  test("converts dynamic route [slug]", () => {
-    expect(filePathToPattern("blog/[slug].tsx")).toBe("/blog/:slug");
-  });
-
-  test("converts dynamic route at root level", () => {
-    expect(filePathToPattern("[id].tsx")).toBe("/:id");
-  });
-
-  test("converts catch-all route [...path]", () => {
-    expect(filePathToPattern("docs/[...path].tsx")).toBe("/docs/*");
-  });
-
-  test("converts catch-all route at root level", () => {
-    expect(filePathToPattern("[...catch].tsx")).toBe("/*");
-  });
-
-  test("handles deeply nested route", () => {
-    expect(filePathToPattern("a/b/c/index.tsx")).toBe("/a/b/c");
-  });
-
-  test("handles mixed segments", () => {
-    expect(filePathToPattern("blog/[category]/[slug].tsx")).toBe("/blog/:category/:slug");
-  });
-
-  test("omits group directories around dynamic and catch-all segments", () => {
-    expect(filePathToPattern("(admin)/users/(details)/[id].tsx")).toBe("/users/:id");
-    expect(filePathToPattern("docs/(guides)/[...path].tsx")).toBe("/docs/*");
-    expect(filePathToPattern("(admin)\\users\\[id].tsx")).toBe("/users/:id");
-  });
-
-  test("keeps parentheses in filenames and ordinary directory names", () => {
-    expect(filePathToPattern("(admin).tsx")).toBe("/(admin)");
-    expect(filePathToPattern("release(beta)/index.tsx")).toBe("/release(beta)");
-  });
-
-  test("handles nested dynamic routes", () => {
-    expect(filePathToPattern("users/[userId]/posts/[postId].tsx")).toBe(
-      "/users/:userId/posts/:postId"
-    );
-  });
-
-  test("handles index in nested folder", () => {
-    expect(filePathToPattern("dashboard/settings/index.tsx")).toBe("/dashboard/settings");
-  });
-
-  test("handles multiple static segments", () => {
-    expect(filePathToPattern("api/v1/users.tsx")).toBe("/api/v1/users");
-  });
-
-  test("handles dynamic and static mix", () => {
-    expect(filePathToPattern("api/users/[id]/settings.tsx")).toBe("/api/users/:id/settings");
+  test.each([
+    ["index.tsx", "/"],
+    ["about.tsx", "/about"],
+    ["blog/index.tsx", "/blog"],
+    ["blog/post.tsx", "/blog/post"],
+    ["blog/[slug].tsx", "/blog/:slug"],
+    ["[id].tsx", "/:id"],
+    ["docs/[...path].tsx", "/docs/*"],
+    ["[...catch].tsx", "/*"],
+    ["a/b/c/index.tsx", "/a/b/c"],
+    ["blog/[category]/[slug].tsx", "/blog/:category/:slug"],
+    // Group directories are omitted around dynamic and catch-all segments.
+    ["(admin)/users/(details)/[id].tsx", "/users/:id"],
+    ["docs/(guides)/[...path].tsx", "/docs/*"],
+    ["(admin)\\users\\[id].tsx", "/users/:id"],
+    // Parentheses in filenames and ordinary directory names are kept.
+    ["(admin).tsx", "/(admin)"],
+    ["release(beta)/index.tsx", "/release(beta)"],
+    ["users/[userId]/posts/[postId].tsx", "/users/:userId/posts/:postId"],
+    ["dashboard/settings/index.tsx", "/dashboard/settings"],
+    ["api/v1/users.tsx", "/api/v1/users"],
+    ["api/users/[id]/settings.tsx", "/api/users/:id/settings"],
+  ])("converts %p to %p", (filePath, pattern) => {
+    expect(filePathToPattern(filePath)).toBe(pattern);
   });
 
   test("rejects dynamic parameter names that Elysia cannot route", () => {

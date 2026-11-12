@@ -30,6 +30,7 @@ export interface PerformanceComparisonRow {
 }
 
 export interface PerformanceComparison {
+  docsWorkbenchMigration: boolean;
   reactMigration: boolean;
   regressions: PerformanceComparisonRow[];
   rows: PerformanceComparisonRow[];
@@ -38,6 +39,9 @@ export interface PerformanceComparison {
 const KIBIBYTE = 1024;
 const MEBIBYTE = 1024 * KIBIBYTE;
 const REACT_19_3_GZIP_ALLOWANCE = 8 * KIBIBYTE;
+// The docs workbench layout adds about 1.9 KiB gzip of CSS to every page,
+// measured when it replaced the previous documentation layout.
+const DOCS_WORKBENCH_CSS_GZIP_ALLOWANCE = 1.5 * KIBIBYTE;
 const PERFORMANCE_BUDGETS: PerformanceBudget[] = [
   {
     absoluteBytes: KIBIBYTE,
@@ -106,10 +110,13 @@ export function comparePerformanceReports(
   base: PerformanceReport,
   head: PerformanceReport,
   baseReactVersion: string,
-  headReactVersion: string
+  headReactVersion: string,
+  baseHasDocsWorkbench: boolean,
+  headHasDocsWorkbench: boolean
 ): PerformanceComparison {
   const reactMigration =
     baseReactVersion.startsWith("19.2.") && headReactVersion.startsWith("19.3.");
+  const docsWorkbenchMigration = !baseHasDocsWorkbench && headHasDocsWorkbench;
   const rows = PERFORMANCE_BUDGETS.map((budget): PerformanceComparisonRow => {
     const baseBytes = base.metrics[budget.metric];
     const headBytes = head.metrics[budget.metric];
@@ -119,6 +126,9 @@ export function comparePerformanceReports(
       (reactMigration &&
       (budget.metric === "initialJavaScriptGzipBytes" || budget.metric === "totalClientGzipBytes")
         ? REACT_19_3_GZIP_ALLOWANCE
+        : 0) +
+      (docsWorkbenchMigration && budget.metric === "initialCssGzipBytes"
+        ? DOCS_WORKBENCH_CSS_GZIP_ALLOWANCE
         : 0);
     return {
       allowedDeltaBytes,
@@ -130,6 +140,7 @@ export function comparePerformanceReports(
     };
   });
   return {
+    docsWorkbenchMigration,
     reactMigration,
     regressions: rows.filter((row) => row.status === "fail"),
     rows,
@@ -169,6 +180,12 @@ export function formatPerformanceComparison(comparison: PerformanceComparison): 
           `The React 19.2 → 19.3 upgrade adds a one-time ${formatBytes(REACT_19_3_GZIP_ALLOWANCE)} allowance to initial and total JavaScript gzip. Later changes use the normal budgets.`,
         ]
       : []),
+    ...(comparison.docsWorkbenchMigration
+      ? [
+          "",
+          `The docs workbench layout adds a one-time ${formatBytes(DOCS_WORKBENCH_CSS_GZIP_ALLOWANCE)} allowance to initial CSS gzip. Later changes use the normal budgets.`,
+        ]
+      : []),
     "",
   ];
   return lines.join("\n");
@@ -183,15 +200,27 @@ async function readReport(path: string): Promise<PerformanceReport> {
 }
 
 async function main(): Promise<void> {
-  const [, , basePath, headPath, markdownPath, baseReactVersion, headReactVersion] = Bun.argv;
+  const [
+    ,
+    ,
+    basePath,
+    headPath,
+    markdownPath,
+    baseReactVersion,
+    headReactVersion,
+    baseDocsWorkbench,
+    headDocsWorkbench,
+  ] = Bun.argv;
   if (
     basePath === undefined ||
     headPath === undefined ||
     baseReactVersion === undefined ||
-    headReactVersion === undefined
+    headReactVersion === undefined ||
+    !(baseDocsWorkbench === "true" || baseDocsWorkbench === "false") ||
+    !(headDocsWorkbench === "true" || headDocsWorkbench === "false")
   ) {
     console.error(
-      "Usage: bun scripts/compare-performance-reports.ts <base.json> <head.json> <summary.md> <base-react> <head-react>"
+      "Usage: bun scripts/compare-performance-reports.ts <base.json> <head.json> <summary.md> <base-react> <head-react> <base-docs-workbench> <head-docs-workbench>"
     );
     process.exit(1);
   }
@@ -199,7 +228,9 @@ async function main(): Promise<void> {
     await readReport(basePath),
     await readReport(headPath),
     baseReactVersion,
-    headReactVersion
+    headReactVersion,
+    baseDocsWorkbench === "true",
+    headDocsWorkbench === "true"
   );
   const markdown = formatPerformanceComparison(comparison);
   console.log(markdown);

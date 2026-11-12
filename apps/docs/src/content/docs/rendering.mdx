@@ -8,7 +8,11 @@ Every layout and page chooses its rendering mode explicitly in `config()`. The m
 | `ssg` | Pre-rendered and cached without a time limit | Stable public content |
 | `isr` | Cached, then regenerated after `revalidate` seconds | Public content that can be briefly stale |
 
-Modes can mix. SSR loaders run per request with Elysia context; SSG and ISR loaders use public context and can be cached by segment. An SSR page or ancestor loader makes the HTML private, while public loader data remains reusable. Otherwise, ISR pages or loaders set HTML revalidation to the shortest interval; all-SSG chains produce SSG HTML.
+Modes can mix along a layout chain. SSR loaders run per request with the Elysia context; SSG and ISR loaders get a public context. A chain whose loaders share one mode caches the whole route result; a mixed chain caches each public segment's loader result separately. The document's mode follows the chain:
+
+- An SSR page, or an SSR layout with a loader, makes the HTML request-rendered and private; the public loader results of the other segments are still reused.
+- Otherwise, an ISR page or ISR layout loader makes the document ISR, revalidated at the shortest interval in the chain.
+- A chain of SSG segments produces SSG HTML.
 
 ## SSR
 
@@ -127,7 +131,7 @@ export const route = defineRoute("/catalog")
   ));
 ```
 
-Furin caches the public loader result, not the personalized document. The final response is `private, no-store`. This pattern requires a Bun server and is rejected by pure static export.
+Furin calls this pattern PPR (partial prerendering): it caches the public loader result, not the personalized document, and the final response is `private, no-store`. This pattern requires a Bun server and is rejected by pure static export.
 
 ## Composite Server Markup
 

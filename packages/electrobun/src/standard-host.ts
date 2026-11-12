@@ -4,13 +4,19 @@ import type { BrowserWindow } from "electrobun/main";
 import type { RPCWithTransport } from "electrobun/main/rpc";
 import { createAssociations } from "./associations";
 import type {
-  DesktopContext,
+  DesktopHost,
   DesktopIdentity,
   DesktopSnapshot,
   DesktopWindowOptions,
   NativeActionContext,
   OpenEvent,
 } from "./capabilities";
+import {
+  createDesktopContext,
+  executeDesktopCommand,
+  inProcessTransport,
+  toWire,
+} from "./commands";
 import type { DesktopConfig } from "./config";
 import {
   DESKTOP_RESPONSE,
@@ -28,6 +34,7 @@ import {
   type DesktopState,
   getDesktopEntry,
   getDesktopState,
+  setDesktopContext,
   setDesktopHost,
 } from "./registry";
 import {
@@ -57,6 +64,11 @@ export interface StandardHostOptions {
 }
 
 const PARENT_PID = /^[1-9]\d*$/;
+
+/** The native entrypoint's default export holds the commands Elysia may call. */
+function nativeCommands(module: unknown): unknown {
+  return typeof module === "object" && module !== null ? Reflect.get(module, "default") : undefined;
+}
 
 function object(value: unknown): value is { [key: string]: unknown } {
   return value !== null && typeof value === "object";
@@ -99,14 +111,11 @@ async function resolveOptions(
     mode,
     dataDir:
       restartDirectory ??
+      development?.dataDir ??
       (config.dataDir === undefined
         ? defaultDesktopDataDir(sdk.Utils.paths.appData, config.app.identifier, identity.channel)
         : await resolveDesktopDataDir(config.dataDir, { root, mode, channel: identity.channel })),
-    load: () =>
-      import(
-        pathToFileURL(development?.serverEntry ?? join(dirname(Bun.main), "../furin/app.js")).href
-      ),
-    openBrowser: !!development && process.env.FURIN_DEV_OPEN_BROWSER === "1",
+    load: () => import(pathToFileURL(join(dirname(Bun.main), "../furin/app.js")).href),
     testScript: process.env.FURIN_NATIVE_TEST_SCRIPT
       ? await Bun.file(
           resolve(development?.root ?? process.cwd(), process.env.FURIN_NATIVE_TEST_SCRIPT)
@@ -171,13 +180,14 @@ export async function runStandardDesktopHost(
   sdk: DesktopSdk,
   supplied?: StandardHostOptions,
   loadNativeEntry?: () => Promise<unknown>
-): Promise<DesktopContext | undefined> {
+): Promise<DesktopHost | undefined> {
   const queued: OpenEvent[] = [];
   let phase: DesktopSnapshot["phase"] = "starting";
   let backend: DesktopBackend | undefined;
   let starting: Promise<DesktopBackend> | undefined;
   let instance: Awaited<ReturnType<typeof openNativeInstance>>;
   const lifetime = new AbortController();
+  let native: unknown;
   let failureCode = 0;
   let startupError: string | undefined;
   let state: DesktopState | undefined;
@@ -191,6 +201,14 @@ export async function runStandardDesktopHost(
   let identity: DesktopIdentity;
   let options: StandardHostOptions;
   let development: Awaited<ReturnType<typeof getDesktopDevelopment>>;
+  // Application window policy: in-process in builds, read over the channel in development.
+  let hooks:
+    | {
+        window?: DesktopWindowOptions;
+        background?: () => boolean | Promise<boolean>;
+      }
+    | undefined;
+  let requestDevelopmentRestart: (() => Promise<unknown>) | undefined;
   const requireBackend = () => {
     if (!backend || phase !== "ready") {
       throw new Error("Desktop application is not ready.");
@@ -252,14 +270,16 @@ export async function runStandardDesktopHost(
       if (phase !== "ready" || options.manager || windows.size !== 0) {
         return;
       }
+      let background: boolean | Promise<boolean> = false;
       try {
-        if (state?.hooks?.background?.()) {
-          return;
-        }
+        background = hooks?.background?.() ?? false;
       } catch (error) {
         report("action")(error);
       }
-      desktop.quit().catch(report("quit"));
+      Promise.resolve(background)
+        // A window may have opened while the policy was pending.
+        .then((keep) => (keep || windows.size !== 0 ? undefined : desktop.quit()))
+        .catch(report("quit"));
     });
     const external = (event: unknown) => {
       if (!(object(event) && object(event.data))) {
@@ -305,7 +325,7 @@ export async function runStandardDesktopHost(
       window.activate();
       return window;
     }
-    return createWindow("main", state?.hooks?.window ?? {}, "/");
+    return createWindow("main", hooks?.window ?? {}, "/");
   };
   const closeWindows = () => {
     const failures: unknown[] = [];
@@ -330,6 +350,7 @@ export async function runStandardDesktopHost(
       window = undefined;
       windows.clear();
       setDesktopHost(undefined);
+      setDesktopContext(undefined);
     }
     if (failures.length) {
       throw new AggregateError(failures, "Native window cleanup failed.");
@@ -353,7 +374,6 @@ export async function runStandardDesktopHost(
       failures.push(error);
     }
     if (failures.length) {
-      development?.reportFailure("shutdown-failure");
       report("quit")(failures[0]);
       if (failures.length === 1) {
         throw failures[0];
@@ -361,7 +381,7 @@ export async function runStandardDesktopHost(
       throw new AggregateError(failures, "Native shutdown failed.");
     }
   };
-  const desktop: DesktopContext = {
+  const desktop: DesktopHost = {
     get window() {
       return window;
     },
@@ -462,8 +482,8 @@ export async function runStandardDesktopHost(
       restarting = (async () => {
         phase = "restarting";
         let cancel: (() => void) | undefined;
-        if (development) {
-          development.requestRestart();
+        if (requestDevelopmentRestart) {
+          await requestDevelopmentRestart();
         } else {
           const launcher = nativeLauncherPath(Bun.main);
           const parent = process.env.ELECTROBUN_LAUNCHER_PID;
@@ -518,7 +538,6 @@ export async function runStandardDesktopHost(
           code = 1;
           const timeout =
             error instanceof Error && error.message.includes("shutdown exceeded 5 seconds");
-          development?.reportFailure(timeout ? "shutdown-timeout" : "shutdown-failure");
           if (timeout) {
             console.error("[furin-electrobun] Desktop shutdown exceeded 5 seconds.");
           }
@@ -676,20 +695,38 @@ export async function runStandardDesktopHost(
       })),
     });
     setDesktopHost(desktop);
-    if (options.startServer !== false) {
+    const elysiaContext = createDesktopContext(inProcessTransport(desktop, () => native));
+    setDesktopContext(elysiaContext);
+    if (development) {
+      const connection = await development.connect(
+        async (command) => toWire(await executeDesktopCommand(desktop, native, command)),
+        () => {
+          // The development session ended: never leave an orphaned native window behind.
+          setTimeout(() => process.exit(1), 5000).unref();
+          desktop.quit().catch(report("quit"));
+        }
+      );
+      native = nativeCommands(await loadNativeEntry?.());
+      const { info } = connection;
+      hooks = { window: info.window, background: connection.background };
+      requestDevelopmentRestart = connection.requestRestart;
+      options.openBrowser = info.openBrowser;
+      ({ backend } = connection);
+    } else if (options.startServer !== false) {
       try {
         starting = startDesktopBackend(
           async () => {
             const module = await options.load();
             state = module.default ? getDesktopState(module.default) : getDesktopEntry()?.state;
-            await loadNativeEntry?.();
+            native = nativeCommands(await loadNativeEntry?.());
             return module;
           },
           options.dataDir,
           options.mode,
-          { kind: "desktop", identity, desktop, signal: lifetime.signal }
+          { kind: "desktop", identity, desktop: elysiaContext, signal: lifetime.signal }
         );
         backend = await starting;
+        hooks = state?.hooks;
       } catch (error) {
         if (!options.manager) {
           throw error;
@@ -707,9 +744,6 @@ export async function runStandardDesktopHost(
     }
     if (options.openBrowser && backend) {
       desktop.browser.open();
-    }
-    if (development) {
-      await development.ready(backend, desktop.quit);
     }
     return desktop;
   } catch (error) {

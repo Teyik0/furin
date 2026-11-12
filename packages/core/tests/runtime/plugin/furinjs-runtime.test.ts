@@ -6,6 +6,7 @@ import { type AnyElysia, Elysia } from "elysia";
 import type { FurinOptions } from "../../../src/furin";
 import type { CompileContext, EmbeddedAppData } from "../../../src/server/internal";
 import { createTmpApp, type TmpApp } from "../../support/app-fixtures";
+import { createFixtureCompileContext } from "../../support/compile-context.ts";
 
 const { furin } = await import("../../../src/furin");
 const { revalidateTag } = await import("../../../src/server/auto-invalidate/index");
@@ -46,27 +47,8 @@ async function createTestApp(options: FurinOptions): Promise<AnyElysia> {
   return new Elysia().use(await furin(options));
 }
 
-async function createCompileContext(appPath: string): Promise<CompileContext> {
-  const rootPath = join(appPath, "src/pages/root.tsx");
-  const indexPath = join(appPath, "src/pages/index.tsx");
-  const [rootMod, indexMod] = await Promise.all([import(rootPath), import(indexPath)]);
-  const rootRoute = rootMod.route as { elysia: Elysia };
-  const indexRoute = indexMod.route as { elysia: Elysia };
-  const nativeRoutes = new Elysia().use(rootRoute.elysia.use(new Elysia().use(indexRoute.elysia)));
-
-  return {
-    modules: {
-      [rootPath]: rootMod,
-      [indexPath]: indexMod,
-    },
-    nativeRoutes,
-    rootConventions: {},
-    rootPath,
-    routeMetadata: {
-      [indexPath]: { segmentBoundaries: [] },
-    },
-    routes: [{ mode: "ssg", path: indexPath, pattern: "/" }],
-  };
+function createCompileContext(appPath: string): Promise<CompileContext> {
+  return createFixtureCompileContext(appPath, [{ file: "index.tsx", mode: "ssg", pattern: "/" }]);
 }
 
 async function setCompileContext(appPath: string, embedded?: EmbeddedAppData): Promise<void> {
@@ -103,21 +85,112 @@ function resetState(): void {
 beforeEach(resetState);
 afterEach(resetState);
 
-test.serial("furin() production loads client assets from FURIN_CLIENT_DIR", async () => {
+interface ClientDirCase {
+  /** Client directory holding index.html, relative to the app. */
+  dir: string;
+  /** File created to stand in for the server executable, relative to the app. */
+  executable: string | undefined;
+  /** Overrides FURIN_CLIENT_DIR, the module URL, argv[1] and PATH when defined. */
+  lookup:
+    | { clientDirEnv: string }
+    | {
+        argv1: (appPath: string) => string;
+        moduleUrl: (appPath: string) => string;
+        path: (appPath: string) => string;
+      };
+  marker: string;
+  name: string;
+}
+
+const httpModuleUrl = () => "http://example.com";
+const missingArgv = () => "missing";
+const emptyPath = () => "";
+
+test.serial.each<ClientDirCase>([
+  {
+    dir: "custom-client",
+    executable: undefined,
+    lookup: { clientDirEnv: "custom-client" },
+    marker: "custom",
+    name: "from FURIN_CLIENT_DIR",
+  },
+  {
+    dir: "module-home/client",
+    executable: undefined,
+    lookup: {
+      argv1: missingArgv,
+      moduleUrl: (appPath) => pathToFileURL(join(appPath, "module-home/furin.ts")).href,
+      path: emptyPath,
+    },
+    marker: "module-client",
+    name: "next to the module URL",
+  },
+  {
+    dir: "bin/client",
+    executable: "bin/server",
+    lookup: {
+      argv1: (appPath) => join(appPath, "bin/server"),
+      moduleUrl: httpModuleUrl,
+      path: emptyPath,
+    },
+    marker: "argv-client",
+    name: "next to the argv server path",
+  },
+  {
+    dir: "bin/client",
+    executable: "bin/furin-server",
+    lookup: {
+      argv1: () => "furin-server",
+      moduleUrl: () => "file:///$bunfs/furin.ts",
+      path: (appPath) => join(appPath, "bin"),
+    },
+    marker: "path-client",
+    name: "from the PATH binary",
+  },
+  {
+    dir: ".furin/build/bun/client",
+    executable: undefined,
+    lookup: { argv1: missingArgv, moduleUrl: httpModuleUrl, path: emptyPath },
+    marker: "fallback-client",
+    name: "from the fallback built client directory",
+  },
+  {
+    dir: "client",
+    executable: undefined,
+    lookup: { argv1: missingArgv, moduleUrl: httpModuleUrl, path: emptyPath },
+    marker: "cwd-client",
+    name: "from the cwd client directory",
+  },
+])("furin() production loads client assets $name", async ({ dir, executable, lookup, marker }) => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   __setDevMode(false);
   process.chdir(app.path);
 
-  const clientDir = join(app.path, "custom-client");
-  mkdirSync(clientDir, { recursive: true });
-  writeFileSync(join(clientDir, "index.html"), "<html>custom</html>");
-  process.env.FURIN_CLIENT_DIR = "custom-client";
+  mkdirSync(join(app.path, dir), { recursive: true });
+  writeFileSync(join(app.path, dir, "index.html"), `<html>${marker}</html>`);
+  if (executable !== undefined) {
+    writeFileSync(join(app.path, executable), "");
+  }
+  if ("clientDirEnv" in lookup) {
+    process.env.FURIN_CLIENT_DIR = lookup.clientDirEnv;
+  } else {
+    const moduleUrl = lookup.moduleUrl(app.path);
+    class FakeModuleURL extends originalURL {
+      constructor() {
+        super(moduleUrl);
+      }
+    }
+    globalThis.URL = FakeModuleURL;
+    process.argv.length = 0;
+    process.argv.push("bun", lookup.argv1(app.path));
+    process.env.PATH = lookup.path(app.path);
+  }
 
   await setCompileContext(app.path);
   const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
 
   expect(instance).toBeInstanceOf(Elysia);
-  expect(inRuntime(getProductionTemplate)).toContain("custom");
+  expect(inRuntime(getProductionTemplate)).toContain(marker);
 });
 
 test.serial("furin() production rejects missing FURIN_CLIENT_DIR assets", async () => {
@@ -163,119 +236,6 @@ test.serial(
     expect(response.status).toBe(204);
   }
 );
-
-test.serial("furin() production resolves client assets next to module URL", async () => {
-  const app = rememberTmpApp(createTmpApp("cli-app"));
-  __setDevMode(false);
-  process.chdir(app.path);
-
-  const moduleRoot = join(app.path, "module-home");
-  const moduleClientDir = join(moduleRoot, "client");
-  mkdirSync(moduleClientDir, { recursive: true });
-  writeFileSync(join(moduleClientDir, "index.html"), "<html>module-client</html>");
-
-  const fakeModuleUrl = pathToFileURL(join(moduleRoot, "furin.ts")).href;
-  class FakeModuleURL extends originalURL {
-    constructor() {
-      super(fakeModuleUrl);
-    }
-  }
-  globalThis.URL = FakeModuleURL;
-  process.argv.length = 0;
-  process.argv.push("bun", "missing");
-  process.env.PATH = "";
-
-  await setCompileContext(app.path);
-  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
-
-  expect(instance).toBeInstanceOf(Elysia);
-  expect(inRuntime(getProductionTemplate)).toContain("module-client");
-});
-
-test.serial("furin() production resolves client assets next to argv server path", async () => {
-  const app = rememberTmpApp(createTmpApp("cli-app"));
-  __setDevMode(false);
-  process.chdir(app.path);
-
-  const binDir = join(app.path, "bin");
-  const serverPath = join(binDir, "server");
-  const clientDir = join(binDir, "client");
-  mkdirSync(clientDir, { recursive: true });
-  writeFileSync(serverPath, "");
-  writeFileSync(join(clientDir, "index.html"), "<html>argv-client</html>");
-
-  class FakeHttpURL extends originalURL {
-    constructor() {
-      super("http://example.com");
-    }
-  }
-  globalThis.URL = FakeHttpURL;
-  process.argv.length = 0;
-  process.argv.push("bun", serverPath);
-  process.env.PATH = "";
-
-  await setCompileContext(app.path);
-  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
-
-  expect(instance).toBeInstanceOf(Elysia);
-  expect(inRuntime(getProductionTemplate)).toContain("argv-client");
-});
-
-test.serial("furin() production resolves client assets from PATH binary", async () => {
-  const app = rememberTmpApp(createTmpApp("cli-app"));
-  __setDevMode(false);
-  process.chdir(app.path);
-
-  const binDir = join(app.path, "bin");
-  const binaryName = "furin-server";
-  const binaryPath = join(binDir, binaryName);
-  const clientDir = join(binDir, "client");
-  mkdirSync(clientDir, { recursive: true });
-  writeFileSync(binaryPath, "");
-  writeFileSync(join(clientDir, "index.html"), "<html>path-client</html>");
-
-  class FakeBunfsURL extends originalURL {
-    constructor() {
-      super("file:///$bunfs/furin.ts");
-    }
-  }
-  globalThis.URL = FakeBunfsURL;
-  process.argv.length = 0;
-  process.argv.push("bun", binaryName);
-  process.env.PATH = binDir;
-
-  await setCompileContext(app.path);
-  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
-
-  expect(instance).toBeInstanceOf(Elysia);
-  expect(inRuntime(getProductionTemplate)).toContain("path-client");
-});
-
-test.serial("furin() production resolves fallback built client directory", async () => {
-  const app = rememberTmpApp(createTmpApp("cli-app"));
-  __setDevMode(false);
-  process.chdir(app.path);
-
-  const fallbackDir = join(app.path, ".furin/build/bun/client");
-  mkdirSync(fallbackDir, { recursive: true });
-  writeFileSync(join(fallbackDir, "index.html"), "<html>fallback-client</html>");
-
-  class FakeHttpURL extends originalURL {
-    constructor() {
-      super("http://example.com");
-    }
-  }
-  globalThis.URL = FakeHttpURL;
-  process.argv.length = 0;
-  process.argv.push("bun", "missing");
-  process.env.PATH = "";
-
-  await setCompileContext(app.path);
-  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
-
-  expect(instance).toBeInstanceOf(Elysia);
-  expect(inRuntime(getProductionTemplate)).toContain("fallback-client");
-});
 
 test.serial("furin() production hydrates embedded SSG cache", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
@@ -405,31 +365,6 @@ test.serial("furin() production revalidates embedded SSG cache tags", async () =
 
   expect(await revalidateTag("boards")).toBe(true);
   expect(inRuntime(() => ssgCache.has("/"))).toBe(false);
-});
-
-test.serial("furin() production falls back to cwd client directory", async () => {
-  const app = rememberTmpApp(createTmpApp("cli-app"));
-  __setDevMode(false);
-  process.chdir(app.path);
-
-  const clientDir = join(app.path, "client");
-  mkdirSync(clientDir, { recursive: true });
-  writeFileSync(join(clientDir, "index.html"), "<html>cwd-client</html>");
-  class FakeHttpURL extends originalURL {
-    constructor() {
-      super("http://example.com");
-    }
-  }
-  globalThis.URL = FakeHttpURL;
-  process.argv.length = 0;
-  process.argv.push("bun", "missing");
-  process.env.PATH = "";
-
-  await setCompileContext(app.path);
-  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
-
-  expect(instance).toBeInstanceOf(Elysia);
-  expect(inRuntime(getProductionTemplate)).toContain("cwd-client");
 });
 
 test.serial("furin() production rejects embedded context without HTML template", async () => {

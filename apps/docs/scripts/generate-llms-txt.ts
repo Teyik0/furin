@@ -1,102 +1,111 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { DOCS_NAV } from "../src/lib/docs";
+import { dirname, resolve } from "node:path";
+import {
+  DESKTOP_DOCS_NAV,
+  DOCS_CARDS,
+  DOCS_NAV,
+  type DocNavItem,
+  type DocNavSection,
+} from "../src/lib/docs";
 import { stripMdxToMarkdown } from "../src/lib/strip-mdx";
 
-const BASE_URL = "https://furin.dev";
-const PROJECT_NAME = "Furin";
-const PROJECT_DESCRIPTION =
-  "Furin (\u98a8\u9234) is a React meta-framework built on Elysia and Bun. File-based routing, SSR/SSG/ISR, typed loaders, and SPA navigation.";
-const PROJECT_LONG_DESCRIPTION =
-  "Furin gives you file-based routing, nested layouts, typed data loading, and multiple rendering modes in a single Bun process.";
-
+const BASE_URL = "https://teyik0.github.io/furin";
 const DOCS_DIR = resolve(import.meta.dir, "..");
 const PUBLIC_DIR = resolve(DOCS_DIR, "public");
+const DESCRIPTION =
+  "Furin is a React meta-framework on Elysia and Bun. Web guides cover routing, SSR/SSG/ISR and typed loaders. Desktop guides cover @teyik0/furin-electrobun.";
+const collections = [
+  { name: "Furin Web", path: "docs", navigation: DOCS_NAV },
+  { name: "Furin Desktop", path: "docs/desktop", navigation: DESKTOP_DOCS_NAV },
+];
 
-// ---------------------------------------------------------------------------
-// Read a content file
-// ---------------------------------------------------------------------------
-
-function readContentFile(sourcePath: string): string {
-  const fullPath = resolve(DOCS_DIR, sourcePath);
-  return readFileSync(fullPath, "utf8");
+function writePublic(path: string, content: string): void {
+  const destination = resolve(PUBLIC_DIR, path);
+  mkdirSync(dirname(destination), { recursive: true });
+  writeFileSync(destination, content, "utf8");
 }
 
-// ---------------------------------------------------------------------------
-// Generate llms.txt (index)
-// ---------------------------------------------------------------------------
-
-function generateLlmsTxt(): string {
-  const lines: string[] = [];
-
-  lines.push(`# ${PROJECT_NAME}`);
-  lines.push("");
-  lines.push(`> ${PROJECT_DESCRIPTION}`);
-  lines.push("");
-  lines.push(PROJECT_LONG_DESCRIPTION);
-  lines.push("");
-
-  // Main docs section
-  lines.push("## Docs");
-  lines.push("");
-
-  for (const section of DOCS_NAV) {
-    for (const item of section.items) {
-      const llmsTxtUrl = `${BASE_URL}${item.href}/llms.txt`;
-      lines.push(
-        `- [${item.label}](${BASE_URL}${item.href}): ${item.description} ([llms.txt](${llmsTxtUrl}))`
-      );
-    }
-  }
-
-  lines.push("");
-
-  lines.push(
-    `- [Full documentation](${BASE_URL}/llms-full.txt): Complete documentation in a single file.`
+function markdown(doc: DocNavItem): string {
+  return stripMdxToMarkdown(readFileSync(resolve(DOCS_DIR, doc.sourcePath), "utf8")).replaceAll(
+    "](/docs",
+    `](${BASE_URL}/docs`
   );
-  lines.push("");
+}
 
+function generateIndex(name: string, sections: DocNavSection[], fullPath: string): string {
+  const lines = [
+    `# ${name}`,
+    "",
+    `> ${DESCRIPTION}`,
+    "",
+    "Fetch only the Markdown pages relevant to your task. The full documentation is optional.",
+    "",
+  ];
+  for (const section of sections) {
+    lines.push(`## ${section.title}`, "");
+    for (const item of section.items) {
+      lines.push(`- [${item.label}](${BASE_URL}${item.href}.md): ${item.description}`);
+    }
+    lines.push("");
+  }
+  lines.push(
+    "## Optional",
+    "",
+    `- [Full documentation](${BASE_URL}/${fullPath}): Complete ${name} documentation in a single file.`,
+    ""
+  );
   return lines.join("\n");
 }
 
-// ---------------------------------------------------------------------------
-// Generate llms-full.txt (complete docs)
-// ---------------------------------------------------------------------------
-
-function generateLlmsFullTxt(): string {
-  const lines: string[] = [];
-
-  lines.push(`# ${PROJECT_NAME} \u2014 Complete Documentation`);
-  lines.push("");
-  lines.push(`> ${PROJECT_DESCRIPTION}`);
-  lines.push("");
-
-  for (const section of DOCS_NAV) {
-    for (const item of section.items) {
-      const raw = readContentFile(item.sourcePath);
-      const clean = stripMdxToMarkdown(raw);
-
-      lines.push("---");
-      lines.push("");
-      lines.push(clean);
-      lines.push("");
-    }
-  }
-
-  return `${lines.join("\n").trim()}\n`;
+function generateFull(name: string, docs: DocNavItem[]): string {
+  return [
+    `# ${name} — Complete Documentation`,
+    "",
+    `> ${DESCRIPTION}`,
+    "",
+    ...docs.flatMap((doc) => ["---", "", markdown(doc), ""]),
+  ].join("\n");
 }
 
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
+for (const doc of DOCS_CARDS) {
+  const content = `${markdown(doc)}\n`;
+  writePublic(`${doc.href.slice(1)}.md`, content);
+  if (!collections.some((collection) => doc.href === `/${collection.path}`)) {
+    writePublic(`${doc.href.slice(1)}/llms.txt`, content);
+  }
+}
 
-mkdirSync(PUBLIC_DIR, { recursive: true });
+const llmsFiles: { [path: string]: string } = {};
 
-const llmsTxt = generateLlmsTxt();
-const llmsFullTxt = generateLlmsFullTxt();
+for (const collection of collections) {
+  const fullPath = `${collection.path}/llms-full.txt`;
+  llmsFiles[`${collection.path}/llms.txt`] = generateIndex(
+    collection.name,
+    collection.navigation,
+    fullPath
+  );
+  llmsFiles[fullPath] = generateFull(
+    collection.name,
+    collection.navigation.flatMap((section) => section.items)
+  );
+}
 
-writeFileSync(resolve(PUBLIC_DIR, "llms.txt"), llmsTxt, "utf8");
-writeFileSync(resolve(PUBLIC_DIR, "llms-full.txt"), llmsFullTxt, "utf8");
-
-console.log(`\u2713 public/llms.txt      (${llmsTxt.length} bytes)`);
-console.log(`\u2713 public/llms-full.txt  (${llmsFullTxt.length} bytes)`);
+const allSections = collections.flatMap((collection) =>
+  collection.navigation.map((section) => ({
+    ...section,
+    title: `${collection.name} / ${section.title}`,
+  }))
+);
+llmsFiles["llms.txt"] = generateIndex("Furin", allSections, "llms-full.txt");
+llmsFiles["llms-full.txt"] = generateFull("Furin", DOCS_CARDS);
+for (const [path, content] of Object.entries(llmsFiles)) {
+  writePublic(path, content);
+}
+const generatedPath = resolve(DOCS_DIR, "src/generated/docs-llms.ts");
+mkdirSync(dirname(generatedPath), { recursive: true });
+writeFileSync(
+  generatedPath,
+  `// Auto-generated by scripts/generate-llms-txt.ts.\nexport const DOCS_LLMS = ${JSON.stringify(llmsFiles)};\n`,
+  "utf8"
+);
+console.log(`✓ Markdown and LLM indexes generated for ${DOCS_CARDS.length} pages (Web + Desktop)`);

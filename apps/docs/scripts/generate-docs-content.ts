@@ -40,8 +40,12 @@ console.log(`✓ src/generated/docs-content.ts  (${SOURCE_PATHS.length} docs)`);
 // the freshly-written docs-content.ts file. Use getSearchIndexEntries() to return the
 // already-built entries rather than calling buildSearchIndexEntries() a second time.
 const { getSearchIndexEntries } = await import("../src/lib/docs-search.ts");
-const searchEntries = getSearchIndexEntries();
+const searchEntries = getSearchIndexEntries("web");
 const searchEntriesPath = resolve(DOCS_DIR, "public/search-entries.json");
 mkdirSync(dirname(searchEntriesPath), { recursive: true });
 writeFileSync(searchEntriesPath, JSON.stringify(searchEntries), "utf8");
 console.log(`✓ public/search-entries.json     (${searchEntries.length} entries)`);
+
+const desktopSearchPath = resolve(DOCS_DIR, "public/docs/desktop/search-entries.json");
+mkdirSync(dirname(desktopSearchPath), { recursive: true });
+writeFileSync(desktopSearchPath, JSON.stringify(getSearchIndexEntries("desktop")), "utf8");

@@ -13,8 +13,8 @@ import type { ApplicationRuntime, DesktopAppOptions } from "./capabilities";
 import {
   type DesktopMode,
   type DesktopState,
+  getDesktopContext,
   getDesktopEntry,
-  getDesktopHost,
   getDesktopState,
   registerDesktopApp,
 } from "./registry";
@@ -23,13 +23,15 @@ export type {
   AdmissionContext,
   DesktopAppOptions,
   DesktopContext,
+  DesktopWindow,
   DesktopWindowOptions,
+  Register,
 } from "./capabilities";
 
 /** Dependency-only provider: no root registration, listener or native SDK initialization. */
 export const desktopContext = new Elysia({
   name: "@teyik0/furin-electrobun/desktop-context",
-}).derive("global", () => ({ desktop: getDesktopHost() }));
+}).derive("global", () => ({ desktop: getDesktopContext() }));
 
 export type DesktopAppContext<Singleton extends SingletonBase> = Singleton["decorator"] & {
   store: Singleton["store"];

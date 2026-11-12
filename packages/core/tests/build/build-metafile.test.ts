@@ -1,14 +1,14 @@
 import { expect, spyOn, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeBuildMetafile } from "../../src/build/shared.ts";
-import { createTmpApp } from "../support/app-fixtures.ts";
 
 test("writes the metafile as formatted JSON in a new directory and logs its path", () => {
-  const app = createTmpApp("cli-app");
+  const root = mkdtempSync(join(tmpdir(), "furin-metafile-"));
   const log = spyOn(console, "log").mockImplementation(() => undefined);
   try {
-    const path = join(app.path, ".furin/build/analysis/bun-server.json");
+    const path = join(root, ".furin/build/analysis/bun-server.json");
     const metafile: Bun.BuildMetafile = { inputs: {}, outputs: {} };
 
     writeBuildMetafile(path, metafile, "Server");
@@ -17,6 +17,6 @@ test("writes the metafile as formatted JSON in a new directory and logs its path
     expect(log).toHaveBeenCalledWith(`[furin] Server metafile: ${path.replaceAll("\\", "/")}`);
   } finally {
     log.mockRestore();
-    app.cleanup();
+    rmSync(root, { force: true, recursive: true });
   }
 });

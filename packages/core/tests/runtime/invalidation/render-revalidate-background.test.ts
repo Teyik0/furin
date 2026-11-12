@@ -13,6 +13,7 @@ import { scanPages } from "../../../src/server/router/discovery.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { notFound } from "../../../src/shared/not-found.ts";
+import { waitFor } from "../../support/wait.ts";
 
 const originalDevMode = IS_DEV;
 afterAll(() => __setDevMode(originalDevMode));
@@ -31,21 +32,6 @@ function createMockLoaderContext(overrides: Partial<Context>): Context {
   } as Context;
 }
 
-function waitForBackground(predicate: () => boolean, message: string): Promise<void> {
-  const deadline = Date.now() + 2000;
-  async function poll(): Promise<void> {
-    if (predicate()) {
-      return;
-    }
-    if (Date.now() >= deadline) {
-      throw new Error(message);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    return poll();
-  }
-  return poll();
-}
-
 function createISRRoute(
   baseRoute: ResolvedRoute,
   options: {
@@ -61,14 +47,6 @@ function createISRRoute(
     },
     pattern: options.pattern,
   };
-}
-
-function createDeferred(): { promise: Promise<void>; resolve: () => void } {
-  let resolve!: () => void;
-  const promise = new Promise<void>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
-  return { promise, resolve };
 }
 
 // The scenario intentionally starts ISR fire-and-forget work from a stale hit;
@@ -115,7 +93,7 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
     ""
   );
   expect(html).toBe(staleHtml);
-  await waitForBackground(() => revalidationAttempts === 1, "redirect revalidation did not settle");
+  await waitFor(() => revalidationAttempts === 1, "redirect revalidation did not settle", 2000);
   await waitForPendingISRRevalidations();
   expect(isrCache.get("/isr-page/redirect")?.html).toBe(staleHtml);
 
@@ -142,7 +120,7 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
     ""
   );
   expect(html).toBe(staleHtml);
-  await waitForBackground(() => revalidationAttempts === 1, "error revalidation did not settle");
+  await waitFor(() => revalidationAttempts === 1, "error revalidation did not settle", 2000);
   await waitForPendingISRRevalidations();
   expect(isrCache.get("/isr-page/error")?.html).toBe(staleHtml);
 
@@ -165,9 +143,10 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
     ""
   );
   expect(html).toBe(staleHtml);
-  await waitForBackground(
+  await waitFor(
     () => !isrCache.has("/isr-page/not-found"),
-    "not-found revalidation did not invalidate cache"
+    "not-found revalidation did not invalidate cache",
+    2000
   );
   await waitForPendingISRRevalidations();
   expect(isrCache.has("/isr-page/not-found")).toBe(false);
@@ -178,7 +157,7 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
   __resetCacheState();
   staleHtml = "<html>stale-race</html>";
   const cacheKey = "/isr-page/race";
-  const gate = createDeferred();
+  const gate = Promise.withResolvers<void>();
   let loaderReleased = false;
   isrCache.set(cacheKey, { generatedAt: 0, html: staleHtml, ndjson: "{}\n", revalidate: 60 });
   revalidationAttempts = 0;
@@ -195,20 +174,20 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
   try {
     html = await handleISR(route, createMockLoaderContext({ path: cacheKey }), result.root, "");
     expect(html).toBe(staleHtml);
-    await waitForBackground(() => revalidationAttempts === 1, "race revalidation did not start");
+    await waitFor(() => revalidationAttempts === 1, "race revalidation did not start", 2000);
     revalidatePath(cacheKey, "page");
     expect(isrCache.has(cacheKey)).toBe(false);
   } finally {
     gate.resolve();
   }
 
-  await waitForBackground(() => loaderReleased, "race revalidation did not complete");
+  await waitFor(() => loaderReleased, "race revalidation did not complete", 2000);
   await waitForPendingISRRevalidations();
   expect(isrCache.has(cacheKey)).toBe(false);
 
   __resetCacheState();
   const missCacheKey = "/isr-page/miss-race";
-  const missGate = createDeferred();
+  const missGate = Promise.withResolvers<void>();
   let missLoaderStarted = false;
   route = createISRRoute(isrRoute, {
     loader: async () => {
@@ -220,7 +199,7 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
   });
   const invalidatedMissCtx = createMockLoaderContext({ path: missCacheKey });
   const rendering = handleISR(route, invalidatedMissCtx, result.root, "");
-  await waitForBackground(() => missLoaderStarted, "cache-miss render did not start");
+  await waitFor(() => missLoaderStarted, "cache-miss render did not start", 2000);
   await revalidatePath(missCacheKey, "page");
   missGate.resolve();
 
@@ -256,7 +235,7 @@ async function runNotFoundGenerationRace(source: "head" | "loader"): Promise<voi
   }
   const cacheKey = `/isr-page/not-found-${source}-race`;
   const started = Promise.withResolvers<void>();
-  const gate = createDeferred();
+  const gate = Promise.withResolvers<void>();
   const oldRoute = createISRRoute(
     { ...base, mode: "isr" },
     {

@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 import { getFreePort } from "../../support/hmr.ts";
+import { pollUntil } from "../../support/http.ts";
 import { startProcess } from "../../support/process.ts";
 
 /** Matches `data-stamp="<digits>"` in ISR-rendered HTML. */
@@ -47,20 +48,6 @@ const HELLO_ATTR_RE = /data-hello="([^"]+)"/;
  * native renderer on route add/remove, so new routes are served without a
  * restart.
  */
-
-async function pollUntil(
-  fn: () => Promise<boolean>,
-  maxAttempts: number,
-  delayMs: number
-): Promise<boolean> {
-  for (let i = 0; i < maxAttempts; i += 1) {
-    if (await fn()) {
-      return true;
-    }
-    await Bun.sleep(delayMs);
-  }
-  return false;
-}
 
 // ── Shared app fixture ─────────────────────────────────────────────────────
 // All tests share one running server so startup cost is paid once.

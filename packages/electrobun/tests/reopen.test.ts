@@ -7,7 +7,6 @@ import { createDesktopApp } from "../src/server";
 
 test("a host can reopen an authenticated window without reusing a spent bootstrap", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-reopen-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const app = createDesktopApp().get("/", () => "ready");
   let owned: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
   try {
@@ -49,11 +48,6 @@ test("a host can reopen an authenticated window without reusing a spent bootstra
     try {
       await owned?.stop();
     } finally {
-      if (previousData === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previousData;
-      }
       await rm(data, { recursive: true, force: true });
     }
   }

@@ -1,5 +1,7 @@
 import type { RouteManifest } from "@teyik0/furin/link";
 
+import { getDocsPlatform } from "./docs-platform";
+
 export type OpenInTarget = "github" | "chatgpt" | "claude" | "cursor" | "copilot";
 
 export interface DocNavItem {
@@ -18,8 +20,6 @@ export interface DocNavSection {
 }
 
 const DEFAULT_OPEN_IN: OpenInTarget[] = ["github", "chatgpt", "claude", "cursor", "copilot"];
-
-export const DESKTOP_SECTION_TITLE = "Desktop (Electrobun)";
 
 export const DOCS_NAV: DocNavSection[] = [
   {
@@ -226,47 +226,6 @@ export const DOCS_NAV: DocNavSection[] = [
   {
     items: [
       {
-        description: "Ship the same React app to webview, browser, and system windows.",
-        githubPath: "apps/docs/src/content/docs/desktop.mdx",
-        href: "/docs/desktop",
-        label: "Desktop Overview",
-        openIn: DEFAULT_OPEN_IN,
-        sourcePath: "src/content/docs/desktop.mdx",
-        title: "Desktop (Electrobun)",
-      },
-      {
-        description: "Native host startup, sessions, window management, and packaging.",
-        githubPath: "apps/docs/src/content/docs/desktop-architecture.mdx",
-        href: "/docs/desktop/architecture",
-        label: "Desktop Architecture",
-        openIn: DEFAULT_OPEN_IN,
-        sourcePath: "src/content/docs/desktop-architecture.mdx",
-        title: "Desktop Architecture",
-      },
-      {
-        description: "useDesktop() in pages, server-side desktop context, and native modules.",
-        githubPath: "apps/docs/src/content/docs/desktop-client.mdx",
-        href: "/docs/desktop/client",
-        label: "Desktop Client & Server Context",
-        openIn: DEFAULT_OPEN_IN,
-        sourcePath: "src/content/docs/desktop-client.mdx",
-        title: "Desktop Client & Server Context",
-      },
-      {
-        description: "Move a tofu-style standalone Electrobun app to Furin Desktop.",
-        githubPath: "apps/docs/src/content/docs/desktop-migration.mdx",
-        href: "/docs/desktop/migration",
-        label: "Migrating To Furin Desktop",
-        openIn: DEFAULT_OPEN_IN,
-        sourcePath: "src/content/docs/desktop-migration.mdx",
-        title: "Migrating To Furin Desktop",
-      },
-    ],
-    title: DESKTOP_SECTION_TITLE,
-  },
-  {
-    items: [
-      {
         description: "How Bun HMR and Furin SSR stay aligned in development.",
         githubPath: "apps/docs/src/content/docs/dev-hmr.mdx",
         href: "/docs/dev-hmr",
@@ -280,32 +239,140 @@ export const DOCS_NAV: DocNavSection[] = [
   },
 ];
 
-/** Sidebar areas, mirrored by the root toggle in the sidebar. */
-export const DOCS_AREAS = [
+export const DESKTOP_DOCS_NAV: DocNavSection[] = [
   {
-    description: "The React meta-framework on Bun and Elysia.",
-    href: "/docs",
-    title: "Furin",
+    title: "Start Here",
+    items: [
+      {
+        description: "How Furin packages your existing React and Elysia app with Electrobun.",
+        githubPath: "apps/docs/src/content/desktop/overview.mdx",
+        href: "/docs/desktop",
+        label: "Overview",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/desktop/overview.mdx",
+        title: "Desktop overview",
+      },
+      {
+        description: "Install the integration, prepare the SDK and configure your project.",
+        githubPath: "apps/docs/src/content/desktop/installation.mdx",
+        href: "/docs/desktop/installation",
+        label: "Installation",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/desktop/installation.mdx",
+        title: "Desktop installation",
+      },
+      {
+        description: "Open your Furin app in a managed native window.",
+        githubPath: "apps/docs/src/content/desktop/first-window.mdx",
+        href: "/docs/desktop/first-window",
+        label: "First Window",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/desktop/first-window.mdx",
+        title: "Your first desktop window",
+      },
+    ],
   },
   {
-    description: "Native system-WebView desktop packaging.",
-    href: "/docs/desktop",
-    title: DESKTOP_SECTION_TITLE,
+    title: "Build Your App",
+    items: [
+      {
+        description:
+          "Share one Bun backend, routes and application lifecycle between web and desktop.",
+        githubPath: "apps/docs/src/content/desktop/integration.mdx",
+        href: "/docs/desktop/integration",
+        label: "Furin Integration",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/desktop/integration.mdx",
+        title: "Integrate Furin and Elysia",
+      },
+      {
+        description: "Manage native windows, background mode and coordinated shutdown.",
+        githubPath: "apps/docs/src/content/desktop/windows.mdx",
+        href: "/docs/desktop/windows",
+        label: "Windows & Lifecycle",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/desktop/windows.mdx",
+        title: "Windows and lifecycle",
+      },
+      {
+        description: "Detect the current interface and open the system browser with useDesktop().",
+        githubPath: "apps/docs/src/content/desktop/bridge.mdx",
+        href: "/docs/desktop/bridge",
+        label: "React & Typed Bridge",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/desktop/bridge.mdx",
+        title: "React and the typed desktop bridge",
+      },
+      {
+        description: "Use Electrobun menus, trays, events and original SDK types.",
+        githubPath: "apps/docs/src/content/desktop/native-apis.mdx",
+        href: "/docs/desktop/native-apis",
+        label: "Native APIs",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/desktop/native-apis.mdx",
+        title: "Native APIs and SDK modules",
+      },
+    ],
   },
-] as const;
+  {
+    title: "Ship",
+    items: [
+      {
+        description: "Package your app, select renderers and include runtime dependencies.",
+        githubPath: "apps/docs/src/content/desktop/build.mdx",
+        href: "/docs/desktop/build",
+        label: "Build & Distribute",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/desktop/build.mdx",
+        title: "Build and distribute a desktop app",
+      },
+      {
+        description: "Configure SDK signing and notarization through furin.config.ts.",
+        githubPath: "apps/docs/src/content/desktop/signing.mdx",
+        href: "/docs/desktop/signing",
+        label: "Signing",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/desktop/signing.mdx",
+        title: "Sign your desktop app",
+      },
+      {
+        description: "Coordinate update installation with the application's shutdown lifecycle.",
+        githubPath: "apps/docs/src/content/desktop/updates.mdx",
+        href: "/docs/desktop/updates",
+        label: "Updates",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/desktop/updates.mdx",
+        title: "Desktop updates",
+      },
+    ],
+  },
+  {
+    title: "Reference",
+    items: [
+      {
+        description: "Native host startup, sessions, window management, and packaging.",
+        githubPath: "apps/docs/src/content/desktop/architecture.mdx",
+        href: "/docs/desktop/architecture",
+        label: "Architecture",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/desktop/architecture.mdx",
+        title: "Desktop architecture",
+      },
+      {
+        description: "Move a tofu-style standalone Electrobun app to Furin Desktop.",
+        githubPath: "apps/docs/src/content/desktop/migration.mdx",
+        href: "/docs/desktop/migration",
+        label: "Migrating To Furin Desktop",
+        openIn: DEFAULT_OPEN_IN,
+        sourcePath: "src/content/desktop/migration.mdx",
+        title: "Migrating to Furin Desktop",
+      },
+    ],
+  },
+];
 
-/**
- * Sections visible in the sidebar for a pathname: the Desktop (Electrobun)
- * pages live behind the root toggle, like fumadocs documentation areas.
- */
-export function getDocsSidebarSections(pathname: string): DocNavSection[] {
-  const desktopArea = isDesktopDocsPath(pathname);
-  return DOCS_NAV.filter((section) => (section.title === DESKTOP_SECTION_TITLE) === desktopArea);
-}
-
-/** Whether a pathname belongs to the Desktop documentation area. */
-export function isDesktopDocsPath(pathname: string): boolean {
-  return pathname.startsWith("/docs/desktop");
+export function getDocsNavigation(pathname: string): DocNavSection[] {
+  return getDocsPlatform(pathname) === "desktop" ? DESKTOP_DOCS_NAV : DOCS_NAV;
 }
 
 /** Previous and next pages of a doc, within its own documentation area. */
@@ -313,7 +380,7 @@ export function getDocNeighbors(pathname: string): {
   next: DocNavItem | null;
   prev: DocNavItem | null;
 } {
-  const items = getDocsSidebarSections(pathname).flatMap((section) => section.items);
+  const items = getDocsNavigation(pathname).flatMap((section) => section.items);
   const index = items.findIndex((doc) => doc.href === pathname);
   if (index === -1) {
     return { next: null, prev: null };
@@ -321,11 +388,7 @@ export function getDocNeighbors(pathname: string): {
   return { next: items[index + 1] ?? null, prev: items[index - 1] ?? null };
 }
 
-export const DOCS_CARDS = DOCS_NAV.flatMap((section) => section.items);
-
-export function getDocSection(href: string): DocNavSection | undefined {
-  return DOCS_NAV.find((section) => section.items.some((item) => item.href === href));
-}
+export const DOCS_CARDS = [...DOCS_NAV, ...DESKTOP_DOCS_NAV].flatMap((section) => section.items);
 
 export const DOCS_BY_PATH = Object.fromEntries(DOCS_CARDS.map((doc) => [doc.href, doc])) as Record<
   keyof RouteManifest,

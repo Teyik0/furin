@@ -52,13 +52,6 @@ jobs:
       - name: Type Check
         run: bun run tscheck
 
-      - name: Test
-        run: bun run test
-
-      - name: HMR Browser Conformance
-        working-directory: packages/core
-        run: bun run test:webview
-
       - name: Knip
         run: bun run knip
 
@@ -161,10 +154,26 @@ jobs:
           path: packages/core/coverage/lcov.info
           if-no-files-found: warn
 
-  windows:
-    name: Windows compatibility
-    runs-on: windows-latest
+  # Suites run on separate runners: in one job they ran back to back.
+  test:
+    name: Test (${{ matrix.suite }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        suite: [core, electrobun, apps]
+        include:
+          - suite: core
+            command: bun run --filter '@teyik0/furin' test
+          - suite: electrobun
+            command: bun run --filter '@teyik0/furin-electrobun' test
+          - suite: apps
+            command: bun run test:release && bun run --sequential --filter './apps/*' --filter './examples/*' test
+          - os: ubuntu-latest
+            suite: webview
+            command: bun run --cwd packages/core test:webview
 
     steps:
       - name: Checkout
@@ -188,10 +197,12 @@ jobs:
         run: bun run build
 
       - name: Type Check
+        if: matrix.os == 'windows-latest' && matrix.suite == 'apps'
         run: bun run tscheck
 
       - name: Test
-        run: bun run test
+        shell: bash
+        run: ${{ matrix.command }}
 
   macos:
     name: macOS desktop compatibility
@@ -448,13 +459,16 @@ jobs:
         run: |
           base_react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$RUNNER_TEMP/furin-base/package.json")"
           head_react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$GITHUB_WORKSPACE/package.json")"
+          docs_workbench() { if [ -f "$1/apps/docs/src/content/desktop/overview.mdx" ]; then echo true; else echo false; fi; }
           set +e
           bun scripts/compare-performance-reports.ts \
             "$RUNNER_TEMP/furin-performance/base.json" \
             "$RUNNER_TEMP/furin-performance/head.json" \
             "$RUNNER_TEMP/furin-performance/budgets.md" \
             "$base_react_version" \
-            "$head_react_version"
+            "$head_react_version" \
+            "$(docs_workbench "$RUNNER_TEMP/furin-base")" \
+            "$(docs_workbench "$GITHUB_WORKSPACE")"
           comparison_status=$?
           bun scripts/compare-dev-startup.ts \
             "$RUNNER_TEMP/furin-performance/startup-base.json" \

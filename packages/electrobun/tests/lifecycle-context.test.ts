@@ -9,7 +9,6 @@ import { desktopApp, getApplicationRuntime } from "../src/server";
 const ORIGIN = /^http:\/\/127\.0\.0\.1:/;
 test("Elysia owns async initialization and cleanup with access to the application runtime", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-context-"));
-  const previous = process.env.FURIN_APP_DATA_DIR;
   const phases: string[] = [];
   const app = new Elysia()
     .use(desktopApp())
@@ -36,11 +35,6 @@ test("Elysia owns async initialization and cleanup with access to the applicatio
     try {
       await backend?.stop();
     } finally {
-      if (previous === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previous;
-      }
       await rm(data, { recursive: true, force: true });
     }
   }

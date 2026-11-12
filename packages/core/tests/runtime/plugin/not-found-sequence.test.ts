@@ -2,8 +2,8 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Elysia } from "elysia";
-import type { CompileContext } from "../../../src/server/internal";
 import { createTmpApp, type TmpApp } from "../../support/app-fixtures";
+import { createFixtureCompileContext } from "../../support/compile-context.ts";
 
 const { furin } = await import("../../../src/furin");
 const { __clearInstanceRegistry } = await import("../../../src/server/instance");
@@ -14,25 +14,16 @@ const { __setDevMode } = await import("../../../src/server/runtime-env");
 let tmpApp: TmpApp | undefined;
 
 async function createProductionContext(appPath: string, prefix: string): Promise<void> {
-  const rootPath = join(appPath, "src/pages/root.tsx");
-  const indexPath = join(appPath, "src/pages/index.tsx");
-  const [rootMod, indexMod] = await Promise.all([import(rootPath), import(indexPath)]);
   const clientDir = join(appPath, "client");
   mkdirSync(clientDir);
   writeFileSync(join(clientDir, "index.html"), "<html><body><!--app-html--></body></html>");
-  const context: CompileContext = {
+  __setCompileContext({
+    ...(await createFixtureCompileContext(appPath, [
+      { file: "index.tsx", mode: "ssg", pattern: "/" },
+    ])),
     embedded: { clientDir },
-    modules: { [rootPath]: rootMod, [indexPath]: indexMod },
-    nativeRoutes: new Elysia().use(
-      rootMod.route.elysia.use(new Elysia().use(indexMod.route.elysia))
-    ),
     prefix,
-    rootConventions: {},
-    rootPath,
-    routeMetadata: { [indexPath]: { segmentBoundaries: [] } },
-    routes: [{ mode: "ssg", path: indexPath, pattern: "/" }],
-  };
-  __setCompileContext(context);
+  });
 }
 
 afterEach(() => {

@@ -13,7 +13,6 @@ test.each(["source", "captured"])(
   "desktop rejects native routes in %s listen options before opening a socket",
   async (mode) => {
     const data = await mkdtemp(join(tmpdir(), "furin-listen-routes-"));
-    const previousData = process.env.FURIN_APP_DATA_DIR;
     let app: ReturnType<typeof createDesktopApp> | undefined;
     const load = () => {
       app = createDesktopApp();
@@ -33,11 +32,6 @@ test.each(["source", "captured"])(
       expect(app?.server).toBeUndefined();
     } finally {
       await app?.stop(true);
-      if (previousData === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previousData;
-      }
       await rm(data, { recursive: true, force: true });
     }
   }
@@ -45,7 +39,6 @@ test.each(["source", "captured"])(
 
 test("startup preserves native policy and cleanup failures while closing the listener once", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-startup-errors-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const cleanupError = new Error("module cleanup failed");
   let shutdowns = 0;
   const app = createDesktopApp().onStart((root) => {
@@ -82,18 +75,12 @@ test("startup preserves native policy and cleanup failures while closing the lis
     expect(app.server).toBeUndefined();
   } finally {
     await app.stop(true);
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test("custom adapters retain normal web use but are refused for desktop dispatch", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-custom-adapter-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const app = createDesktopApp({ adapter: WebStandardAdapter }).get("/", () => "web");
   try {
     expect(await (await app.handle("http://web.test/")).text()).toBe("web");
@@ -102,11 +89,6 @@ test("custom adapters retain normal web use but are refused for desktop dispatch
     ).rejects.toThrow("default Bun adapter");
     expect(app.server).toBeUndefined();
   } finally {
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
@@ -114,7 +96,6 @@ test("custom adapters retain normal web use but are refused for desktop dispatch
 for (const nested of [false, true]) {
   test(`build fails closed when ${nested ? "nested " : ""}source setup adds a native HTML bundle`, async () => {
     const data = await mkdtemp(join(tmpdir(), "furin-late-native-"));
-    const previousData = process.env.FURIN_APP_DATA_DIR;
     let added = false;
     const app = createDesktopApp().onStart((root) => {
       const add = () => {
@@ -146,11 +127,6 @@ for (const nested of [false, true]) {
     } finally {
       await backend?.stop();
       await app.stop(true);
-      if (previousData === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previousData;
-      }
       await rm(data, { recursive: true, force: true });
     }
   });
@@ -158,7 +134,6 @@ for (const nested of [false, true]) {
 
 test("queued unauthenticated traffic cannot receive a late native HTML bundle before failed startup closes", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-native-queue-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const entered = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
   const app = createDesktopApp().onStart(async (root) => {
@@ -200,18 +175,12 @@ test("queued unauthenticated traffic cannot receive a late native HTML bundle be
     release.resolve();
     await startup;
     await app.stop(true);
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test("build rejects even reserved native HMR HTML bundles before listen", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-native-build-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const app = createDesktopApp().get("/_bun_hmr_entry", html);
   try {
     await expect(
@@ -219,18 +188,12 @@ test("build rejects even reserved native HMR HTML bundles before listen", async 
     ).rejects.toThrow("never in build");
     expect(app.server).toBeUndefined();
   } finally {
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test("dev rejects arbitrary native HTML routes including async plugins", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-native-dev-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const app = createDesktopApp().use(Promise.resolve(new Elysia().get("/private", html)));
   try {
     await expect(
@@ -238,18 +201,12 @@ test("dev rejects arbitrary native HTML routes including async plugins", async (
     ).rejects.toThrow('"/private"');
     expect(app.server).toBeUndefined();
   } finally {
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test("explicit serve.routes is rejected instead of claiming native responses are guarded", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-native-config-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const app = createDesktopApp({ serve: { routes: { "/native": new Response("native") } } });
   try {
     await expect(
@@ -257,18 +214,12 @@ test("explicit serve.routes is rejected instead of claiming native responses are
     ).rejects.toThrow("serve.routes");
     expect(app.server).toBeUndefined();
   } finally {
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test("dev permits only reserved frontend HTML assets while app dispatch still requires session", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-native-assets-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const app = createDesktopApp()
     .get("/admin/_bun_hmr_entry/index.html", html)
     .get("/api", () => "private");
@@ -281,18 +232,12 @@ test("dev permits only reserved frontend HTML assets while app dispatch still re
     expect((await fetch(`${backend.origin}/api`)).status).toBe(403);
   } finally {
     await backend.stop();
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test("build disables native development routes and protects static Responses", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-promoted-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const app = createDesktopApp({ nativeStaticResponse: true }).get("/constant", "constant");
   const backend = await startDesktopBackend(() => Promise.resolve({ default: app }), data, "build");
   try {
@@ -308,11 +253,6 @@ test("build disables native development routes and protects static Responses", a
     );
   } finally {
     await backend.stop();
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });

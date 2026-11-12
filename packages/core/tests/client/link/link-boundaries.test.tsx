@@ -135,6 +135,7 @@ function clientTree(
 describe("resolveRouteElement — client-side boundary interleaving", () => {
   test.each([
     memo(namedLayout("Layout")),
+    // biome-ignore lint/suspicious/noReactForwardRef: applications still pass forwardRef components as layouts.
     forwardRef<HTMLDivElement, { children?: ReactNode }>((props, ref) =>
       createElement("div", { ref }, props.children)
     ),

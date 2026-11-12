@@ -1,5 +1,5 @@
 import type { AnyOrama } from "@orama/orama";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@teyik0/furin/link";
 import { Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -12,6 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { type DocsPlatform, getDocsPlatform } from "@/lib/docs-platform";
 import type { SearchIndexEntry } from "@/lib/docs-search";
 import { SEARCH_MIN_QUERY_LENGTH, type SearchResult } from "@/lib/docs-search-shared";
 import { cn } from "@/lib/utils";
@@ -30,8 +31,10 @@ function getShortcutLabel(): string {
 // Loads the search index served at `${basePath}/search-entries.json` (the
 // /search-entries.json Elysia route in dev, a static file in deployments) and
 // rebuilds the Orama index. Throwing here surfaces as `indexQuery.isError`.
-async function loadSearchIndex(basePath: string): Promise<AnyOrama> {
-  const response = await fetch(`${basePath}/search-entries.json`);
+async function loadSearchIndex(basePath: string, platform: DocsPlatform): Promise<AnyOrama> {
+  const path =
+    platform === "desktop" ? "/docs/desktop/search-entries.json" : "/search-entries.json";
+  const response = await fetch(`${basePath}${path}`);
   if (!response.ok) {
     throw new Error(`HTTP ${response.status} ${response.statusText}`);
   }
@@ -174,6 +177,8 @@ export function DocsSearchDialog() {
 
 function SearchDialog() {
   const router = useRouter();
+  const platform = getDocsPlatform(router.currentHref);
+  const label = platform === "desktop" ? "Search desktop docs…" : "Search the docs…";
   const [open, setOpen] = useState(true);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -195,20 +200,23 @@ function SearchDialog() {
     isLoading: isIndexLoading,
   } = useQuery({
     enabled: open,
-    queryFn: () => loadSearchIndex(router.basePath),
-    queryKey: ["docs-search-index", router.basePath],
+    queryFn: () => loadSearchIndex(router.basePath, platform),
+    queryKey: ["docs-search-index", router.basePath, platform],
   });
 
   // Search: re-keyed on the debounced query, so React Query owns staleness —
   // an out-of-order resolution can never overwrite a newer query's results.
   const { data: searchData, isFetching: isSearchFetching } = useQuery({
     enabled: isIndexReady && trimmedDebounced.length >= SEARCH_MIN_QUERY_LENGTH,
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.queryKey[1] === router.basePath && previousQuery.queryKey[2] === platform
+        ? previousData
+        : undefined,
     queryFn: async () => {
       const { runDocsSearch } = await import("@/lib/docs-search-client");
       return runDocsSearch(searchIndex as AnyOrama, trimmedDebounced);
     },
-    queryKey: ["docs-search", trimmedDebounced],
+    queryKey: ["docs-search", router.basePath, platform, trimmedDebounced],
   });
 
   const results = isQueryLongEnough ? (searchData ?? []) : [];
@@ -291,7 +299,7 @@ function SearchDialog() {
     <DialogRoot defaultOpen>
       <DialogTrigger asChild>
         <button
-          className="flex h-8 w-full max-w-xs items-center gap-2 rounded-full border border-border bg-muted/40 px-3 text-muted-foreground transition-colors hover:border-border/80 hover:bg-muted/60"
+          className="docs-search-trigger flex h-8 w-full max-w-xs items-center gap-2 rounded-full border border-border bg-muted/40 px-3 text-muted-foreground transition-colors hover:border-border/80 hover:bg-muted/60"
           onClick={() => {
             setOpen(true);
           }}
@@ -299,7 +307,7 @@ function SearchDialog() {
           type="button"
         >
           <Search className="size-3.5 shrink-0" />
-          <span className="flex-1 text-left text-xs">Search the docs…</span>
+          <span className="docs-search-label flex-1 text-left text-xs">{label}</span>
           <kbd className="hidden rounded border border-border bg-background/60 px-1.5 py-0.5 font-mono text-[10px] leading-none sm:inline-flex">
             {shortcutLabel}
           </kbd>
@@ -337,7 +345,7 @@ function SearchDialog() {
                 setActiveIndex(0);
               }}
               onKeyDown={handleInputKeyDown}
-              placeholder="Search the docs…"
+              placeholder={label}
               ref={inputRef}
               value={query}
             />

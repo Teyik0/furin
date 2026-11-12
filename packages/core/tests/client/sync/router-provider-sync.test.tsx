@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { treaty } from "@elysia/eden";
 import { type Context, Elysia } from "elysia";
 import { act, createElement, Suspense, use } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { createRoot } from "react-dom/client";
 import { fromCrossJSON, toCrossJSON } from "seroval";
-import { RouterProvider, useRouter } from "../../../src/client/link.tsx";
+import { useRouter } from "../../../src/client/link.tsx";
 import type { ClientRoute, LoadedClientRoute } from "../../../src/client/router/index.ts";
 import { furinSync, useMutation, useQuery } from "../../../src/client.ts";
 import { autoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
@@ -16,7 +16,8 @@ import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { serializeRouteFrame, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
 import { ROUTE_MATCHES_KEY } from "../../../src/shared/route-matches.ts";
 import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
-import { navigationDataPath } from "../../support/navigation-data.ts";
+import { makeNdjsonResponse, navigationDataPath } from "../../support/navigation-data.ts";
+import { loadInitialMatch, type RenderedRouter, renderRouter } from "../../support/router.ts";
 
 interface PageProps {
   message?: unknown;
@@ -27,12 +28,6 @@ declare module "@teyik0/furin/routes" {
   interface RouteMap {
     "/optimistic-board/:boardId": { loader: () => { message: string } };
   }
-}
-
-interface RenderedRouter {
-  cleanup: () => void;
-  container: HTMLDivElement;
-  root: Root;
 }
 
 const BROWSER_EVENTS_RUNTIME_KEY = Symbol.for("furin.browser-events.runtime");
@@ -80,63 +75,21 @@ function makeRoute(path: string): ClientRoute {
   };
 }
 
-function makeNdjsonResponse(data: PageProps): Response {
-  return new Response(`${JSON.stringify(toCrossJSON(data))}\n`, {
-    headers: { "Content-Type": "application/x-ndjson" },
-    status: 200,
-  });
-}
-
-async function loadInitialMatch(route: ClientRoute): Promise<LoadedClientRoute> {
-  const mod = await route.load();
-  return {
-    ...route,
-    component: mod.default.component,
-    pageRoute: mod.default._route,
-  };
-}
-
-async function renderRouter(
+function renderSyncRouter(
   route: ClientRoute,
   initialMatch: LoadedClientRoute,
   initialData?: PageProps,
   routes?: ClientRoute[],
   basePath?: string
 ): Promise<RenderedRouter> {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-
-  await act(async () => {
-    root.render(
-      createElement(RouterProvider, {
-        autoRefresh: true,
-        basePath: basePath ?? "",
-        defaultPreload: "intent",
-        defaultPreloadDelay: 50,
-        defaultPreloadStaleTime: 30_000,
-        initialData: initialData ?? { message: "stale" },
-        initialDigest: undefined,
-        initialMatch,
-        prefetchCacheSize: 50,
-        root: null,
-        routes: routes ?? [route],
-        syncPath: "/_furin/sync",
-      })
-    );
-    await Promise.resolve();
+  return renderRouter({
+    basePath: basePath ?? "",
+    initialData: initialData ?? { message: "stale" },
+    initialMatch,
+    routes: routes ?? [route],
+    syncPath: "/_furin/sync",
+    wrap: undefined,
   });
-
-  return {
-    cleanup: () => {
-      act(() => {
-        root.unmount();
-      });
-      container.remove();
-    },
-    container,
-    root,
-  };
 }
 
 describe("RouterProvider sync refresh", () => {
@@ -189,7 +142,7 @@ describe("RouterProvider sync refresh", () => {
     route.load = async () => ({
       default: { component: Counter, _route: { __type: "FURIN_ROUTE" } as never },
     });
-    const { container, cleanup } = await renderRouter(route, initialMatch);
+    const { container, cleanup } = await renderSyncRouter(route, initialMatch);
     currentCleanup = cleanup;
     await waitForDom(() => container.textContent === "stale:0", { timeoutMs: 500 });
     await act(async () => {
@@ -227,10 +180,12 @@ describe("RouterProvider sync refresh", () => {
     const route = makeRoute("/board");
     const initialMatch = await loadInitialMatch(route);
     initialMatch.component = NavigablePage;
-    const { container, cleanup } = await renderRouter(route, initialMatch, { message: "public" }, [
+    const { container, cleanup } = await renderSyncRouter(
       route,
-      makeRoute("/private"),
-    ]);
+      initialMatch,
+      { message: "public" },
+      [route, makeRoute("/private")]
+    );
     currentCleanup = cleanup;
     let navigation: Promise<void> | undefined;
     try {
@@ -282,10 +237,12 @@ describe("RouterProvider sync refresh", () => {
     route.load = async () => ({
       default: { component: NavigablePage, _route: { __type: "FURIN_ROUTE" } as never },
     });
-    const { container, cleanup } = await renderRouter(route, initialMatch, { message: "public" }, [
+    const { container, cleanup } = await renderSyncRouter(
       route,
-      makeRoute("/private"),
-    ]);
+      initialMatch,
+      { message: "public" },
+      [route, makeRoute("/private")]
+    );
     currentCleanup = cleanup;
     let navigation: Promise<void> | undefined;
     try {
@@ -350,10 +307,12 @@ describe("RouterProvider sync refresh", () => {
     privateRoute.load = async () => ({
       default: { component: PrivatePage, _route: { __type: "FURIN_ROUTE" } as never },
     });
-    const { container, cleanup } = await renderRouter(route, initialMatch, { message: "public" }, [
+    const { container, cleanup } = await renderSyncRouter(
       route,
-      privateRoute,
-    ]);
+      initialMatch,
+      { message: "public" },
+      [route, privateRoute]
+    );
     currentCleanup = cleanup;
     await act(async () => {
       router?.prefetch("/private" as string);
@@ -425,7 +384,9 @@ describe("RouterProvider sync refresh", () => {
         moduleRequests += 1;
         return blocked === "module" && moduleRequests === 1 ? moduleGate.promise : originalLoad();
       };
-      const { container, cleanup } = await renderRouter(route, initialMatch, { message: "public" });
+      const { container, cleanup } = await renderSyncRouter(route, initialMatch, {
+        message: "public",
+      });
       currentCleanup = cleanup;
       try {
         await act(async () => {
@@ -503,7 +464,7 @@ describe("RouterProvider sync refresh", () => {
       loaderReads += 1;
       return Promise.resolve(makeNdjsonResponse({ countData: { count }, __furinQueries: seed() }));
     }) as unknown as typeof fetch;
-    const rendered = await renderRouter(route, initialMatch, {
+    const rendered = await renderSyncRouter(route, initialMatch, {
       countData: { count },
       __furinQueries: seed(),
     });
@@ -591,7 +552,7 @@ describe("RouterProvider sync refresh", () => {
     globalThis.fetch = mock(() =>
       Promise.resolve(makeNdjsonResponse(loaded.syncData))
     ) as unknown as typeof fetch;
-    const rendered = await renderRouter(
+    const rendered = await renderSyncRouter(
       route,
       initialMatch,
       fromCrossJSON(toCrossJSON(loaded.syncData), {}) as PageProps
@@ -650,7 +611,7 @@ describe("RouterProvider sync refresh", () => {
       loaderReads += 1;
       return Promise.resolve(makeNdjsonResponse({ message: "After", __furinQueries: seed() }));
     }) as unknown as typeof fetch;
-    const rendered = await renderRouter(route, await loadInitialMatch(route), {
+    const rendered = await renderSyncRouter(route, await loadInitialMatch(route), {
       message: "Before",
       __furinQueries: seed(),
     });
@@ -706,7 +667,7 @@ describe("RouterProvider sync refresh", () => {
         default: { component: RoutePage, _route: { __type: "FURIN_ROUTE" } as never },
       });
       const sidebar = makeRoute("/sidebar");
-      const rendered = await renderRouter(
+      const rendered = await renderSyncRouter(
         board,
         await loadInitialMatch(board),
         { message: "/board:0" },
@@ -813,7 +774,7 @@ describe("RouterProvider sync refresh", () => {
         )
       );
     }) as unknown as typeof fetch;
-    const rendered = await renderRouter(route, initialMatch, {
+    const rendered = await renderSyncRouter(route, initialMatch, {
       ...parsed.syncData,
       ...parsed.deferredPromises,
     });
@@ -893,7 +854,9 @@ describe("RouterProvider sync refresh", () => {
 
     const route = makeRoute("/board");
     const initialMatch = await loadInitialMatch(route);
-    const { cleanup, container } = await renderRouter(route, initialMatch, { message: "stale" });
+    const { cleanup, container } = await renderSyncRouter(route, initialMatch, {
+      message: "stale",
+    });
     currentCleanup = cleanup;
 
     await waitForDom(() => browserEvents.listener !== undefined, { timeoutMs: 2000 });
@@ -948,7 +911,7 @@ describe("RouterProvider sync refresh", () => {
 
     const route = makeRoute("/board");
     const initialMatch = await loadInitialMatch(route);
-    const { cleanup, container } = await renderRouter(route, initialMatch);
+    const { cleanup, container } = await renderSyncRouter(route, initialMatch);
     currentCleanup = cleanup;
 
     await waitForDom(() => browserEvents.listener !== undefined, { timeoutMs: 2000 });
@@ -996,7 +959,7 @@ describe("RouterProvider sync refresh", () => {
 
     const route = makeRoute("/board");
     const initialMatch = await loadInitialMatch(route);
-    const { cleanup, container } = await renderRouter(route, initialMatch);
+    const { cleanup, container } = await renderSyncRouter(route, initialMatch);
     currentCleanup = cleanup;
 
     await waitForDom(() => browserEvents.listener !== undefined, { timeoutMs: 2000 });
@@ -1049,7 +1012,7 @@ describe("RouterProvider sync refresh", () => {
 
     const route = makeRoute("/board");
     const initialMatch = await loadInitialMatch(route);
-    const { cleanup, container } = await renderRouter(route, initialMatch);
+    const { cleanup, container } = await renderSyncRouter(route, initialMatch);
     currentCleanup = cleanup;
 
     await waitForDom(() => browserEvents.listener !== undefined, { timeoutMs: 2000 });
@@ -1112,7 +1075,7 @@ describe("Eden optimistic loader projection", () => {
       fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
     }).use(furinSync);
     const route = makeRoute("/board");
-    const rendered = await renderRouter(route, await loadInitialMatch(route));
+    const rendered = await renderSyncRouter(route, await loadInitialMatch(route));
     let call: ReturnType<typeof api.cards.post> | undefined;
     await act(async () => {
       call = api.cards.post(undefined, {
@@ -1140,7 +1103,7 @@ describe("Eden optimistic loader projection", () => {
       fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
     }).use(furinSync);
     const route = makeRoute("/board");
-    const rendered = await renderRouter(route, await loadInitialMatch(route), {
+    const rendered = await renderSyncRouter(route, await loadInitialMatch(route), {
       [ROUTE_MATCHES_KEY]: [
         { fields: {}, status: "success" },
         { error: { digest: "d1", message: "boom", status: 500 }, status: "error" },
@@ -1173,7 +1136,7 @@ describe("Eden optimistic loader projection", () => {
       fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
     }).use(furinSync);
     const route = makeRoute("/board");
-    const rendered = await renderRouter(route, await loadInitialMatch(route));
+    const rendered = await renderSyncRouter(route, await loadInitialMatch(route));
     ({ cleanup } = rendered);
 
     let mutation: ReturnType<typeof api.cards.post> | undefined;
@@ -1213,7 +1176,7 @@ describe("Eden optimistic loader projection", () => {
       fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
     }).use(furinSync);
     const route = makeRoute("/board");
-    const rendered = await renderRouter(route, await loadInitialMatch(route), { message: "0" });
+    const rendered = await renderSyncRouter(route, await loadInitialMatch(route), { message: "0" });
     ({ cleanup } = rendered);
     let firstCall: ReturnType<ReturnType<typeof api.cards>["post"]> | undefined;
     let secondCall: typeof firstCall;
@@ -1262,7 +1225,7 @@ describe("Eden optimistic loader projection", () => {
     }).use(furinSync);
     const route = makeRoute("/optimistic-board/:boardId");
     route.regex = OPTIMISTIC_BOARD_REGEX;
-    const rendered = await renderRouter(route, await loadInitialMatch(route));
+    const rendered = await renderSyncRouter(route, await loadInitialMatch(route));
     ({ cleanup } = rendered);
     let call: ReturnType<typeof api.cards.post> | undefined;
     await act(async () => {
@@ -1296,7 +1259,7 @@ describe("Eden optimistic loader projection", () => {
       fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
     }).use(furinSync);
     const route = makeRoute("/board");
-    const rendered = await renderRouter(route, await loadInitialMatch(route));
+    const rendered = await renderSyncRouter(route, await loadInitialMatch(route));
     ({ cleanup } = rendered);
     let call: ReturnType<typeof api.cards.post> | undefined;
     await act(async () => {
@@ -1352,7 +1315,7 @@ describe("Eden optimistic loader projection", () => {
       fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
     }).use(furinSync);
     const route = makeRoute("/board");
-    const rendered = await renderRouter(route, await loadInitialMatch(route), { message: "0" });
+    const rendered = await renderSyncRouter(route, await loadInitialMatch(route), { message: "0" });
     ({ cleanup } = rendered);
     const observed: string[] = [];
     const observer = new MutationObserver(() =>
@@ -1420,7 +1383,7 @@ describe("Eden optimistic loader projection", () => {
       fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
     }).use(furinSync);
     const route = makeRoute("/board");
-    const rendered = await renderRouter(route, await loadInitialMatch(route), { message: "0" });
+    const rendered = await renderSyncRouter(route, await loadInitialMatch(route), { message: "0" });
     ({ cleanup } = rendered);
     let callbacks = 0;
     let mutate: ReturnType<typeof useMutation<typeof api.cards.post>>["mutateAsync"] | undefined;
@@ -1480,7 +1443,7 @@ describe("Eden optimistic loader projection", () => {
     const route = makeRoute("/board");
     const initialMatch = await loadInitialMatch(route);
     initialMatch.component = NavigablePage;
-    const rendered = await renderRouter(route, initialMatch, undefined, [
+    const rendered = await renderSyncRouter(route, initialMatch, undefined, [
       route,
       makeRoute("/other"),
     ]);
@@ -1547,7 +1510,7 @@ describe("Eden optimistic loader projection", () => {
       const route = makeRoute("/board");
       const initialMatch = await loadInitialMatch(route);
       initialMatch.component = NavigablePage;
-      const rendered = await renderRouter(route, initialMatch, undefined, [
+      const rendered = await renderSyncRouter(route, initialMatch, undefined, [
         route,
         makeRoute("/other"),
       ]);
@@ -1596,14 +1559,14 @@ describe("Eden optimistic loader projection", () => {
       fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
     }).use(furinSync);
     const route = makeRoute("/board");
-    const first = await renderRouter(
+    const first = await renderSyncRouter(
       route,
       await loadInitialMatch(route),
       { message: "one" },
       undefined,
       "/one"
     );
-    const second = await renderRouter(
+    const second = await renderSyncRouter(
       route,
       await loadInitialMatch(route),
       { message: "two" },

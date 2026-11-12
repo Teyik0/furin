@@ -1,5 +1,6 @@
-import { Check, ChevronDown, Copy, ExternalLink } from "lucide-react";
-import { useState } from "react";
+import { RouterContext } from "@teyik0/furin/link";
+import { ArrowUpRight, Check, ChevronDown, Copy, FileText } from "lucide-react";
+import { use, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenuContent,
@@ -26,6 +27,7 @@ const OPEN_IN_LABELS = {
 } as const;
 
 export function DocsActions({ doc, markdownSource }: DocsActionsProps) {
+  const router = use(RouterContext);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   let copyLabel = "Copy MD";
   if (copyState === "copied") {
@@ -54,37 +56,48 @@ export function DocsActions({ doc, markdownSource }: DocsActionsProps) {
   }
 
   return (
-    <div className="not-prose mb-8 flex flex-wrap items-center gap-3 border-border border-b pb-5">
-      <Button className="gap-2" onClick={handleCopy} size="sm" type="button" variant="outline">
-        {copyState === "copied" ? <Check className="size-4" /> : <Copy className="size-4" />}
-        {copyLabel}
+    <fieldset aria-label="Page actions" className="docs-actions not-prose">
+      <Button asChild className="docs-action" size="sm" variant="ghost">
+        <a href={`${router?.basePath ?? ""}${doc.href}.md`}>
+          <FileText data-icon="inline-start" />
+          Markdown
+        </a>
+      </Button>
+      <Button
+        className="docs-action docs-action-copy"
+        onClick={handleCopy}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        {copyState === "copied" ? (
+          <Check data-icon="inline-start" />
+        ) : (
+          <Copy data-icon="inline-start" />
+        )}
+        <span aria-live="polite">{copyLabel}</span>
       </Button>
 
       <DropdownMenuRoot>
         <DropdownMenuTrigger asChild>
-          <Button className="gap-2" size="sm" type="button" variant="outline">
+          <Button className="docs-action" size="sm" type="button" variant="ghost">
             Open in
-            <ChevronDown className="size-4" />
+            <ChevronDown data-icon="inline-end" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-64">
-          <DropdownMenuLabel>Open this page elsewhere</DropdownMenuLabel>
+        <DropdownMenuContent align="end" className="docs-actions-menu" sideOffset={6}>
+          <DropdownMenuLabel className="docs-actions-menu-label">Open page in</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {openTargets.map(({ target, url }) => (
-            <DropdownMenuItem asChild key={target}>
-              <a
-                className="flex items-center justify-between"
-                href={url}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
+            <DropdownMenuItem asChild className="docs-actions-menu-item" key={target}>
+              <a href={url} rel="noopener noreferrer" target="_blank">
                 <span>{OPEN_IN_LABELS[target]}</span>
-                <ExternalLink className="size-4 text-muted-foreground" />
+                <ArrowUpRight aria-hidden="true" />
               </a>
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
       </DropdownMenuRoot>
-    </div>
+    </fieldset>
   );
 }

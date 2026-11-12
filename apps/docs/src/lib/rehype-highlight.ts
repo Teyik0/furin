@@ -10,11 +10,6 @@ const FILE_COMMENT_RE = /^(?:\/\/|#)\s*([\w./\-[\]]+\.\w+)\s*\n/;
 // biome-ignore lint/suspicious/noExplicitAny: hast node types
 type HastNode = any;
 
-const dot = (color: string) =>
-  h("span", {
-    style: `display:inline-block;width:12px;height:12px;border-radius:9999px;background:${color}`,
-  });
-
 // Copy buttons are inert in the generated markup: a single delegated document
 // listener (code-copy-bridge.tsx) performs the clipboard write.
 const copyButton = () =>
@@ -23,7 +18,6 @@ const copyButton = () =>
     {
       "aria-label": "Copy code",
       "data-code-copy": "",
-      style: "margin-left:auto;border:0;cursor:pointer;display:inline-flex;align-items:center",
       type: "button",
     },
     [copyIcon]
@@ -66,42 +60,18 @@ const rehypeHighlight = () => (tree: HastNode) => {
       style: "margin:0;padding:1.25rem 1.5rem;font-size:0.8125rem;line-height:1.7;overflow-x:auto",
     };
 
-    const windowHeader = (titleNode: string | ReturnType<typeof h>) =>
-      h(
-        "div",
-        {
-          style:
-            "display:flex;align-items:center;gap:6px;padding:10px 16px;background:#161b22;border-bottom:1px solid rgba(99,102,241,0.15)",
-        },
-        [
-          dot("rgba(239,68,68,0.8)"),
-          dot("rgba(234,179,8,0.8)"),
-          dot("rgba(34,197,94,0.8)"),
-          h(
-            "span",
-            {
-              style:
-                "margin-left:8px;font-family:ui-monospace,monospace;font-size:0.75rem;color:#94a3b8",
-            },
-            titleNode
-          ),
-          copyButton(),
-        ]
-      );
-
     if (isInCodeTab) {
       // Inside a tab — just the highlighted <pre>, no window chrome
       parent._highlightReplacement = highlightedPre;
     } else {
-      // Standalone — full macOS terminal window
-      const codeWindow = h(
-        "div",
-        {
-          class:
-            "not-prose my-6 overflow-hidden rounded-xl border border-slate-700/50 shadow-lg shadow-black/20",
-        },
-        [windowHeader(title), highlightedPre]
-      );
+      const codeWindow = h("div", { class: "not-prose workbench-code-window" }, [
+        h("div", { class: "workbench-code-header" }, [
+          h("span", title),
+          h("span", { class: "workbench-code-language" }, lang.toUpperCase()),
+          copyButton(),
+        ]),
+        highlightedPre,
+      ]);
       parent._highlightReplacement = codeWindow;
     }
   });

@@ -19,7 +19,11 @@ export interface RunningCli {
   exitCode: Promise<number>;
   getStderr: () => string;
   getStdout: () => string;
-  kill: () => void;
+  /**
+   * Production servers wait out a 5-second pre-stop delay on SIGTERM; tests
+   * that assert nothing about shutdown pass SIGKILL.
+   */
+  kill: (signal?: NodeJS.Signals) => void;
   pid: number;
 }
 
@@ -181,8 +185,8 @@ export function startProcess(
     })(),
     getStderr: () => stderr,
     getStdout: () => stdout,
-    kill: () => {
-      proc.kill();
+    kill: (signal) => {
+      proc.kill(signal);
     },
     pid: proc.pid,
   };

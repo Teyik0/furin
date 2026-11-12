@@ -17,11 +17,10 @@
 ```bash
 bun create furin@latest my-app
 cd my-app
-bun install
 bun run dev
 ```
 
-Furin supports exactly Elysia `2.0.0-rc.1` while Elysia 2 is a release candidate; a weekly workflow tests upcoming `elysia@next` releases.
+Furin supports Elysia `^2.0.0-rc.1` while Elysia 2 is a release candidate; a weekly workflow tests the latest `elysia@rc` release.
 
 For the shadcn/ui starter:
 
@@ -31,7 +30,7 @@ bun create furin@latest my-app --template full
 
 ## Documentation
 
-Full API reference, rendering modes, routing, and deployment guides at **[teyik0.github.io/furin](https://teyik0.github.io/furin/)**.
+Full API reference, rendering modes, routing, and deployment guides at **[teyik0.github.io/furin](https://teyik0.github.io/furin/)**. Desktop packaging with Electrobun is covered in the [desktop guides](https://teyik0.github.io/furin/docs/desktop).
 
 ## Monorepo
 

@@ -1,4 +1,4 @@
-// biome-ignore-all lint/performance/noAwaitInLoops: HTTP readiness helper must wait between fetch attempts
+// biome-ignore-all lint/performance/noAwaitInLoops: HTTP polling helpers must wait between attempts
 
 export async function waitForHttp(
   url: string,
@@ -34,4 +34,18 @@ export async function waitForHttp(
 
     await Bun.sleep(intervalMs);
   }
+}
+
+export async function pollUntil(
+  fn: () => Promise<boolean>,
+  maxAttempts: number,
+  delayMs: number
+): Promise<boolean> {
+  for (let i = 0; i < maxAttempts; i += 1) {
+    if (await fn()) {
+      return true;
+    }
+    await Bun.sleep(delayMs);
+  }
+  return false;
 }

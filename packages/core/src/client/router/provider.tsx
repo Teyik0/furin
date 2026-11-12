@@ -127,6 +127,7 @@ export function RouterProvider({
   const syncResponse = useRef<
     ((response: Response | undefined, optimistic: boolean) => void) | undefined
   >(undefined);
+  // biome-ignore lint/nursery/useReactCompiler: the runtime reads these refs only from its callbacks, after render.
   const [optimisticRuntime] = useState(() =>
     createOptimisticRuntime({
       basePath,
@@ -366,6 +367,8 @@ export function RouterProvider({
   });
   useSyncStream({ autoRefresh, basePath, controller, invalidationRefresh, queries, syncPath });
 
+  // The query store and resolved deferred promises are mutable sources outside
+  // React; queryRevision and deferredRevision are the keys that invalidate them.
   const queryData = useMemo(
     () =>
       projectDeferredQueryData(
@@ -380,8 +383,10 @@ export function RouterProvider({
           }
           return queries.snapshot(seed.url).data;
         },
+        // biome-ignore lint/nursery/useReactCompiler: deferredRevision invalidates this read.
         resolvedQueries.current
       ),
+    // biome-ignore lint/nursery/useReactCompiler: revisions intentionally key reads of external mutable sources.
     [queries, state.data, state.querySeeds, queryRevision, deferredRevision]
   );
   const renderedData = optimisticRuntime.project(queryData, currentHref);

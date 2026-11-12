@@ -2,11 +2,11 @@
 
 The generated bootstrap imports Electrobun's canonical 2.0.2 devkit and starts the controller internally. The separately bundled Furin `app.js` remains inert until loaded. A native module selected by `desktop.build.bun.entrypoint` registers original SDK integrations; it does not launch the app. The principal window is declared exclusively in `.use(desktopApp({ window: { ... } }))` on the Elysia root.
 
-The shared cross-bundle registry exposes one live controller through `getDesktopHost()` and the named `desktopContext` provider. Each request resolves the controller at execution time, so independent API modules can be imported before native installation. The provider does not register roots or native resources. The functional root plugin returns Elysia's inferred provider type and preserves route/Eden inference. No ambient context augmentation is used.
+The shared cross-bundle registry exposes the live native controller through `getDesktopHost()` and a serializable, asynchronous Elysia controller through the named `desktopContext` provider. Both modes share one command executor: a packaged app calls it in-process, development reaches it over the shell channel. Each request resolves the controller at execution time, so independent API modules can be imported before native installation. The provider does not register roots or native resources. The functional root plugin returns Elysia's inferred provider type and preserves route/Eden inference. No ambient context augmentation is used.
 
 ## Startup and shutdown
 
-The host resolves SDK identity and runtime storage before claiming single-instance ownership. Launch inputs and inputs forwarded by secondary instances are delivered through the original SDK's `open-url` event after readiness; files use `file:` URLs. Native modules subscribe directly with `Electrobun.events.on("open-url", handler)`. Direct OS events follow the SDK lifecycle; application startup dependencies and asynchronous handler ordering are application-owned. Furin does not inspect native-module exports or provide an `onOpen` callback.
+The host resolves SDK identity and runtime storage before claiming single-instance ownership. Launch inputs and inputs forwarded by secondary instances are delivered through the original SDK's `open-url` event after readiness; files use `file:` URLs. Native modules subscribe directly with `Electrobun.events.on("open-url", handler)`. Direct OS events follow the SDK lifecycle; application startup dependencies and asynchronous handler ordering are application-owned. Furin reads only the native module's `defineNative` default export and provides no `onOpen` callback.
 
 The host loads the app and optional native integrations, installs session guards, awaits Elysia modules and every `.onStart()` hook, then creates main using the original SDK constructor. Elysia's successful listen callback is the readiness boundary. No window opens after failed or cancelled startup. `desktop.open()` throws before readiness instead of queueing a promise that could deadlock initialization.
 
@@ -16,7 +16,7 @@ Quitting aborts startup, drains the backend once under a five-second shutdown de
 
 ## Windows and SDK identity
 
-`desktop.window` is a readonly current getter for the original `BrowserWindow | undefined`. `desktop.open()` shows/activates main or creates it again. `desktop.windows.create(name, { path, ...sdkOptions })` returns the original SDK `BrowserWindow<T>` and keeps exact RPC inference from the supplied `rpc`. `windows.get(name)` returns the SDK default type because a dynamic name carries no RPC declaration. Raw SDK windows/views remain available independently.
+In native modules, `getDesktopHost().window` is a readonly current getter for the original `BrowserWindow | undefined`, and `windows.create(name, { path, ...sdkOptions })` returns the original SDK `BrowserWindow<T>` with exact RPC inference. In Elysia, `desktop.window` and `desktop.windows` expose the SDK's serializable window methods as promises; options exclude RPC. `desktop.native` calls the native entrypoint's `defineNative` default export, typed through a generated declaration. Raw SDK windows/views remain available independently.
 
 Furin manages URL, HTML, views root, protocol and navigation boundaries. Runtime overrides protect those fields even if JavaScript passes structurally wider options. Other SDK options pass through. RPC enables the native transport unless explicitly sandboxed; without RPC, sandbox defaults on. Trusted native code retains all original SDK methods and can deliberately change a window later.
 
@@ -40,7 +40,7 @@ Compatible configuration derives from original SDK types. Furin owns the generat
 
 The npm package is a launcher. `furin-electrobun prepare` projects the pinned SDK and generates exact TypeScript aliases from its export map. Extend `.furin/electrobun/tsconfig.json`; rerun preparation after relocation. Published declarations use SDK specifiers and contain no machine-specific SDK path. Package development prepares its own pinned devkit and applies type-only annotations needed to emit SDK 2.0.2's inferred private Session types; consumer native code remains the original SDK.
 
-The Bun preload activates only for the configured `--hot` server entry and delegates to the supervisor before that entry runs. Frontend edits retain the window through Bun HMR/Fast Refresh. Backend/native dependency changes trigger a full controlled process restart. Native modules are never hot-reloaded. Ordinary web mode, imports and tests do not initialize the SDK.
+Development splits the backend from the native shell. Furin's `bun --hot` worker owns the Elysia backend, its session cookie and an authenticated loopback channel; it launches the Electrobun shell once. The shell mints one-use window URLs with a key received over that channel, and the backend redeems them on its own origin. Backend edits reload in place without touching the shell; changes to the native entrypoint's import graph rebuild and relaunch only the shell. Closing the channel quits the shell, forcibly after five seconds. The Bun preload activates only for the configured `--hot` server entry and hands off to `furin dev`. Ordinary web mode, imports and tests do not initialize the SDK.
 
 ## Runtime storage and associations
 

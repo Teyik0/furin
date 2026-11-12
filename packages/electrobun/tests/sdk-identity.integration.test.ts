@@ -17,9 +17,8 @@ test("separately bundled app and native host share the canonical SDK window and 
       `
       import { Elysia } from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
       import { desktopApp, desktopContext } from ${JSON.stringify(join(packageRoot, "src/server.ts"))};
-      const api = new Elysia().use(desktopContext).post('/minimize', ({desktop}) => {
-        globalThis.routeDesktop = desktop;
-        desktop.window.minimize();
+      const api = new Elysia().use(desktopContext).post('/minimize', async ({desktop}) => {
+        await desktop.window.minimize();
         return {ok: true};
       });
       export default new Elysia().use(desktopApp({window:{title:'Bundled'}})).use(api);
@@ -51,7 +50,7 @@ test("separately bundled app and native host share the canonical SDK window and 
       });
       const response=await loaded.default.handle(new Request('http://in-process/minimize',{method:'POST'}));
       if(response.status!==200) throw new Error('Native API failed');
-      if(globalThis.routeDesktop!==desktop || getDesktopHost()!==desktop) throw new Error('Controller duplicated across bundles');
+      if(getDesktopHost()!==desktop) throw new Error('Controller duplicated across bundles');
       if(SubpathWindow!==sdk.BrowserWindow) throw new Error('SDK subpath constructor duplicated');
       if(!(desktop.window instanceof sdk.BrowserWindow)) throw new Error('SDK constructor duplicated');
       if(sdk.BrowserWindow.getById(desktop.window.id)!==desktop.window) throw new Error('SDK window map duplicated');

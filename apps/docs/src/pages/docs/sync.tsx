@@ -14,6 +14,18 @@ export const route = defineRoute("/docs/sync")
     return { content, markdownSource: getDocSourceText(doc.sourcePath) };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "describedby",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/llms.txt",
+      },
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/sync.md",
+      },
+    ],
     meta: [{ title: "Sync & Invalidations — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

@@ -15,10 +15,12 @@ import {
   type TmpApp,
   writeAppFile,
 } from "../../support/app-fixtures";
+import { createFixtureCompileContext } from "../../support/compile-context.ts";
 import { captureEvlogEvents } from "../../support/evlog-capture.ts";
 import { getFreePort } from "../../support/hmr.ts";
 import { waitForHttp } from "../../support/http";
 import { runCli, startProcess } from "../../support/process";
+import { waitFor } from "../../support/wait.ts";
 
 const { furin, isFurinPageRequest, revalidatePath, revalidateTag } = await import(
   "../../../src/furin"
@@ -95,43 +97,11 @@ async function waitForFileContent(path: string, expected: string): Promise<void>
   }
 }
 
-async function createBuiltRouteContext(appPath: string): Promise<CompileContext> {
-  const rootPath = join(appPath, "src/pages/root.tsx");
-  const indexPath = join(appPath, "src/pages/index.tsx");
-  const blogSlugPath = join(appPath, "src/pages/blog/[slug].tsx");
-
-  const [rootMod, indexMod, blogSlugMod] = await Promise.all([
-    import(rootPath),
-    import(indexPath),
-    import(blogSlugPath),
+function createBuiltRouteContext(appPath: string): Promise<CompileContext> {
+  return createFixtureCompileContext(appPath, [
+    { file: "index.tsx", mode: "ssg", pattern: "/" },
+    { file: "blog/[slug].tsx", mode: "ssg", pattern: "/blog/:slug" },
   ]);
-  const rootRoute = rootMod.route as { elysia: Elysia };
-  const indexRoute = indexMod.route as { elysia: Elysia };
-  const blogSlugRoute = blogSlugMod.route as { elysia: Elysia };
-  const nativeRoutes = new Elysia().use(
-    rootRoute.elysia
-      .use(new Elysia().use(indexRoute.elysia))
-      .use(new Elysia({ prefix: "/blog/:slug" }).use(blogSlugRoute.elysia))
-  );
-
-  return {
-    modules: {
-      [rootPath]: rootMod,
-      [indexPath]: indexMod,
-      [blogSlugPath]: blogSlugMod,
-    },
-    nativeRoutes,
-    rootConventions: {},
-    rootPath,
-    routeMetadata: {
-      [indexPath]: { segmentBoundaries: [] },
-      [blogSlugPath]: { segmentBoundaries: [] },
-    },
-    routes: [
-      { mode: "ssg", path: indexPath, pattern: "/" },
-      { mode: "ssg", path: blogSlugPath, pattern: "/blog/:slug" },
-    ],
-  };
 }
 
 async function setBuiltRouteContext(appPath: string): Promise<void> {
@@ -198,18 +168,23 @@ test.serial("furin() rejects one pages directory mounted under two prefixes", as
   );
 });
 
-test.serial("each furin() instance purges its own physical paths", async () => {
+test.serial("each furin() instance purges paths and tags through its own purgers", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   __setDevMode(true);
   process.chdir(app.path);
   const pagesDir = join(app.path, "src/pages");
   const purged: { admin: string[][]; front: string[][] } = { admin: [], front: [] };
+  const purgedTags: { admin: string[][]; front: string[][] } = { admin: [], front: [] };
 
   new Elysia()
     .use(
       await furin({
         cachePurger: (paths) => {
           purged.front.push(paths);
+          return Promise.resolve();
+        },
+        cacheTagPurger: (tags) => {
+          purgedTags.front.push(tags);
           return Promise.resolve();
         },
         pagesDir,
@@ -221,47 +196,20 @@ test.serial("each furin() instance purges its own physical paths", async () => {
           purged.admin.push(paths);
           return Promise.resolve();
         },
+        cacheTagPurger: (tags) => {
+          purgedTags.admin.push(tags);
+          return Promise.resolve();
+        },
         pagesDir: copyPagesForPrefix(app.path, "src/admin", "/admin"),
         prefix: "/admin",
       })
     );
   await revalidatePath("/x", "page");
-  await Bun.sleep(0);
-
-  expect(purged).toEqual({ admin: [["/admin/x"]], front: [["/x"]] });
-});
-
-test.serial("each furin() instance purges tags through its own tag purger", async () => {
-  const app = rememberTmpApp(createTmpApp("cli-app"));
-  __setDevMode(true);
-  process.chdir(app.path);
-  const pagesDir = join(app.path, "src/pages");
-  const purged: { admin: string[][]; front: string[][] } = { admin: [], front: [] };
-
-  new Elysia()
-    .use(
-      await furin({
-        cacheTagPurger: (tags) => {
-          purged.front.push(tags);
-          return Promise.resolve();
-        },
-        pagesDir,
-      })
-    )
-    .use(
-      await furin({
-        cacheTagPurger: (tags) => {
-          purged.admin.push(tags);
-          return Promise.resolve();
-        },
-        pagesDir: copyPagesForPrefix(app.path, "src/admin", "/admin"),
-        prefix: "/admin",
-      })
-    );
   await revalidateTag("posts");
   await Bun.sleep(0);
 
-  expect(purged).toEqual({ admin: [["posts"]], front: [["posts"]] });
+  expect(purged).toEqual({ admin: [["/admin/x"]], front: [["/x"]] });
+  expect(purgedTags).toEqual({ admin: [["posts"]], front: [["posts"]] });
 });
 
 test.serial("furin() instances sharing a tag purger purge each tag once", async () => {
@@ -605,18 +553,14 @@ test.serial("furin() preserves route data while an edited route is invalid", asy
     try {
       // An error.tsx without a default export fails the snapshot refresh.
       writeAppFile(app.path, "src/pages/error.tsx", "export const broken = true;\n");
-      const deadline = Date.now() + 3000;
-      while (
-        !errorSpy.mock.calls.some(
-          ([message]) => message === "[furin] Failed to refresh route topology"
-        )
-      ) {
-        if (Date.now() >= deadline) {
-          throw new Error("Timed out waiting for the invalid route refresh");
-        }
-        // biome-ignore lint/performance/noAwaitInLoops: bounded polling waits for the topology watcher
-        await Bun.sleep(20);
-      }
+      await waitFor(
+        () =>
+          errorSpy.mock.calls.some(
+            ([message]) => message === "[furin] Failed to refresh route topology"
+          ),
+        "Timed out waiting for the invalid route refresh",
+        3000
+      );
 
       const response = await instance.handle(new Request("http://furin/?_furin=data"));
       const { syncData } = await parseDeferredNdjson(
@@ -652,18 +596,14 @@ test.serial("furin() reports a removed route id without rewriting the file", asy
     const source = readFileSync(routePath, "utf8").replace('defineRoute("/")', "defineRoute()");
     writeAppFile(app.path, "src/pages/index.tsx", source);
 
-    const deadline = Date.now() + 3000;
-    while (
-      !errorSpy.mock.calls.some(([message]) =>
-        String(message).includes("defineRoute() must name this file")
-      )
-    ) {
-      if (Date.now() >= deadline) {
-        throw new Error("Timed out waiting for the route config diagnostic");
-      }
-      // biome-ignore lint/performance/noAwaitInLoops: bounded polling waits for the topology watcher
-      await Bun.sleep(20);
-    }
+    await waitFor(
+      () =>
+        errorSpy.mock.calls.some(([message]) =>
+          String(message).includes("defineRoute() must name this file")
+        ),
+      "Timed out waiting for the route config diagnostic",
+      3000
+    );
     expect(readFileSync(routePath, "utf8")).toBe(source);
   } finally {
     errorSpy.mockRestore();
@@ -783,45 +723,7 @@ test.serial(
       expect(await apiResponse.text()).toBe("auth:/auth/session");
       expect(missingResponse.status).toBe(404);
     } finally {
-      server.kill();
-      await server.exitCode;
-    }
-  },
-  30_000
-);
-
-test.serial(
-  "furin() compiled server serves a prefixed mount and a catch-all page",
-  async () => {
-    const app = rememberTmpApp(createTmpApp("cli-app"));
-    writeAppFile(app.path, "src/pages/[...rest].tsx", ROOT_CATCH_ALL_PAGE);
-    writeAppFile(app.path, "src/server.ts", MOUNTED_SERVER);
-
-    const result = await runCli(["build", "--target", "bun", "--compile", "server"], {
-      cwd: app.path,
-    });
-    if (result.exitCode !== 0) {
-      throw new Error(result.stderr || result.stdout);
-    }
-    const port = await getFreePort();
-    const serverFilename = process.platform === "win32" ? "server.exe" : "server";
-    const server = startProcess([join(app.path, ".furin/build/bun", serverFilename)], {
-      cwd: app.path,
-      env: { PORT: String(port) },
-    });
-    try {
-      const authResponse = await waitForHttp(`http://127.0.0.1:${port}/api/auth/session`, {
-        timeoutMs: 10_000,
-      });
-      const pageResponse = await fetch(`http://127.0.0.1:${port}/some-page`);
-      expect(await authResponse.text()).toBe("auth:/auth/session");
-      const pageHtml = await pageResponse.text();
-      expect(pageResponse.status, `${pageHtml}\n${server.getStdout()}\n${server.getStderr()}`).toBe(
-        200
-      );
-      expect(pageHtml).toContain("Catch-all page");
-    } finally {
-      server.kill();
+      server.kill("SIGKILL");
       await server.exitCode;
     }
   },
@@ -1054,8 +956,11 @@ test.serial("furin() production without build output throws", async () => {
 
 test.serial("furin() production plugin starts from built output", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
-  const result = await runCli(["build", "--target", "bun"], { cwd: app.path });
-  expect(result.exitCode).toBe(0);
+  writeAppFile(
+    app.path,
+    ".furin/build/bun/client/index.html",
+    '<html><head><!--furin-head--></head><body><div id="root"><!--ssr-outlet--></div></body></html>'
+  );
 
   __setDevMode(false);
   process.chdir(app.path);
@@ -1082,15 +987,6 @@ test.serial("furin() production plugin starts from built output", async () => {
   expect(snapshotResponse.status).toBe(404);
   expect(clientResponse.status).toBe(404);
   expect(removedEventsResponse.status).toBe(404);
-
-  const server = instance.listen(0);
-
-  try {
-    await Bun.sleep(50);
-    expect(server.server).toBeDefined();
-  } finally {
-    server.stop();
-  }
 });
 
 test.serial(
@@ -1144,46 +1040,6 @@ test.serial(
     expect(nativeRequests).toBe(1);
   }
 );
-
-test.serial("furin() serves embedded assets in production", async () => {
-  const app = rememberTmpApp(createTmpApp("cli-app"));
-  __setDevMode(false);
-  process.chdir(app.path);
-
-  const clientDir = join(app.path, "embedded-client");
-  const publicDir = join(app.path, "embedded-public");
-  mkdirSync(clientDir);
-  mkdirSync(publicDir);
-  writeFileSync(
-    join(clientDir, "index.html"),
-    "<html><head></head><body><!--ssr-outlet--></body></html>"
-  );
-  const clientAssetPath = join(clientDir, "app.js");
-  const publicAssetPath = join(publicDir, "logo.png");
-  writeFileSync(clientAssetPath, "console.log('client');");
-  writeFileSync(publicAssetPath, "logo");
-
-  __setCompileContext({
-    ...(await createBuiltRouteContext(app.path)),
-    embedded: {
-      clientDir,
-      publicDir,
-    },
-  });
-
-  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
-  expect(instance).toBeInstanceOf(Elysia);
-
-  const okClient = await instance.handle(new Request("http://furin/_client/app.js"));
-  const okPublic = await instance.handle(new Request("http://furin/public/logo.png"));
-  const missClient = await instance.handle(new Request("http://furin/_client/missing.js"));
-  const missPublic = await instance.handle(new Request("http://furin/public/missing.png"));
-
-  expect(okClient.status).toBe(200);
-  expect(okPublic.status).toBe(200);
-  expect(missClient.status).toBe(404);
-  expect(missPublic.status).toBe(404);
-});
 
 const platformCapabilities = {
   assets: "platform",

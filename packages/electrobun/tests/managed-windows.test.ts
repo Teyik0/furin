@@ -6,7 +6,7 @@ import { treaty } from "@elysia/eden";
 import type { BrowserWindow } from "electrobun/main";
 import type { RPCWithTransport } from "electrobun/main/rpc";
 import { Elysia, status } from "elysia";
-import type { DesktopContext } from "../src/capabilities";
+import type { DesktopHost } from "../src/capabilities";
 import { getDesktopHost } from "../src/host";
 import type { DesktopSdk } from "../src/native-sdk";
 import { getDesktopState } from "../src/registry";
@@ -16,18 +16,17 @@ import { installSdk } from "./fixtures/sdk";
 
 test("managed windows keep SDK identity and independent APIs share the live controller", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-windows-"));
-  const previous = process.env.FURIN_APP_DATA_DIR;
   const identity = { name: "Fixture", identifier: "local.furin.windows", version: "1.0.0" };
-  let desktop: DesktopContext | undefined;
+  let desktop: DesktopHost | undefined;
   let failBackground = false;
   let backgroundReads = 0;
   // Declared before host installation: provider must resolve the live value later.
-  const api = new Elysia().use(desktopContext).post("/minimize", ({ desktop: context }) => {
+  const api = new Elysia().use(desktopContext).post("/minimize", async ({ desktop: context }) => {
     if (!context) {
       return status(409, { error: "Desktop unavailable" });
     }
-    context.window?.minimize();
-    return { same: context === getDesktopHost(), ok: true };
+    await context.window.minimize();
+    return { ok: true };
   });
   expect(getDesktopState(api)).toBeUndefined();
   const app = new Elysia()
@@ -71,7 +70,7 @@ test("managed windows keep SDK identity and independent APIs share the live cont
     const client = treaty(app);
     const response = await client.minimize.post();
     expectTypeOf(response.error).not.toBeAny();
-    expect(response.data).toEqual({ same: true, ok: true });
+    expect(response.data).toEqual({ ok: true });
     // SDK boundary fixture exposes constructor inputs without replacing any Furin method.
     const first = desktop.window as BrowserWindow & {
       minimized: boolean;
@@ -117,11 +116,6 @@ test("managed windows keep SDK identity and independent APIs share the live cont
     expect(getDesktopHost()).toBeNull();
   } finally {
     await desktop?.quit();
-    if (previous === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previous;
-    }
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -129,7 +123,7 @@ test("managed windows keep SDK identity and independent APIs share the live cont
 // Compile-time assertion only: exact SDK RPC generics survive create without
 // pretending a dynamic string lookup can recover an unrelated schema.
 export function createTypedWindow<T extends RPCWithTransport>(
-  desktop: DesktopContext,
+  desktop: DesktopHost,
   rpc: T,
   sdk: DesktopSdk
 ) {
@@ -143,7 +137,6 @@ export function createTypedWindow<T extends RPCWithTransport>(
 
 test("quit during async Elysia startup creates no window and cleans up once", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-window-cancel-"));
-  const previous = process.env.FURIN_APP_DATA_DIR;
   const entered = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
   let stops = 0;
@@ -179,11 +172,6 @@ test("quit during async Elysia startup creates no window and cleans up once", as
   } finally {
     release.resolve();
     await app.stop(true);
-    if (previous === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previous;
-    }
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -191,12 +179,11 @@ test("quit during async Elysia startup creates no window and cleans up once", as
 for (const failure of ["tray", "fence", "main", "extra", "quit"] as const) {
   test(`native ${failure} cleanup failure still drains every managed object and quits once`, async () => {
     const root = await mkdtemp(join(tmpdir(), "furin-cleanup-failure-"));
-    const previous = process.env.FURIN_APP_DATA_DIR;
     const previousExitCode = process.exitCode;
     const identity = { name: "Fixture", identifier: "local.furin.cleanup", version: "1.0.0" };
     const attempts: string[] = [];
     const codes: number[] = [];
-    let desktop: DesktopContext | undefined;
+    let desktop: DesktopHost | undefined;
     const attempt = (name: string) => {
       attempts.push(name);
       if (name === failure) {
@@ -263,12 +250,55 @@ for (const failure of ["tray", "fence", "main", "extra", "quit"] as const) {
     } finally {
       await desktop?.quit().catch(() => undefined);
       process.exitCode = previousExitCode ?? 0;
-      if (previous === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previous;
-      }
       await rm(root, { recursive: true, force: true });
     }
   });
 }
+
+test("a window opened while the async background policy is pending keeps the app running", async () => {
+  const root = await mkdtemp(join(tmpdir(), "furin-window-background-"));
+  const identity = { name: "Fixture", identifier: "local.furin.background", version: "1.0.0" };
+  const decision = Promise.withResolvers<boolean>();
+  const quits: number[] = [];
+  let policyCalls = 0;
+  let desktop: DesktopHost | undefined;
+  try {
+    await Bun.write(join(root, ".furin/electrobun/host.json"), JSON.stringify({ app: identity }));
+    await installSdk(root);
+    const sdk = (await import(join(root, "node_modules/electrobun/main.ts"))) as DesktopSdk;
+    Object.defineProperty(sdk.Utils, "quit", {
+      value: (code: number) => {
+        quits.push(code);
+        return true;
+      },
+    });
+    desktop = await runStandardDesktopHost(sdk, {
+      config: { app: identity },
+      dataDir: join(root, "data"),
+      root,
+      mode: "build",
+      load: async () => ({
+        // Development shells answer the background policy asynchronously over their channel.
+        default: new Elysia().use(
+          desktopApp({
+            background: (() => {
+              policyCalls += 1;
+              return decision.promise;
+            }) as unknown as () => boolean,
+          })
+        ),
+      }),
+    });
+    desktop?.window?.close();
+    const reopened = desktop?.open();
+    expect(policyCalls).toBe(1);
+    decision.resolve(false);
+    await Bun.sleep(10);
+    expect(desktop?.snapshot().phase).toBe("ready");
+    expect(quits).toEqual([]);
+    expect(desktop?.window).toBe(reopened);
+  } finally {
+    await desktop?.quit();
+    await rm(root, { recursive: true, force: true });
+  }
+});

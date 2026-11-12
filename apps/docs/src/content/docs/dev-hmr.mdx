@@ -45,14 +45,13 @@ implement framework-specific coherence inside Furin.
 
 The recommended direction is to keep the Bun-native boundary and harden it with
 observable conformance tests. Next.js owns a deeper integrated compiler graph,
-while TanStack Start delegates development HMR to Vite or Rsbuild. Copying either
-approach would trade away Furin's defining single-process constraint rather than
-improve it incrementally.
+while TanStack Start delegates development HMR to Vite or Rsbuild; copying either
+would trade away Furin's single-process constraint.
 
 ## Startup
 
-Running the application with `bun --hot` initializes development mode in this
-order:
+Running the application with `bun --hot` (directly or through `furin dev`)
+initializes development mode in this order:
 
 1. Register the `furin-dev-page-loader` runtime plugin.
 2. Scan `pagesDir` and build the initial root, route, and Elysia snapshots.
@@ -70,6 +69,35 @@ order:
 Route modules are not eagerly imported into the ordinary server watcher graph.
 They are loaded through a virtual namespace on demand, so editing a page can use
 browser HMR without restarting the whole server module graph.
+
+### Deferred page render modules
+
+Route contracts load before the server listens: configuration, schemas, loaders,
+request loaders, metadata, and the Elysia route order are available immediately.
+For eligible inline `.page()` callbacks, Furin extracts a separate server render
+module and loads it before rendering the first HTML request for that route.
+Data-only requests never load it. Production builds keep their existing pipeline,
+and application routes need no syntax changes.
+
+Only callbacks that capture imports and their own parameters are split. Callbacks
+that capture local module state, named component arguments, or unrecognized
+route chains are loaded eagerly as before.
+
+Imports used only by an extracted render callback are evaluated on first render,
+so their side effects are deferred too: put initialization that must run at
+startup in an explicit side-effect import or the server entry. Shared imports
+keep their module identity. Source versions invalidate render modules after
+edits, including sources compiled by runtime plugins such as MDX.
+
+This follows the split between critical route configuration and components used
+by [TanStack Router](https://tanstack.com/router/latest/docs/guide/automatic-code-splitting).
+Deferring the whole Furin initialization would open the port earlier but leave
+the first request paying for every route.
+
+The browser entry still references all routes, and Bun can compile that client
+graph on the first HTML request, so a faster listening socket does not imply an
+equally faster first page. CI budgets measure the port, the complete first HTML
+response, and the first visit to a second route separately.
 
 ## Server rendering stays fresh
 
@@ -202,8 +230,7 @@ the router:
    history entry or resetting scroll.
 
 Navigation versions and abort signals prevent an older, slower loader response
-from overwriting a newer refresh. The router waits for fresh data before
-publishing the updated component and router state together.
+from overwriting a newer refresh.
 
 ### Transport recovery
 
@@ -267,9 +294,6 @@ can affect it. A source re-evaluation invalidates only entries indexed by that
 file, and so does the route table refresh that applies its edited schemas. The
 validity check also compares dependency modification times, so a rename or
 deletion fails conservatively instead of serving stale data.
-
-Changing the route mode is safe because the mode is recomputed from the freshly
-adapted route before selecting the SSR, SSG, or ISR path.
 
 ## Development diagnostics and recovery
 
@@ -361,35 +385,6 @@ back to document navigation.
 The hydrate entry therefore imports router APIs through
 `@teyik0/furin/link`, never through an absolute internal source path.
 
-## Development startup
-
-Furin loads route contracts before listening: configuration, schemas, loaders,
-request loaders, metadata, and the Elysia route order remain available immediately.
-For eligible inline `.page()` callbacks, the core extracts a separate server
-render module and loads it before rendering the first HTML request for that route.
-Data-only requests do not load that component.
-
-The initial implementation splits callbacks that capture imports and their own
-parameters. Callbacks that capture local module state, named component arguments,
-and unrecognized route chains keep their existing eager behavior. Application
-routes require no syntax changes. Production builds retain their existing pipeline.
-
-Imports used only by the extracted render callback are evaluated on first render.
-Their internal side effects are consequently deferred too; put initialization
-that must run at startup in an explicit side-effect import or the server entry.
-Shared imports retain their module identity. Source versions invalidate render
-modules after edits, including sources compiled by runtime plugins such as MDX.
-
-This follows the separation of critical route configuration and components used
-by [TanStack Router](https://tanstack.com/router/latest/docs/guide/automatic-code-splitting),
-while using Bun's runtime plugins. Deferring the whole Furin initialization would
-open the port earlier but leave the first request paying for every route.
-
-The browser entry still references all routes. Bun can compile that client graph
-on the first HTML request, so a faster listening socket does not imply an equally
-large improvement in first-page latency. CI budgets measure the port, the complete
-first HTML response, and the first visit to a second route separately.
-
 ## Multi-instance isolation
 
 Every mounted Furin instance has its own prefix, generated `.furin` directory,
@@ -461,7 +456,7 @@ Run these commands from `packages/core`:
 - `bun run test:webview` runs the real-browser conformance tier with
   `Bun.WebView` and Chrome.
 - `FURIN_WEBVIEW_TESTS=1 bun test --todo tests/browser/hmr-conformance.webview.test.ts`
-  runs the known-gap specifications from `packages/core`.
+  runs the known-gap specifications.
 - `bun run test:hmr:soak` runs the endurance tier with 2,000 edits by default.
   `FURIN_HMR_SOAK_EDITS=<count>` selects a shorter local run.
 

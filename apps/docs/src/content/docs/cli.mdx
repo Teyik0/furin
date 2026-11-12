@@ -10,7 +10,7 @@ furin preview
 furin typegen
 ```
 
-The generated project already exposes builds and previews through `bun run build` and `bun run start`.
+Generated projects map `bun run dev` to `bun --hot src/server.ts`, `bun run build` to `furin build --target bun --compile embed`, and `bun run start` to the built `.furin/build/bun/server` executable.
 
 ## `furin dev`
 
@@ -18,22 +18,22 @@ The generated project already exposes builds and previews through `bun run build
 furin dev [--web | --desktop] [--port number]
 ```
 
-Development runs the application entry with Bun hot reloading. The source entry keeps ownership of its listener: pass `.listen()` inside `src/server.ts` as usual, and Furin honors its hostname, TLS, port, and Elysia start/stop hooks.
+Development runs the configured server entry (`serverEntry`, default `src/server.ts`) with Bun hot reloading. In desktop projects that hot worker serves the backend and launches the native shell as a separate process. The entry keeps ownership of its listener: call `.listen()` in it as usual, and Furin honors its hostname, TLS, port, and Elysia start/stop hooks.
 
 | Flag | Meaning |
 |---|---|
 | `--port` | Override the source listener's port (or `PORT`). In desktop projects, only valid with `--web` |
-| `--web` | Web mode: skip any native desktop integration |
+| `--web` | Web mode: no native shell |
 | `--desktop` | Desktop mode: start the native app without opening a browser owner session |
 
 Rules:
 
 - Without flags, a project with `desktop` in `furin.config.ts` starts the [native desktop app](/docs/desktop) and also opens an authenticated owner session in the system browser. Projects without `desktop` run the source entry directly.
-- `--web` forces web-only development, even in a desktop project. It never initializes the Electrobun SDK.
+- `--web` forces web-only development, even in a desktop project. It never initializes the Electrobun SDK; when the app mounts `desktopApp()`, Furin still opens a single-use [owner session](/docs/desktop/architecture#development-owner-session) in the system browser, which `admission()` sees as `desktopSession: true`.
 - An entry that only default-exports its application is still supported: `furin dev` starts it on `127.0.0.1:3000` (or the `--port` value).
 - Application errors report through the [development overlay](/docs/dev-hmr); startup is cancelled after 30 seconds.
 
-Web hot replacement always re-imports the source graph after `app.stop(true)`, so release exclusive resources in `.onStop()`.
+Backend hot replacement always re-imports the source graph after `app.stop(true)`, so release exclusive resources in `.onStop()`.
 
 ## `furin build`
 
@@ -48,9 +48,9 @@ furin build [options]
 | `--prefix` | URL prefix | `""` | Prefix paired with the explicit pages directory |
 | `--config` | Path | Auto-discovered | Use another config file |
 | `--compile` | `server` or `embed` | No executable; inherits `bun.compile` when configured | Produce a Bun executable |
-| `--output` | `app` or `server` | `server` | Bun only: `app` emits an inert `app.js` without a listener entry, `server` emits a bootable `server.js` |
+| `--output` | `app` or `server` | `server`, or `bun.output` when configured | Bun only: `app` emits an inert `app.js` without a listener entry (not combinable with `--compile`), `server` emits a bootable `server.js` |
 | `--external` | Package name (repeatable) | None | Bun only: package to keep external in the server and RSC bundles |
-| `--analyze` | Boolean flag | `false` | Write client Bun metafiles under `.furin/build/analysis` |
+| `--analyze` | Boolean flag | `false` | Write Bun metafiles under `.furin/build/analysis`: client and server for server targets, client only for `static` and `package` |
 
 `--compile` without a value means `server`; `--compile=embed` is also accepted.
 
@@ -89,7 +89,7 @@ Every successful build writes `.furin/build/manifest.json`. It records route mod
 
 ### Analyze Output
 
-`--analyze` writes Bun metafiles for client builds. They describe emitted byte sizes and import contributions, but do not measure startup latency, request throughput, memory, or edit-to-paint time.
+For server targets, `--analyze` writes one client metafile per mounted app (for example `bun-client.json` and `bun-client-admin.json`) plus the target's server metafile (`bun-server.json`). `static` and `package` have no server bundle, so they write only `static-client.json` or `package-client.json`. Metafiles describe emitted byte sizes and import contributions, but do not measure startup latency, request throughput, memory, or edit-to-paint time.
 
 ## `furin typegen`
 
@@ -101,7 +101,7 @@ furin typegen [options]
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--pagesDir` | Config, `furin()` calls detected in `src/server.ts`, then `src/pages` | Pages directory of the root-mounted app |
+| `--pagesDir` | Config `pagesDir`, config `apps`, `furin()` mounts of the evaluated server entry, then `src/pages` | Pages directory of the root-mounted app |
 | `--config` | Auto-discovered | Alternate config file |
 
 It writes the same file as the development server and `furin build`: `FileRoutes` covers the route files of every mounted app, and `RouteMap` the patterns of the root-mounted app (prefix `""`).
@@ -134,4 +134,4 @@ Preview handles clean HTML routes and the generated `404.html` fallback. It is a
 bun --hot src/server.ts
 ```
 
-The scaffolder maps that command to `bun run dev`. Route discovery, generated types, React Fast Refresh, server re-imports, diagnostics, and DevTools are activated by `furin()` in development, so `bun --hot` and `furin dev` share those development features but differ in entry resolution, listener handling and desktop integration: both workflows refresh `furin-env.d.ts` through the running Furin app. `furin dev` resolves the configured entry and honors its listener. In desktop projects, it also selects web or native mode; direct `bun --hot` uses the configured [desktop preload](/docs/desktop#development-workflow). Direct `bun src/server.ts` runs also use the application's own `.listen()` path.
+This is what `bun run dev` runs in generated projects. Route discovery, `furin-env.d.ts` generation, React Fast Refresh, server re-imports, diagnostics, and DevTools are activated by `furin()` itself, so both workflows get them. `furin dev` adds entry resolution from the config, a `--port` override, a fallback listener for entries that only default-export their app, and desktop mode selection. In desktop projects, the [desktop preload](/docs/desktop/installation#initialize) registered in `bunfig.toml` hands direct `bun --hot` off to `furin dev`.

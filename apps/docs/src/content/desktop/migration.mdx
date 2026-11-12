@@ -1,0 +1,104 @@
+# Migrating to Furin Desktop
+
+This page maps a standalone Electrobun application onto Furin's desktop integration. It assumes an app that already keeps its API, pages and data in one Elysia app, but builds windows in native code and drives their lifecycle through ad-hoc HTTP endpoints and native callbacks.
+
+## Declare windows on the Elysia root
+
+Replace window construction in native entrypoints, launch scripts and controller bootstraps with one plugin on the root application:
+
+```ts
+const app = new Elysia({ name: "relay" })
+  .use(
+    desktopApp({
+      window: {
+        title: "Relay",
+        frame: { width: 1100, height: 780 },
+        titleBarStyle: "hiddenInset",
+        renderer: "native",
+      },
+      restrictWebToLoopback: true,
+    })
+  )
+  .use(api)
+  .use(await furin({ pagesDir: `${import.meta.dir}/pages` }))
+  .listen({ hostname: "127.0.0.1", port: 4242 });
+```
+
+`restrictWebToLoopback: true` limits ordinary Web traffic to loopback hosts. Independent API plugins get typed access through `desktopContext` without re-declaring a root, and native code reaches the same host, with original SDK objects, through `getDesktopHost()`.
+
+## Move application lifecycle into Elysia hooks
+
+Data and profile initialization and disposal belong in `.onStart()` and `.onStop()`, not in native boot code. Keep dependent startup steps in one async hook so Elysia owns cleanup:
+
+```ts
+.onStart(async () => {
+  await profile.open();
+})
+.onStop(async () => {
+  await profile.close();
+})
+```
+
+Request errors stay in `.onError()`; native event handlers must catch their own errors.
+
+## Replace `onOpen` callbacks with SDK events
+
+There is no Furin `onOpen` option. Subscribe to the SDK event in the module configured as `desktop.build.bun.entrypoint`:
+
+```ts
+import Electrobun from "electrobun/main";
+
+Electrobun.events.on("open-url", (event) => {
+  // event.data.url is a URL; associated files arrive as file: URLs
+});
+```
+
+Declare schemes and file associations in `desktop.app.urlSchemes` and `desktop.app.fileAssociations`. Furin forwards launch and secondary-instance inputs to this event after host readiness; direct OS events follow the SDK lifecycle. See [Native APIs](/docs/desktop/native-apis#deep-links-and-files).
+
+## Keep existing data directories working
+
+Declare a runtime `dataDir` policy instead of packaging a path, so the directory resolves for the user at launch. Profile markers, input handling and data migrations stay in your application; the host only resolves the directory and exposes it as `FURIN_APP_DATA_DIR`.
+
+```ts
+// furin.config.ts
+desktop: defineDesktopConfig({
+  app: { name: "relay", identifier: "local.furin.relay" },
+  dataDir: { name: "relay", developmentName: "relay-dev" },
+}),
+```
+
+## Convert UI native actions to `useDesktop()`
+
+For React UI actions, use `useDesktop()` from `@teyik0/furin-electrobun/client` instead of checking the backend runtime or calling a native action over HTTP. For example, an endpoint that opens an update download natively becomes:
+
+- Delete the action endpoint (such as `POST /api/updates/open-download`) and its callers.
+- Render a normal anchor in Web and SSR; when `desktop.status === "desktop"`, intercept the click and call `desktop.browser.open(downloadUrl)`.
+- Keep the endpoint that serves the file (such as `GET /api/updates/download`).
+
+```tsx
+onClick={(event) => {
+  if (desktop.status !== "desktop") return;
+  event.preventDefault();
+  void desktop.browser.open(downloadUrl).then((result) => {
+    if (!result.ok) {
+      setError("Could not open the system browser.");
+    }
+  });
+}}
+```
+
+Remember the [session boundaries](/docs/desktop/bridge#url-and-session-boundaries): opening a URL never transfers the WebView session to the system browser, so a protected loopback download URL needs a browser-accessible session or a scoped download URL.
+
+## Map remaining native surfaces
+
+| Standalone Electrobun | Furin replacement |
+|---|---|
+| Manual window construction in native code | `desktopApp({ window: {...} })` on the root |
+| Secondary windows built by hand | `desktop.windows.create(name, { path, ... })` with managed authentication |
+| Custom quit handlers per window | `desktop.quit()` / `desktop.restart()` coordinated drains |
+| App-menu wiring in backend code | `ApplicationMenu` in the native entrypoint; `getDesktopHost()` for actions |
+| Backend code calling native APIs | A `defineNative()` default export in the native entrypoint, called through [`desktop.native`](/docs/desktop/native-apis#call-native-code-from-elysia) |
+| Background/keep-alive flags | `background` policy on `desktopApp` |
+| Update install flows | `desktop.updates.install()` with backend drain before SDK handoff |
+
+SDK menus, tray, dialogs, notifications, shortcuts, screens, sessions, views, RPC and GPU capabilities remain available through `electrobun/main` and its public subpaths; keep those pieces as they are.

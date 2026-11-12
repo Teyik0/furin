@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { evaluate } from "@mdx-js/mdx";
 import { RouterContext } from "@teyik0/furin/link";
@@ -117,6 +116,10 @@ test("getting started preserves its server content without bundling its MDX in t
 test("every documentation page keeps its MDX content on the server", async () => {
   const app = await createDocsServer();
   const paths = Object.keys(DOCS_BY_PATH);
+  const indexPages = new Map([
+    ["/docs", "index"],
+    ["/docs/desktop", "desktop/index"],
+  ]);
   await Promise.all(
     paths.map(async (path) => {
       const response = await app.handle(new Request(`http://localhost${path}`));
@@ -132,21 +135,11 @@ test("every documentation page keeps its MDX content on the server", async () =>
       expect(html).not.toContain("__FURIN_DEV_DIAGNOSTIC__");
     })
   );
-  const pageModules = paths.map((path) => {
-    if (path === "/docs") {
-      return "index";
-    }
-    const slug = path.slice(6);
-    return existsSync(
-      fileURLToPath(new URL(`../src/pages/docs/${slug}/index.tsx`, import.meta.url))
-    )
-      ? `${slug}/index`
-      : slug;
-  });
-
   const build = await Bun.build({
-    entrypoints: pageModules.map((page) =>
-      fileURLToPath(new URL(`../src/pages/docs/${page}.tsx`, import.meta.url))
+    entrypoints: paths.map((path) =>
+      fileURLToPath(
+        new URL(`../src/pages/docs/${indexPages.get(path) ?? path.slice(6)}.tsx`, import.meta.url)
+      )
     ),
     external: ["*"],
     plugins: [stripServer],
@@ -162,3 +155,76 @@ test("every documentation page keeps its MDX content on the server", async () =>
     })
   );
 }, 30_000);
+
+test("documentation Markdown URLs work on the development server", async () => {
+  const app = await createDocsServer();
+  await Promise.all(
+    [
+      "/docs.md",
+      "/docs/getting-started.md",
+      "/docs/desktop.md",
+      "/docs/desktop/installation.md",
+    ].map(async (path) => {
+      const response = await app.handle(new Request(`http://localhost${path}`));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+      expect(await response.text()).not.toContain("<!DOCTYPE html>");
+    })
+  );
+  const missing = await app.handle(new Request("http://localhost/docs/does-not-exist.md"));
+  expect(missing.status).toBe(404);
+});
+
+const SIDEBAR_NAV_RE = /<nav[^>]*aria-label="Documentation"[^>]*>([\s\S]*?)<\/nav>/;
+
+test("documentation uses sidebar navigation without a duplicate page tab bar", async () => {
+  const app = await createDocsServer();
+  const response = await app.handle(new Request("http://localhost/docs/getting-started"));
+  const html = await response.text();
+  expect(response.status).toBe(200);
+  const navigation = html.match(SIDEBAR_NAV_RE)?.[1];
+  expect(navigation).toBeDefined();
+  expect(html).not.toContain('aria-label="Open documentation pages"');
+  expect(navigation).toContain('href="/docs/getting-started"');
+  expect(navigation).toContain('href="/docs/comparison"');
+  expect(html).toContain("Create a Furin application with Bun");
+});
+
+test("Desktop docs use the shared layout with their own navigation and product switch", async () => {
+  const app = await createDocsServer();
+  const response = await app.handle(new Request("http://localhost/docs/desktop"));
+  const html = await response.text();
+  expect(response.status).toBe(200);
+  expect(html).toContain('aria-label="Documentation platform"');
+  expect(html).toContain("Desktop overview");
+  expect(html).toContain("Search desktop docs");
+  const sidebar = html.match(SIDEBAR_NAV_RE)?.[1];
+  expect(sidebar).toContain('href="/docs/desktop/first-window"');
+  expect(sidebar).not.toContain('href="/docs/routing"');
+  expect(html).toContain('href="/docs/desktop.md"');
+});
+
+const PAGER_NAV_RE = /<nav[^>]*aria-label="Adjacent documentation pages"[^>]*>([\s\S]*?)<\/nav>/;
+
+test("previous and next never cross the Web and Desktop documentation boundary", async () => {
+  const app = await createDocsServer();
+  const web = await (await app.handle(new Request("http://localhost/docs/dev-hmr"))).text();
+  const desktop = await (await app.handle(new Request("http://localhost/docs/desktop"))).text();
+  expect(web.match(PAGER_NAV_RE)?.[1]).not.toContain('data-direction="next"');
+  expect(desktop.match(PAGER_NAV_RE)?.[1]).not.toContain('data-direction="previous"');
+  expect(desktop.match(PAGER_NAV_RE)?.[1]).toContain('href="/docs/desktop/installation"');
+});
+
+test("Desktop LLM indexes and nested Markdown aliases are served without the Web guides", async () => {
+  const app = await createDocsServer();
+  const response = await app.handle(new Request("http://localhost/docs/desktop/llms.txt"));
+  const index = await response.text();
+  expect(response.status).toBe(200);
+  expect(index).toContain("/docs/desktop/installation.md");
+  expect(index).not.toContain("/docs/getting-started.md");
+  const alias = await app.handle(
+    new Request("http://localhost/docs/desktop/installation/llms.txt")
+  );
+  expect(alias.status).toBe(200);
+  expect(await alias.text()).toContain("# Desktop installation");
+});

@@ -1,0 +1,66 @@
+# Desktop installation
+
+Start with a working Furin application and Bun 1.4 or later.
+
+## Install the package
+
+```sh
+bun add -d @teyik0/furin-electrobun
+```
+
+The pinned Electrobun SDK is an optional dependency of the package. If optional dependencies were omitted, install it explicitly with `bun add -d electrobun@2.0.2`.
+
+In this repository, run `bun install` and start from the `examples/electrobun-todo` application instead.
+
+## Configure packaging
+
+Keep packaging settings in the same `furin.config.ts` as the Web app:
+
+```ts
+// furin.config.ts
+import { defineConfig } from "@teyik0/furin/config";
+import { defineDesktopConfig } from "@teyik0/furin-electrobun";
+
+export default defineConfig({
+  desktop: defineDesktopConfig({
+    app: { name: "Relay", identifier: "local.furin.relay" },
+    build: { mainProcess: "bun" },
+  }),
+});
+```
+
+`app.identifier` uses reverse-domain notation. `app.version` defaults to the version in your `package.json`. The main process is always Bun because it runs your Elysia application in process: `build.mainProcess` may be omitted, and any other value is rejected.
+
+## Initialize
+
+```sh
+bunx --bun @teyik0/furin-electrobun init
+```
+
+`init` adds a `build:desktop` script, adds `dev` (`bun --hot <server entry>`) only when it is missing, and registers the desktop preload in `bunfig.toml`, which hands `bun --hot <server entry>` off to `furin dev`:
+
+```toml
+preload = ["@teyik0/furin-electrobun/preload"]
+```
+
+Without a `furin.config.ts`, `furin.config.js` or `furin.config.mjs`, `init` creates `furin.config.ts` with a `desktop` section derived from the package name. It never overwrites existing setup: it stops if an existing config file has no `desktop` section, if `bunfig.toml` already declares a different `preload` array (add the entry yourself), or if a `build:desktop` or `dev:desktop` script exists.
+
+## Prepare native types
+
+The npm `electrobun` package is a launcher, not the full native API declaration set. Prepare the pinned devkit before typechecking native code:
+
+```sh
+bunx --bun furin-electrobun prepare
+```
+
+Extend its generated paths alongside your existing TypeScript configuration:
+
+```json
+{
+  "extends": ["./.furin/electrobun/tsconfig.json", "./tsconfig.base.json"]
+}
+```
+
+Replace `./tsconfig.base.json` with your own base config and keep your compiler options. The first preparation needs network access; later runs reuse the SDK cache. Rerun it after moving the checkout. It does not open a GUI.
+
+Continue with [your first window](/docs/desktop/first-window).

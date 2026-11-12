@@ -25,6 +25,7 @@ import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
 import { mountProductionApp } from "../../support/production-app.ts";
 import "../../setup/global.ts";
+import { createMockLoaderContext } from "../../support/loader-context.ts";
 
 process.env.FURIN_RSC_CODEC_PATH = "";
 
@@ -136,16 +137,7 @@ async function handleWithFurin(
 }
 
 function createMockContext(path: string): Context {
-  return {
-    cookie: {},
-    headers: {},
-    params: {},
-    path,
-    query: {},
-    redirect: (url: string) => new Response(null, { headers: { Location: url }, status: 302 }),
-    request: new Request(`http://localhost${path}`),
-    set: { headers: {} },
-  } as unknown as Context;
+  return createMockLoaderContext({ path, request: new Request(`http://localhost${path}`) });
 }
 
 function extractRouteFramePayload(html: string): string {

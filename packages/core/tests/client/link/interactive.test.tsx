@@ -9,30 +9,9 @@ import {
   SSR_FALLBACK_ROUTER,
 } from "../../../src/client/link.tsx";
 import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
+import { makeRouterContext } from "../../support/router.ts";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function makeRouterContext(overrides: Partial<RouterContextValue> | undefined): RouterContextValue {
-  return {
-    basePath: "",
-    currentHref: "/",
-    defaultPreload: "intent",
-    defaultPreloadDelay: 50,
-    defaultPreloadStaleTime: 30_000,
-    invalidatePrefetch: () => {
-      /* noop */
-    },
-    isNavigating: false,
-    navigate: () => Promise.resolve(),
-    prefetch: () => {
-      /* noop */
-    },
-    refresh: () => Promise.resolve(),
-    search: {},
-    searchRoutes: [],
-    ...(overrides ?? {}),
-  };
-}
 
 interface RenderResult {
   anchor: HTMLAnchorElement;
@@ -84,6 +63,12 @@ function preventHappyDomAnchorNavigation(event: MouseEvent): void {
   event.preventDefault();
 }
 
+interface NoPrefetchLinkProps {
+  disabled?: boolean;
+  preload?: false;
+  to: string;
+}
+
 // ── Mock IntersectionObserver ─────────────────────────────────────────────────
 
 class MockIntersectionObserver {
@@ -128,206 +113,11 @@ const OriginalIntersectionObserver = globalThis.IntersectionObserver;
 // ── SSR path ──────────────────────────────────────────────────────────────────
 
 describe("Link SSR path", () => {
-  test("renders via RouterContext.Consumer when window is undefined", () => {
-    const originalWindow = globalThis.window;
-    // @ts-expect-error: intentionally removing window for SSR branch coverage
-    globalThis.window = undefined;
-
-    try {
-      const html = renderToStaticMarkup(createElement(Link, { to: "/blog" }, "Blog"));
-      expect(html).toBe('<a data-furin-link="true" href="/blog">Blog</a>');
-    } finally {
-      globalThis.window = originalWindow;
-    }
-  });
-
   test("SSR_FALLBACK_ROUTER methods are safe no-ops", async () => {
     expect(await SSR_FALLBACK_ROUTER.navigate("/", undefined)).toBe(undefined);
     expect(SSR_FALLBACK_ROUTER.prefetch("/", undefined)).toBe(undefined);
     expect(SSR_FALLBACK_ROUTER.invalidatePrefetch("/", "page")).toBe(undefined);
     expect(await SSR_FALLBACK_ROUTER.refresh(undefined)).toBe(undefined);
-  });
-
-  test("SSR: uses basePath from RouterContext.Provider", () => {
-    const originalWindow = globalThis.window;
-    // @ts-expect-error: intentionally removing window for SSR branch coverage
-    globalThis.window = undefined;
-
-    try {
-      const html = renderToStaticMarkup(
-        createElement(
-          RouterContext.Provider,
-          {
-            value: {
-              basePath: "/furin",
-              currentHref: "/docs",
-              defaultPreload: "intent",
-              defaultPreloadDelay: 50,
-              defaultPreloadStaleTime: 30_000,
-              invalidatePrefetch: () => {
-                /* noop */
-              },
-              isNavigating: false,
-              navigate: () => Promise.resolve(),
-              prefetch: () => {
-                /* noop */
-              },
-              refresh: () => Promise.resolve(),
-              search: {},
-              searchRoutes: [],
-            },
-          },
-          createElement(Link, { to: "/docs" }, "Docs")
-        )
-      );
-      expect(html).toBe(
-        '<a data-furin-link="true" href="/furin/docs" data-status="active">Docs</a>'
-      );
-    } finally {
-      globalThis.window = originalWindow;
-    }
-  });
-
-  test("SSR: search and hash are appended", () => {
-    const originalWindow = globalThis.window;
-    // @ts-expect-error: intentionally removing window for SSR branch coverage
-    globalThis.window = undefined;
-
-    try {
-      const html = renderToStaticMarkup(
-        createElement(Link, { hash: "comments", search: { page: 2 }, to: "/blog" }, "Blog")
-      );
-      expect(html).toBe('<a data-furin-link="true" href="/blog?page=2#comments">Blog</a>');
-    } finally {
-      globalThis.window = originalWindow;
-    }
-  });
-
-  test("SSR: aria-disabled when disabled", () => {
-    const originalWindow = globalThis.window;
-    // @ts-expect-error: intentionally removing window for SSR branch coverage
-    globalThis.window = undefined;
-
-    try {
-      const html = renderToStaticMarkup(
-        createElement(Link, { disabled: true, to: "/about" }, "About")
-      );
-      expect(html).toBe('<a data-furin-link="true" href="/about" aria-disabled="true">About</a>');
-    } finally {
-      globalThis.window = originalWindow;
-    }
-  });
-
-  test("SSR: children as render function", () => {
-    const originalWindow = globalThis.window;
-    // @ts-expect-error: intentionally removing window for SSR branch coverage
-    globalThis.window = undefined;
-
-    try {
-      const html = renderToStaticMarkup(
-        createElement(Link, {
-          // biome-ignore lint/correctness/noChildrenProp: function-children must be passed via props
-          children: ({ isActive }: { isActive: boolean }) =>
-            createElement("span", { "data-active": String(isActive) }, "Home"),
-          to: "/",
-        })
-      );
-      expect(html).toContain('data-active="true"');
-    } finally {
-      globalThis.window = originalWindow;
-    }
-  });
-
-  test("SSR: activeProps merged when active", () => {
-    const originalWindow = globalThis.window;
-    // @ts-expect-error: intentionally removing window for SSR branch coverage
-    globalThis.window = undefined;
-
-    try {
-      const html = renderToStaticMarkup(
-        createElement(
-          RouterContext.Provider,
-          {
-            value: {
-              basePath: "",
-              currentHref: "/",
-              defaultPreload: "intent",
-              defaultPreloadDelay: 50,
-              defaultPreloadStaleTime: 30_000,
-              invalidatePrefetch: () => {
-                /* noop */
-              },
-              isNavigating: false,
-              navigate: () => Promise.resolve(),
-              prefetch: () => {
-                /* noop */
-              },
-              refresh: () => Promise.resolve(),
-              search: {},
-              searchRoutes: [],
-            },
-          },
-          createElement(
-            Link,
-            {
-              activeProps: ({ isActive }) => (isActive ? { className: "active-link" } : {}),
-              to: "/",
-            },
-            "Home"
-          )
-        )
-      );
-      expect(html).toContain('class="active-link"');
-      expect(html).toContain('data-status="active"');
-    } finally {
-      globalThis.window = originalWindow;
-    }
-  });
-
-  test("SSR: inactiveProps merged when inactive", () => {
-    const originalWindow = globalThis.window;
-    // @ts-expect-error: intentionally removing window for SSR branch coverage
-    globalThis.window = undefined;
-
-    try {
-      const html = renderToStaticMarkup(
-        createElement(
-          RouterContext.Provider,
-          {
-            value: {
-              basePath: "",
-              currentHref: "/other",
-              defaultPreload: "intent",
-              defaultPreloadDelay: 50,
-              defaultPreloadStaleTime: 30_000,
-              invalidatePrefetch: () => {
-                /* noop */
-              },
-              isNavigating: false,
-              navigate: () => Promise.resolve(),
-              prefetch: () => {
-                /* noop */
-              },
-              refresh: () => Promise.resolve(),
-              search: {},
-              searchRoutes: [],
-            },
-          },
-          createElement(
-            Link,
-            {
-              inactiveProps: () => ({ className: "muted-link" }),
-              to: "/blog",
-            },
-            "Blog"
-          )
-        )
-      );
-      expect(html).toContain('class="muted-link"');
-      expect(html).not.toContain("data-status");
-    } finally {
-      globalThis.window = originalWindow;
-    }
   });
 
   test("SSR: ignores spurious href prop so basePath is preserved", () => {
@@ -599,56 +389,19 @@ describe("LinkInteractive — client-side behaviour", () => {
     cleanup();
   });
 
-  test("click does not navigate with ctrl key", () => {
+  test.each<[string, MouseEventInit]>([
+    ["ctrl", { ctrlKey: true }],
+    ["meta", { metaKey: true }],
+    ["shift", { shiftKey: true }],
+    ["alt", { altKey: true }],
+  ])("click does not navigate with %s key", (_key, modifier) => {
     const navigate = mock<RouterContextValue["navigate"]>(() => Promise.resolve());
     const ctx = makeRouterContext({ navigate });
     const { anchor, cleanup } = renderLink(createElement(Link, { to: "/blog" }, "Blog"), ctx);
 
     dispatchReactEvent(
       anchor,
-      new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true })
-    );
-
-    expect(navigate).not.toHaveBeenCalled();
-    cleanup();
-  });
-
-  test("click does not navigate with meta key", () => {
-    const navigate = mock<RouterContextValue["navigate"]>(() => Promise.resolve());
-    const ctx = makeRouterContext({ navigate });
-    const { anchor, cleanup } = renderLink(createElement(Link, { to: "/blog" }, "Blog"), ctx);
-
-    dispatchReactEvent(
-      anchor,
-      new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: true })
-    );
-
-    expect(navigate).not.toHaveBeenCalled();
-    cleanup();
-  });
-
-  test("click does not navigate with shift key", () => {
-    const navigate = mock<RouterContextValue["navigate"]>(() => Promise.resolve());
-    const ctx = makeRouterContext({ navigate });
-    const { anchor, cleanup } = renderLink(createElement(Link, { to: "/blog" }, "Blog"), ctx);
-
-    dispatchReactEvent(
-      anchor,
-      new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: true })
-    );
-
-    expect(navigate).not.toHaveBeenCalled();
-    cleanup();
-  });
-
-  test("click does not navigate with alt key", () => {
-    const navigate = mock<RouterContextValue["navigate"]>(() => Promise.resolve());
-    const ctx = makeRouterContext({ navigate });
-    const { anchor, cleanup } = renderLink(createElement(Link, { to: "/blog" }, "Blog"), ctx);
-
-    dispatchReactEvent(
-      anchor,
-      new MouseEvent("click", { altKey: true, bubbles: true, cancelable: true })
+      new MouseEvent("click", { bubbles: true, cancelable: true, ...modifier })
     );
 
     expect(navigate).not.toHaveBeenCalled();
@@ -874,55 +627,16 @@ describe("LinkInteractive — client-side behaviour", () => {
     cleanup();
   });
 
-  test("mouse enter does not prefetch when disabled", async () => {
+  test.each<[string, NoPrefetchLinkProps]>([
+    ["when disabled", { disabled: true, to: "/blog" }],
+    ["for external link", { to: "https://example.com" }],
+    ["when preload is not intent", { preload: false, to: "/blog" }],
+  ])("mouse enter does not prefetch %s", async (_case, props) => {
     const prefetch = mock<RouterContextValue["prefetch"]>(() => {
       /* noop */
     });
     const ctx = makeRouterContext({ defaultPreloadDelay: 10, prefetch });
-    const { anchor, cleanup } = renderLink(
-      createElement(Link, { disabled: true, to: "/blog" }, "Blog"),
-      ctx
-    );
-
-    dispatchReactEvent(
-      anchor,
-      new MouseEvent("mouseover", { bubbles: true, relatedTarget: document.body })
-    );
-
-    await new Promise((r) => setTimeout(r, 20));
-    expect(prefetch).not.toHaveBeenCalled();
-    cleanup();
-  });
-
-  test("mouse enter does not prefetch for external link", async () => {
-    const prefetch = mock<RouterContextValue["prefetch"]>(() => {
-      /* noop */
-    });
-    const ctx = makeRouterContext({ defaultPreloadDelay: 10, prefetch });
-    const { anchor, cleanup } = renderLink(
-      createElement(Link, { to: "https://example.com" }, "External"),
-      ctx
-    );
-
-    dispatchReactEvent(
-      anchor,
-      new MouseEvent("mouseover", { bubbles: true, relatedTarget: document.body })
-    );
-
-    await new Promise((r) => setTimeout(r, 20));
-    expect(prefetch).not.toHaveBeenCalled();
-    cleanup();
-  });
-
-  test("mouse enter does not prefetch when preload is not intent", async () => {
-    const prefetch = mock<RouterContextValue["prefetch"]>(() => {
-      /* noop */
-    });
-    const ctx = makeRouterContext({ defaultPreloadDelay: 10, prefetch });
-    const { anchor, cleanup } = renderLink(
-      createElement(Link, { preload: false, to: "/blog" }, "Blog"),
-      ctx
-    );
+    const { anchor, cleanup } = renderLink(createElement(Link, props, "Link"), ctx);
 
     dispatchReactEvent(
       anchor,
@@ -968,47 +682,16 @@ describe("LinkInteractive — client-side behaviour", () => {
     cleanup();
   });
 
-  test("focus does not prefetch when disabled", () => {
+  test.each<[string, NoPrefetchLinkProps]>([
+    ["when disabled", { disabled: true, to: "/blog" }],
+    ["for external link", { to: "https://example.com" }],
+    ["when preload is not intent", { preload: false, to: "/blog" }],
+  ])("focus does not prefetch %s", (_case, props) => {
     const prefetch = mock<RouterContextValue["prefetch"]>(() => {
       /* noop */
     });
     const ctx = makeRouterContext({ prefetch });
-    const { anchor, cleanup } = renderLink(
-      createElement(Link, { disabled: true, to: "/blog" }, "Blog"),
-      ctx
-    );
-
-    dispatchReactEvent(anchor, new FocusEvent("focusin", { bubbles: true }));
-
-    expect(prefetch).not.toHaveBeenCalled();
-    cleanup();
-  });
-
-  test("focus does not prefetch for external link", () => {
-    const prefetch = mock<RouterContextValue["prefetch"]>(() => {
-      /* noop */
-    });
-    const ctx = makeRouterContext({ prefetch });
-    const { anchor, cleanup } = renderLink(
-      createElement(Link, { to: "https://example.com" }, "External"),
-      ctx
-    );
-
-    dispatchReactEvent(anchor, new FocusEvent("focusin", { bubbles: true }));
-
-    expect(prefetch).not.toHaveBeenCalled();
-    cleanup();
-  });
-
-  test("focus does not prefetch when preload is not intent", () => {
-    const prefetch = mock<RouterContextValue["prefetch"]>(() => {
-      /* noop */
-    });
-    const ctx = makeRouterContext({ prefetch });
-    const { anchor, cleanup } = renderLink(
-      createElement(Link, { preload: false, to: "/blog" }, "Blog"),
-      ctx
-    );
+    const { anchor, cleanup } = renderLink(createElement(Link, props, "Link"), ctx);
 
     dispatchReactEvent(anchor, new FocusEvent("focusin", { bubbles: true }));
 

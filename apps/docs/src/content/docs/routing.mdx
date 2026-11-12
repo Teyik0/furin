@@ -13,7 +13,7 @@ Furin maps source files in `src/pages` to URL paths. Directories create URL segm
 | `pages/(marketing)/pricing.tsx` | `/pricing` |
 | `pages/(admin)/users/[id].tsx` | `/users/:id` |
 
-Route modules may use `.tsx`, `.ts`, `.jsx`, or `.js`. Furin rejects duplicate route patterns, including ambiguous dynamic names such as `[id].tsx` and `[slug].tsx` in the same directory.
+Route modules may use `.tsx`, `.ts`, `.jsx`, or `.js` (`.d.ts` files are ignored). Furin rejects duplicate route patterns, including ambiguous dynamic names such as `[id].tsx` and `[slug].tsx` in the same directory.
 
 ## A Page Route
 
@@ -40,7 +40,7 @@ defineRoute(id)
   → page() or layout()
 ```
 
-`config()` and the terminal `page()` or `layout()` are required. Optional stages disappear from the builder once used, preventing duplicate or out-of-order declarations. `staticParams()` is restricted to SSG/ISR and must precede both loader stages; see [Rendering Modes](/docs/rendering) for nested build-time params and lazy parent loader data.
+`config()` and the terminal `page()` or `layout()` are required. Each stage only exposes the methods allowed after it, so out-of-order declarations fail to type-check. `staticParams()` is restricted to SSG/ISR and must precede both loader stages; see [Rendering Modes](/docs/rendering#ssg) for nested build-time params. `head()` is page-only: a chain that calls it must end with `page()`.
 
 An SSR page cannot declare its own `requestLoader()`; use its `loader()` for request data. Shared layouts may still use `requestLoader()` so their private fields reach nested pages.
 
@@ -82,7 +82,7 @@ export const route = defineRoute("/blog/[slug]")
   .page(({ params, post }) => <article>{post.title}</article>);
 ```
 
-Parameter names must be valid JavaScript-style identifiers. Catch-all routes use Elysia's wildcard key, regardless of the filename label:
+Parameter names must match `[A-Za-z_][A-Za-z0-9_]*` (letters, digits and underscores, not starting with a digit). Catch-all routes use Elysia's wildcard key, regardless of the filename label:
 
 ```tsx
 // src/pages/docs/[...path].tsx
@@ -150,9 +150,9 @@ By default, changing path parameters remounts the page, while query and hash cha
 | `_route.tsx` | Layout for its directory | No |
 | `error.tsx` | Nearest segment error boundary | No |
 | `not-found.tsx` | Nearest segment 404 boundary | No |
-| Any filename beginning with `_` | Non-route module | No |
+| Any other file or directory beginning with `_` | Private co-located module | No |
 
-Only the filename is ignored by the route scanner. If you keep page-local helpers under `pages`, prefix each helper filename with `_`; a directory name beginning with `_` is not itself a route-group convention.
+The route scanner skips every file whose name starts with `_` (except `_route`) and every directory whose name starts with `_`, including all of its contents. Keep page-local helpers and components in files such as `_chart.tsx` or folders such as `_components/`.
 
 ## Layout Hierarchy
 
@@ -267,7 +267,7 @@ TypeScript therefore reads schema and loader changes directly from the route
 module, while config changes that affect generated declarations, such as cache
 tags, trigger an atomic rewrite of `furin-env.d.ts`.
 
-Do not edit `furin-env.d.ts`, and exclude it from formatters such as Biome or Prettier: Furin rewrites it whenever routes change. Commit it if your team wants route types available before the dev server runs. Otherwise, run `furin typegen` before type-checking in local or CI workflows.
+Commit `furin-env.d.ts` if your team wants route types available before the dev server runs. Otherwise, run `furin typegen` before type-checking in local or CI workflows.
 
 The output is sorted by file id and route pattern, so regenerating it with the same routes gives a byte-identical file.
 

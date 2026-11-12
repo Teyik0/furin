@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { type AnyElysia, Elysia } from "elysia";
 import type { SsgCacheEntry } from "../../../src/server/cache/isr-ssg.ts";
 import { createTmpApp, type TmpApp, writeAppFile } from "../../support/app-fixtures";
+import { createFixtureCompileContext } from "../../support/compile-context.ts";
 
 const { furin } = await import("../../../src/furin");
 const { __resetCacheState } = await import("../../../src/server/cache/index");
@@ -63,24 +64,17 @@ async function mountProduction(
   __setDevMode(false);
   process.chdir(tmpApp.path);
 
-  const rootPath = join(tmpApp.path, "src/pages/root.tsx");
-  const indexPath = join(tmpApp.path, "src/pages/index.tsx");
-  const [rootMod, indexMod] = await Promise.all([import(rootPath), import(indexPath)]);
   const clientDir = join(tmpApp.path, "native-client");
   mkdirSync(clientDir, { recursive: true });
   writeFileSync(
     join(clientDir, "index.html"),
     '<html><head><!--furin-head--></head><body><div id="root"><!--ssr-outlet--></div></body></html>'
   );
-  const nativeRoutes = new Elysia().use((indexMod.route as { elysia: AnyElysia }).elysia);
   __setCompileContext({
+    ...(await createFixtureCompileContext(tmpApp.path, [
+      { file: "index.tsx", mode, pattern: "/" },
+    ])),
     embedded: { clientDir },
-    modules: { [indexPath]: indexMod, [rootPath]: rootMod },
-    nativeRoutes,
-    rootConventions: {},
-    rootPath,
-    routeMetadata: { [indexPath]: { segmentBoundaries: [] } },
-    routes: [{ mode, path: indexPath, pattern: "/" }],
     ...(ssgCache === undefined ? {} : { ssgCache }),
   });
 

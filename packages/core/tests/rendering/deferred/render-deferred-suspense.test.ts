@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import type { Context } from "elysia";
 import { createElement, Suspense } from "react";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
+import { createMockLoaderContext } from "../../support/loader-context.ts";
 
 const { join } = await import("node:path");
 const { defer } = await import("../../../src/client.ts");
@@ -19,20 +19,6 @@ const TEST_TEMPLATE =
 
 function asResolvedRoute(route: unknown): ResolvedRoute {
   return route as ResolvedRoute;
-}
-
-function createMockLoaderContext(overrides: Partial<Context>): Context {
-  return {
-    cookie: {},
-    headers: {},
-    params: {},
-    path: "/test",
-    query: {},
-    redirect: (url: string) => new Response(null, { headers: { Location: url }, status: 302 }),
-    request: new Request("http://localhost/test"),
-    set: { headers: {} },
-    ...overrides,
-  } as unknown as Context;
 }
 
 async function getSsrFixtureRoute(): Promise<{ root: RootLayout; ssrRoute: ResolvedRoute }> {

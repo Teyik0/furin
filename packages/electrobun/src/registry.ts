@@ -1,5 +1,10 @@
 /** Shared across the separately bundled app artifact and SDK host. No Elysia import. */
-import type { ApplicationRuntime, DesktopAppOptions, DesktopContext } from "./capabilities";
+import type {
+  ApplicationRuntime,
+  DesktopAppOptions,
+  DesktopContext,
+  DesktopHost,
+} from "./capabilities";
 import type { DesktopApp } from "./runtime";
 
 export type DesktopMode = "dev" | "build";
@@ -83,14 +88,28 @@ export function activateDesktopApp(
   return state.validate(mode);
 }
 
-const hostKey: unique symbol = Symbol.for("@teyik0/furin-electrobun/host/v1");
-const hostShared = globalThis as typeof globalThis & { [hostKey]?: DesktopContext };
+// v2: the slot holds DesktopHost; v1 held DesktopContext, so mixed bundles must not share it.
+const hostKey: unique symbol = Symbol.for("@teyik0/furin-electrobun/host/v2");
+const contextKey: unique symbol = Symbol.for("@teyik0/furin-electrobun/context/v1");
+const hostShared = globalThis as typeof globalThis & {
+  [hostKey]?: DesktopHost;
+  [contextKey]?: DesktopContext;
+};
 
-export function setDesktopHost(desktop: DesktopContext | undefined): void {
+export function setDesktopHost(desktop: DesktopHost | undefined): void {
   hostShared[hostKey] = desktop;
 }
 
-/** The live controller is shared by native modules and separately bundled Elysia plugins. */
-export function getDesktopHost(): DesktopContext | null {
+/** The live native controller, shared by native modules across bundles. */
+export function getDesktopHost(): DesktopHost | null {
   return hostShared[hostKey] ?? null;
+}
+
+export function setDesktopContext(desktop: DesktopContext | undefined): void {
+  hostShared[contextKey] = desktop;
+}
+
+/** The serializable controller injected into Elysia, local or over the development channel. */
+export function getDesktopContext(): DesktopContext | null {
+  return hostShared[contextKey] ?? null;
 }

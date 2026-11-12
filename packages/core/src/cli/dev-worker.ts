@@ -62,10 +62,16 @@ const timer = setTimeout(() => {
 }, 30_000);
 try {
   if (integration) {
-    const addon: { createWebDevelopment: () => WebDevelopment } = await import(
-      pathToFileURL(integration).href
-    );
-    web = addon.createWebDevelopment();
+    const addon: {
+      createDevelopment?: () => WebDevelopment;
+      createWebDevelopment?: () => WebDevelopment;
+    } = await import(pathToFileURL(integration).href);
+    // Desktop integrations export createDevelopment; web-dev keeps its published name.
+    const create = addon.createDevelopment ?? addon.createWebDevelopment;
+    if (!create) {
+      throw new Error("Invalid development integration.");
+    }
+    web = create();
   }
   const { listen } = BunAdapter;
   if (!listen) {

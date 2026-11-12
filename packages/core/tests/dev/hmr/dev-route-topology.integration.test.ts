@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { createTmpApp, removeAppPath, writeAppFile } from "../../support/app-fixtures.ts";
 import { getFreePort } from "../../support/hmr.ts";
+import { pollUntil } from "../../support/http.ts";
 import { startProcess } from "../../support/process.ts";
 
 /**
@@ -20,20 +21,6 @@ import { startProcess } from "../../support/process.ts";
  * `furin-env.d.ts`), and Bun's soft reload re-runs the entry, recomposing the
  * native Elysia app and the renderer table.
  */
-
-async function pollUntil(
-  fn: () => Promise<boolean>,
-  maxAttempts: number,
-  delayMs: number
-): Promise<boolean> {
-  for (let i = 0; i < maxAttempts; i += 1) {
-    if (await fn()) {
-      return true;
-    }
-    await Bun.sleep(delayMs);
-  }
-  return false;
-}
 
 describe.serial("dev route topology — hot add/remove of route files", () => {
   const app = createTmpApp("cli-app");

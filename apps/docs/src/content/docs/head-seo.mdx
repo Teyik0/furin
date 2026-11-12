@@ -27,9 +27,9 @@ export const route = defineRoute("/blog/[slug]")
   .page(({ post }) => <Article post={post} />);
 ```
 
-Metadata receives validated route values and synchronous public loader fields only. Promise fields explicitly wrapped in `defer()` and fields returned by `requestLoader()` are intentionally unavailable to `head()`; keep metadata inputs in the synchronous loader result so SSR and SPA navigation remain deterministic.
+`head()` receives `params`, `query`, `path` and the synchronous loader fields of the page and its layouts. Promise fields wrapped in `defer()` and fields returned by `requestLoader()` are not available, so keep metadata inputs in the synchronous loader result.
 
-When metadata only needs route values, call `.head()` directly after `.config()` or `.requestLoader()`; no `loader()` is required.
+`head()` is page-only and must be followed by `page()`. When metadata only needs route values, call it directly after `.config()` or `.requestLoader()`; no `loader()` is required.
 
 ## Descriptor Reference
 
@@ -94,24 +94,6 @@ head: () => ({
 
 ## Root Requirement
 
-The root layout must expose the head insertion point:
-
-```tsx
-import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
-
-export const route = defineRootRoute()
-  .config({ mode: "ssg" })
-  .layout(({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ));
-```
+Descriptors are rendered by `<HeadContent />`, which the [root document](/docs/layouts#root-document) must place inside `<head>`.
 
 Keep one title and one canonical URL in a page's final descriptor set. Furin preserves declaration order and does not deduplicate competing metadata for you.

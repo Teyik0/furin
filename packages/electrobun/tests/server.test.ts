@@ -14,7 +14,6 @@ const RuntimeWebSocket = WebSocket as typeof WebSocket & {
 for (const mode of ["web", "desktop"] as const) {
   test(`factory preserves public wrapper arguments for ${mode} requests`, async () => {
     const data = await mkdtemp(join(tmpdir(), "furin-wrap-arguments-"));
-    const previousData = process.env.FURIN_APP_DATA_DIR;
     let received: unknown;
     const app = createDesktopApp()
       .wrap((next) => (request, ...rest: unknown[]) => {
@@ -49,11 +48,6 @@ for (const mode of ["web", "desktop"] as const) {
       } else {
         await app.stop(true);
       }
-      if (previousData === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previousData;
-      }
       await rm(data, { recursive: true, force: true });
     }
   });
@@ -61,7 +55,6 @@ for (const mode of ["web", "desktop"] as const) {
 
 test("factory guard precedes a source request short circuit", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-factory-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const app = createDesktopApp()
     .onRequest(({ request }) =>
       new URL(request.url).pathname === "/early"
@@ -81,11 +74,6 @@ test("factory guard precedes a source request short circuit", async () => {
     expect(await (await fetch(backend.origin, { headers: { cookie } })).text()).toBe("normal");
   } finally {
     await backend.stop();
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
@@ -93,7 +81,6 @@ test("factory guard precedes a source request short circuit", async () => {
 for (const kind of ["wrap", "plugin"] as const) {
   test(`factory guard precedes a source ${kind} wrapper`, async () => {
     const data = await mkdtemp(join(tmpdir(), "furin-wrapper-"));
-    const previousData = process.env.FURIN_APP_DATA_DIR;
     const root = createDesktopApp();
     const wrapped = kind === "wrap" ? root : new Elysia();
     wrapped.wrap(
@@ -118,11 +105,6 @@ for (const kind of ["wrap", "plugin"] as const) {
       expect((await fetch(`${backend.origin}/early`, { headers: { cookie } })).status).toBe(202);
     } finally {
       await backend.stop();
-      if (previousData === undefined) {
-        delete process.env.FURIN_APP_DATA_DIR;
-      } else {
-        process.env.FURIN_APP_DATA_DIR = previousData;
-      }
       await rm(data, { recursive: true, force: true });
     }
   });
@@ -144,7 +126,6 @@ test("ordinary web use stays inactive and preserves Elysia prefix and decorator 
 
 test("unbranded roots fail before initializing resources or listening", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-unbranded-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const app = new Elysia().get("/", () => "plain");
   let closed = false;
   try {
@@ -163,18 +144,12 @@ test("unbranded roots fail before initializing resources or listening", async ()
     expect(app.server).toBeUndefined();
     expect(closed).toBe(false);
   } finally {
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test("guard is already active for requests queued during async setup", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-setup-gate-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   const entered = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
   let cleaned = false;
@@ -224,18 +199,12 @@ test("guard is already active for requests queued during async setup", async () 
   } finally {
     release.resolve();
     await (await startup).stop();
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });
 
 test("application WebSocket upgrades require the activated instance session", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-ws-gate-"));
-  const previousData = process.env.FURIN_APP_DATA_DIR;
   let opens = 0;
   const app = createDesktopApp()
     .use(websocket())
@@ -277,11 +246,6 @@ test("application WebSocket upgrades require the activated instance session", as
     expect(opens).toBe(1);
   } finally {
     await backend.stop();
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
-    }
     await rm(data, { recursive: true, force: true });
   }
 });

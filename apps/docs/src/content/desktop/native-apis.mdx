@@ -1,0 +1,96 @@
+# Native APIs and SDK modules
+
+Use the original Electrobun SDK for native menus, tray icons, shortcuts, screen information, sessions and other platform features. Furin coordinates the host lifecycle rather than replacing these APIs.
+
+## Configure a native entrypoint
+
+The optional entrypoint is configured through `desktop.build.bun.entrypoint`:
+
+```ts
+// furin.config.ts
+import { defineConfig } from "@teyik0/furin/config";
+import { defineDesktopConfig } from "@teyik0/furin-electrobun";
+
+export default defineConfig({
+  desktop: defineDesktopConfig({
+    app: { name: "Relay", identifier: "local.furin.relay" },
+    build: { mainProcess: "bun", bun: { entrypoint: "src/desktop.ts" } },
+  }),
+});
+```
+
+In a packaged app it runs after the application module loads and before Elysia starts listening. In development it runs in the native shell, after the backend is listening; editing it or its imports relaunches only that shell. Register native integrations there; do not start another backend or declare another primary window.
+
+## Register a menu
+
+```ts
+// src/desktop.ts
+import { getDesktopHost } from "@teyik0/furin-electrobun/host";
+import { ApplicationMenu } from "electrobun/main";
+
+ApplicationMenu.setApplicationMenu([
+  { label: "Relay", submenu: [{ label: "Open Relay", action: "open" }, { role: "quit" }] },
+]);
+
+ApplicationMenu.on("application-menu-clicked", () => {
+  Promise.resolve()
+    .then(() => getDesktopHost()?.open())
+    .catch((error) => console.error("Native action failed", error));
+});
+```
+
+Callbacks run outside HTTP, so Elysia `.onError()` does not see their failures: wrap the work in a promise chain, as above, to catch both thrown errors and rejections. For richer menus and trays, use the SDK's menu actions, roles and event payloads; the [Relay example](https://github.com/teyik0/furin/blob/main/examples/electrobun-todo/src/desktop.ts) dispatches on `event.data.action` and adds a tray.
+
+## Call native code from Elysia
+
+The native entrypoint's default export declares the commands Elysia may call. Wrap it in `defineNative()`:
+
+```ts
+// src/desktop.ts
+import { defineNative } from "@teyik0/furin-electrobun/host";
+import { Utils } from "electrobun/main";
+
+export default defineNative({
+  notify: async (title: string, body: string) => {
+    Utils.showNotification({ title, body });
+  },
+});
+```
+
+Handlers then call them through `desktop.native`:
+
+```ts
+import { desktopContext } from "@teyik0/furin-electrobun/server";
+import { Elysia, status } from "elysia";
+
+export const notifications = new Elysia({ prefix: "/api/desktop" })
+  .use(desktopContext)
+  .post("/notify", async ({ desktop }) => {
+    if (!desktop) return status(409, { error: "Desktop unavailable" });
+    await desktop.native.notify("Export complete", "Your file is ready.");
+    return { ok: true };
+  });
+```
+
+Commands are async functions whose arguments and results are plain data (JSON). [SDK preparation](/docs/desktop/installation#prepare-native-types), `furin dev` and desktop builds generate `.furin/electrobun/native-env.d.ts` from the default export, and the generated tsconfig includes it: `desktop.native` is fully typed while the backend never imports native code. The default export is the only native-module export Furin reads.
+
+## Native imports stay native
+
+Import SDK values from `electrobun/main` only in native modules. Shared API modules reach the controller through `desktopContext` and use type-only SDK imports; React components import the browser-safe `@teyik0/furin-electrobun/client` entrypoint.
+
+Run [SDK preparation](/docs/desktop/installation#prepare-native-types) before typechecking; it generates the `electrobun/*` path aliases from the pinned SDK.
+
+## Deep links and files
+
+Declare URL schemes and file associations in `desktop.app.urlSchemes` and `desktop.app.fileAssociations`, then handle them in the native entrypoint with the SDK's `open-url` event. Files arrive as `file:` URLs:
+
+```ts
+// src/desktop.ts
+import Electrobun from "electrobun/main";
+
+Electrobun.events.on("open-url", (event) => {
+  console.log("Opened with", event.data.url);
+});
+```
+
+Furin forwards launch and secondary-instance inputs to this event after host readiness. Coordinate any application-specific startup dependencies in your handler. There is no Furin `onOpen` option.

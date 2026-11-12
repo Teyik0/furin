@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import type { Context } from "elysia";
-import type { HTTPHeaders } from "elysia/types";
 import { HeadContent, Scripts } from "../../../src/client/document.tsx";
 import { defer } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute } from "../../../src/furin.ts";
@@ -9,18 +8,13 @@ import { prepareRender } from "../../../src/server/render/prepare-render.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
+import { createMockLoaderContext } from "../../support/loader-context.ts";
 
 function createLoaderContext(): Context {
-  return {
-    cookie: {},
-    headers: {},
-    params: {},
+  return createMockLoaderContext({
     path: "/account",
-    query: {},
-    redirect: (url: string) => new Response(null, { headers: { Location: url }, status: 302 }),
     request: new Request("http://localhost/account"),
-    set: { headers: {} as HTTPHeaders },
-  } as Context;
+  });
 }
 
 const userRoot = defineRootRoute()

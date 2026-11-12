@@ -542,7 +542,7 @@ test("Bun builds and serves an API extended after an in-memory SSG loader reques
       expect(apiResponse.status).toBe(200);
       expect(await apiResponse.json()).toEqual({ message: "In-memory API" });
     } finally {
-      server.kill();
+      server.kill("SIGKILL");
       await server.exitCode;
     }
   } finally {

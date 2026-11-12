@@ -24,6 +24,7 @@ import { scanPages } from "../../../src/server/router/discovery.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { mountProductionApp } from "../../support/production-app.ts";
+import { waitFor } from "../../support/wait.ts";
 
 const originalDevMode = IS_DEV;
 afterAll(() => __setDevMode(originalDevMode));
@@ -51,25 +52,6 @@ function mountSsgPage(loader: () => unknown, pageCache: PageCacheAdapter) {
     pages: [{ pattern: "/ssg-page", route }],
     root: rootTerminal,
   });
-}
-
-function createDeferred(): { promise: Promise<void>; resolve: () => void } {
-  let resolve!: () => void;
-  const promise = new Promise<void>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
-  return { promise, resolve };
-}
-
-async function waitFor(predicate: () => boolean): Promise<void> {
-  const deadline = Date.now() + 2000;
-  while (!predicate()) {
-    if (Date.now() >= deadline) {
-      throw new Error("Timed out waiting for the SSG render to start");
-    }
-    // biome-ignore lint/performance/noAwaitInLoops: bounded polling waits for an observable render state.
-    await Bun.sleep(1);
-  }
 }
 
 test.serial(
@@ -150,7 +132,7 @@ test.serial(
 
 async function runSsgInvalidationRace(): Promise<void> {
   __setDevMode(false);
-  const gate = createDeferred();
+  const gate = Promise.withResolvers<void>();
   let loaderCalls = 0;
   const cache = createMemoryPageCache();
   const { app } = await mountSsgPage(async () => {
@@ -163,7 +145,7 @@ async function runSsgInvalidationRace(): Promise<void> {
 
   try {
     const first = app.handle(new Request("http://localhost/ssg-page"));
-    await waitFor(() => loaderCalls === 1);
+    await waitFor(() => loaderCalls === 1, "Timed out waiting for the SSG render to start", 2000);
     await cache.invalidate({ kind: "path", path: "/ssg-page", scope: "", type: "page" });
     gate.resolve();
     const response = await first;

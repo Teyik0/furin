@@ -9,15 +9,7 @@ import { furinSync } from "../../../src/server/sync/plugin.ts";
 import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/sqlite/index.ts";
 import { createSyncChangesPlugin } from "../../../src/server/sync/stream.ts";
 import { queryTag } from "../../../src/shared/sync-query.ts";
-
-function sqliteSync(namespace: string) {
-  const database = new Database(":memory:");
-  migrateSqliteSync(database);
-  return {
-    database,
-    sync: { adapter: sqliteSyncAdapter({ database, namespace }), principal: () => "alice" },
-  };
-}
+import { sqliteSync } from "../../helpers/sqlite-sync.ts";
 
 function post(path: string, key: string): Request {
   return new Request(`http://localhost${path}`, {
@@ -35,7 +27,7 @@ const board = { id: "/boards/:boardId", scope: { boardId: "alpha" } };
 const self = { id: "/boards/:boardId/cards", scope: { boardId: "alpha" } };
 
 test("handler invalidate() reports and journals before the route's own URL", async () => {
-  const { database, sync } = sqliteSync("imperative-plain");
+  const { database, sync } = sqliteSync("imperative-plain", undefined);
   const app = new Elysia()
     .use(furinSync(sync))
     .use(createSyncChangesPlugin(sync))
@@ -64,7 +56,7 @@ test("handler invalidate() reports and journals before the route's own URL", asy
 });
 
 test("handler invalidate() accepts cache tags beside GET URLs", async () => {
-  const { database, sync } = sqliteSync("imperative-merged");
+  const { database, sync } = sqliteSync("imperative-merged", undefined);
   const app = new Elysia()
     .use(furinSync(sync))
     .use(createSyncChangesPlugin(sync))
@@ -90,7 +82,7 @@ test("handler invalidate() accepts cache tags beside GET URLs", async () => {
 });
 
 test("handler invalidations are discarded when a plain mutation fails", async () => {
-  const { database, sync } = sqliteSync("imperative-plain-failure");
+  const { database, sync } = sqliteSync("imperative-plain-failure", undefined);
   const app = new Elysia()
     .use(furinSync(sync))
     .use(createSyncChangesPlugin(sync))
@@ -167,7 +159,7 @@ test("idempotent: false runs every request and still invalidates, journals and b
 });
 
 test("invalidate() calls from a guard hook and from the handler add up", async () => {
-  const { database, sync } = sqliteSync("guarded");
+  const { database, sync } = sqliteSync("guarded", undefined);
   const app = new Elysia()
     .use(furinSync(sync))
     .use(createSyncChangesPlugin(sync))
@@ -277,7 +269,7 @@ function errorMessage(call: () => void): string | undefined {
 }
 
 test("invalidate() throws in a GET handler: only mutations invalidate", async () => {
-  const { database, sync } = sqliteSync("invalidate-in-get");
+  const { database, sync } = sqliteSync("invalidate-in-get", undefined);
   const app = new Elysia()
     .use(furinSync(sync))
     .get("/boards", ({ invalidate }) => ({ error: errorMessage(() => invalidate("/boards")) }));

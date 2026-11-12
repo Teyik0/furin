@@ -1,0 +1,30 @@
+# Desktop overview
+
+`@teyik0/furin-electrobun` packages a Furin application with Electrobun. Your React DOM pages, loaders, Elysia API, Eden client and sync code serve both a browser and a native system WebView.
+
+## One backend, two interfaces
+
+In a packaged app, the Elysia application and the native host share **one Bun main process**; [during development](/docs/desktop/first-window#run-in-development) they run as two processes. The desktop window loads the same Furin pages as the browser, with an authenticated local session. React still renders in a WebView; native SDK integrations belong to the desktop process.
+
+| Responsibility | Where it belongs |
+|---|---|
+| React pages, layouts and loaders | Your existing Furin app |
+| API, data and shared services | Your Elysia root and plugins |
+| Primary window and desktop policy | `desktopApp()` on the Elysia root |
+| Packaging and native dependencies | `desktop` in `furin.config.ts` |
+| Menus, tray and SDK events | An optional native entrypoint |
+| Interface detection and system-browser links | `useDesktop()` in React |
+
+No second backend, replacement router or application launch function is required. The generated host opens the primary window after Elysia startup hooks succeed.
+
+## Start building
+
+Begin with [Installation](/docs/desktop/installation), then open [your first window](/docs/desktop/first-window). For an existing application, read [Integrate Furin and Elysia](/docs/desktop/integration).
+
+The integration pins **Electrobun 2.0.2** and requires **Bun 1.4 or later**, `@teyik0/furin` 0.9.x and Elysia `^2.0.0-rc.1`. Native is the default renderer; CEF and WGPU are explicit packaging choices.
+
+## Reference and example
+
+The [package README](https://github.com/teyik0/furin/blob/main/packages/electrobun/README.md) describes the public contracts. The [Relay todo app](https://github.com/teyik0/furin/tree/main/examples/electrobun-todo) demonstrates shared pages, sync, a desktop API, native menus and a tray.
+
+Use [Electrobun's documentation](https://docs.electrobun.dev/electrobun/guides/what-is-electrobun/) for the original native SDK. Furin coordinates the host and application lifecycle rather than replacing that SDK.

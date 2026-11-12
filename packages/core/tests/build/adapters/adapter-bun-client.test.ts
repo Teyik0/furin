@@ -135,37 +135,6 @@ describe.serial("buildBunTarget Bun branches", () => {
     ).rejects.toThrow("server entry");
   });
 
-  async function expectCompileAssets(
-    compile: "embed" | "server",
-    keepsClientAssets: boolean,
-  ): Promise<void> {
-    const app = createCompileTmpApp();
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
-
-    await withBuildStub(() =>
-      buildBunTarget(
-        [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
-        app.path,
-        join(app.path, ".furin/build"),
-        join(app.path, "src/server.ts"),
-        { compile, target: "bun" },
-      ),
-    );
-
-    expect(existsSync(join(app.path, ".furin/build/bun/client"))).toBe(keepsClientAssets);
-    if (compile === "server") {
-      expect(existsSync(join(app.path, ".furin/build/bun/public/.gitkeep"))).toBe(true);
-    }
-  }
-
-  test("compile server keeps client assets", async () => {
-    await expectCompileAssets("server", true);
-  });
-
-  test("compile embed removes client assets", async () => {
-    await expectCompileAssets("embed", false);
-  });
-
   test("compiled Windows server paths include the executable extension", async () => {
     const app = createCompileTmpApp();
     const { root, routes } = await scanPages(join(app.path, "src/pages"));
@@ -203,7 +172,7 @@ describe.serial("buildBunTarget Bun branches", () => {
     }
   });
 
-  test("compiled server builds use split ESM bytecode", async () => {
+  test("compile server keeps client assets and uses split ESM bytecode", async () => {
     const app = createCompileTmpApp();
     const { root, routes } = await scanPages(join(app.path, "src/pages"));
     const buildConfigs: Bun.BuildConfig[] = [];
@@ -222,6 +191,8 @@ describe.serial("buildBunTarget Bun branches", () => {
       }
     );
 
+    expect(existsSync(join(app.path, ".furin/build/bun/client"))).toBe(true);
+    expect(existsSync(join(app.path, ".furin/build/bun/public/.gitkeep"))).toBe(true);
     const serverBuild = buildConfigs.find((config) => config.compile !== undefined);
     expect(serverBuild?.bytecode).toBe(true);
     expect(serverBuild?.format).toBe("esm");
@@ -229,7 +200,7 @@ describe.serial("buildBunTarget Bun branches", () => {
     expect(serverBuild?.target).toBe("bun");
   });
 
-  test("server builds precompile the exported Elysia app through a real capture entry", async () => {
+  test("server builds precompile the exported Elysia app after user plugins and client builds compile an in-memory hydration entry with React Compiler", async () => {
     const app = createCompileTmpApp();
     const { root, routes } = await scanPages(join(app.path, "src/pages"));
     const buildConfigs: Bun.BuildConfig[] = [];
@@ -265,9 +236,17 @@ describe.serial("buildBunTarget Bun branches", () => {
     expect(captureSource).not.toContain(".listen(");
     expect(captureSource).toContain("_furin-routes-0.ts");
     expect(serverBuild?.entrypoints[0]).toEndWith(join("src", "adapter", "bun", "server.ts"));
+
+    const clientBuild = buildConfigs.find((config) => config.target === "browser");
+    expect(clientBuild?.reactCompiler).toBe(true);
+    expect(clientBuild?.reactCompilerOutputMode).toBe("client");
+    const clientEntrypoint = clientBuild?.entrypoints[0];
+    expect(clientEntrypoint).toEndWith("_hydrate.tsx");
+    expect(clientBuild?.files?.[clientEntrypoint as string]).toContain("hydrateRoot");
+    expect(existsSync(clientEntrypoint as string)).toBe(false);
   });
 
-  test("embed compilation embeds asset directories into the bundled server", async () => {
+  test("compile embed removes client assets and embeds asset directories into the bundled server", async () => {
     const app = createCompileTmpApp();
     const { root, routes } = await scanPages(join(app.path, "src/pages"));
     const buildConfigs: Bun.BuildConfig[] = [];
@@ -286,6 +265,7 @@ describe.serial("buildBunTarget Bun branches", () => {
       }
     );
 
+    expect(existsSync(join(app.path, ".furin/build/bun/client"))).toBe(false);
     const serverBuild = buildConfigs.find((config) => config.compile !== undefined);
     const compile = serverBuild?.compile;
     expect(compile).toBeObject();
@@ -299,30 +279,6 @@ describe.serial("buildBunTarget Bun branches", () => {
     expect(source).toContain("import.meta.dir");
     expect(source).not.toContain('with { type: "file" }');
     expect(existsSync(entrypoint as string)).toBe(false);
-  });
-
-  test("client builds enable Bun's native React Compiler by default", async () => {
-    const app = createCompileTmpApp();
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
-    const buildConfigs: Bun.BuildConfig[] = [];
-
-    await withBuildStub(
-      () =>
-        buildBunTarget(
-          [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
-          app.path,
-          join(app.path, ".furin/build"),
-          join(app.path, "src/server.ts"),
-          { target: "bun" }
-        ),
-      (config) => {
-        buildConfigs.push(config);
-      }
-    );
-
-    const clientBuild = buildConfigs.find((config) => config.target === "browser");
-    expect(clientBuild?.reactCompiler).toBe(true);
-    expect(clientBuild?.reactCompilerOutputMode).toBe("client");
   });
 
   test("client builds allow Bun's native React Compiler to be disabled", async () => {
@@ -369,32 +325,6 @@ describe.serial("buildBunTarget Bun branches", () => {
 
     const clientBuild = buildConfigs.find((config) => config.target === "browser");
     expect(clientBuild?.optimizeImports).toEqual(["example-library"]);
-  });
-
-  test("client builds provide the generated hydration entry from memory", async () => {
-    const app = createCompileTmpApp();
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
-    const buildConfigs: Bun.BuildConfig[] = [];
-
-    await withBuildStub(
-      () =>
-        buildBunTarget(
-          [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
-          app.path,
-          join(app.path, ".furin/build"),
-          join(app.path, "src/server.ts"),
-          { target: "bun" }
-        ),
-      (config) => {
-        buildConfigs.push(config);
-      }
-    );
-
-    const clientBuild = buildConfigs.find((config) => config.target === "browser");
-    const entrypoint = clientBuild?.entrypoints[0];
-    expect(entrypoint).toEndWith("_hydrate.tsx");
-    expect(clientBuild?.files?.[entrypoint as string]).toContain("hydrateRoot");
-    expect(existsSync(entrypoint as string)).toBe(false);
   });
 
   test("virtual hydration entries still resolve page imports through user plugins", async () => {

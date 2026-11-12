@@ -2,18 +2,17 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { log } from "evlog";
 import { act, createElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { toCrossJSON } from "seroval";
 import {
   DocumentProvider,
   type DocumentState,
   useDocumentState,
 } from "../../../src/client/document.tsx";
 import type { RuntimeData } from "../../../src/client/internal/runtime-types.ts";
-import { Link, RouterProvider } from "../../../src/client/link.tsx";
+import { Link } from "../../../src/client/link.tsx";
 import type { ClientRoute } from "../../../src/client/router/index.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
-import { navigationDataPath } from "../../support/navigation-data.ts";
+import { makeNdjsonResponse, navigationDataPath } from "../../support/navigation-data.ts";
+import { dispatchReactEvent, flushReactUpdates, renderRouterAt } from "../../support/router.ts";
 
 const CATCH_ALL_ROUTE_RE = /^\/(.*)$/;
 const PAGE_B_RE = /^\/page-b$/;
@@ -69,17 +68,21 @@ function makeNativeAnchorRoute(path: string, href: string): ClientRoute {
   };
 }
 
-async function dispatchReactEvent(target: EventTarget, event: Event): Promise<void> {
-  await act(async () => {
-    target.dispatchEvent(event);
-    await Promise.resolve();
-  });
-}
-
-async function flushReactUpdates(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve();
-  });
+/** A fetch response that stays pending until the request signal aborts it. */
+function pendingUntilAborted(
+  signal: AbortSignal | null | undefined
+): PromiseWithResolvers<Response> {
+  const pending = Promise.withResolvers<Response>();
+  signal?.addEventListener(
+    "abort",
+    () => {
+      const error = new Error("signal is aborted without reason");
+      error.name = "AbortError";
+      pending.reject(error);
+    },
+    { once: true }
+  );
+  return pending;
 }
 
 function waitFor(condition: () => boolean): Promise<void> {
@@ -95,81 +98,6 @@ function waitFor(condition: () => boolean): Promise<void> {
       }
     }, 10);
   });
-}
-
-/** Returns a single-line NDJSON response (CrossJSON-serialised) for `?_furin=data` navigation requests. */
-function makeNdjsonResponse(data: RuntimeData): Response {
-  const ndjson = JSON.stringify(toCrossJSON(data));
-  return new Response(ndjson, { headers: { "Content-Type": "application/x-ndjson" }, status: 200 });
-}
-
-interface RenderRouterResult {
-  cleanup: () => void;
-  container: HTMLDivElement;
-  root: Root;
-}
-
-async function renderRouterWithLink(
-  routes: ClientRoute[],
-  initialPath: string | undefined,
-  documentState: DocumentState | undefined
-): Promise<RenderRouterResult> {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-
-  const win = globalThis as unknown as Window & typeof globalThis;
-  const path = initialPath ?? "/";
-  win.location.href = `http://localhost:3000${path}`;
-  win.history.replaceState(null, "", path);
-
-  let initialMatch:
-    | (ClientRoute & {
-        component: React.ComponentType<RuntimeData>;
-        pageRoute: unknown;
-      })
-    | null = null;
-  const rawMatch = routes.find((r) => r.regex.test(path));
-  if (rawMatch) {
-    const mod = await rawMatch.load();
-    initialMatch = {
-      ...rawMatch,
-      component: mod.default.component,
-      pageRoute: mod.default._route,
-    };
-  }
-
-  const router = createElement(RouterProvider, {
-    autoRefresh: true,
-    basePath: "",
-    defaultPreload: "intent",
-    defaultPreloadDelay: 50,
-    defaultPreloadStaleTime: 30_000,
-    initialData: {},
-    initialDigest: undefined,
-    initialMatch,
-    prefetchCacheSize: 50,
-    root: null,
-    routes,
-  } as any);
-  await act(() => {
-    root.render(
-      documentState === undefined
-        ? router
-        : createElement(DocumentProvider, { value: documentState }, router)
-    );
-  });
-
-  return {
-    cleanup: () => {
-      act(() => {
-        root.unmount();
-      });
-      container.remove();
-    },
-    container,
-    root,
-  };
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -210,48 +138,19 @@ describe("RouterProvider click interception", () => {
       if (logicalPath === "/page-a") {
         pageARequests += 1;
         if (deferPageARequest) {
-          return new Promise<Response>((_resolve, reject) => {
-            init?.signal?.addEventListener(
-              "abort",
-              () => {
-                const error = new Error("signal is aborted without reason");
-                error.name = "AbortError";
-                reject(error);
-              },
-              { once: true }
-            );
-          });
+          return pendingUntilAborted(init?.signal).promise;
         }
         return Promise.resolve(makeNdjsonResponse({ message: "page-a" }));
       }
       if (logicalPath === "/page-b") {
         pageBRequests += 1;
         if (deferPageBRequest) {
-          return new Promise<Response>((resolve, reject) => {
-            resolvePageBRequest = resolve;
-            init?.signal?.addEventListener(
-              "abort",
-              () => {
-                const error = new Error("signal is aborted without reason");
-                error.name = "AbortError";
-                reject(error);
-              },
-              { once: true }
-            );
-          });
+          const pending = pendingUntilAborted(init?.signal);
+          resolvePageBRequest = pending.resolve;
+          return pending.promise;
         }
         if (abortFirstPageBRequest && pageBRequests === 1) {
-          return new Promise<Response>((_resolve, reject) => {
-            init?.signal?.addEventListener(
-              "abort",
-              () => {
-                const error = new Error("signal is aborted without reason");
-                error.name = "AbortError";
-                reject(error);
-              },
-              { once: true }
-            );
-          });
+          return pendingUntilAborted(init?.signal).promise;
         }
         return Promise.resolve(makeNdjsonResponse({ message: "page-b" }));
       }
@@ -283,7 +182,7 @@ describe("RouterProvider click interception", () => {
 
   test("click on Furin Link triggers history.pushState exactly once", async () => {
     const routes = [makeRoute("/page-a", "/page-b"), makeRoute("/page-b", "/page-a")];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
+    const { container, cleanup } = await renderRouterAt(routes, "/page-a", undefined);
     currentCleanup = cleanup;
 
     const anchor = container.querySelector("a") as HTMLAnchorElement;
@@ -333,10 +232,10 @@ describe("RouterProvider click interception", () => {
       head: { meta: [{ title: "Initial title" }] },
       syncJson: undefined,
     };
-    const { container, cleanup } = await renderRouterWithLink(
+    const { container, cleanup } = await renderRouterAt(
       [makeRoute("/page-a", "/page-b"), pageB],
       "/page-a",
-      documentState
+      (router) => createElement(DocumentProvider, { value: documentState }, router)
     );
     currentCleanup = cleanup;
 
@@ -353,7 +252,7 @@ describe("RouterProvider click interception", () => {
     try {
       abortFirstPageBRequest = true;
       const routes = [makeRoute("/page-a", "/page-b"), makeRoute("/page-b", "/page-a")];
-      const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
+      const { container, cleanup } = await renderRouterAt(routes, "/page-a", undefined);
       currentCleanup = cleanup;
       const anchor = container.querySelector("a") as HTMLAnchorElement;
 
@@ -380,7 +279,7 @@ describe("RouterProvider click interception", () => {
   test("component-only HMR does not cancel a pending Link navigation", async () => {
     deferPageBRequest = true;
     const routes = [makeRoute("/page-a", "/page-b"), makeRoute("/page-b", "/page-a")];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
+    const { container, cleanup } = await renderRouterAt(routes, "/page-a", undefined);
     currentCleanup = cleanup;
     const anchor = container.querySelector("a") as HTMLAnchorElement;
 
@@ -405,7 +304,7 @@ describe("RouterProvider click interception", () => {
   test("data-changing HMR waits for a pending Link navigation", async () => {
     deferPageBRequest = true;
     const routes = [makeRoute("/page-a", "/page-b"), makeRoute("/page-b", "/page-a")];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
+    const { container, cleanup } = await renderRouterAt(routes, "/page-a", undefined);
     currentCleanup = cleanup;
     const anchor = container.querySelector("a") as HTMLAnchorElement;
 
@@ -440,7 +339,7 @@ describe("RouterProvider click interception", () => {
   test("a user navigation preserves invalidation from an aborted HMR refresh", async () => {
     deferPageARequest = true;
     const routes = [makeRoute("/page-a", "/page-b"), makeRoute("/page-b", "/page-a")];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
+    const { container, cleanup } = await renderRouterAt(routes, "/page-a", undefined);
     currentCleanup = cleanup;
     const anchor = container.querySelector("a") as HTMLAnchorElement;
     const hmrRefresh = (
@@ -499,7 +398,7 @@ describe("RouterProvider click interception", () => {
 
   test("native <a> matching a local route is intercepted as SPA navigation", async () => {
     const routes = [makeNativeAnchorRoute("/page-a", "/page-b"), makeRoute("/page-b", "/page-a")];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
+    const { container, cleanup } = await renderRouterAt(routes, "/page-a", undefined);
     currentCleanup = cleanup;
 
     const anchor = container.querySelector("a") as HTMLAnchorElement;
@@ -534,7 +433,7 @@ describe("RouterProvider click interception", () => {
       makeRoute("/page-b", "/page-a"),
       makeCatchAllRoute(),
     ];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
+    const { container, cleanup } = await renderRouterAt(routes, "/page-a", undefined);
     currentCleanup = cleanup;
 
     const anchor = container.querySelector("a") as HTMLAnchorElement;

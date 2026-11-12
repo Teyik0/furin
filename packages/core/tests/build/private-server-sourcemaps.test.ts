@@ -1,18 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   movePrivateServerSourceMaps,
   privateServerSourceMapDir,
 } from "../../src/build/private-server-sourcemaps.ts";
-import { createTmpApp } from "../support/app-fixtures.ts";
 
 describe("private server source maps", () => {
   test("moves only server maps outside the deployable directory", () => {
-    const app = createTmpApp("cli-app");
+    const root = mkdtempSync(join(tmpdir(), "furin-private-maps-"));
     try {
-      const output = join(app.path, "deploy");
-      const privateDir = join(app.path, ".furin/build/private/server-sourcemaps/bun");
+      const output = join(root, "deploy");
+      const privateDir = join(root, ".furin/build/private/server-sourcemaps/bun");
       mkdirSync(output, { recursive: true });
       writeFileSync(join(output, "server.js"), "//# debugId=abc\n");
       writeFileSync(join(output, "server.js.map"), '{"debugId":"abc"}');
@@ -24,16 +24,16 @@ describe("private server source maps", () => {
       expect(existsSync(join(privateDir, "server.js.map"))).toBe(true);
       expect(existsSync(join(output, "client.js.map"))).toBe(true);
     } finally {
-      app.cleanup();
+      rmSync(root, { force: true, recursive: true });
     }
   });
 
   test("moves nested maps using their exact Bun output path", () => {
-    const app = createTmpApp("cli-app");
+    const root = mkdtempSync(join(tmpdir(), "furin-private-maps-"));
     try {
-      const output = join(app.path, "deploy");
+      const output = join(root, "deploy");
       const source = join(output, "chunks", "server.js.map");
-      const privateDir = join(app.path, ".furin/build/private/server-sourcemaps/bun");
+      const privateDir = join(root, ".furin/build/private/server-sourcemaps/bun");
       mkdirSync(join(output, "chunks"), { recursive: true });
       writeFileSync(source, "nested map");
 
@@ -42,7 +42,7 @@ describe("private server source maps", () => {
       expect(existsSync(source)).toBe(false);
       expect(existsSync(join(privateDir, "chunks", "server.js.map"))).toBe(true);
     } finally {
-      app.cleanup();
+      rmSync(root, { force: true, recursive: true });
     }
   });
 
