@@ -50,7 +50,7 @@ furin build [options]
 | `--compile` | `server` or `embed` | No executable; inherits `bun.compile` when configured | Produce a Bun executable |
 | `--output` | `app` or `server` | `server`, or `bun.output` when configured | Bun only: `app` emits an inert `app.js` without a listener entry (not combinable with `--compile`), `server` emits a bootable `server.js` |
 | `--external` | Package name (repeatable) | None | Bun only: package to keep external in the server and RSC bundles |
-| `--analyze` | Boolean flag | `false` | Write client and server Bun metafiles under `.furin/build/analysis` |
+| `--analyze` | Boolean flag | `false` | Write Bun metafiles under `.furin/build/analysis`: client and server for server targets, client only for `static` and `package` |
 
 `--compile` without a value means `server`; `--compile=embed` is also accepted.
 
@@ -89,7 +89,7 @@ Every successful build writes `.furin/build/manifest.json`. It records route mod
 
 ### Analyze Output
 
-`--analyze` writes one client metafile per mounted app (for example `bun-client.json` and `bun-client-admin.json`) plus the target's server metafile (`bun-server.json`). They describe emitted byte sizes and import contributions, but do not measure startup latency, request throughput, memory, or edit-to-paint time.
+For server targets, `--analyze` writes one client metafile per mounted app (for example `bun-client.json` and `bun-client-admin.json`) plus the target's server metafile (`bun-server.json`). `static` and `package` have no server bundle, so they write only `static-client.json` or `package-client.json`. Metafiles describe emitted byte sizes and import contributions, but do not measure startup latency, request throughput, memory, or edit-to-paint time.
 
 ## `furin typegen`
 

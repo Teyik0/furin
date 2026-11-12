@@ -10,17 +10,21 @@ Elysia handlers reach the managed host as `desktop` through `desktopContext`: an
 
 ## Additional windows
 
-Create named windows from a ready desktop context (for example inside a route handler that uses `desktopContext`):
+Create named windows from a ready desktop context, for example inside a route handler that uses `desktopContext`. `desktop` is `null` in Web mode:
 
 ```ts
-const settings = await desktop.windows.create("settings", {
-  path: "/settings",
-  title: "Settings",
-  frame: { width: 640, height: 480 },
-});
-await settings.center();
+.post("/settings-window", async ({ desktop }) => {
+  if (!desktop) return status(409, { error: "Desktop unavailable" });
+  const settings = await desktop.windows.create("settings", {
+    path: "/settings",
+    title: "Settings",
+    frame: { width: 640, height: 480 },
+  });
+  await settings.center();
+  return { ok: true };
+})
 
-await desktop.windows.get("settings").close();
+// Later: await desktop.windows.get("settings").close();
 ```
 
 `path` is a route in your Furin app. Each managed window receives its own one-use authenticated bootstrap URL. Furin owns the window's URL, HTML, views root and navigation rules; other SDK window options pass through. The name `"main"` is reserved for the primary window.

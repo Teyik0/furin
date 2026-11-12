@@ -43,7 +43,7 @@ bunx --bun @teyik0/furin-electrobun init
 preload = ["@teyik0/furin-electrobun/preload"]
 ```
 
-Without a `furin.config.ts`, `init` creates one with a `desktop` section derived from the package name. It never overwrites existing setup: it stops if `furin.config.ts` exists without a `desktop` section, if `bunfig.toml` already declares a different `preload` array (add the entry yourself), or if a `build:desktop` or `dev:desktop` script exists.
+Without a `furin.config.ts`, `furin.config.js` or `furin.config.mjs`, `init` creates `furin.config.ts` with a `desktop` section derived from the package name. It never overwrites existing setup: it stops if an existing config file has no `desktop` section, if `bunfig.toml` already declares a different `preload` array (add the entry yourself), or if a `build:desktop` or `dev:desktop` script exists.
 
 ## Prepare native types
 

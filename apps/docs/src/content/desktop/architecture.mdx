@@ -10,7 +10,7 @@ A shared cross-bundle registry exposes the live native controller, with original
 
 ## Startup and shutdown
 
-Startup is fail-closed, in this order:
+Packaged-app startup is fail-closed, in this order:
 
 1. Resolve SDK identity and runtime storage before claiming single-instance ownership.
 2. Load the built `app.js` and the optional native entrypoint.

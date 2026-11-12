@@ -257,7 +257,7 @@ const { data, error } = await api.posts.post({ title: "Hello" });
 ```
 
 - A plain call stays a plain Eden call. Without a client key, the server generates one: the mutation still runs transactionally, invalidates and broadcasts, but a resend is not deduplicated.
-- A call that passes an options object gets an automatic `Idempotency-Key` and the typed `optimistic` option. Each call gets a new key, even when calls share an options object, and the plugin never alters that object.
+- A call that passes an options object gets an automatic `Idempotency-Key` and the typed `optimistic` option. Each call gets a new key, even when calls share an options object. The plugin temporarily replaces that object's `headers` and restores it once Eden has read them, so do not inspect it while a call is pending.
 - Explicit keys are respected, including Eden header callbacks and `fetch.headers`. Never reuse an explicit key across sessions or principals.
 - `x-furin-queries` invalidations in a mutation response refresh the client's live queries whether or not options were passed.
 - Reads and subscriptions keep Eden behavior. The plugin requires Eden 2.0.0-rc.1 or later.
@@ -396,7 +396,7 @@ function DeleteCard({ cardId }: { cardId: string }) {
 }
 ```
 
-The hook returns `data`, `error`, `isPending`, `mutate`, `mutateAsync` and `reset`. `mutate` returns `void` and reports failures through `error` and the optional `onError` callback. `mutateAsync` resolves with the response's `data`, or rejects with the same error exposed to `onError` (including when `onError` itself throws).
+The hook returns `data`, `error`, `isPending`, `mutate`, `mutateAsync` and `reset`. `mutate` returns `void` and reports failures through `error` and the optional `onError` callback. `mutateAsync` resolves with the response's `data`, or rejects with the same error exposed to `onError`. If `onError` throws, `mutateAsync` rejects with that exception instead.
 
 ### Errors
 

@@ -2,7 +2,7 @@
 
 Furin desktop packaging with Electrobun 2.0.2 and one Bun main process in production. Your React DOM pages, SSR, API, Eden client and sync code serve both web and desktop.
 
-Guides: [teyik0.github.io/furin/docs/desktop](https://teyik0.github.io/furin/docs/desktop). Requires Bun 1.4+, `@teyik0/furin` 0.9.x and Elysia `^2.0.0-rc.1`.
+Guides: [teyik0.github.io/furin/docs/desktop](https://teyik0.github.io/furin/docs/desktop). Requires Bun 1.4+, `@teyik0/furin` `>=0.9.0-alpha.0 <0.10.0` and Elysia `^2.0.0-rc.1`.
 
 ## Setup
 
@@ -173,7 +173,7 @@ Elysia calls the default export through `desktop.native`, fully typed without an
 
 ```ts
 .post("/export", async ({ desktop }) => {
-  const folder = await desktop?.native.pickFolder(); // Promise<string | null>
+  const folder = await desktop?.native.pickFolder(); // string | null, or undefined on the web
   if (folder) await desktop?.native.notify("Export complete", folder);
   return { folder };
 })

@@ -1,6 +1,6 @@
 # Configuration Reference
 
-The `furin` CLI reads the first `furin.config.ts`, `furin.config.js`, or `furin.config.mjs` in the working directory (or the file passed to `--config`). `defineConfig()` provides inference; Furin validates the file when the CLI loads it. Unknown keys fail with their path and the closest valid key (for example, `reactCompilor` suggests `reactCompiler`), every plugin must be an object with a `name` string and a `setup` function, and every target must be a built-in name or a deployment adapter.
+The `furin` CLI reads the first `furin.config.ts`, `furin.config.js`, or `furin.config.mjs` in the working directory, or the file passed to `--config` with `build`, `preview`, and `typegen`. `defineConfig()` provides inference; Furin validates the file when the CLI loads it. Unknown keys fail with their path and the closest valid key (for example, `reactCompilor` suggests `reactCompiler`), every plugin must be an object with a `name` string and a `setup` function, and every target must be a built-in name or a deployment adapter.
 
 ```ts
 // furin.config.ts
