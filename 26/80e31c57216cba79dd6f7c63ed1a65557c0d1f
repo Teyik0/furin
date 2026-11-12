@@ -1,0 +1,19 @@
+.gitignore
+  s_de8b8b55ac7c0a::t_8b95c62ee7cc46 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2680e31c57216cba79dd6f7c63ed1a65557c0d1f",
+  "prompts": {},
+  "sessions": {
+    "s_de8b8b55ac7c0a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e4a1b3d-9529-48ec-a322-b6caf391e07e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
