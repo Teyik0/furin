@@ -304,8 +304,8 @@ const pending = [];
 try {
   process.chdir(fixture.path);
   __setDevMode(true);
-  const a = new Elysia().use(await furin({ prefix: "/a", pagesDir: join(fixture.path, "src/pages"), logger: { drain: ({ event }) => events.a.push(event), waitUntil: promise => pending.push(promise) } }));
-  const b = new Elysia().use(await furin({ prefix: "/b", pagesDir: join(fixture.path, "src/pages"), logger: { drain: ({ event }) => events.b.push(event), waitUntil: promise => pending.push(promise) } }));
+  const a = new Elysia().use(await furin({ style: "tanstack", prefix: "/a", pagesDir: join(fixture.path, "src/pages"), logger: { drain: ({ event }) => events.a.push(event), waitUntil: promise => pending.push(promise) } }));
+  const b = new Elysia().use(await furin({ style: "tanstack", prefix: "/b", pagesDir: join(fixture.path, "src/pages"), logger: { drain: ({ event }) => events.b.push(event), waitUntil: promise => pending.push(promise) } }));
   const app = new Elysia().use(a).use(b);
   const responses = await Promise.all(["/a", "/b"].map(path => app.handle(new Request("http://localhost" + path))));
   await Promise.all(pending);

@@ -26,14 +26,14 @@ __resetTemplateState();
 setProductionTemplateContent(
   '<!DOCTYPE html><html><body><script type="module" src="/prod-entry.js"></script></body></html>'
 );
-let result = await scanPages(fixturesDir);
+let result = await scanPages({ pagesDir: fixturesDir, prefix: "", style: "tanstack" });
 let response = await renderRootNotFound(result.root, undefined);
 assert(response.status === 404, "production assets response status");
 let body = await response.text();
 assert(body.includes('src="/prod-entry.js"'), "production entry asset");
 
 __resetTemplateState();
-result = await scanPages(fixturesDir);
+result = await scanPages({ pagesDir: fixturesDir, prefix: "", style: "tanstack" });
 response = await renderRootNotFound(result.root, undefined);
 assert(response.status === 404, "generated template response status");
 body = await response.text();
@@ -67,7 +67,7 @@ assert(data.query.page === 2, "root not-found hydration query coercion");
 assert(data.query.tag.join("|") === "first|second", "root not-found hydration repeated query keys");
 
 __resetTemplateState();
-result = await scanPages(fixturesDir);
+result = await scanPages({ pagesDir: fixturesDir, prefix: "", style: "tanstack" });
 const rootWithBrokenNotFound = {
   ...result.root,
   notFound: () => {
@@ -90,7 +90,7 @@ const { __setDevMode } = await import("./packages/core/src/server/runtime-env.ts
 __setDevMode(true);
 __resetTemplateState();
 const fixturesDir = join(process.cwd(), "packages/core/tests/fixtures/pages/default");
-const result = await scanPages(fixturesDir);
+const result = await scanPages({ pagesDir: fixturesDir, prefix: "", style: "tanstack" });
 let fetchedUrl;
 globalThis.fetch = async (input) => {
   fetchedUrl = String(input);

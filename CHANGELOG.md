@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Breaking
+- **Two file-routing styles: Next.js and TanStack Start** — `furin({ style })` is required and picks the convention of `pagesDir`: `"nextjs"` (App Router: top-level `layout.tsx`, `page.tsx`, `layout.tsx`, `[id]`, `[...slug]`/`[[...slug]]`, `(group)`, `_private/`, `error.tsx`, `not-found.tsx`; `route.ts` is rejected, declare API routes on Elysia) or `"tanstack"` (TanStack Start: `__root.tsx`, `index.tsx`, `route.tsx`, `$id`, `$`, `{-$lang}`, `(group)`, `-private`, flat `posts.$id.tsx`, pathless `_auth.tsx`, un-nested `posts_.$id.tsx`, and `.error()`/`.notFound()` on the route). The Furin convention (`root.tsx`, `_route.tsx`) is removed: rename `root.tsx` to `__root.tsx` and `_route.tsx` to `route.tsx` for the TanStack style. `pagesDir` defaults to `src/app` (`nextjs`) or `src/routes` (`tanstack`) instead of `src/pages`.
+- **TanStack Start route ids in both styles** — `defineRoute(id)` takes the TanStack Start id: a layout is `"/board"` (was `"/board/_route"`), an index page ends with a slash (`"/board/$boardId/"`, was `"/board/[boardId]"`), dynamic segments are `$id` and catch-alls `$`. Moving between styles only renames files. The route config checks print the id to write for every file.
+- **Catch-all params are `_splat`** — a catch-all segment is read as `params._splat` instead of `params["*"]`, in schemas, loaders, `staticParams()` results and `<Link params>`. `[...slug]` and `[[...slug]]` both map to the same `$` catch-all.
+- **Builds need a routing style** — `furin.config.ts` `apps` entries require `style`, a top-level `pagesDir` requires the new top-level `style`, and `furin build`/`furin typegen` take `--style` with `--pagesDir`. A build with no app configured and no `furin()` mount fails instead of falling back to `src/pages`.
+
+### Added
+- **Optional path segments** — `{-$lang}/about.tsx` serves `/about` and `/fr/about` (pattern `/:lang?/about`); `<Link>` drops the segment when the param is omitted.
+- **Route-defined boundaries** — in the TanStack style, `.error(Component)` and `.notFound(Component)` render in place of the route inside its parent layout, catching its own failures and those of the routes below it; on `__root.tsx` they are the app-wide boundaries.
+
 ## [0.9.0-alpha.1] — 2026-11-12
 
 ### Fixed

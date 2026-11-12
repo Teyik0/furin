@@ -1,9 +1,12 @@
-/** A `furin({ pagesDir, prefix })` call, as declared by the application. */
+import type { RouteStyle } from "../plugin/route-manifest.ts";
+
+/** A `furin({ pagesDir, prefix, style })` call, as declared by the application. */
 export interface FurinRegistration {
-  /** pagesDir as declared (`src/pages` when omitted); relative to the project root. */
+  /** pagesDir as declared (the style's default when omitted); relative to the project root. */
   readonly pagesDir: string;
   /** Normalized mount prefix (`""` for root). */
   readonly prefix: string;
+  readonly style: RouteStyle;
 }
 
 // Shared through globalThis: the build installs the collector before

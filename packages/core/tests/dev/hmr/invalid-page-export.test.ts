@@ -2,6 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { scanRouteManifest } from "../../../src/plugin/route-manifest.ts";
 import { scanRootLayout } from "../../../src/server/router/discovery.ts";
 import { resolveCurrentDevRoute } from "../../../src/server/router/hmr.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
@@ -15,19 +16,24 @@ afterAll(() => {
 
 test("names the required route export when a page has no page terminal", async () => {
   writeFileSync(
-    join(pagesDir, "root.tsx"),
+    join(pagesDir, "__root.tsx"),
     `import { defineRootRoute } from ${furinEntry};
 export const route = defineRootRoute().config({ mode: "ssr" }).layout(({ children }) => children);`
   );
   const pagePath = join(pagesDir, "index.tsx");
   writeFileSync(pagePath, "export const page = () => null;");
-  const root = await scanRootLayout(pagesDir);
+  const root = await scanRootLayout(
+    scanRouteManifest({ pagesDir, prefix: "", style: "tanstack" }),
+    pagesDir,
+    "tanstack"
+  );
   const route = {
     mode: "ssr",
     page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE" }, component: () => null },
     path: pagePath,
     pattern: "/",
     routeChain: [],
+    layouts: [],
     segmentBoundaries: [],
   } satisfies ResolvedRoute;
 

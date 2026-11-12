@@ -17,10 +17,10 @@ const HELLO_ATTR_RE = /data-hello="([^"]+)"/;
  * Each case targets a distinct scenario where a file change in one part of the
  * route hierarchy must (or must not) propagate to another part:
  *
- * #3 (P0): Edit child page `/blog/[slug].tsx` while the parent `/blog` has been
+ * #3 (P0): Edit child page `/blog/$slug.tsx` while the parent `/blog` has been
  *   served — the next request to the child must reflect the updated component.
  *
- * #4 (P0): Edit the parent `blog/_route.tsx` while a child request `/blog/hello`
+ * #4 (P0): Edit the parent `blog/route.tsx` while a child request `/blog/hello`
  *   is in flight (or has just been served) — the next SSR response must embed the
  *   new layout and produce no "Invalid hook call" or dispatcher errors.
  *
@@ -61,7 +61,7 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   // Root layout (minimal — only wraps content with a root marker).
   writeAppFile(
     app.path,
-    "src/pages/root.tsx",
+    "src/pages/__root.tsx",
     [
       'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
       "",
@@ -74,11 +74,11 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   // Blog section: parent layout with a versioned marker.
   writeAppFile(
     app.path,
-    "src/pages/blog/_route.tsx",
+    "src/pages/blog/route.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
       "",
-      'export const route = defineRoute("/blog/_route")',
+      'export const route = defineRoute("/blog")',
       '  .config({ mode: "ssr" })',
       '  .layout(({ children }) => <nav data-blog-layout="blog-v1">{children}</nav>);',
     ].join("\n")
@@ -100,12 +100,12 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   // Blog post page (child route: /blog/[slug]).
   writeAppFile(
     app.path,
-    "src/pages/blog/[slug].tsx",
+    "src/pages/blog/$slug.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { t } from "elysia";',
       "",
-      'export const route = defineRoute("/blog/[slug]")',
+      'export const route = defineRoute("/blog/$slug")',
       '  .config({ mode: "ssg", params: t.Object({ slug: t.String() }) })',
       "  .page(() => (",
       '    <article data-post-version="post-v1">Blog post content</article>',
@@ -175,14 +175,14 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   // ── #3 (P0) ───────────────────────────────────────────────────────────────
 
   /**
-   * Editing `/blog/[slug].tsx` while the parent `/blog` has been served must
+   * Editing `/blog/$slug.tsx` while the parent `/blog` has been served must
    * produce fresh child content on the next child request.
    *
    * Mechanism: SSR imports page modules via `?furin-server&t=<ts>`.  A new
    * timestamp is generated on each request, so Bun always evaluates the latest
    * on-disk file — no stale child component is possible after an edit.
    */
-  test("#3 — editing /blog/[slug].tsx serves fresh child content on next child request", async () => {
+  test("#3 — editing /blog/$slug.tsx serves fresh child content on next child request", async () => {
     // Warm the parent route first (simulates user browsing /blog).
     const parentRes = await fetch(`http://localhost:${port}/blog`);
     expect(parentRes.status).toBe(200);
@@ -198,12 +198,12 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     // Edit the child page — bump version to post-v2.
     writeAppFile(
       app.path,
-      "src/pages/blog/[slug].tsx",
+      "src/pages/blog/$slug.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
         "",
-        'export const route = defineRoute("/blog/[slug]")',
+        'export const route = defineRoute("/blog/$slug")',
         '  .config({ mode: "ssg", params: t.Object({ slug: t.String() }) })',
         "  .page(() => (",
         '    <article data-post-version="post-v2">Updated blog post</article>',
@@ -234,7 +234,7 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   // ── #4 (P0) ───────────────────────────────────────────────────────────────
 
   /**
-   * Editing `/blog/_route.tsx` while a child page has just been served must
+   * Editing `/blog/route.tsx` while a child page has just been served must
    * refresh the layout on the next child request without any React hook
    * violations or dispatcher errors.
    *
@@ -244,7 +244,7 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
    * child request, so both parent and child use the same, current React module
    * graph — hooks stay valid.
    */
-  test("#4 — editing /blog/_route.tsx refreshes the layout on child requests, no Invalid hook call", async () => {
+  test("#4 — editing /blog/route.tsx refreshes the layout on child requests, no Invalid hook call", async () => {
     // Confirm baseline: child is rendered inside blog-v1 layout.
     let html1 = "";
     const baselineOk = await pollUntil(
@@ -262,11 +262,11 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     // Edit the parent layout — bump to blog-v2.
     writeAppFile(
       app.path,
-      "src/pages/blog/_route.tsx",
+      "src/pages/blog/route.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
         "",
-        'export const route = defineRoute("/blog/_route")',
+        'export const route = defineRoute("/blog")',
         '  .config({ mode: "ssr" })',
         '  .layout(({ children }) => <nav data-blog-layout="blog-v2">{children}</nav>);',
       ].join("\n")
@@ -309,11 +309,11 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     // Edit parent layout to blog-v3 (v2 was set in #4 above).
     writeAppFile(
       app.path,
-      "src/pages/blog/_route.tsx",
+      "src/pages/blog/route.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
         "",
-        'export const route = defineRoute("/blog/_route")',
+        'export const route = defineRoute("/blog")',
         '  .config({ mode: "ssr" })',
         '  .layout(({ children }) => <nav data-blog-layout="blog-v3">{children}</nav>);',
       ].join("\n")
@@ -468,7 +468,7 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     const writeRoot = (helloValue: string): void => {
       writeAppFile(
         app.path,
-        "src/pages/root.tsx",
+        "src/pages/__root.tsx",
         [
           'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
           "",

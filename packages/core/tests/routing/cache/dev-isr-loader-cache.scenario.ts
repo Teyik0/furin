@@ -91,7 +91,7 @@ async function mountDevelopmentPages(
   writeFileSync(join(pagesDir, "ppr-loader-page.tsx"), pprLoaderPage);
   process.chdir(appPath);
   __setDevMode(true);
-  const app = new Elysia().use(await furin({ pagesDir }));
+  const app = new Elysia().use(await furin({ pagesDir, style: "tanstack" }));
   // Furin stores pagesDir with POSIX separators on every platform.
   const instance = allInstances().find(
     (candidate) => candidate.pagesDir === pagesDir.replaceAll("\\", "/")
@@ -109,7 +109,7 @@ const tmpApp = createTmpApp("cli-app");
 
 try {
   const { app, instance, pagesDir } = await mountDevelopmentPages(tmpApp.path);
-  const rootPath = `${pagesDir}/root.tsx`;
+  const rootPath = `${pagesDir}/__root.tsx`;
   const scoped = <T>(fn: () => T): T => withInstance(instance, fn);
   const runScenario = async (fn: () => Promise<void>): Promise<void> => {
     prepareDevCacheTest();

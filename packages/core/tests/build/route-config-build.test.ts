@@ -36,13 +36,13 @@ test("furin build expects the prefixed id in an app mounted with a prefix", asyn
       `import { furin } from "@teyik0/furin";
 import { Elysia } from "elysia";
 
-export default new Elysia().use(await furin({ pagesDir: "./src/pages", prefix: "/shop" }));
+export default new Elysia().use(await furin({ style: "tanstack", pagesDir: "./src/pages", prefix: "/shop" }));
 `
     );
     writeAppFile(
       app.path,
       "furin.config.ts",
-      'export default { apps: [{ pagesDir: "src/pages", prefix: "/shop" }] };\n'
+      'export default { apps: [{ pagesDir: "src/pages", prefix: "/shop", style: "tanstack" }] };\n'
     );
     keyPagesForPrefix(app.path, "src/pages", "/shop");
     writeAppFile(

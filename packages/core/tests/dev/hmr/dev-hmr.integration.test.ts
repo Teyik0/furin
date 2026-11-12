@@ -37,7 +37,7 @@ describe.serial("dev HMR", () => {
 
   writeAppFile(
     app.path,
-    "src/pages/root.tsx",
+    "src/pages/__root.tsx",
     [
       'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
       "",
@@ -54,12 +54,12 @@ describe.serial("dev HMR", () => {
 
   writeAppFile(
     app.path,
-    "src/pages/docs/_route.tsx",
+    "src/pages/docs/route.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { MobileNav } from "../../components/mobile-nav";',
       "",
-      'export const route = defineRoute("/docs/_route")',
+      'export const route = defineRoute("/docs")',
       '  .config({ mode: "ssr" })',
       "  .layout(({ children }) => (",
       "    <section>",
@@ -138,7 +138,7 @@ describe.serial("dev HMR", () => {
       [
         'import { furin } from "@teyik0/furin";',
         'import Elysia from "elysia";',
-        'new Elysia().onBeforeHandle("global", () => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" })).listen(Number(process.env.PORT));',
+        'new Elysia().onBeforeHandle("global", () => {}).use(await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages" })).listen(Number(process.env.PORT));',
       ].join("\n")
     );
     const hookedServer = startProcess(["bun", "--hot", join(hookedApp.path, "src/server.ts")], {
@@ -164,7 +164,7 @@ describe.serial("dev HMR", () => {
       [
         'import { furin } from "@teyik0/furin";',
         'import Elysia from "elysia";',
-        'new Elysia().onBeforeHandle("global", () => {}).use(await furin({ pagesDir: import.meta.dir + "/pages", prefix: "/api/admin" })).listen(Number(process.env.PORT));',
+        'new Elysia().onBeforeHandle("global", () => {}).use(await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages", prefix: "/api/admin" })).listen(Number(process.env.PORT));',
       ].join("\n")
     );
     const hookedServer = startProcess(["bun", "--hot", join(hookedApp.path, "src/server.ts")], {
@@ -281,7 +281,7 @@ describe.serial("dev HMR", () => {
 
     writeAppFile(
       app.path,
-      "src/pages/root.tsx",
+      "src/pages/__root.tsx",
       [
         'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
         "",
@@ -341,12 +341,12 @@ describe.serial("dev HMR", () => {
 
     writeAppFile(
       app.path,
-      "src/pages/docs/_route.tsx",
+      "src/pages/docs/route.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { MobileNav } from "../../components/mobile-nav";',
         "",
-        'export const route = defineRoute("/docs/_route")',
+        'export const route = defineRoute("/docs")',
         '  .config({ mode: "ssr" })',
         "  .layout(({ children }) => (",
         '    <section data-docs-layout="docs-v2">',

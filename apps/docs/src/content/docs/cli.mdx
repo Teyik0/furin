@@ -45,6 +45,7 @@ furin build [options]
 |---|---|---|---|
 | `--target` | `bun`, `vercel`, `static`, `package`, `all`, or a configured adapter name | Every config `targets` entry, else `bun` | Select output |
 | `--pagesDir` | Path | Config or auto-detected | Build one explicit app |
+| `--style` | `nextjs` or `tanstack` | Config `style` | [Routing style](/docs/routing) of the explicit pages directory; required with `--pagesDir` |
 | `--prefix` | URL prefix | `""` | Prefix paired with the explicit pages directory |
 | `--config` | Path | Auto-discovered | Use another config file |
 | `--compile` | `server` or `embed` | No executable; inherits `bun.compile` when configured | Produce a Bun executable |
@@ -68,7 +69,7 @@ furin build --target bun --compile embed
 furin build --target static
 
 # Publishable Furin/Elysia plugin
-furin build --target package --pagesDir ./src/admin --prefix /admin
+furin build --target package --pagesDir ./src/admin --style nextjs --prefix /admin
 
 # Bun, Vercel, and static outputs
 furin build --target all
@@ -101,7 +102,8 @@ furin typegen [options]
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--pagesDir` | Config `pagesDir`, config `apps`, `furin()` mounts of the evaluated server entry, then `src/pages` | Pages directory of the root-mounted app |
+| `--pagesDir` | Config `pagesDir`, config `apps`, then the `furin()` mounts of the evaluated server entry | Pages directory of the root-mounted app |
+| `--style` | Config `style` | Routing style of `--pagesDir`; required with it |
 | `--config` | Auto-discovered | Alternate config file |
 
 It writes the same file as the development server and `furin build`: `FileRoutes` covers the route files of every mounted app, and `RouteMap` the patterns of the root-mounted app (prefix `""`).

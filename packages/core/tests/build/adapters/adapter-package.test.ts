@@ -21,10 +21,10 @@ function trackedTmpApp(fixtureName: string): TmpApp {
 }
 
 async function buildPackage(appPath: string, prefix: string) {
-  const { root, routes } = await scanPages(join(appPath, "src/pages"));
+  const { root, routes } = await scanPages({ pagesDir: join(appPath, "src/pages"), prefix: "", style: "tanstack" });
   return await withBuildStub(() =>
     buildPackageTarget(
-      { pagesDir: join(appPath, "src/pages"), prefix, root, routes },
+      { pagesDir: join(appPath, "src/pages"), prefix, root, routes, style: "tanstack" },
       appPath,
       join(appPath, ".furin/build"),
       { target: "package" },
@@ -73,7 +73,7 @@ async function runBuildPackageTargetScenarios(): Promise<void> {
     const declarations = readFileSync(join(app.path, ".furin/build/package/index.d.ts"), "utf8");
     expect(declarations).toContain('import type { FurinOptions, furin } from "@teyik0/furin"');
     expect(declarations).toContain(
-      'export type CreateFurinAppOptions = Omit<FurinOptions, "pagesDir" | "prefix" | "clientDir">',
+      'export type CreateFurinAppOptions = Omit<FurinOptions, "pagesDir" | "prefix" | "style" | "clientDir">',
     );
     expect(declarations).toContain(
       "createFurinApp(options?: CreateFurinAppOptions): ReturnType<typeof furin>",
@@ -82,12 +82,12 @@ async function runBuildPackageTargetScenarios(): Promise<void> {
 
   {
     const app = trackedTmpApp("cli-app");
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
     const buildConfigs: Bun.BuildConfig[] = [];
     await withBuildStub(
       () =>
         buildPackageTarget(
-          { pagesDir: join(app.path, "src/pages"), prefix: "/shop", root, routes },
+          { pagesDir: join(app.path, "src/pages"), prefix: "/shop", root, routes, style: "tanstack" },
           app.path,
           join(app.path, ".furin/build"),
           { target: "package" }
@@ -130,8 +130,8 @@ describe.serial("buildPackageTarget", () => {
         .page(() => <main>Package</main>);
     `);
     const pagesDir = join(app.path, "src/pages");
-    const { root, routes } = await scanPages(pagesDir);
-    await expect(buildPackageTarget({ pagesDir, prefix: "", root, routes }, app.path,
+    const { root, routes } = await scanPages({ pagesDir: pagesDir, prefix: "", style: "tanstack" });
+    await expect(buildPackageTarget({ pagesDir, prefix: "", root, routes, style: "tanstack" }, app.path,
       join(app.path, ".furin/build"), { target: "package", reactCompiler: false }))
       .rejects.toMatchObject({
         errors: expect.arrayContaining([
@@ -153,8 +153,8 @@ describe.serial("buildPackageTarget", () => {
         .page(() => <main>{String(scene.hrefs.length)}</main>);
     `);
     const pagesDir = join(app.path, "src/pages");
-    const { root, routes } = await scanPages(pagesDir);
-    await buildPackageTarget({ pagesDir, prefix: "", root, routes }, app.path,
+    const { root, routes } = await scanPages({ pagesDir: pagesDir, prefix: "", style: "tanstack" });
+    await buildPackageTarget({ pagesDir, prefix: "", root, routes, style: "tanstack" }, app.path,
       join(app.path, ".furin/build"), { target: "package", reactCompiler: false });
     const artifact = readFileSync(join(app.path, ".furin/build/package/register.js"), "utf8");
     expect(artifact.includes("PACKAGE_BROWSER_ONLY_MARKER")).toBe(false);

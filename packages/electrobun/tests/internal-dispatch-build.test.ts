@@ -76,7 +76,7 @@ test.each(["default", "listen"] as const)(
           appendFileSync(process.env.FIXTURE_LIFECYCLE,"stop\\n");
         })
         .get("/lifecycle",()=>({starts,stops}));
-      app.use(await furin({pagesDir:import.meta.dir+"/pages",sync}));
+      app.use(await furin({pagesDir:import.meta.dir+"/pages",style:"tanstack",sync}));
       Object.assign(app,{getObserved:()=>observed});
       `
       );

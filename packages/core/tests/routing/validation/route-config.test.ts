@@ -39,7 +39,7 @@ export const route = defineRootRoute()
 
 const BLOG_LAYOUT = `import { defineRoute } from "@teyik0/furin";
 
-export const route = defineRoute("/blog/_route")
+export const route = defineRoute("/blog")
   .config({ mode: "ssr" })
   .layout(({ children }) => <section>{children}</section>);
 `;
@@ -47,9 +47,9 @@ export const route = defineRoute("/blog/_route")
 describe("validateRouteConfig", () => {
   test("accepts valid routes and unparseable files", () => {
     const pagesDir = createPages({
-      "(admin)/_route.tsx": `import { defineRoute } from "@teyik0/furin";
+      "(admin)/route.tsx": `import { defineRoute } from "@teyik0/furin";
 
-export const route = defineRoute("/(admin)/_route")
+export const route = defineRoute("/(admin)")
   .config({ mode: "ssr" })
   .layout(({ children }) => children);
 `,
@@ -59,41 +59,41 @@ export const route = defineRoute("/(admin)/users")
   .config({ mode: "ssr" })
   .page(() => null);
 `,
-      "blog/_route.tsx": BLOG_LAYOUT,
+      "blog/route.tsx": BLOG_LAYOUT,
       "blog/draft.tsx": `import { defineRoute } from "@teyik0/furin";
 export const route = defineRoute("/blog/draft").config({ mode: `,
       "blog/index.tsx": `import { defineRoute } from "@teyik0/furin";
 
-export const route = defineRoute("/blog")
+export const route = defineRoute("/blog/")
   .config({ mode: "isr", revalidate: 60 })
   .page(() => null);
 `,
-      "root.tsx": ROOT,
+      "__root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([]);
+    expect(validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" })).toEqual([]);
   });
 
   test("reports a route without its file id, with the exact call to write", () => {
     const pagesDir = createPages({
-      "blog/[slug].tsx": `import { defineRoute } from "@teyik0/furin";
+      "blog/$slug.tsx": `import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 
 export const route = defineRoute()
   .config({ mode: "ssg", params: t.Object({ slug: t.String() }) })
   .page(() => null);
 `,
-      "blog/_route.tsx": BLOG_LAYOUT,
-      "root.tsx": ROOT,
+      "blog/route.tsx": BLOG_LAYOUT,
+      "__root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([
+    expect(validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" })).toEqual([
       {
         column: 22,
-        file: join(pagesDir, "blog/[slug].tsx"),
+        file: join(pagesDir, "blog/$slug.tsx"),
         line: 4,
         message:
-          'defineRoute() must name this file. Its id is "/blog/[slug]":\n  defineRoute("/blog/[slug]")',
+          'defineRoute() must name this file. Its id is "/blog/$slug":\n  defineRoute("/blog/$slug")',
       },
     ]);
   });
@@ -107,7 +107,7 @@ export const route = defineRoute("/posts")
   .loader(async () => ({ posts: [] }))
   .page(() => <h1>Posts</h1>);
 `,
-      "root.tsx": ROOT,
+      "__root.tsx": ROOT,
       "static.tsx": `import { defineRoute } from "@teyik0/furin";
 
 export const route = defineRoute("/static")
@@ -117,7 +117,10 @@ export const route = defineRoute("/static")
     });
 
     expect(
-      validateRouteConfig({ pagesDir, prefix: "" }).map(({ line, message }) => ({ line, message }))
+      validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" }).map(({ line, message }) => ({
+        line,
+        message,
+      }))
     ).toEqual([
       {
         line: 4,
@@ -132,15 +135,15 @@ export const route = defineRoute("/static")
 
   test("reports a route chain without config()", () => {
     const pagesDir = createPages({
-      "blog/_route.tsx": BLOG_LAYOUT,
+      "blog/route.tsx": BLOG_LAYOUT,
       "blog/index.tsx": `import { defineRoute } from "@teyik0/furin";
 
-export const route = defineRoute("/blog").page(() => <h1>Blog</h1>);
+export const route = defineRoute("/blog/").page(() => <h1>Blog</h1>);
 `,
-      "root.tsx": ROOT,
+      "__root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([
+    expect(validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" })).toEqual([
       {
         column: 22,
         file: join(pagesDir, "blog/index.tsx"),
@@ -158,7 +161,7 @@ export const route = defineRootRoute()
   .config({ mode: "ssg" })
   .page(() => <h1>About</h1>);
 `,
-      "root.tsx": `import { defineRoute } from "@teyik0/furin";
+      "__root.tsx": `import { defineRoute } from "@teyik0/furin";
 
 export const route = defineRoute("/root")
   .config({ mode: "ssr" })
@@ -166,25 +169,25 @@ export const route = defineRoute("/root")
 `,
     });
 
-    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([
+    expect(validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" })).toEqual([
+      {
+        column: 22,
+        file: join(pagesDir, "__root.tsx"),
+        line: 3,
+        message:
+          'The root layout must use defineRootRoute(), which has no parent layout:\n  import { defineRootRoute } from "@teyik0/furin";\n  export const route = defineRootRoute().config({ mode: "ssr" })',
+      },
       {
         column: 22,
         file: join(pagesDir, "about.tsx"),
         line: 3,
         message:
-          'defineRootRoute() is reserved for root.tsx. Use defineRoute with this file\'s id:\n  import { defineRoute } from "@teyik0/furin";\n  export const route = defineRoute("/about").config({ mode: "ssg" })',
-      },
-      {
-        column: 22,
-        file: join(pagesDir, "root.tsx"),
-        line: 3,
-        message:
-          'root.tsx must use defineRootRoute(), which has no parent layout:\n  import { defineRootRoute } from "@teyik0/furin";\n  export const route = defineRootRoute().config({ mode: "ssr" })',
+          'defineRootRoute() is reserved for the root layout. Use defineRoute with this file\'s id:\n  import { defineRoute } from "@teyik0/furin";\n  export const route = defineRoute("/about").config({ mode: "ssg" })',
       },
     ]);
   });
 
-  test("reports URL segments missing from a page's own params schema", () => {
+  test("reports path params missing from a page's own params schema", () => {
     const page = (id: string, params: string) => `import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 
@@ -193,39 +196,39 @@ export const route = defineRoute(${JSON.stringify(id)})
   .page(() => null);
 `;
     const pagesDir = createPages({
-      "blog/[...rest].tsx": page("/blog/[...rest]", ""),
-      "orgs/[org]/_route.tsx": `import { defineRoute } from "@teyik0/furin";
+      "blog/$.tsx": page("/blog/$", ""),
+      "orgs/$org/route.tsx": `import { defineRoute } from "@teyik0/furin";
 
-export const route = defineRoute("/orgs/[org]/_route")
+export const route = defineRoute("/orgs/$org")
   .config({ mode: "ssr" })
   .layout(({ children }) => children);
 `,
-      "orgs/[org]/members.tsx": page(
-        "/orgs/[org]/members",
+      "orgs/$org/members.tsx": page(
+        "/orgs/$org/members",
         ", params: t.Object({ org: t.String() })"
       ),
-      "orgs/[org]/projects/[id].tsx": page(
-        "/orgs/[org]/projects/[id]",
+      "orgs/$org/projects/$id.tsx": page(
+        "/orgs/$org/projects/$id",
         ", params: t.Object({ org: t.String() })"
       ),
-      "orgs/[org]/teams/[team].tsx": page("/orgs/[org]/teams/[team]", ", params: teamParams"),
-      "root.tsx": ROOT,
+      "orgs/$org/teams/$team.tsx": page("/orgs/$org/teams/$team", ", params: teamParams"),
+      "__root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([
+    expect(validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" })).toEqual([
       {
         column: 11,
-        file: join(pagesDir, "blog/[...rest].tsx"),
+        file: join(pagesDir, "blog/$.tsx"),
         line: 5,
         message:
-          'The URL segment [...rest] is missing from this page\'s params schema. Each page declares every dynamic segment of its path, including those of its layouts. Add to config():\n  params: t.Object({ "*": t.String() })',
+          "The path param _splat is missing from this page's params schema. Each page declares every dynamic segment of its path, including those of its layouts. Add to config():\n  params: t.Object({ _splat: t.String() })",
       },
       {
         column: 11,
-        file: join(pagesDir, "orgs/[org]/projects/[id].tsx"),
+        file: join(pagesDir, "orgs/$org/projects/$id.tsx"),
         line: 5,
         message:
-          "The URL segment [id] is missing from this page's params schema. Each page declares every dynamic segment of its path, including those of its layouts. Add to config():\n  params: t.Object({ id: t.String() })",
+          "The path param id is missing from this page's params schema. Each page declares every dynamic segment of its path, including those of its layouts. Add to config():\n  params: t.Object({ id: t.String() })",
       },
     ]);
   });
@@ -245,11 +248,14 @@ export const route = defineRoute("/client")
   .config({})
   .page(() => null);
 `,
-      "root.tsx": ROOT,
+      "__root.tsx": ROOT,
     });
 
     expect(
-      validateRouteConfig({ pagesDir, prefix: "" }).map(({ file, line }) => ({ file, line }))
+      validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" }).map(({ file, line }) => ({
+        file,
+        line,
+      }))
     ).toEqual([
       { file: join(pagesDir, "alias.tsx"), line: 5 },
       { file: join(pagesDir, "client.tsx"), line: 4 },
@@ -257,31 +263,45 @@ export const route = defineRoute("/client")
   });
 
   test("accepts ids that are the file's place in the pages tree", () => {
-    const keyed = (id: string, rest: string) => `import { defineRoute } from "@teyik0/furin";
+    const keyed = (id: string, rest: string, terminal: "layout" | "page") =>
+      `import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 
 export const route = defineRoute(${JSON.stringify(id)})
   .config({ mode: "ssr"${rest} })
-  .${id.endsWith("/_route") ? "layout(({ children }) => children)" : "page(() => null)"};
+  .${terminal === "layout" ? "layout(({ children }) => children)" : "page(() => null)"};
 `;
     const pagesDir = createPages({
-      "(shop)/_route.tsx": keyed("/(shop)/_route", ""),
-      "(shop)/cart.tsx": keyed("/(shop)/cart", ""),
-      "board/[boardId]/index.tsx": keyed(
-        "/board/[boardId]",
-        ", params: t.Object({ boardId: t.String() })"
+      "(shop)/cart.tsx": keyed("/(shop)/cart", "", "page"),
+      "(shop)/route.tsx": keyed("/(shop)", "", "layout"),
+      "_auth.tsx": keyed("/_auth", "", "layout"),
+      "_auth/login.tsx": keyed("/_auth/login", "", "page"),
+      "board/$boardId/index.tsx": keyed(
+        "/board/$boardId/",
+        ", params: t.Object({ boardId: t.String() })",
+        "page"
       ),
-      "board/_route.tsx": keyed("/board/_route", ""),
-      "index.tsx": keyed("/", ""),
-      "root.tsx": ROOT,
+      "board/route.tsx": keyed("/board", "", "layout"),
+      "posts.$postId.tsx": keyed(
+        "/posts/$postId",
+        ", params: t.Object({ postId: t.String() })",
+        "page"
+      ),
+      "{-$lang}/about.tsx": keyed(
+        "/{-$lang}/about",
+        ", params: t.Object({ lang: t.Optional(t.String()) })",
+        "page"
+      ),
+      "index.tsx": keyed("/", "", "page"),
+      "__root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([]);
+    expect(validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" })).toEqual([]);
   });
 
   test("reports a stale id with the file's id, and a layout option", () => {
     const pagesDir = createPages({
-      "blog/_route.tsx": BLOG_LAYOUT,
+      "blog/route.tsx": BLOG_LAYOUT,
       "blog/index.tsx": `import { defineRoute } from "@teyik0/furin";
 
 export const route = defineRoute("/posts")
@@ -289,22 +309,22 @@ export const route = defineRoute("/posts")
   .page(() => null);
 `,
       "blog/latest.tsx": `import { defineRoute } from "@teyik0/furin";
-import { route as blogRoute } from "./_route";
+import { route as blogRoute } from "./route";
 
 export const route = defineRoute("/blog/latest")
   .config({ layout: blogRoute, mode: "ssg" })
   .page(() => null);
 `,
-      "root.tsx": ROOT,
+      "__root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([
+    expect(validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" })).toEqual([
       {
         column: 34,
         file: join(pagesDir, "blog/index.tsx"),
         line: 3,
         message:
-          'defineRoute("/posts") does not match this file. Its id is "/blog":\n  defineRoute("/blog")',
+          'defineRoute("/posts") does not match this file. Its id is "/blog/":\n  defineRoute("/blog/")',
       },
       {
         column: 13,
@@ -321,17 +341,16 @@ export const route = defineRoute("/blog/latest")
 
 export const route = defineRoute(${JSON.stringify(id)})
   .config({ mode: "ssg" })
-  .${id.endsWith("/_route") ? "layout(({ children }) => children)" : "page(() => null)"};
+  .page(() => null);
 `;
     const pagesDir = createPages({
       "(team)/members.tsx": keyed("/admin/(team)/members"),
-      "_route.tsx": keyed("/admin/_route"),
-      "index.tsx": keyed("/admin"),
-      "root.tsx": ROOT,
+      "index.tsx": keyed("/admin/"),
+      "__root.tsx": ROOT,
       "users.tsx": keyed("/users"),
     });
 
-    expect(validateRouteConfig({ pagesDir, prefix: "/admin" })).toEqual([
+    expect(validateRouteConfig({ pagesDir, prefix: "/admin", style: "tanstack" })).toEqual([
       {
         column: 34,
         file: join(pagesDir, "users.tsx"),
@@ -355,10 +374,78 @@ export function preview() {
   return route;
 }
 `,
-      "root.tsx": ROOT,
+      "__root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([]);
+    expect(validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" })).toEqual([]);
+  });
+});
+
+describe("validateRouteConfig — styles", () => {
+  test("keys a Next.js-style tree with TanStack ids", () => {
+    const pagesDir = createPages({
+      "board/[boardId]/page.tsx": `import { defineRoute } from "@teyik0/furin";
+import { t } from "elysia";
+
+export const route = defineRoute("/board/[boardId]")
+  .config({ mode: "ssr", params: t.Object({ boardId: t.String() }) })
+  .page(() => null);
+`,
+      "board/layout.tsx": `import { defineRoute } from "@teyik0/furin";
+
+export const route = defineRoute("/board")
+  .config({ mode: "ssr" })
+  .layout(({ children }) => children);
+`,
+      "layout.tsx": ROOT,
+    });
+
+    expect(
+      validateRouteConfig({ pagesDir, prefix: "", style: "nextjs" }).map(({ message }) => message)
+    ).toEqual([
+      'defineRoute("/board/[boardId]") does not match this file. Its id is "/board/$boardId/":\n  defineRoute("/board/$boardId/")',
+    ]);
+  });
+
+  test("reports .error() / .notFound() in the nextjs style, which declares boundaries as files", () => {
+    const pagesDir = createPages({
+      "about/page.tsx": `import { defineRoute } from "@teyik0/furin";
+
+const AboutError = () => null;
+export const route = defineRoute("/about/")
+  .config({ mode: "ssg" })
+  .error(AboutError)
+  .page(() => null);
+`,
+      "layout.tsx": ROOT,
+    });
+
+    expect(
+      validateRouteConfig({ pagesDir, prefix: "", style: "nextjs" }).map(({ message }) => message)
+    ).toEqual([
+      ".error() is the TanStack style. In the nextjs style, default-export the component from an error.tsx next to this route.",
+    ]);
+    expect(validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" })).not.toContainEqual(
+      expect.objectContaining({ message: expect.stringContaining(".error()") })
+    );
+  });
+
+  test("suggests t.Optional for an optional path param", () => {
+    const pagesDir = createPages({
+      "__root.tsx": ROOT,
+      "{-$lang}/about.tsx": `import { defineRoute } from "@teyik0/furin";
+
+export const route = defineRoute("/{-$lang}/about")
+  .config({ mode: "ssg" })
+  .page(() => null);
+`,
+    });
+
+    expect(
+      validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" }).map(({ message }) => message)
+    ).toEqual([
+      'The path param lang is missing from this page\'s params schema. Each page declares every dynamic segment of its path, including those of its layouts. Add to config():\n  import { t } from "elysia";\n  params: t.Object({ lang: t.Optional(t.String()) })',
+    ]);
   });
 });
 
@@ -366,22 +453,22 @@ describe("scaffoldEmptyRoutes", () => {
   test("writes a template into whitespace-only route files and leaves other files untouched", () => {
     const pagesDir = createPages({
       "about.tsx": "\n",
-      "blog/[slug].tsx": "  ",
-      "blog/_route.tsx": "",
+      "blog/$slug.tsx": "  ",
+      "blog/route.tsx": "",
       "contact.tsx": "// TODO\n",
-      "root.tsx": " \n",
+      "__root.tsx": " \n",
     });
 
-    const written = scaffoldEmptyRoutes({ pagesDir, prefix: "" });
+    const written = scaffoldEmptyRoutes({ pagesDir, prefix: "", style: "tanstack" });
 
     expect(written).toEqual(
-      ["about.tsx", "blog/_route.tsx", "blog/[slug].tsx", "root.tsx"].map((file) =>
+      ["__root.tsx", "about.tsx", "blog/$slug.tsx", "blog/route.tsx"].map((file) =>
         join(pagesDir, file)
       )
     );
     expect(readFileSync(join(pagesDir, "contact.tsx"), "utf8")).toBe("// TODO\n");
     expect(
-      readFileSync(join(pagesDir, "root.tsx"), "utf8")
+      readFileSync(join(pagesDir, "__root.tsx"), "utf8")
     ).toBe(`import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
 
 export const route = defineRootRoute()
@@ -399,36 +486,36 @@ export const route = defineRootRoute()
   ));
 `);
     expect(
-      readFileSync(join(pagesDir, "blog/_route.tsx"), "utf8")
+      readFileSync(join(pagesDir, "blog/route.tsx"), "utf8")
     ).toBe(`import { defineRoute } from "@teyik0/furin";
 
-export const route = defineRoute("/blog/_route")
+export const route = defineRoute("/blog")
   .config({ mode: "ssr" })
   .layout(({ children }) => children);
 `);
     expect(
-      readFileSync(join(pagesDir, "blog/[slug].tsx"), "utf8")
+      readFileSync(join(pagesDir, "blog/$slug.tsx"), "utf8")
     ).toBe(`import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 
-export const route = defineRoute("/blog/[slug]")
+export const route = defineRoute("/blog/$slug")
   .config({ mode: "ssg", params: t.Object({ slug: t.String() }) })
   .page(() => null);
 `);
-    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([]);
-    expect(scaffoldEmptyRoutes({ pagesDir, prefix: "" })).toEqual([]);
+    expect(validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" })).toEqual([]);
+    expect(scaffoldEmptyRoutes({ pagesDir, prefix: "", style: "tanstack" })).toEqual([]);
   });
 
   test("writes the prefixed id in an app mounted with a prefix", () => {
-    const pagesDir = createPages({ "index.tsx": "", "root.tsx": ROOT, "users.tsx": "" });
+    const pagesDir = createPages({ "index.tsx": "", "__root.tsx": ROOT, "users.tsx": "" });
 
-    scaffoldEmptyRoutes({ pagesDir, prefix: "/admin" });
+    scaffoldEmptyRoutes({ pagesDir, prefix: "/admin", style: "tanstack" });
 
-    expect(readFileSync(join(pagesDir, "index.tsx"), "utf8")).toContain('defineRoute("/admin")');
+    expect(readFileSync(join(pagesDir, "index.tsx"), "utf8")).toContain('defineRoute("/admin/")');
     expect(readFileSync(join(pagesDir, "users.tsx"), "utf8")).toContain(
       'defineRoute("/admin/users")'
     );
-    expect(validateRouteConfig({ pagesDir, prefix: "/admin" })).toEqual([]);
+    expect(validateRouteConfig({ pagesDir, prefix: "/admin", style: "tanstack" })).toEqual([]);
   });
 });
 
@@ -440,7 +527,7 @@ export const route = defineRoute("/about")
   .config({})
   .page(() => null);
 `;
-    const pagesDir = createPages({ "about.tsx": invalid, "root.tsx": ROOT });
+    const pagesDir = createPages({ "about.tsx": invalid, "__root.tsx": ROOT });
     const aboutPath = join(pagesDir, "about.tsx");
     const store = new DevDiagnosticStore();
     const events: string[] = [];
@@ -448,7 +535,7 @@ export const route = defineRoute("/about")
       events.push(event.type === "error" ? event.diagnostic.message : event.type);
     });
     const consoleError = spyOn(console, "error").mockImplementation(() => undefined);
-    const report = createRouteConfigReporter({ pagesDir, prefix: "" }, store);
+    const report = createRouteConfigReporter({ pagesDir, prefix: "", style: "tanstack" }, store);
 
     // Messages show paths with POSIX separators (absolute across Windows drives).
     const message = `[furin] ${aboutPath.replaceAll("\\", "/")}:4:11: config() must declare mode ("ssg", "ssr" or "isr"), e.g. mode: "ssg".`;

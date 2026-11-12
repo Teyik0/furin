@@ -18,12 +18,16 @@ export async function renderEjsFile(sourcePath: string, vars: EjsTemplateVars): 
  * Called during Stage 5 after deps are resolved in Stage 4.
  */
 export function buildEjsVars(ctx: PipelineContext): EjsTemplateVars {
+  if (!ctx.routeStyle) {
+    throw new Error("Routing style not selected — stage2Selection must run first.");
+  }
   return {
     features: ctx.features,
     furinVersion: ctx.furinVersion,
     projectName: ctx.projectName,
     projectNameKebab: ctx.projectNameKebab,
     projectNamePascal: ctx.projectNamePascal,
+    routeStyle: ctx.routeStyle,
     versions: {
       ...ctx.dependencies,
       ...ctx.devDependencies,

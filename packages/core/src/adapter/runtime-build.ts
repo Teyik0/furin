@@ -12,6 +12,7 @@ import {
 } from "../build/route-metadata.ts";
 import { toPosixPath } from "../build/shared.ts";
 import type { BuildAppOptions } from "../build/types.ts";
+import type { RouteInstanceSpec } from "../plugin/route-manifest.ts";
 import type { RouteRegistrySnapshot } from "../plugin/route-registry.ts";
 import { composableRouteModuleSpecifier } from "../plugin/route-registry.ts";
 import { routeSourcePaths } from "../plugin/route-tree.ts";
@@ -275,11 +276,13 @@ export function buildCompileMetadata(root: BuildRoot | RootLayout, routes: Build
   const routeMetadata: NonNullable<EntryAppContext["routeMetadata"]> = {};
   for (const route of routes) {
     routeMetadata[toPosixPath(route.path)] = {
+      layouts: route.layouts.map((layout) => ({ ...layout, path: toPosixPath(layout.path) })),
       requestKeys: route.requestKeys,
       requestKeysByLoader: route.requestKeysByLoader,
       segmentBoundaries: route.segmentBoundaries.map((boundary) => ({
         depth: boundary.depth,
         errorPath: boundary.errorPath ? toPosixPath(boundary.errorPath) : undefined,
+        ...(boundary.fromRoute ? { fromRoute: boundary.fromRoute } : {}),
         notFoundPath: boundary.notFoundPath ? toPosixPath(boundary.notFoundPath) : undefined,
         path: toPosixPath(boundary.path),
       })),
@@ -290,9 +293,7 @@ export function buildCompileMetadata(root: BuildRoot | RootLayout, routes: Build
 }
 
 /** One mounted app's build input (root + routes scanned from its pagesDir). */
-export interface RuntimeTargetApp {
-  pagesDir: string;
-  prefix: string;
+export interface RuntimeTargetApp extends RouteInstanceSpec {
   root: BuildRoot | RootLayout;
   routeRegistry?: RouteRegistrySnapshot;
   routes: BuildRouteInput[];
@@ -412,7 +413,7 @@ export async function buildRuntimeApp(
       : undefined,
     optimizeImports: options.optimizeImports,
     outDir: targetDir,
-    pagesDir: app.pagesDir,
+    pages: { pagesDir: app.pagesDir, style: app.style },
     routeRegistry: app.routeRegistry,
     plugins: options.plugins,
     preloadRouteChunks: options.preload?.routeChunks,

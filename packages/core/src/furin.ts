@@ -2,6 +2,7 @@ import { dirname, resolve } from "node:path";
 import { type AnyElysia, Elysia, NotFound } from "elysia";
 import type { RequestLogger } from "evlog";
 import { FURIN_RENDER_DECORATOR, type FurinNativeRouteContext } from "./define-route.ts";
+import type { RouteStyle } from "./plugin/route-manifest.ts";
 import { consumePendingInvalidations } from "./server/cache/invalidation.ts";
 import type { PageCacheAdapter } from "./server/cache/page-cache.ts";
 import { setPageCacheAdapter } from "./server/cache/page-cache-state.ts";
@@ -88,6 +89,12 @@ type FurinApplication<App extends AnyElysia> =
       >
     : never;
 
+/** Each style's conventional pages directory: Next.js `app/`, TanStack Start `routes/`. */
+const DEFAULT_PAGES_DIRS: { [Style in RouteStyle]: string } = {
+  nextjs: "src/app",
+  tanstack: "src/routes",
+};
+
 /** Options for the {@link furin} plugin. */
 export interface FurinOptions {
   /**
@@ -125,6 +132,7 @@ export interface FurinOptions {
    * process-local cache.
    */
   pageCache?: PageCacheAdapter;
+  /** Defaults to `src/app` in the `nextjs` style and `src/routes` in the `tanstack` style. */
   pagesDir?: string;
   /**
    * Full physical mount path of this app, e.g. `"/admin"`. All pages,
@@ -137,6 +145,13 @@ export interface FurinOptions {
    * two prefixes, throws.
    */
   prefix?: string;
+  /**
+   * File-routing convention of `pagesDir`: `"nextjs"` (App Router: `layout.tsx`,
+   * `page.tsx`, `[id]`, `error.tsx`) or `"tanstack"` (TanStack Start:
+   * `__root.tsx`, `route.tsx`, `$id`, flat `a.$b.tsx`). Both key
+   * `defineRoute(id)` with TanStack Start ids.
+   */
+  style: RouteStyle;
   /**
    * Configures Furin's sync event stream with the required adapter. The
    * optional `path` defaults to `/_furin/sync`. Omit this option or pass
@@ -220,13 +235,14 @@ async function createFurinApp(options: FurinOptions): Promise<{
     logger,
     pageCache,
     pagesDir,
+    style,
     sync,
   } = options;
   const prefix = normalizePrefix(options.prefix);
   const cwd = process.cwd();
   // In a deployed binary the cwd-resolved pagesDir may differ from the build
   // machine's; the compile context is found by the (stable) declared prefix.
-  const paramPagesDir = resolve(cwd, pagesDir ?? "src/pages");
+  const paramPagesDir = resolve(cwd, pagesDir ?? DEFAULT_PAGES_DIRS[style]);
   const ctx = getCompileContext(paramPagesDir, prefix);
   const resolvedPagesDir = ctx?.rootPath ? dirname(ctx.rootPath) : paramPagesDir;
   const normalizedPagesDir = resolvedPagesDir.replaceAll("\\", "/");
@@ -270,6 +286,7 @@ async function createFurinApp(options: FurinOptions): Promise<{
     ? await (await import("./server/dev/runtime.ts")).createDevRuntime(
         instance,
         resolvedPagesDir,
+        style,
         modeOptions
       )
     : await createProdRuntime(instance, ctx, clientDir, modeOptions);
@@ -322,22 +339,23 @@ const mountedPrefixes = new WeakMap<AnyElysia, Map<string, FurinInstance>>();
  *
  * ```ts
  * new Elysia()
- *   .use(await furin({ pagesDir: "./src/pages" }))
- *   .use(await furin({ pagesDir: "./src/admin", prefix: "/admin" }))
+ *   .use(await furin({ style: "tanstack" }))
+ *   .use(await furin({ pagesDir: "./src/admin", prefix: "/admin", style: "nextjs" }))
  *   .listen(3000)
  * ```
  */
-export async function furin(options?: FurinOptions) {
+export async function furin(options: FurinOptions) {
   const registration = {
-    pagesDir: options?.pagesDir ?? "src/pages",
-    prefix: normalizePrefix(options?.prefix),
+    pagesDir: options.pagesDir ?? DEFAULT_PAGES_DIRS[options.style],
+    prefix: normalizePrefix(options.prefix),
+    style: options.style,
   };
   if (recordFurinRegistration(registration)) {
     // The build only discovers mounts: no runtime, nothing to mount.
     return <ParentApp extends AnyElysia>(parentApp: ParentApp) =>
       parentApp as unknown as FurinApplication<ParentApp>;
   }
-  const { app, hasSync, instance } = await createFurinApp(options ?? {});
+  const { app, hasSync, instance } = await createFurinApp(options);
   let mounted = false;
   return <ParentApp extends AnyElysia>(parentApp: ParentApp): FurinApplication<ParentApp> => {
     if (mounted) {
@@ -367,6 +385,7 @@ export async function furin(options?: FurinOptions) {
 
 export { FurinErrorBoundary, FurinNotFoundBoundary } from "./client/boundaries.tsx";
 export { HeadContent, Scripts } from "./client/document.tsx";
+export type { RouteStyle } from "./plugin/route-manifest.ts";
 export type { Register } from "./routes.ts";
 export type { InvalidationInput, InvalidationRule } from "./server/auto-invalidate/index.ts";
 export { furinInvalidate, revalidateTag } from "./server/auto-invalidate/index.ts";

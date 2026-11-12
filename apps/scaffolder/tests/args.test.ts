@@ -12,6 +12,17 @@ describe("parseArgs", () => {
     expect(result.install).toBe(true);
   });
 
+  it("parses --style and --style=", () => {
+    expect(parseArgs(["--style", "nextjs"]).style).toBe("nextjs");
+    expect(parseArgs(["--style=tanstack"]).style).toBe("tanstack");
+    expect(parseArgs([]).style).toBeNull();
+  });
+
+  it("rejects an unknown or missing --style", () => {
+    expect(() => parseArgs(["--style", "remix"])).toThrow('Invalid style "remix"');
+    expect(() => parseArgs(["--style"])).toThrow("Missing value for --style");
+  });
+
   it("parses positional target directory", () => {
     const result = parseArgs(["my-app"]);
     expect(result.targetDir).toBe("my-app");

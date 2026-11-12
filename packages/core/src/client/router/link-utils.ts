@@ -77,8 +77,9 @@ export function isSameOriginFetchResult(
 
 /**
  * Substitutes typed path params into a route pattern: `/board/:boardId` with
- * `{ boardId: 42 }` → `/board/42`. The `*` wildcard segment (catch-all) is
- * replaced from `params["*"]`. Unknown segments are left untouched so
+ * `{ boardId: 42 }` → `/board/42`. An optional `/:lang?` segment is dropped
+ * when its param is absent. The `*` wildcard segment (catch-all) is
+ * replaced from `params._splat`. Unknown segments are left untouched so
  * partially-applied patterns stay visible.
  *
  * @internal Exported for unit testing only.
@@ -90,10 +91,17 @@ export function applyLinkParams(
   if (!params) {
     return to;
   }
-  let url = to.replaceAll(/:([a-zA-Z0-9_]+)/g, (match: string, name: string) =>
-    name in params ? encodeURIComponent(String(params[name])) : match
-  );
-  const wildcard: string | number | undefined = params["*"];
+  let url = to
+    .replaceAll(/\/:([a-zA-Z0-9_]+)\?(?=\/|$)/g, (_match: string, name: string) =>
+      params[name] === undefined ? "" : `/${encodeURIComponent(String(params[name]))}`
+    )
+    .replaceAll(/:([a-zA-Z0-9_]+)/g, (match: string, name: string) =>
+      name in params ? encodeURIComponent(String(params[name])) : match
+    );
+  if (url === "") {
+    url = "/";
+  }
+  const wildcard: string | number | undefined = params._splat;
   if (wildcard !== undefined && url.includes("/*")) {
     const encodedWildcard = String(wildcard).split("/").map(encodeURIComponent).join("/");
     url = url.replace("/*", () => `/${encodedWildcard}`);

@@ -4,7 +4,7 @@ import { initLogger } from "evlog";
 
 initLogger({ env: { service: "weather" } });
 
-const app = new Elysia().use(await furin({ pagesDir: "./src/pages" }));
+const app = new Elysia().use(await furin({ style: "nextjs" }));
 export const port = Number(process.env.PORT ?? 3001);
 
 if (import.meta.main) {

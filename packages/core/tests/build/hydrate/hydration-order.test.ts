@@ -17,7 +17,7 @@ afterAll(() => __setDevMode(originalDevMode));
 
 describe("hydration: SSR and client apply layouts in same order", () => {
   test("root is always at index 0 in routeChain", async () => {
-    const result = await scanPages(FIXTURES_DIR);
+    const result = await scanPages({ pagesDir: FIXTURES_DIR, prefix: "", style: "tanstack" });
     expect(result.root).not.toBeNull();
 
     for (const route of result.routes) {
@@ -29,7 +29,7 @@ describe("hydration: SSR and client apply layouts in same order", () => {
   });
 
   test("SSR iterates layouts from index 1 to end (matching client slice(1))", async () => {
-    const result = await scanPages(FIXTURES_DIR);
+    const result = await scanPages({ pagesDir: FIXTURES_DIR, prefix: "", style: "tanstack" });
 
     const nestedRoute = result.routes.find((r) => r.pattern === "/nested");
     expectDefined(nestedRoute);
@@ -54,7 +54,7 @@ describe("hydration: SSR and client apply layouts in same order", () => {
   });
 
   test("3-level nested route applies layouts in correct order", async () => {
-    const result = await scanPages(FIXTURES_DIR);
+    const result = await scanPages({ pagesDir: FIXTURES_DIR, prefix: "", style: "tanstack" });
 
     const deepRoute = result.routes.find((r) => r.pattern === "/nested/deep");
     expectDefined(deepRoute);
@@ -81,7 +81,7 @@ describe("hydration: SSR and client apply layouts in same order", () => {
   });
 
   test("all routes have consistent chain structure", async () => {
-    const result = await scanPages(FIXTURES_DIR);
+    const result = await scanPages({ pagesDir: FIXTURES_DIR, prefix: "", style: "tanstack" });
 
     for (const route of result.routes) {
       const chain = collectRouteChainFromRoute(route.page._route);

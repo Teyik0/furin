@@ -35,6 +35,7 @@ const MOCK_EJS_VARS: EjsTemplateVars = {
   projectName: "test-app",
   projectNameKebab: "test-app",
   projectNamePascal: "TestApp",
+  routeStyle: "tanstack",
   versions: {},
 };
 
@@ -42,6 +43,7 @@ interface ManifestFile {
   dest: string;
   kind: "ejs" | "package-json" | "static";
   src?: string;
+  style?: "nextjs" | "tanstack";
 }
 
 interface TemplateDefinition {
@@ -262,7 +264,7 @@ describe("static files — no EJS-like tokens", () => {
 describe("Furin page templates", () => {
   it("declare loader before the page terminal so loader data remains inferred", async () => {
     for (const template of registry.templates) {
-      const pageFile = template.files.find((file) => file.dest === "src/pages/index.tsx");
+      const pageFile = template.files.find((file) => file.dest === "src/routes/index.tsx");
       expect(pageFile).toBeDefined();
       if (!pageFile?.src) {
         throw new Error(`Missing index page template for ${template.id}`);
@@ -279,7 +281,7 @@ describe("Furin page templates", () => {
 
   it("call the shared service from the loader instead of fetching their own API", async () => {
     for (const template of registry.templates) {
-      const pageFile = template.files.find((file) => file.dest === "src/pages/index.tsx");
+      const pageFile = template.files.find((file) => file.dest === "src/routes/index.tsx");
       if (!pageFile?.src) {
         throw new Error(`Missing index page template for ${template.id}`);
       }
@@ -292,6 +294,37 @@ describe("Furin page templates", () => {
   });
 });
 
+describe("routing styles", () => {
+  it("generate the root layout and index page of each style from the same sources", () => {
+    for (const template of registry.templates) {
+      const sourcesOf = (style: "nextjs" | "tanstack") =>
+        Object.fromEntries(
+          template.files.filter((file) => file.style === style).map((file) => [file.dest, file.src])
+        );
+      const tanstack = sourcesOf("tanstack");
+      const nextjs = sourcesOf("nextjs");
+      expect(tanstack["src/routes/__root.tsx"], template.id).toBe(nextjs["src/app/layout.tsx"]);
+      expect(tanstack["src/routes/index.tsx"], template.id).toBe(nextjs["src/app/page.tsx"]);
+    }
+  });
+
+  it("pass the chosen style to furin()", async () => {
+    for (const template of registry.templates) {
+      const serverFile = template.files.find((file) => file.dest === "src/server.ts");
+      if (!serverFile?.src) {
+        throw new Error(`Missing server template for ${template.id}`);
+      }
+      for (const routeStyle of ["nextjs", "tanstack"] as const) {
+        const server = await renderEjsFile(resolve(TEMPLATES_DIR, serverFile.src), {
+          ...MOCK_EJS_VARS,
+          routeStyle,
+        });
+        expect(server, template.id).toContain(`style: "${routeStyle}"`);
+      }
+    }
+  });
+});
+
 describe("generated furin-env.d.ts", () => {
   // Keeps the scaffolded file identical to what `furin` writes on the first dev
   // run, so a new project type-checks before it is ever started.
@@ -299,26 +332,32 @@ describe("generated furin-env.d.ts", () => {
     const { writeRouteTypes } = (await import(ROUTE_TYPES_MODULE)) as {
       writeRouteTypes: (routes: { path: string; pattern: string }[], projectRoot: string) => void;
     };
-    const projectRoot = mkdtempSync(join(tmpdir(), "create-furin-route-types-"));
-    try {
-      writeRouteTypes(
-        [{ path: join(projectRoot, "src/pages/index.tsx"), pattern: "/" }],
-        projectRoot
-      );
-      const expected = readFileSync(join(projectRoot, "furin-env.d.ts"), "utf8");
+    for (const [routeStyle, indexPage] of [
+      ["tanstack", "src/routes/index.tsx"],
+      ["nextjs", "src/app/page.tsx"],
+    ] as const) {
+      const projectRoot = mkdtempSync(join(tmpdir(), "create-furin-route-types-"));
+      try {
+        writeRouteTypes([{ path: join(projectRoot, indexPage), pattern: "/" }], projectRoot);
+        const expected = readFileSync(join(projectRoot, "furin-env.d.ts"), "utf8");
 
-      for (const template of registry.templates) {
-        const envFile = template.files.find((file) => file.dest === "furin-env.d.ts");
-        if (!envFile?.src) {
-          throw new Error(`Missing furin-env.d.ts template for ${template.id}`);
+        for (const template of registry.templates) {
+          const envFile = template.files.find((file) => file.dest === "furin-env.d.ts");
+          if (!envFile?.src) {
+            throw new Error(`Missing furin-env.d.ts template for ${template.id}`);
+          }
+          const rendered = await renderEjsFile(resolve(TEMPLATES_DIR, envFile.src), {
+            ...MOCK_EJS_VARS,
+            routeStyle,
+          });
+          expect(
+            rendered,
+            `${template.id} ${routeStyle} furin-env.d.ts drifted from writeRouteTypes()`
+          ).toBe(expected);
         }
-        const rendered = await renderEjsFile(resolve(TEMPLATES_DIR, envFile.src), MOCK_EJS_VARS);
-        expect(rendered, `${template.id} furin-env.d.ts drifted from writeRouteTypes()`).toBe(
-          expected
-        );
+      } finally {
+        rmSync(projectRoot, { force: true, recursive: true });
       }
-    } finally {
-      rmSync(projectRoot, { force: true, recursive: true });
     }
   });
 });

@@ -1,7 +1,7 @@
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 
-export const route = defineRoute("/schema-merge-parent/child")
+export const route = defineRoute("/schema-merge-parent/child/")
   .config({
     mode: "ssr",
     query: t.Object({

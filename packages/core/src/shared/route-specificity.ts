@@ -2,7 +2,10 @@ function segmentSpecificity(segment: string): number {
   if (segment === "*") {
     return 1;
   }
-  return segment.startsWith(":") ? 2 : 3;
+  if (segment.startsWith(":")) {
+    return segment.endsWith("?") ? 1.5 : 2;
+  }
+  return 3;
 }
 
 /** Positive when a is more specific: literal > parameter > catch-all. */

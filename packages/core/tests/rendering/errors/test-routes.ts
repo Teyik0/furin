@@ -55,6 +55,7 @@ export function createTestRoute(
     pattern,
     routeChain: [ROOT_ROUTE],
     // The page's own directory boundary, inside the root layout.
+    layouts: [],
     segmentBoundaries:
       boundary.error || boundary.notFound ? [{ depth: 0, ...boundary, path: directory }] : [],
     tags: [],

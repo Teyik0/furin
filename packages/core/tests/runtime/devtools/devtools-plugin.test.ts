@@ -76,6 +76,7 @@ describe("native DevTools plugin", () => {
       path: `${process.cwd()}/src/pages/blog/[slug].tsx`,
       pattern: "/blog/:slug",
       routeChain: [],
+      layouts: [],
       segmentBoundaries: [],
       tags: ["posts"],
     } satisfies ResolvedRoute;
@@ -112,6 +113,7 @@ describe("native DevTools plugin", () => {
       path: `${process.cwd()}/../private-project/pages/account.tsx`,
       pattern: "/account",
       routeChain: [],
+      layouts: [],
       segmentBoundaries: [],
     } satisfies ResolvedRoute;
     const app = new Elysia().use(createDevtoolsPlugin([route], undefined));

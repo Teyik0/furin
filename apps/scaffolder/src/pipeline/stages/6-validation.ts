@@ -32,7 +32,10 @@ export async function stage6Validation(ctx: PipelineContext): Promise<void> {
   }
 
   // ── Verify essential Furin files exist ────────────────────────────────
-  const essentials = ["src/server.ts", "src/pages/root.tsx"];
+  const essentials = [
+    "src/server.ts",
+    ctx.routeStyle === "nextjs" ? "src/app/layout.tsx" : "src/routes/__root.tsx",
+  ];
   for (const rel of essentials) {
     const exists = ctx.writtenFiles.some(
       (filePath) => getProjectRelativePath(ctx.targetDir, filePath) === rel

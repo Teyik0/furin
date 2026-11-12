@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { buildApp, generateRouteTypes } from "../build/index.ts";
 import { BUILD_TARGETS, type FurinTarget } from "../config.ts";
+import type { RouteStyle } from "../plugin/route-manifest.ts";
 import { normalizePrefix } from "../server/instance.ts";
 import { loadCliConfig } from "./config.ts";
 import { runDevelopment } from "./dev.ts";
@@ -19,6 +20,23 @@ function log(msg: string): void {
 function bail(msg: string): never {
   console.error(`\x1b[31m✗\x1b[0m ${msg}`);
   process.exit(1);
+}
+
+/** `--pagesDir` / config `pagesDir` builds one explicit app, which needs its routing style. */
+function singleApp(
+  pagesDir: string | undefined,
+  style: string | undefined,
+  prefix: string | undefined
+): [{ pagesDir: string; prefix: string; style: RouteStyle }] | undefined {
+  if (pagesDir === undefined) {
+    return;
+  }
+  if (style !== "nextjs" && style !== "tanstack") {
+    bail(
+      `pagesDir ${pagesDir} needs its file-routing style: pass --style nextjs|tanstack or set \`style\` in furin.config.ts.`
+    );
+  }
+  return [{ pagesDir, prefix: normalizePrefix(prefix), style }];
 }
 
 function resolveCompileMode(
@@ -127,6 +145,7 @@ if (command === "dev") {
         output: { type: "string" },
         pagesDir: { type: "string" },
         prefix: { type: "string" },
+        style: { type: "string" },
         target: { type: "string" },
       },
       strict: true,
@@ -142,6 +161,7 @@ if (command === "dev") {
     target?: string;
     pagesDir?: string;
     prefix?: string;
+    style?: string;
     config?: string;
   };
 
@@ -194,18 +214,11 @@ if (command === "dev") {
     // normalizePrefix here so a bad --prefix fails before buildApp starts
     // (resolveAppSpecs normalizes config-provided prefixes the same way).
     apps:
-      (values.pagesDir ?? config.pagesDir)
-        ? [
-            {
-              pagesDir: values.pagesDir ?? (config.pagesDir as string),
-              prefix: normalizePrefix(values.prefix),
-            },
-          ]
-        : config.apps,
+      singleApp(values.pagesDir ?? config.pagesDir, values.style ?? config.style, values.prefix) ??
+      config.apps,
     clientLogging: config.clientLogging ?? false,
     compile: resolveCompileMode(compileFlag, config.bun?.compile),
     optimizeImports: config.optimizeImports,
-    pagesDir: undefined,
     plugins: config.plugins,
     serverExternalPackages: values.external,
     preload: config.preload,
@@ -227,6 +240,7 @@ if (command === "dev") {
       options: {
         config: { type: "string" },
         pagesDir: { type: "string" },
+        style: { type: "string" },
       },
       strict: true,
     }).values;
@@ -234,12 +248,12 @@ if (command === "dev") {
     bail(error instanceof Error ? error.message : String(error));
   }
 
-  const values = rawValues as { config?: string; pagesDir?: string };
+  const values = rawValues as { config?: string; pagesDir?: string; style?: string };
   const config = await loadCliConfig(process.cwd(), values.config);
-  const pagesDir = values.pagesDir ?? config.pagesDir;
   await generateRouteTypes({
-    apps: pagesDir ? [{ pagesDir, prefix: "" }] : config.apps,
-    pagesDir: undefined,
+    apps:
+      singleApp(values.pagesDir ?? config.pagesDir, values.style ?? config.style, undefined) ??
+      config.apps,
     plugins: config.plugins,
     rootDir: config.rootDir,
     serverEntry: config.serverEntry,
@@ -259,6 +273,7 @@ BUILD OPTIONS
   --target    ${BUILD_TARGETS.join(" | ")} | all  (default: bun)
               "package" builds a publishable Elysia-plugin artifact (register.js + factory + client assets)
   --pagesDir  Pages directory
+  --style     File-routing style of --pagesDir: nextjs or tanstack
   --prefix    Mount prefix for the built app (e.g. /admin) — pairs with --pagesDir
   --config    Config file path
   --compile   server | embed  Compile to binary: "server" keeps client on disk, "embed" is self-contained
@@ -268,7 +283,8 @@ BUILD OPTIONS
 
 TYPEGEN OPTIONS
   Writes furin-env.d.ts for every mounted app (run it before tsc in CI)
-  --pagesDir  Pages directory (default: config apps, server entry furin() mounts, then src/pages)
+  --pagesDir  Pages directory (default: config apps, then the server entry's furin() mounts)
+  --style     File-routing style of --pagesDir: nextjs or tanstack
   --config    Config file path
 
 PREVIEW OPTIONS

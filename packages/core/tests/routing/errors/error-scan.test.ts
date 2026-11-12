@@ -6,21 +6,21 @@ const ERROR_FIXTURES_DIR = join(import.meta.dirname, "../../fixtures/pages/neste
 
 describe("scanPages — error.tsx discovery", () => {
   test("exposes root error component on root layout", async () => {
-    const result = await scanPages(ERROR_FIXTURES_DIR);
+    const result = await scanPages({ pagesDir: ERROR_FIXTURES_DIR, prefix: "", style: "nextjs" });
 
     expect(result.root.error).toBeDefined();
     expect(typeof result.root.error).toBe("function");
   });
 
   test("does not register error.tsx as a page route", async () => {
-    const result = await scanPages(ERROR_FIXTURES_DIR);
+    const result = await scanPages({ pagesDir: ERROR_FIXTURES_DIR, prefix: "", style: "nextjs" });
 
     const patterns = result.routes.map((r) => r.pattern);
     expect(patterns).not.toContain("/error");
   });
 
   test("attaches nearest error.tsx to each route", async () => {
-    const result = await scanPages(ERROR_FIXTURES_DIR);
+    const result = await scanPages({ pagesDir: ERROR_FIXTURES_DIR, prefix: "", style: "nextjs" });
 
     const nearestError = (pattern: string) =>
       result.routes.find((r) => r.pattern === pattern)?.segmentBoundaries.findLast((b) => b.error)

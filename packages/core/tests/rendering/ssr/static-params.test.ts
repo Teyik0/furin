@@ -7,9 +7,10 @@ function createRoute(routeChain: RuntimeRoute[], page: RuntimePage): ResolvedRou
   return {
     mode: "ssg",
     page,
-    path: "/app/pages/[city]/[day].tsx",
+    path: "/app/pages/$city/$day.tsx",
     pattern: "/:city/:day",
     routeChain,
+    layouts: [],
     segmentBoundaries: [],
   };
 }
@@ -134,7 +135,7 @@ describe("static params", () => {
         observedPaths.push(path as string);
         return { categories: ["books"] };
       },
-      sourcePath: "/app/pages/root.tsx",
+      sourcePath: "/app/pages/__root.tsx",
     };
     const category: RuntimeRoute = {
       __type: "FURIN_ROUTE",
@@ -142,7 +143,7 @@ describe("static params", () => {
         observedPaths.push(path as string);
         return { products: ["novel"] };
       },
-      sourcePath: "/app/pages/categories/[category]/_route.tsx",
+      sourcePath: "/app/pages/categories/$category/route.tsx",
       staticParams: async ({ categories }) =>
         ((await categories) as string[]).map((categoryName) => ({ category: categoryName })),
     };
@@ -155,7 +156,10 @@ describe("static params", () => {
     };
     const route: ResolvedRoute = {
       ...createRoute([root, category], page),
-      path: "/app/pages/categories/[category]/[product].tsx",
+      layouts: [
+        { path: "/app/pages/categories/$category/route.tsx", pattern: "/categories/:category" },
+      ],
+      path: "/app/pages/categories/$category/$product.tsx",
       pattern: "/categories/:category/:product",
     };
 

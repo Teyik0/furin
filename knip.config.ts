@@ -16,7 +16,7 @@ const config: KnipConfig = {
       ],
     },
     "apps/docs": {
-      // Furin uses file-based routing: all files in pages/ are entry points
+      // Furin uses file-based routing: every route file is an entry point
       entry: ["src/server.ts", "furin.config.ts", "src/pages/**/*.{ts,tsx}"],
       project: ["src/**/*.{ts,tsx,css,mdx}"],
     },
@@ -25,11 +25,11 @@ const config: KnipConfig = {
       ignore: ["templates/**"],
     },
     "examples/task-manager": {
-      entry: ["src/server.ts", "furin.config.ts", "src/pages/**/*.{ts,tsx}"],
+      entry: ["src/server.ts", "furin.config.ts", "src/routes/**/*.{ts,tsx}"],
       project: ["src/**/*.{ts,tsx,css}"],
     },
     "examples/weather": {
-      entry: ["src/server.ts", "furin.config.ts", "src/pages/**/*.{ts,tsx}"],
+      entry: ["src/server.ts", "furin.config.ts", "src/app/**/*.{ts,tsx}"],
       project: ["src/**/*.{ts,tsx,css}"],
     },
     "examples/electrobun-todo": {

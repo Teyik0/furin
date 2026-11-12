@@ -382,7 +382,7 @@ describe("schema merge — parent + child both declare query schemas", () => {
   test("HTTP requests resolve merged query defaults", async () => {
     const routePattern = "/schema-merge-parent/child";
     const fixturesDir = join(import.meta.dir, "../../fixtures/pages/default");
-    const { routes } = await scanPages(fixturesDir);
+    const { routes } = await scanPages({ pagesDir: fixturesDir, prefix: "", style: "tanstack" });
     const route = routes.find((candidate) => candidate.pattern === routePattern);
     expect(route).toBeDefined();
     // Parent layout, child layout, and the leaf terminal each carry their local
@@ -390,7 +390,10 @@ describe("schema merge — parent + child both declare query schemas", () => {
     expect(route?.routeChain.filter((entry) => entry.query)).toHaveLength(3);
 
     try {
-      const { app } = await mountProductionPages(fixturesDir, "");
+      const { app } = await mountProductionPages(
+        { pagesDir: fixturesDir, prefix: "", style: "tanstack" },
+        ""
+      );
       let res = await app.handle(new Request(`http://localhost${routePattern}`));
       expect(res.status).toBe(200);
       expect(res.headers.get("location")).toBeNull();

@@ -77,7 +77,7 @@ export default new Elysia({ name: "fixture-app" })
     if (error) throw error.value;
     return data;
   })
-  .use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+  .use(await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages" }));`
   );
   return app;
 }

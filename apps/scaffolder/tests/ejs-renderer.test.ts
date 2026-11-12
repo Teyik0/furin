@@ -11,6 +11,7 @@ const mockVars: EjsTemplateVars = {
   projectName: "My Test App",
   projectNameKebab: "my-test-app",
   projectNamePascal: "MyTestApp",
+  routeStyle: "tanstack",
   versions: {
     "@teyik0/furin": "0.1.0-alpha.4",
     "@types/bun": "latest",

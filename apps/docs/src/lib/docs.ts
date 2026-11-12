@@ -57,7 +57,8 @@ export const DOCS_NAV: DocNavSection[] = [
   {
     items: [
       {
-        description: "How pages, params, catch-all routes, and typed links work.",
+        description:
+          "Next.js and TanStack Start file conventions, params, catch-all routes, and typed links.",
         githubPath: "apps/docs/src/content/docs/routing.mdx",
         href: "/docs/routing",
         label: "File-Based Routing",
@@ -66,7 +67,7 @@ export const DOCS_NAV: DocNavSection[] = [
         title: "File-Based Routing",
       },
       {
-        description: "Compose shared UI and loaders with _route.tsx files.",
+        description: "Compose shared UI and loaders with layout files.",
         githubPath: "apps/docs/src/content/docs/layouts.mdx",
         href: "/docs/layouts",
         label: "Nested Layouts",

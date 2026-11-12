@@ -67,7 +67,7 @@ function rememberTmpApp(app) {
 function writeAdminPages(appPath) {
   writeAppFile(
     appPath,
-    "src/admin/root.tsx",
+    "src/admin/__root.tsx",
     [
       'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
       "",
@@ -159,8 +159,9 @@ async function mountBothApps(options) {
 
   setProductionTemplateContent(TEST_TEMPLATE);
 
-  const front = await furin({ pagesDir: join(app.path, "src/pages") });
+  const front = await furin({ style: "tanstack", pagesDir: join(app.path, "src/pages") });
   const admin = await furin({
+    style: "tanstack",
     pagesDir: adminPagesDir,
     prefix: "/admin",
     sync: options?.adminSync ? adminSync : undefined,
@@ -179,13 +180,13 @@ try {
   await runScenario(async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
     process.chdir(app.path);
-    writeAppFile(app.path, "src/pages/item/[id].tsx", [
+    writeAppFile(app.path, "src/pages/item/$id.tsx", [
       'import { defineRoute } from "@teyik0/furin";',
       'import { t } from "elysia";',
-      'export const route = defineRoute("/item/[id]").config({ mode: "ssr", params: t.Object({ id: t.String() }) })',
+      'export const route = defineRoute("/item/$id").config({ mode: "ssr", params: t.Object({ id: t.String() }) })',
       '  .loader(({ params }) => ({ id: params.id })).page(({ id }) => <main>{id}</main>);',
     ].join("\\n"));
-    const parent = new Elysia().use(await furin({ pagesDir: join(app.path, "src/pages") }));
+    const parent = new Elysia().use(await furin({ style: "tanstack", pagesDir: join(app.path, "src/pages") }));
     for (const [path, expected] of [["caf%C3%A9", "café"], ["a%2Fb", "a/b"], ["name/", "name"]]) {
       const html = await parent.handle(new Request("http://furin/item/" + path));
       expect(html.status).toBe(200);
@@ -202,9 +203,9 @@ try {
     process.chdir(app.path);
     const adminPagesDir = writeAdminPages(app.path);
     setProductionTemplateContent(TEST_TEMPLATE);
-    const first = new Elysia().use(await furin({ pagesDir: join(app.path, "src/pages") }));
+    const first = new Elysia().use(await furin({ style: "tanstack", pagesDir: join(app.path, "src/pages") }));
     expect(await (await first.handle(new Request("http://furin/"))).text()).toContain("Home page");
-    const second = new Elysia().use(await furin({ pagesDir: adminPagesDir }));
+    const second = new Elysia().use(await furin({ style: "tanstack", pagesDir: adminPagesDir }));
     expect(await (await second.handle(new Request("http://furin/"))).text()).toContain("Admin home");
     expect(await (await first.handle(new Request("http://furin/"))).text()).toContain("Home page");
   });
@@ -216,9 +217,9 @@ try {
     setProductionTemplateContent(TEST_TEMPLATE);
     const parent = new Elysia()
       .macro({ adminOnly: { beforeHandle: ({ status }) => status(401) } })
-      .use(await furin({ pagesDir: join(app.path, "src/pages") }))
+      .use(await furin({ style: "tanstack", pagesDir: join(app.path, "src/pages") }))
       .guard({ adminOnly: true })
-      .use(await furin({ pagesDir: adminPagesDir, prefix: "/admin" }));
+      .use(await furin({ style: "tanstack", pagesDir: adminPagesDir, prefix: "/admin" }));
     const front = await parent.handle(new Request("http://furin/"));
     expect(front.status).toBe(200);
     expect(await front.text()).toContain("Home page");
@@ -276,7 +277,7 @@ try {
     setProductionTemplateContent(TEST_TEMPLATE);
     // The full physical prefix is declared; the parent adds no prefix of its own.
     const parent = new Elysia()
-      .use(new Elysia().use(await furin({ pagesDir: adminPagesDir, prefix: "/host/admin" })));
+      .use(new Elysia().use(await furin({ style: "tanstack", pagesDir: adminPagesDir, prefix: "/host/admin" })));
     const html = await parent.handle(new Request("http://furin/host/admin"));
     expect(html.status).toBe(200);
     expect(await html.text()).toContain("Admin home");
@@ -293,8 +294,8 @@ try {
     const adminPagesDir = writeAdminPages(app.path);
     setProductionTemplateContent(TEST_TEMPLATE);
 
-    const parent = new Elysia().use(await furin({ pagesDir: join(app.path, "src/pages") }));
-    const conflicting = await furin({ pagesDir: adminPagesDir });
+    const parent = new Elysia().use(await furin({ style: "tanstack", pagesDir: join(app.path, "src/pages") }));
+    const conflicting = await furin({ style: "tanstack", pagesDir: adminPagesDir });
     expect(() => parent.use(conflicting)).toThrow("already mounted");
   });
 

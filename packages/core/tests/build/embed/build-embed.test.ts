@@ -79,6 +79,7 @@ const adapter: SyncAdapter = {
 const app = new Elysia().use(
   await furin({
     pagesDir: \`${"${import.meta.dir}"}/pages\`,
+    style: "tanstack",
     sync: { adapter, principal: () => "test" },
   })
 );

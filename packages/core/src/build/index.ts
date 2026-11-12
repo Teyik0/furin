@@ -10,6 +10,7 @@ import type { FurinAdapter } from "../adapter/types.ts";
 import { vercel } from "../adapter/vercel.ts";
 import { BUILD_TARGETS, type BuildTarget, type FurinTarget } from "../config";
 import { assertValidRouteConfig } from "../plugin/route-config.ts";
+import type { RouteInstanceSpec } from "../plugin/route-manifest.ts";
 import { normalizePrefix } from "../server/instance.ts";
 import { assertNoPrefixSlugCollisions, assertOnePagesDirPerMount } from "../shared/prefix.ts";
 import { withProductionBuild } from "../shared/production-build.ts";
@@ -65,14 +66,13 @@ const BUILD_OUTPUT_DIR = ".furin/build";
  * Resolves the list of apps to build, in priority order:
  * 1. explicit `apps` config (furin.config.ts),
  * 2. explicit single `pagesDir` option (mounted at root),
- * 3. every `furin({ pagesDir, prefix })` call made by evaluating the server entry,
- * 4. the `src/pages` default.
+ * 3. every `furin({ pagesDir, prefix, style })` call made by evaluating the server entry.
  */
 async function resolveAppSpecs(
   options: RouteTypegenOptions,
   serverEntry: string | null,
   rootDir: string
-): Promise<Array<{ pagesDir: string; prefix: string }>> {
+): Promise<RouteInstanceSpec[]> {
   if (options.apps && options.apps.length > 0) {
     // normalizePrefix is the choke point for config/CLI-provided prefixes:
     // `"/"` → `""` (otherwise the bun target derives `publicPath: "//_client/"`,
@@ -81,10 +81,8 @@ async function resolveAppSpecs(
     return options.apps.map((app) => ({
       pagesDir: resolve(rootDir, app.pagesDir),
       prefix: normalizePrefix(app.prefix),
+      style: app.style,
     }));
-  }
-  if (options.pagesDir) {
-    return [{ pagesDir: resolve(rootDir, options.pagesDir), prefix: "" }];
   }
   if (serverEntry) {
     const mounted = await discoverFurinMounts(serverEntry, rootDir);
@@ -92,10 +90,13 @@ async function resolveAppSpecs(
       return mounted.map((app) => ({
         pagesDir: resolve(rootDir, app.pagesDir),
         prefix: app.prefix,
+        style: app.style,
       }));
     }
   }
-  return [{ pagesDir: resolve(rootDir, "src/pages"), prefix: "" }];
+  throw new Error(
+    `[furin] No app to build: ${serverEntry ? `${toPosixPath(relative(rootDir, serverEntry))} mounts no furin() plugin` : "no server entry found"}. Mount furin({ style }) in the server entry, or list the apps in furin.config.ts: apps: [{ pagesDir: "src/routes", style: "tanstack" }].`
+  );
 }
 
 /**
@@ -136,7 +137,7 @@ function writeAppRouteTypes(apps: RuntimeTargetApp[], rootDir: string): void {
 /** Options for `generateRouteTypes()`, a subset of the build options. */
 export type RouteTypegenOptions = Pick<
   BuildAppOptions,
-  "apps" | "pagesDir" | "plugins" | "rootDir" | "serverEntry"
+  "apps" | "plugins" | "rootDir" | "serverEntry"
 >;
 
 /**
@@ -154,6 +155,11 @@ export function generateRouteTypes(options: RouteTypegenOptions): Promise<void> 
 
 export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult> {
   return withProductionBuild(() => buildAppInternal(options));
+}
+
+function existingServerEntry(options: BuildAppOptions, rootDir: string): string | null {
+  const entry = resolve(rootDir, options.serverEntry ?? "src/server.ts");
+  return existsSync(entry) ? entry : null;
 }
 
 async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResult> {
@@ -179,7 +185,10 @@ async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResul
     return entry;
   })();
 
-  const apps = await scanApps(options, serverEntry, rootDir);
+  // Serverless targets bundle no server entry, but its furin({ style }) mounts
+  // still name the apps to build when config `apps` does not.
+  const mountEntry = serverEntry ?? existingServerEntry(options, rootDir);
+  const apps = await scanApps(options, mountEntry, rootDir);
   // furin-env.d.ts is one file at the project root, owned by the root-mounted
   // app — the same rule as the dev server, so builds keep types current too.
   writeAppRouteTypes(apps, rootDir);
@@ -199,6 +208,7 @@ async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResul
     apps: apps.map((app) => ({
       pagesDir: toPosixPath(relative(rootDir, app.pagesDir)),
       prefix: app.prefix,
+      style: app.style,
       routes: app.routes.map((route) => toBuildRouteManifestEntry(route, rootDir)),
     })),
     targets: {},

@@ -18,12 +18,14 @@ The interactive scaffolder offers two templates:
 Choose one without a prompt when scripting:
 
 ```sh
-bun create furin@latest my-app --template simple --yes
+bun create furin@latest my-app --template simple --style tanstack --yes
 ```
+
+The scaffolder also asks for a [routing style](/docs/routing), or takes it from `--style`: `tanstack` (TanStack Start files in `src/routes`) or `nextjs` (Next.js App Router files in `src/app`).
 
 ## Project Structure
 
-Both templates produce the same framework shape:
+Both templates produce the same framework shape. With the `tanstack` style:
 
 ```text
 my-app/
@@ -32,10 +34,10 @@ my-app/
 ├── src/
 │   ├── api/
 │   │   └── hello.ts
-│   ├── pages/
+│   ├── routes/
 │   │   ├── globals.css
 │   │   ├── index.tsx
-│   │   └── root.tsx
+│   │   └── __root.tsx
 │   └── server.ts
 ├── biome.jsonc
 ├── bunfig.toml
@@ -46,11 +48,11 @@ my-app/
 └── tsconfig.json
 ```
 
-`full` also adds `components.json`, `src/components/ui/` and `src/lib/utils.ts` for shadcn/ui.
+With the `nextjs` style, `src/routes/__root.tsx` and `src/routes/index.tsx` are `src/app/layout.tsx` and `src/app/page.tsx`. `full` also adds `components.json`, `src/components/ui/` and `src/lib/utils.ts` for shadcn/ui.
 
 - `src/server.ts` composes the Elysia application.
-- `src/pages/root.tsx` owns the HTML document shared by every page.
-- `src/pages/index.tsx` maps to `/`.
+- `src/routes/__root.tsx` (`src/app/layout.tsx`) owns the HTML document shared by every page.
+- `src/routes/index.tsx` (`src/app/page.tsx`) maps to `/`.
 - `furin.config.ts` controls production builds.
 - `bunfig.toml` registers the client-side Bun plugins used by development.
 - `furin-env.d.ts` holds the [generated route types](/docs/routing#generated-route-types); do not edit it. Despite its name, it does not type environment variables: it types `<Link to>`, `navigate()`, route params and `getRouteApi()` from your pages, and references Furin's ambient types for CSS and image imports. The dev server, `furin build` and `furin typegen` rewrite it.
@@ -70,7 +72,7 @@ initLogger({ env: { service: "my-app" } });
 
 const app = new Elysia()
   .get("/api/hello", () => getHelloPayload())
-  .use(await furin({ pagesDir: "./src/pages" }));
+  .use(await furin({ style: "tanstack" }));
 
 export const port = Number(process.env.PORT ?? 3000);
 
@@ -82,14 +84,14 @@ if (import.meta.main) {
 export default app;
 ```
 
-Keep chaining the returned Elysia instance. Plugin order and lifecycle scope remain Elysia concerns; see [API Routes](/docs/api-routes). `initLogger()` configures [evlog](/docs/logging), which backs the `log` available in loaders.
+`style` is required and selects the file convention; each style reads its conventional directory unless you pass `pagesDir`. Keep chaining the returned Elysia instance. Plugin order and lifecycle scope remain Elysia concerns; see [API Routes](/docs/api-routes). `initLogger()` configures [evlog](/docs/logging), which backs the `log` available in loaders.
 
 ## The Root Document
 
-Every pages directory needs `root.tsx`. It must render a complete document containing `<HeadContent />` and `<Scripts />`:
+Every pages directory needs a root document: `__root.tsx` in the TanStack style, a top-level `layout.tsx` in the Next.js style. It must render a complete document containing `<HeadContent />` and `<Scripts />`:
 
 ```tsx
-// src/pages/root.tsx
+// src/routes/__root.tsx (or src/app/layout.tsx)
 import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
 import "./globals.css";
 
@@ -115,7 +117,7 @@ export const route = defineRootRoute()
 Every non-root route passes its file's id to `defineRoute(id)`. The id gives the route its parent layout's types; see [Route Ids](/docs/routing#route-ids):
 
 ```tsx
-// src/pages/index.tsx
+// src/routes/index.tsx (or src/app/page.tsx)
 import { defineRoute } from "@teyik0/furin";
 
 export const route = defineRoute("/")

@@ -9,8 +9,8 @@ export interface RouteMap {}
 
 /**
  * Typecheck fallback for `defineRoute(id)`. The generated
- * furin-env.d.ts augments it with one entry per route file, keyed by its file
- * id (`"/board/[boardId]"`, `"/board/_route"`): kind, URL pattern, parent
+ * furin-env.d.ts augments it with one entry per route file, keyed by its
+ * TanStack Start id (`"/board/$boardId/"`, `"/board"`): kind, URL pattern, parent
  * layout and path params, read from the pages tree without importing modules.
  */
 // biome-ignore lint/suspicious/noEmptyInterface: intentionally augmented by generated route types

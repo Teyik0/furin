@@ -1,10 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { generateIndexHtml } from "../server/render/shell.ts";
 import {
   buildRouteRegex,
   compareRouteSpecificity,
 } from "../server/router/patterns.ts";
+import type { RouteStyle } from "../plugin/route-manifest.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import { type BuildRouteInput, routeBuildInfo } from "./route-metadata.ts";
 import type { ClientBoundary } from "../rsc/build/discover.ts";
@@ -121,11 +122,14 @@ function hydrateEntry(
         continue;
       }
       const parts = [`depth: ${seg.depth}`];
+      // TanStack style: `.error()` / `.notFound()` live on the route export.
+      const errorExport = seg.fromRoute ? "route.errorComponent" : "default";
+      const notFoundExport = seg.fromRoute ? "route.notFoundComponent" : "default";
       if (errorIdent) {
-        parts.push(`error: ${errorIdent}.default`);
+        parts.push(`error: ${errorIdent}.${errorExport}`);
       }
       if (notFoundIdent) {
-        parts.push(`notFound: ${notFoundIdent}.default`);
+        parts.push(`notFound: ${notFoundIdent}.${notFoundExport}`);
       }
       if (seg.depth === 0 && seg.path.replaceAll("\\", "/") !== rootDirectory) {
         parts.push("isRoot: false");
@@ -491,6 +495,7 @@ if (__deferred && __deferred._chunks) {
 interface DevRouteTypesApp {
   pagesDir: string;
   routes: ResolvedRoute[];
+  style: RouteStyle;
 }
 
 /**
@@ -517,7 +522,7 @@ function writeDevRouteTypes(
   return writeRouteTypes(
     live.find(([appPrefix]) => appPrefix === "")?.[1].routes ?? [],
     projectRoot,
-    live.map(([appPrefix, { pagesDir }]) => ({ pagesDir, prefix: appPrefix }))
+    live.map(([appPrefix, { pagesDir, style }]) => ({ pagesDir, prefix: appPrefix, style }))
   );
 }
 
@@ -536,8 +541,9 @@ export function writeDevFiles(
     basePath,
     clientLogging,
     clientBoundaries,
+    pages,
     prefix,
-  }: BuildClientOptions & { prefix: string },
+  }: BuildClientOptions & { pages: { pagesDir: string; style: RouteStyle }; prefix: string },
   projectRoot: string,
   serverSourceVersion?: string
 ): void {
@@ -571,7 +577,7 @@ export function writeDevFiles(
   }
 
   changed =
-    writeDevRouteTypes(projectRoot, prefix, { pagesDir: dirname(rootLayout), routes }) || changed;
+    writeDevRouteTypes(projectRoot, prefix, { ...pages, routes }) || changed;
 
   if (changed) {
     console.log(

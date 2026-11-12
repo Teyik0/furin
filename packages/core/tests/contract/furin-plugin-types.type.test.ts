@@ -15,7 +15,7 @@ async function composePublicApplication(options: SyncRuntimeOptions) {
     .get("/before", { query: t.Object({ value: t.Number() }) }, ({ query }) => ({
       value: query.value,
     }))
-    .use(await furin({ pagesDir: "./src/pages", sync: options }))
+    .use(await furin({ pagesDir: "./src/pages", style: "tanstack", sync: options }))
     .get("/logged", ({ log }) => {
       expectTypeOf(log).toEqualTypeOf<RequestLogger>();
       return { ready: true };
@@ -65,10 +65,10 @@ async function composeGuardedApplications() {
     });
   return new Elysia()
     .use(auth)
-    .use(await furin({ pagesDir: "./src/pages" }))
+    .use(await furin({ pagesDir: "./src/pages", style: "tanstack" }))
     .guard({})
     .guard({ admin: true })
-    .use(await furin({ pagesDir: "./src/admin", prefix: "/admin" }))
+    .use(await furin({ pagesDir: "./src/admin", prefix: "/admin", style: "tanstack" }))
     .get("/guarded", ({ log, user }) => {
       expectTypeOf(log).toEqualTypeOf<RequestLogger>();
       return user.role;

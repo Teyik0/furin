@@ -48,7 +48,11 @@ for (const prefix of ["", "/admin"]) {
       __setDevMode(false);
       await createProductionContext(tmpApp.path, prefix);
       const pagesDir = join(tmpApp.path, "src/pages");
-      const app = new Elysia().use(await furin(prefix ? { pagesDir, prefix } : { pagesDir }));
+      const app = new Elysia().use(
+        await furin(
+          prefix ? { pagesDir, prefix, style: "tanstack" } : { pagesDir, style: "tanstack" }
+        )
+      );
 
       const first = await app.handle(new Request(`http://localhost${prefix}/missing-one`));
       const second = await app.handle(new Request(`http://localhost${prefix}/missing-two`));
@@ -70,7 +74,11 @@ for (const mode of ["development", "production"] as const) {
           await createProductionContext(tmpApp.path, prefix);
         }
         const pagesDir = join(tmpApp.path, "src/pages");
-        const app = new Elysia().use(await furin(prefix ? { pagesDir, prefix } : { pagesDir }));
+        const app = new Elysia().use(
+          await furin(
+            prefix ? { pagesDir, prefix, style: "tanstack" } : { pagesDir, style: "tanstack" }
+          )
+        );
 
         const document = await app.handle(new Request(`http://localhost${prefix}/missing`));
         const data = await app.handle(new Request(`http://localhost${prefix}/missing?_furin=data`));

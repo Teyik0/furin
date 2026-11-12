@@ -11,6 +11,7 @@ import { furin } from "./src/furin.ts";
 const events = [];
 const app = new Elysia().use(
   await furin({
+    style: "tanstack",
     clientLogging: true,
     logger: { drain: ({ event }) => { events.push(event); } },
     pagesDir: ${JSON.stringify(join(import.meta.dir, "../../fixtures/pages/default"))},

@@ -61,14 +61,14 @@ const createDashboardRoot = (load: (path: string) => void) =>
       </html>
     ));
 const createLibraryLayout = () =>
-  defineRoute("/loader-fallback/library/_route")
+  defineRoute("/loader-fallback/library")
     .config({ mode: "ssr" })
     .loader(() => ({ section: "Library" }))
     .layout(({ children, section }) => <section data-section={section}>{children}</section>);
 
 declare module "@teyik0/furin/routes" {
   interface FileRoutes {
-    "/loader-fallback/library/_route": {
+    "/loader-fallback/library": {
       kind: "layout";
       parent: ReturnType<typeof createDashboardRoot>;
       pathParams: NonNullable<unknown>;
@@ -95,12 +95,12 @@ async function mountBoundaryApp(
   const pagesDir = `/furin-virtual/${crypto.randomUUID()}`;
   const libraryDir = `${pagesDir}/library`;
   const modules: { [path: string]: CompiledModule } = {
-    [`${libraryDir}/_route.tsx`]: { route: library },
+    [`${libraryDir}/layout.tsx`]: { route: library },
     [`${libraryDir}/error.tsx`]: { default: Unavailable },
     [`${libraryDir}/not-found.tsx`]: { default: Missing },
     [`${pagesDir}/error.tsx`]: { default: Unavailable },
     [`${pagesDir}/not-found.tsx`]: { default: Missing },
-    [`${pagesDir}/root.tsx`]: { route: root },
+    [`${pagesDir}/layout.tsx`]: { route: root },
   };
   const segmentBoundaries = [
     {
@@ -131,8 +131,13 @@ async function mountBoundaryApp(
       errorPath: `${pagesDir}/error.tsx`,
       notFoundPath: `${pagesDir}/not-found.tsx`,
     },
-    rootPath: `${pagesDir}/root.tsx`,
-    routeMetadata: Object.fromEntries(routes.map(({ path }) => [path, { segmentBoundaries }])),
+    rootPath: `${pagesDir}/layout.tsx`,
+    routeMetadata: Object.fromEntries(
+      routes.map(({ path }) => [
+        path,
+        { layouts: [{ path: `${libraryDir}/layout.tsx`, pattern: "/" }], segmentBoundaries },
+      ])
+    ),
     routes,
     adapter: {
       capabilities: { assets: "platform", publicCache: "framework", websocket: true },
@@ -140,7 +145,7 @@ async function mountBoundaryApp(
     },
     templateHtml: template,
   });
-  return new Elysia().use(await furin({ pagesDir }));
+  return new Elysia().use(await furin({ pagesDir, style: "nextjs" }));
 }
 
 test.each([

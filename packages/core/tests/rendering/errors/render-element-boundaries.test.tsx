@@ -55,6 +55,7 @@ function makeRoute(overrides: Partial<ResolvedRoute>): ResolvedRoute {
     path: "/virtual/page.tsx",
     pattern: "/",
     routeChain: [{ __type: "FURIN_ROUTE" }],
+    layouts: [],
     segmentBoundaries: [],
   };
   return { ...defaults, ...overrides };

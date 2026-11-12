@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { CompileContextAdapter } from "../server/internal.ts";
+import type { CompileContext, CompileContextAdapter } from "../server/internal.ts";
 import type { ClientPreloadManifest } from "./preload-manifest.ts";
 
 // import.meta.resolve() runs at runtime (not inlined at bundle time), resolves
@@ -31,7 +31,7 @@ export interface EntryAppContext {
   clientLogging?: boolean;
   /** Extra lines injected inside this app's `__setCompileContext({...})` call. */
   extraContext?: string[];
-  /** Additional route modules such as filesystem-derived `_route` layouts. */
+  /** Additional route modules such as filesystem-derived layouts. */
   modulePaths?: string[];
   /** Virtual module specifier exporting this app's composed Elysia route tree. */
   nativeRoutes?: string;
@@ -41,19 +41,7 @@ export interface EntryAppContext {
   preloadManifest?: ClientPreloadManifest;
   rootConventions?: { errorPath?: string; notFoundPath?: string };
   rootPath: string;
-  routeMetadata?: Record<
-    string,
-    {
-      requestKeys?: string[];
-      requestKeysByLoader?: string[][];
-      segmentBoundaries: Array<{
-        depth: number;
-        path: string;
-        errorPath?: string;
-        notFoundPath?: string;
-      }>;
-    }
-  >;
+  routeMetadata?: CompileContext["routeMetadata"];
   routes: Array<{ mode: "ssr" | "ssg" | "isr"; path: string; pattern: string }>;
   /** In-memory production document template for filesystem-free runtimes. */
   templateHtml?: string;

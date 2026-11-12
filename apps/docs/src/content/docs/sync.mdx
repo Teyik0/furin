@@ -37,7 +37,7 @@ import { api } from "./api";
 import { sync } from "./sync";
 
 new Elysia()
-  .use(await furin({ pagesDir: "./src/pages", sync }))
+  .use(await furin({ style: "tanstack", sync }))
   .use(api)
   .listen(3000);
 ```
@@ -269,7 +269,7 @@ All Eden configuration (`fetcher`, headers, interceptors, date parsing and error
 Every GET has a live query, `.get.live(options?)`, on a client using the `furinSync` Eden plugin. Await it in a loader to track the read:
 
 ```ts
-export const route = defineRoute("/board/[boardId]")
+export const route = defineRoute("/board/$boardId")
   .config({ mode: "ssr" })
   .loader(async ({ params }) => {
     const { data, error } = await api.boards({ boardId: params.boardId }).cards.get.live();

@@ -7,17 +7,19 @@ import { Elysia } from "elysia";
 import { furin } from "@teyik0/furin";
 
 new Elysia()
-  .use(await furin({ pagesDir: "./src/pages" }))
-  .use(await furin({ pagesDir: "./src/admin", prefix: "/admin" }))
+  .use(await furin({ style: "tanstack" }))
+  .use(await furin({ pagesDir: "./src/admin", prefix: "/admin", style: "nextjs" }))
   .listen(3000);
 ```
 
 ```text
-src/pages/index.tsx       → /
-src/pages/blog.tsx        → /blog
-src/admin/index.tsx       → /admin
-src/admin/users.tsx       → /admin/users
+src/routes/index.tsx           → /
+src/routes/blog.tsx            → /blog
+src/admin/page.tsx             → /admin
+src/admin/users/page.tsx       → /admin/users
 ```
+
+Each instance picks its own [routing style](/docs/routing), so a Next.js-style section can sit next to a TanStack-style one.
 
 ## Prefix Rules
 
@@ -34,7 +36,7 @@ Mount Furin on an Elysia instance without a prefix and repeat the parent path in
 ```ts
 const admin = new Elysia()
   .onBeforeHandle(requireAdmin)
-  .use(await furin({ pagesDir: "./src/admin", prefix: "/backoffice/admin" }));
+  .use(await furin({ pagesDir: "./src/admin", prefix: "/backoffice/admin", style: "nextjs" }));
 
 new Elysia().use(admin).listen(3000);
 ```
@@ -96,15 +98,15 @@ const pageCache = redisPageCache({
 });
 
 new Elysia()
-  .use(await furin({ pagesDir: "./src/pages", pageCache }))
-  .use(await furin({ pagesDir: "./src/admin", prefix: "/admin", pageCache }));
+  .use(await furin({ pageCache, style: "tanstack" }))
+  .use(await furin({ pageCache, pagesDir: "./src/admin", prefix: "/admin", style: "nextjs" }));
 ```
 
 Use separate namespaces only for deployments that must never invalidate each other, such as staging and production. Do not use a different namespace per replica or per build.
 
 ## Build Discovery
 
-`furin build` finds the mounts by evaluating the server entry in a child process and recording every `furin({ pagesDir, prefix })` call. Declare the apps explicitly when the server entry cannot be evaluated at build time:
+`furin build` finds the mounts by evaluating the server entry in a child process and recording every `furin({ pagesDir, prefix, style })` call. Declare the apps explicitly when the server entry cannot be evaluated at build time:
 
 ```ts
 // furin.config.ts
@@ -112,8 +114,8 @@ import { defineConfig } from "@teyik0/furin/config";
 
 export default defineConfig({
   apps: [
-    { pagesDir: "./src/pages" },
-    { pagesDir: "./src/admin", prefix: "/admin" },
+    { pagesDir: "./src/routes", style: "tanstack" },
+    { pagesDir: "./src/admin", prefix: "/admin", style: "nextjs" },
   ],
 });
 ```
@@ -125,7 +127,7 @@ The Bun target produces one client directory per app and one server artifact. St
 The `package` target builds one page tree as a publishable Elysia plugin:
 
 ```sh
-furin build --target package --pagesDir ./src/pages --prefix /admin
+furin build --target package --pagesDir ./src/admin --style nextjs --prefix /admin
 ```
 
 `.furin/build/package` contains:
@@ -144,11 +146,11 @@ import { createFurinApp as createAdminApp } from "@org/admin/furin";
 import { furin } from "@teyik0/furin";
 
 new Elysia()
-  .use(await furin({ pagesDir: "./src/pages" }))
+  .use(await furin({ style: "tanstack" }))
   .use(await createAdminApp())
   .listen(3000);
 ```
 
-The factory bakes in `pagesDir`, `prefix`, and `clientDir`; the host may pass any other `furin()` option, such as `logger` or `sync`. In a monorepo with sources present it supports live development. A published artifact without page sources is production-only.
+The factory bakes in `pagesDir`, `prefix`, `style`, and `clientDir`; the host may pass any other `furin()` option, such as `logger` or `sync`. In a monorepo with sources present it supports live development. A published artifact without page sources is production-only.
 
 `--compile embed` on the host does not currently re-embed a packaged app's client directory. Prefer a disk-mode host when composing packaged apps into one process.

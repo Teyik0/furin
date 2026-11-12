@@ -20,7 +20,7 @@ const app = new Elysia({ name: "relay" })
     })
   )
   .use(api)
-  .use(await furin({ pagesDir: `${import.meta.dir}/pages` }))
+  .use(await furin({ pagesDir: `${import.meta.dir}/pages`, style: "tanstack" }))
   .listen({ hostname: "127.0.0.1", port: 4242 });
 ```
 

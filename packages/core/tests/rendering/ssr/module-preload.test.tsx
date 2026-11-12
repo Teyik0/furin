@@ -63,6 +63,7 @@ function createCanvasRoute(
       path: "/canvas.tsx",
       pattern: "/canvas",
       routeChain: collectRouteChainFromRoute(page._route),
+      layouts: [],
       segmentBoundaries: [],
     },
   };

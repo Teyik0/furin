@@ -1,6 +1,6 @@
 import { defineRoute } from "@teyik0/furin";
 
-export const route = defineRoute("/with-loader")
+export const route = defineRoute("/with-loader/")
   .config({ mode: "ssr" })
   .loader(async () => ({ pageData: "from-page" }))
   .page(({ layoutData, pageData }) => (

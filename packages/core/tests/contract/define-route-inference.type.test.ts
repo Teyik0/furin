@@ -132,23 +132,25 @@ const assertSchemaVariants = () => {
 const assertStageAvailability = () => {
   const ssr = defineRoute("/ssr").config({ mode: "ssr" });
   expectTypeOf<keyof typeof ssr>().toEqualTypeOf<
-    "head" | "layout" | "loader" | "page" | "requestLoader"
+    "error" | "head" | "layout" | "loader" | "notFound" | "page" | "requestLoader"
   >();
   const ssg = defineRoute("/ssg").config({ mode: "ssg" });
   expectTypeOf<keyof typeof ssg>().toEqualTypeOf<
-    "head" | "layout" | "loader" | "page" | "requestLoader" | "staticParams"
+    "error" | "head" | "layout" | "loader" | "notFound" | "page" | "requestLoader" | "staticParams"
   >();
   expectTypeOf<keyof ReturnType<typeof ssg.staticParams>>().toEqualTypeOf<
-    "head" | "layout" | "loader" | "page" | "requestLoader"
+    "error" | "head" | "layout" | "loader" | "notFound" | "page" | "requestLoader"
   >();
   expectTypeOf<keyof ReturnType<typeof ssg.requestLoader>>().toEqualTypeOf<
-    "head" | "layout" | "loader" | "page" | "requestLoader"
+    "error" | "head" | "layout" | "loader" | "notFound" | "page" | "requestLoader"
   >();
-  expectTypeOf<keyof ReturnType<typeof ssg.head>>().toEqualTypeOf<"page">();
+  expectTypeOf<keyof ReturnType<typeof ssg.head>>().toEqualTypeOf<"error" | "notFound" | "page">();
   const loaded = ssg.loader(() => ({ ready: true }));
-  expectTypeOf<keyof typeof loaded>().toEqualTypeOf<"head" | "layout" | "page">();
+  expectTypeOf<keyof typeof loaded>().toEqualTypeOf<
+    "error" | "head" | "layout" | "notFound" | "page"
+  >();
   expectTypeOf<
-    Exclude<keyof ReturnType<typeof loaded.head>, "head" | "layout">
+    Exclude<keyof ReturnType<typeof loaded.head>, "error" | "head" | "layout" | "notFound">
   >().toEqualTypeOf<"page">();
 };
 

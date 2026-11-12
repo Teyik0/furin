@@ -6,6 +6,7 @@ export const port = Number(process.env.PORT ?? 3111);
 const app = new Elysia().use(
   await furin({
     pagesDir: `${import.meta.dir}/pages`,
+    style: "tanstack",
   })
 );
 

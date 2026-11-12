@@ -10,6 +10,7 @@ import { mountProductionPages } from "../../support/production-app.ts";
 import { expectDefined } from "../../support/utils.ts";
 
 const PAGES_DIR = join(import.meta.dir, "../../fixtures/pages/route-groups");
+const INSTANCE = { pagesDir: PAGES_DIR, prefix: "", style: "nextjs" as const };
 let originalDevMode: boolean;
 
 beforeAll(() => {
@@ -20,7 +21,7 @@ afterEach(() => __resetCompileContext());
 afterAll(() => __setDevMode(originalDevMode));
 
 test("group layouts render in filesystem order and stay scoped to their pages", async () => {
-  const { app } = await mountProductionPages(PAGES_DIR, "");
+  const { app } = await mountProductionPages(INSTANCE, "");
 
   const admin = await app.handle(new Request("http://localhost/users/42"));
   if (admin.status !== 200) {
@@ -44,7 +45,7 @@ test("group layouts render in filesystem order and stay scoped to their pages", 
 });
 
 test("group error and not-found boundaries belong only to their descendants", async () => {
-  const { routes } = await scanPages(PAGES_DIR);
+  const { routes } = await scanPages(INSTANCE);
   const admin = routes.find((route) => route.pattern === "/users/:id");
   const marketing = routes.find((route) => route.pattern === "/");
   expectDefined(admin);
@@ -60,13 +61,13 @@ test("group error and not-found boundaries belong only to their descendants", as
 test("generated navigation types use public URLs and preserve grouped source imports", async () => {
   const projectRoot = mkdtempSync(join(tmpdir(), "furin-group-types-"));
   try {
-    const { routes } = await scanPages(PAGES_DIR);
+    const { routes } = await scanPages(INSTANCE);
     writeRouteTypes(routes, projectRoot);
     const declaration = readFileSync(join(projectRoot, "furin-env.d.ts"), "utf8");
 
     expect(declaration).toContain('"/users/:id": typeof import(');
     expect(declaration).not.toContain("[path:");
-    expect(declaration).toContain("/(admin)/(settings)/users/[id]");
+    expect(declaration).toContain("/(admin)/(settings)/users/[id]/page");
     expect(declaration).not.toContain('"/(admin)/users/:id"');
   } finally {
     rmSync(projectRoot, { force: true, recursive: true });

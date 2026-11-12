@@ -28,7 +28,7 @@ mock.module("../src/lib/api", () => ({
   }).use(furinSync),
 }));
 
-const { route } = await import("../src/pages/board/[boardId]/index");
+const { route } = await import("../src/routes/board/$boardId/index");
 const BoardPage = route.component;
 
 const initialStats = {

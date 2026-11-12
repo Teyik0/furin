@@ -103,7 +103,7 @@ export const route = defineRoute("/")
   .loader(() => ({ value }))
   .page(() => null);`
       );
-      await generateRouteTypes({ pagesDir: "src/pages", plugins: [plugin], rootDir: app.path });
+      await generateRouteTypes({ apps: [{ pagesDir: "src/pages", style: "tanstack" }], plugins: [plugin], rootDir: app.path });
       expect(calls).toBe(1);
       expect(await Bun.file(join(app.path, "furin-env.d.ts")).text()).toContain("configured-tag");
     } finally {

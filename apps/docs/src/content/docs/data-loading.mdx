@@ -5,7 +5,7 @@ Furin runs loaders on the server and passes their results into the matched layou
 ## Public Loaders
 
 ```tsx
-// src/pages/blog/index.tsx
+// src/routes/blog.tsx
 import { defineRoute } from "@teyik0/furin";
 
 export const route = defineRoute("/blog")
@@ -64,7 +64,7 @@ Route definitions do not expose a `route.useLoaderData()` hook. `getRouteApi()` 
 Every layout and the page can have a loader. They start without waiting for the entire parent chain. A descendant loader receives each ancestor field as an individual promise; render callbacks receive the resolved fields as flat props:
 
 ```tsx
-// src/pages/dashboard/settings.tsx
+// src/routes/dashboard/settings.tsx
 import { defineRoute } from "@teyik0/furin";
 
 export const route = defineRoute("/dashboard/settings")
@@ -101,11 +101,11 @@ On SSG and ISR segments, `loader()` exposes only public route values (`params`, 
 ## Params And Query
 
 ```tsx
-// src/pages/blog/[slug].tsx
+// src/routes/blog/$slug.tsx
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 
-export const route = defineRoute("/blog/[slug]")
+export const route = defineRoute("/blog/$slug")
   .config({
     mode: "ssr",
     params: t.Object({ slug: t.String() }),
@@ -126,7 +126,7 @@ The schemas are both runtime validators and TypeScript sources. Furin checks tha
 `requestLoader()` reads per-request data beside a cached public result. Use it on SSG/ISR pages or on layouts shared with them; an SSR page reads the request directly in `loader()` instead. Each returned field reaches `page()` and `layout()` as its own promise:
 
 ```tsx
-// src/pages/shop/index.tsx
+// src/routes/shop.tsx
 import { Await, defineRoute } from "@teyik0/furin";
 import { Suspense } from "react";
 

@@ -7,7 +7,7 @@ import { Elysia } from "elysia";
 import { furin } from "@teyik0/furin";
 
 new Elysia()
-  .use(await furin({ pagesDir: "./src/pages" }))
+  .use(await furin({ style: "tanstack" }))
   .get("/api/health", () => ({ ok: true }))
   .listen(3000);
 ```
@@ -17,13 +17,13 @@ new Elysia()
 A Furin application has three layers:
 
 1. **Elysia owns HTTP.** Authentication, API routes, WebSockets, middleware, and lifecycle hooks remain regular Elysia plugins.
-2. **The file tree owns pages.** Files in `src/pages` define URLs, layouts, loading, metadata, and rendering modes.
+2. **The file tree owns pages.** Files in `src/routes` (TanStack Start style) or `src/app` (Next.js App Router style) define URLs, layouts, loading, metadata, and rendering modes.
 3. **Bun owns development and builds.** The dev server uses Bun's full-stack HTML bundler and React Fast Refresh; production builds use Bun's bundler or static exporter.
 
 A page declares its contract in one chain:
 
 ```tsx
-// src/pages/index.tsx
+// src/routes/index.tsx
 import { defineRoute } from "@teyik0/furin";
 
 export const route = defineRoute("/")

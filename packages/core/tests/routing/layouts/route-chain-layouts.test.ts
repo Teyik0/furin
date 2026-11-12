@@ -22,7 +22,7 @@ afterAll(() => __setDevMode(originalDevMode));
 describe("route chain contains layouts", () => {
   let result: Awaited<ReturnType<typeof scanPages>>;
   beforeAll(async () => {
-    result = await scanPages(FIXTURES_DIR);
+    result = await scanPages({ pagesDir: FIXTURES_DIR, prefix: "", style: "tanstack" });
   });
 
   test("keeps the page leaf separate from its filesystem layout", () => {
@@ -192,14 +192,14 @@ describe("scanPageFiles throw", () => {
     mkdirSync(tempDir, { recursive: true });
 
     writeFileSync(
-      join(tempDir, "root.tsx"),
+      join(tempDir, "__root.tsx"),
       `const route = { __type: "FURIN_ROUTE", layout: () => null };
 export { route };`
     );
 
     writeFileSync(join(tempDir, "invalid.tsx"), "export default { notAPage: true };");
 
-    expect(scanPages(tempDir)).rejects.toThrowError();
+    expect(scanPages({ pagesDir: tempDir, prefix: "", style: "tanstack" })).rejects.toThrowError();
 
     if (existsSync(tempDir)) {
       rmSync(tempDir, { force: true, recursive: true });

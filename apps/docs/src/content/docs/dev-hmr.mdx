@@ -103,7 +103,7 @@ response, and the first visit to a second route separately.
 
 ### One identity per source revision
 
-Every dev request resolves `root.tsx` and the matched page through a versioned
+Every dev request resolves the root document and the matched page through a versioned
 specifier:
 
 ```text
@@ -145,19 +145,21 @@ being reported as generic import failures.
 
 A fresh page import does not guarantee that a statically imported parent layout
 has a fresh identity. Before rendering, `refreshLayoutChain()` imports each
-existing intermediate `_route` module with the same versioning rule and patches
-the matching runtime chain entry.
+layout of the page, in the order the route manifest lists them, with the same
+versioning rule and patches the matching runtime chain entry.
 
-Directories without `_route` files do not consume a chain position. The root is
-loaded separately, then its current layout and loader references replace the
-root entry captured by the nested chain.
+The manifest follows each [routing style](/docs/routing): directory layouts in
+the Next.js style, and in the TanStack style the layout of the route's id, so
+flat files, pathless layouts and un-nested segments get the same chain as in
+production. The root is loaded separately, then its current layout and loader
+references replace the root entry captured by the nested chain.
 
 Route discovery, the per-request renderer, and the pages' rewritten relative
-imports all load `root.tsx` through the same versioned specifier, so its top
+imports all load the root document through the same versioned specifier, so its top
 level runs once per revision. A root edit is not a `bun --hot` server reload: the
 route watcher rescans and the next page or 404 render uses the new root. Like
 page modules, the Elysia route tree is composed at startup, so a change to a
-route module's Elysia hooks (including `root.tsx`) takes effect after a restart.
+route module's Elysia hooks (including the root document) takes effect after a restart.
 
 Furin finally rebuilds the `ResolvedRoute` from the current page and route chain.
 Changing `mode`, adding or removing a loader, changing `revalidate`, or changing
@@ -289,7 +291,7 @@ shell cache, so a page that breaks a PPR rule (for example a `requestLoader`
 field read outside a `<Suspense>` boundary) fails in development with the
 error overlay instead of only in production.
 
-Each cache entry records the page, root, and existing intermediate layouts that
+Each cache entry records the page, root, and the layouts that
 can affect it. A source re-evaluation invalidates only entries indexed by that
 file, and so does the route table refresh that applies its edited schemas. The
 validity check also compares dependency modification times, so a rename or

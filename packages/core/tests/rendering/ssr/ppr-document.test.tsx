@@ -50,6 +50,7 @@ test("prerenders a route without requestLoader fields", async () => {
     path: "/public.tsx",
     pattern: "/public",
     routeChain: collectRouteChainFromRoute(page._route),
+    layouts: [],
     segmentBoundaries: [],
   };
   const app = new Elysia().get("/public", async (ctx) => {
@@ -123,6 +124,7 @@ test("a serialized public shell resumes independently for two sessions", async (
     pattern: "/account",
     requestKeys: ["user"],
     routeChain: collectRouteChainFromRoute(page._route),
+    layouts: [],
     segmentBoundaries: [],
   };
   let artifact: Awaited<ReturnType<typeof prerenderPprDocument>> | undefined;

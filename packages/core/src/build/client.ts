@@ -54,7 +54,7 @@ export async function buildClient(
     metafilePath,
     optimizeImports,
     reactCompiler,
-    pagesDir,
+    pages,
     routeRegistry,
   }: BuildClientOptions
 ): Promise<BuildClientResult> {
@@ -136,8 +136,8 @@ export async function buildClient(
       hydrateEntry.plugin,
       ...(plugins ?? []),
       ...(!clientLogging ? [routerLoggerPlugin] : []),
-      ...(pagesDir
-        ? [createRoutesPlugin({ instances: [{ pagesDir, prefix: basePath, routeRegistry }], target: "client" })]
+      ...(pages
+        ? [createRoutesPlugin({ instances: [{ ...pages, prefix: basePath, routeRegistry }], target: "client" })]
         : []),
       createClientStripPlugin({ mode: "build" }),
     ],

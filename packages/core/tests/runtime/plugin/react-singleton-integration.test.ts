@@ -152,9 +152,9 @@ describe("furin-dev-page React singleton", () => {
     withTmpFiles(
       TMP_DIR,
       {
-        "_route.tsx": (paths) => `import { defineRoute } from "@teyik0/furin";
+        "route.tsx": (paths) => `import { defineRoute } from "@teyik0/furin";
           import { Nav } from ${JSON.stringify(paths["nav.tsx"])};
-          export const route = defineRoute("/_route")
+          export const route = defineRoute("")
             .config({ mode: "ssr" })
             .layout(({ children }) => (
               <section>
@@ -171,14 +171,14 @@ describe("furin-dev-page React singleton", () => {
           export const route = defineRoute("/page")
             .config({ mode: "ssg" })
             .page(() => <main>docs page</main>);`,
-        "root.tsx": `import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
+        "__root.tsx": `import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
           export const route = defineRootRoute()
             .config({ mode: "ssr" })
             .layout(({ children }) => <html lang="en"><head><HeadContent /></head><body><div data-root="yes">{children}</div><Scripts /></body></html>);`,
       },
       async (paths) => {
-        const rootPath = requireTmpPath(paths, "root.tsx");
-        const routePath = requireTmpPath(paths, "_route.tsx");
+        const rootPath = requireTmpPath(paths, "__root.tsx");
+        const routePath = requireTmpPath(paths, "route.tsx");
         const pagePath = requireTmpPath(paths, "page.tsx");
         const rootMod = await import(rootPath);
         const routeMod = await import(routePath);

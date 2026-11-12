@@ -188,6 +188,7 @@ describe("createBuildFingerprint", () => {
       const routeDefinition = { __type: "FURIN_ROUTE" } satisfies RootLayout["route"];
       const root: RootLayout = { path: rootPath, route: routeDefinition };
       const route: ResolvedRoute = {
+        layouts: [],
         mode: "ssr",
         page: { __type: "FURIN_PAGE", _route: routeDefinition, component: () => null },
         path: pagePath,
@@ -235,6 +236,7 @@ describe("createBuildFingerprint", () => {
       };
       const routes: ResolvedRoute[] = [
         {
+          layouts: [],
           mode: "ssr",
           page: {
             __type: "FURIN_PAGE",
@@ -247,6 +249,7 @@ describe("createBuildFingerprint", () => {
           segmentBoundaries: [],
         },
         {
+          layouts: [],
           mode: "ssr",
           page: {
             __type: "FURIN_PAGE",

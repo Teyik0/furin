@@ -320,6 +320,14 @@ describe("Link", () => {
     expect(html).toContain(">Blog</a>");
   });
 
+  test("resolves optional segments and catch-all params into the href", () => {
+    const href = (to: string, params: { [name: string]: string }) =>
+      getHref(renderToStaticMarkup(createElement(Link, { params, to: to as "/" }, "Link")));
+    expect(href("/:lang?/about", { lang: "fr" })).toBe("/fr/about");
+    expect(href("/:lang?/about", {})).toBe("/about");
+    expect(href("/docs/*", { _splat: "guides/routing" })).toBe("/docs/guides/routing");
+  });
+
   test("passes through className", () => {
     const html = renderToStaticMarkup(
       createElement(Link, { className: "nav-link", to: "/about" }, "About")

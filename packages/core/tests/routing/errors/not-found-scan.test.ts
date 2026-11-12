@@ -7,21 +7,21 @@ const NESTED_FIXTURES_DIR = join(import.meta.dirname, "../../fixtures/pages/nest
 
 describe("scanPages — not-found discovery", () => {
   test("exposes root not-found component on root layout", async () => {
-    const result = await scanPages(FIXTURES_DIR);
+    const result = await scanPages({ pagesDir: FIXTURES_DIR, prefix: "", style: "nextjs" });
 
     expect(result.root.notFound).toBeDefined();
     expect(typeof result.root.notFound).toBe("function");
   });
 
   test("does not register not-found.tsx as a page route", async () => {
-    const result = await scanPages(FIXTURES_DIR);
+    const result = await scanPages({ pagesDir: FIXTURES_DIR, prefix: "", style: "nextjs" });
 
     const patterns = result.routes.map((r) => r.pattern);
     expect(patterns).not.toContain("/not-found");
   });
 
   test("attaches nearest not-found.tsx to each route", async () => {
-    const result = await scanPages(NESTED_FIXTURES_DIR);
+    const result = await scanPages({ pagesDir: NESTED_FIXTURES_DIR, prefix: "", style: "nextjs" });
 
     const nearestNotFound = (pattern: string) =>
       result.routes

@@ -3,7 +3,6 @@ import { dirname, relative, resolve, sep } from "node:path";
 import { type AnyElysia, Elysia } from "elysia";
 import { type FurinNativeRouteContext, getFurinRenderer } from "../define-route.ts";
 import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
-import { isRouteGroup } from "../server/router/patterns.ts";
 import { routeModuleSourceVersion } from "../server/router/source-version.ts";
 import { type RouteModule, routeModuleDependencies, validateRouteParams } from "./route-modules.ts";
 import {
@@ -14,7 +13,6 @@ import {
   type RouteTreeNode,
   routeModuleSpecifier,
   routeSnapshotSourcePaths,
-  segmentPath,
 } from "./route-tree.ts";
 
 const DEV_ROUTE_WATCHERS_SYMBOL = Symbol.for("@teyik0/furin/dev-route-watchers");
@@ -380,28 +378,21 @@ async function composableRouteApps(route: RouteFile): Promise<DevRoutesApps | un
 }
 
 async function composeRuntimeNode(node: RouteTreeNode): Promise<DevRoutesApps> {
-  const prefix = node.name && !isRouteGroup(node.name) ? `/${segmentPath(node.name)}` : "";
-  const { fileRoutes } = node;
-  const [layoutApps, indexRouteApps, fileRouteApps, childApps] = await Promise.all([
+  const { pages, prefix } = node;
+  const [layoutApps, pageApps, childApps] = await Promise.all([
     node.layout ? composableRouteApps(node.layout) : undefined,
-    node.indexRoute ? composableRouteApps(node.indexRoute) : undefined,
-    Promise.all(fileRoutes.map((route) => composableRouteApps(route))),
+    Promise.all(pages.map((route) => composableRouteApps(route))),
     Promise.all(node.children.map((child) => composeRuntimeNode(child))),
   ]);
   const appScope = layoutApps?.app ?? new Elysia();
   const shellScope = layoutApps?.shell ?? new Elysia();
 
-  if (indexRouteApps) {
-    appScope.use(new Elysia({ prefix: "" }).use(indexRouteApps.app));
-    shellScope.use(new Elysia({ prefix: "" }).use(indexRouteApps.shell));
-  }
-  for (const [index, route] of fileRoutes.entries()) {
-    const routeApps = fileRouteApps[index];
+  for (const [index, route] of pages.entries()) {
+    const routeApps = pageApps[index];
     if (routeApps) {
-      const segment = route.path.slice(route.path.lastIndexOf("/") + 1);
-      appScope.use(new Elysia({ prefix: `/${segment}` }).use(routeApps.app));
+      appScope.use(new Elysia({ prefix: route.prefix }).use(routeApps.app));
       if (route.path !== "/*") {
-        shellScope.use(new Elysia({ prefix: `/${segment}` }).use(routeApps.shell));
+        shellScope.use(new Elysia({ prefix: route.prefix }).use(routeApps.shell));
       }
     }
   }
@@ -420,7 +411,7 @@ async function composeRuntimeInstance(instance: RouteInstanceSpec): Promise<DevR
   const { registerDevPagePlugin } = await import("../server/dev-page-plugin.ts");
   registerDevPagePlugin();
   const instanceId = Bun.hash(instanceKey(instance)).toString(16);
-  return composeRuntimeNode(buildRouteTree(instance.pagesDir, instanceId));
+  return composeRuntimeNode(buildRouteTree(instance, instanceId));
 }
 
 /**

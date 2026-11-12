@@ -49,7 +49,7 @@ function withLoaderPage(
   head: ((context: never) => HeadOptions) | undefined,
   layoutLoader: TestLoader | undefined
 ): ProductionPage {
-  const layout = defineRoute("/layout/_route")
+  const layout = defineRoute("/layout")
     .config({ mode: "ssr" })
     .loader((layoutLoader ?? defaultLayoutLoader) as never)
     .layout(({ children }) => children);
@@ -540,7 +540,7 @@ describe("SPA navigation data (?_furin=data)", () => {
   test("prefers a static route over a dynamic sibling that also matches", async () => {
     // `/dynamic/specific` (static) and `/dynamic/:id` (dynamic) both match the
     // path `/dynamic/specific`. The endpoint must pick the static route — the
-    // dynamic one would otherwise shadow it (its dir `[id]` is scanned first).
+    // dynamic one would otherwise shadow it (its dir `$id` is scanned first).
     const app = await createDataTestApp([]);
 
     const res = await app.handle(new Request("http://localhost/dynamic/specific?_furin=data"));

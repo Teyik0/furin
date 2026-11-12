@@ -14,8 +14,8 @@ test("CSS edits with incoming requests preserve an eagerly acquired server-only 
   writeAppFile(app.path, "src/styles.css", "body { color: red; }");
   writeAppFile(
     app.path,
-    "src/pages/root.tsx",
-    `import "../styles.css";\n${readFileSync(resolve(app.path, "src/pages/root.tsx"), "utf8")}`
+    "src/pages/__root.tsx",
+    `import "../styles.css";\n${readFileSync(resolve(app.path, "src/pages/__root.tsx"), "utf8")}`
   );
   writeAppFile(
     app.path,
@@ -44,7 +44,7 @@ test("CSS edits with incoming requests preserve an eagerly acquired server-only 
     `import { Elysia } from "elysia";
     import { furin } from "@teyik0/furin";
     import { resource } from "./resource";
-    export default new Elysia().onStop(() => resource.dispose()).use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+    export default new Elysia().onStop(() => resource.dispose()).use(await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages" }));`
   );
   const server = startProcess(
     [

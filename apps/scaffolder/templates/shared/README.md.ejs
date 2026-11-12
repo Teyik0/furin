@@ -16,7 +16,11 @@ A [Furin](https://teyik0.github.io/furin/) app: React pages rendered by an Elysi
 ## Project layout
 
 - `src/server.ts`: the Elysia app. API routes and the `furin()` plugin live here.
-- `src/pages/`: file-based routes. `root.tsx` is the document layout; every other page exports `route`.
+<% if (routeStyle === "nextjs") { -%>
+- `src/app/`: file-based routes in the Next.js App Router style. `layout.tsx` at the top is the document layout, `page.tsx` files are pages, nested `layout.tsx` files wrap a folder, `[id]` folders are params.
+<% } else { -%>
+- `src/routes/`: file-based routes in the TanStack Start style. `__root.tsx` is the document layout, `index.tsx` and `about.tsx` are pages, `route.tsx` wraps a folder, `$id.tsx` is a param.
+<% } -%>
 - `src/api/`: server code shared by API routes and page loaders.
 - `public/`: files served as-is.
 

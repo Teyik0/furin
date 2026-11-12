@@ -62,7 +62,7 @@ import { furin } from "@teyik0/furin";
 import { api, sync } from "./api";
 export default new Elysia({ name: "isolated-server" })
   .use(api)
-  .use(await furin({ pagesDir: "./src/pages", sync }));`
+  .use(await furin({ style: "tanstack", pagesDir: "./src/pages", sync }));`
       );
       writeAppFile(
         fixture.path,

@@ -1,5 +1,5 @@
 import { cancel, isCancel, select } from "@clack/prompts";
-import type { ManifestRegistry, PipelineContext, TemplateId } from "../context.ts";
+import type { ManifestRegistry, PipelineContext, RouteStyle, TemplateId } from "../context.ts";
 import { TEMPLATES_DIR } from "../context.ts";
 
 let cachedManifest: ManifestRegistry | null = null;
@@ -43,4 +43,30 @@ export async function stage2Selection(ctx: PipelineContext): Promise<void> {
 
   ctx.manifest = template;
   ctx.features = template.features;
+
+  // ── Routing style selection ────────────────────────────────────────────
+  if (!ctx.routeStyle) {
+    const style = await select({
+      message: "Which file-routing style?",
+      options: [
+        {
+          hint: "__root.tsx, route.tsx, $id.tsx, posts.$id.tsx",
+          label: "TanStack Start",
+          value: "tanstack" as RouteStyle,
+        },
+        {
+          hint: "layout.tsx, page.tsx, [id]/page.tsx",
+          label: "Next.js App Router",
+          value: "nextjs" as RouteStyle,
+        },
+      ],
+    });
+
+    if (isCancel(style)) {
+      cancel("Scaffolding cancelled.");
+      process.exit(0);
+    }
+
+    ctx.routeStyle = style as RouteStyle;
+  }
 }

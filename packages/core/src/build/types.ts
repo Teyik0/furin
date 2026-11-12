@@ -1,5 +1,6 @@
 import type { AdapterTargetManifest } from "../adapter/types.ts";
 import type { FurinTarget, StaticExportConfig } from "../config";
+import type { RouteStyle } from "../plugin/route-manifest.ts";
 import type { RouteRegistrySnapshot } from "../plugin/route-registry.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import type { ClientBoundary } from "../rsc/build/discover.ts";
@@ -27,7 +28,8 @@ export interface BuildClientOptions {
   /** Package barrels Bun should parse on demand instead of loading in full. */
   optimizeImports?: string[];
   outDir: string;
-  pagesDir?: string;
+  /** The app whose route registry the client bundle embeds. */
+  pages?: { pagesDir: string; style: RouteStyle };
   plugins?: Bun.BunPlugin[];
   /** Record route chunks in the preload manifest. Defaults to true. */
   preloadRouteChunks?: boolean;
@@ -83,11 +85,17 @@ interface BuildAppSpec {
   pagesDir: string;
   /** Mount prefix (`""` or absent = root). */
   prefix?: string;
+  style: RouteStyle;
 }
 
 export interface BuildManifest {
   /** Every mounted app built into this artifact (multi-instance). */
-  apps?: Array<{ pagesDir: string; prefix: string; routes: BuildRouteManifestEntry[] }>;
+  apps?: Array<{
+    pagesDir: string;
+    prefix: string;
+    routes: BuildRouteManifestEntry[];
+    style: RouteStyle;
+  }>;
   generatedAt: string;
   pagesDir: string;
   rootDir: string;
@@ -105,8 +113,8 @@ export interface BuildAppOptions {
   /** Bun emits a listening server unless output is explicitly "app". */
   bun?: { output?: "app" | "server" };
   /**
-   * Explicit multi-app build (furin.config.ts `apps`). Overrides `pagesDir`
-   * and the mounts found by evaluating the server entry.
+   * Explicit multi-app build (furin.config.ts `apps`). Overrides the mounts
+   * found by evaluating the server entry.
    */
   apps?: BuildAppSpec[];
   /** Inject the evlog client logger into the hydrate entry. Defaults to false. */
@@ -114,7 +122,6 @@ export interface BuildAppOptions {
   compile?: "server" | "embed";
   /** Package barrels Bun should parse on demand in production client bundles. */
   optimizeImports?: string[];
-  pagesDir?: string;
   plugins?: Bun.BunPlugin[];
   /** Module preloading (furin.config.ts `preload`). */
   preload?: { routeChunks?: boolean };

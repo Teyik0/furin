@@ -7,211 +7,211 @@ declare module "@teyik0/furin/routes" {
     "/": {
       kind: "page";
       pattern: "/";
-      parent: typeof import("./src/pages/root").route;
+      parent: typeof import("./src/pages/__root").route;
       pathParams: {};
     };
     "/docs": {
-      kind: "page";
-      pattern: "/docs";
-      parent: typeof import("./src/pages/docs/_route").route;
-      pathParams: {};
-    };
-    "/docs/_route": {
       kind: "layout";
       pattern: "/docs";
-      parent: typeof import("./src/pages/root").route;
+      parent: typeof import("./src/pages/__root").route;
+      pathParams: {};
+    };
+    "/docs/": {
+      kind: "page";
+      pattern: "/docs";
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/api-routes": {
       kind: "page";
       pattern: "/docs/api-routes";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/caching": {
       kind: "page";
       pattern: "/docs/caching";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/cli": {
       kind: "page";
       pattern: "/docs/cli";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/comparison": {
       kind: "page";
       pattern: "/docs/comparison";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/configuration": {
       kind: "page";
       pattern: "/docs/configuration";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/data-loading": {
       kind: "page";
       pattern: "/docs/data-loading";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/defer": {
       kind: "page";
       pattern: "/docs/defer";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/deployment": {
       kind: "page";
       pattern: "/docs/deployment";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
-    "/docs/desktop": {
+    "/docs/desktop/": {
       kind: "page";
       pattern: "/docs/desktop";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/desktop/architecture": {
       kind: "page";
       pattern: "/docs/desktop/architecture";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/desktop/bridge": {
       kind: "page";
       pattern: "/docs/desktop/bridge";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/desktop/build": {
       kind: "page";
       pattern: "/docs/desktop/build";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/desktop/first-window": {
       kind: "page";
       pattern: "/docs/desktop/first-window";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/desktop/installation": {
       kind: "page";
       pattern: "/docs/desktop/installation";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/desktop/integration": {
       kind: "page";
       pattern: "/docs/desktop/integration";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/desktop/migration": {
       kind: "page";
       pattern: "/docs/desktop/migration";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/desktop/native-apis": {
       kind: "page";
       pattern: "/docs/desktop/native-apis";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/desktop/signing": {
       kind: "page";
       pattern: "/docs/desktop/signing";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/desktop/updates": {
       kind: "page";
       pattern: "/docs/desktop/updates";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/desktop/windows": {
       kind: "page";
       pattern: "/docs/desktop/windows";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/dev-hmr": {
       kind: "page";
       pattern: "/docs/dev-hmr";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/error-handling": {
       kind: "page";
       pattern: "/docs/error-handling";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/getting-started": {
       kind: "page";
       pattern: "/docs/getting-started";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/head-seo": {
       kind: "page";
       pattern: "/docs/head-seo";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/layouts": {
       kind: "page";
       pattern: "/docs/layouts";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/link-navigation": {
       kind: "page";
       pattern: "/docs/link-navigation";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/logging": {
       kind: "page";
       pattern: "/docs/logging";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/multi-instance": {
       kind: "page";
       pattern: "/docs/multi-instance";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/plugins": {
       kind: "page";
       pattern: "/docs/plugins";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/rendering": {
       kind: "page";
       pattern: "/docs/rendering";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/routing": {
       kind: "page";
       pattern: "/docs/routing";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
     "/docs/sync": {
       kind: "page";
       pattern: "/docs/sync";
-      parent: typeof import("./src/pages/docs/_route").route;
+      parent: typeof import("./src/pages/docs/route").route;
       pathParams: {};
     };
   }

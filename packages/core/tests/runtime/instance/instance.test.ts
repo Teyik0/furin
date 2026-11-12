@@ -129,6 +129,7 @@ describe("cache state reset", () => {
     __setDevMode(true);
     const purged: string[][] = [];
     const plugin = furin({
+      style: "tanstack",
       cachePurger: (paths) => {
         purged.push(paths);
         return Promise.resolve();

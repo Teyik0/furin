@@ -11,14 +11,14 @@ export interface FixtureRoute {
 
 /**
  * Builds the compile context `furin build` would emit for a fixture app:
- * imports `src/pages/root.tsx` and each route file, and composes their
+ * imports `src/pages/__root.tsx` and each route file, and composes their
  * Elysia-native routes under the root.
  */
 export async function createFixtureCompileContext(
   appPath: string,
   routes: FixtureRoute[]
 ): Promise<CompileContext> {
-  const rootPath = join(appPath, "src/pages/root.tsx");
+  const rootPath = join(appPath, "src/pages/__root.tsx");
   const paths = routes.map((route) => join(appPath, "src/pages", route.file));
   const [rootMod, ...routeMods] = await Promise.all(
     [rootPath, ...paths].map((path) => import(path))
@@ -41,7 +41,9 @@ export async function createFixtureCompileContext(
     nativeRoutes: new Elysia().use(nativeRoutes),
     rootConventions: {},
     rootPath,
-    routeMetadata: Object.fromEntries(paths.map((path) => [path, { segmentBoundaries: [] }])),
+    routeMetadata: Object.fromEntries(
+      paths.map((path) => [path, { layouts: [], segmentBoundaries: [] }])
+    ),
     routes: routes.map((route, index) => ({
       mode: route.mode,
       path: paths[index] as string,

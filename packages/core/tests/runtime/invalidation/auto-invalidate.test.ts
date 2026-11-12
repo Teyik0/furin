@@ -385,11 +385,11 @@ describe("furinInvalidate()", () => {
     const tmpApp = createTmpApp("cli-app");
     writeAppFile(
       tmpApp.path,
-      "src/pages/items/[id].tsx",
+      "src/pages/items/$id.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
-        'export const route = defineRoute("/items/[id]")',
+        'export const route = defineRoute("/items/$id")',
         '  .config({ mode: "isr", revalidate: 60, tags: ["boards"],',
         "    params: t.Object({ id: t.String() }) })",
         '  .loader(() => ({ pageData: "from-page" }))',
@@ -401,7 +401,7 @@ describe("furinInvalidate()", () => {
     process.chdir(tmpApp.path);
     try {
       const pagesDir = join(tmpApp.path, "src/pages");
-      const app = new Elysia().use(await furin({ pagesDir }));
+      const app = new Elysia().use(await furin({ style: "tanstack", pagesDir }));
       const instance = allInstances().find(
         // Furin stores pagesDir with POSIX separators on every platform.
         (candidate) => candidate.pagesDir === pagesDir.replaceAll("\\", "/")

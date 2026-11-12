@@ -38,6 +38,17 @@ const tmpApps = [];
 const originalCwd = process.cwd();
 const furinDataRe = /<script id="__FURIN_DATA__"[^>]*>([\\s\\S]*?)<\\/script>/;
 
+// TanStack style: the root's not-found is \`.notFound()\` on __root.tsx.
+function writeRootNotFound(appPath, component) {
+  writeAppFile(
+    appPath,
+    "src/pages/__root.tsx",
+    'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";\\n' +
+      component +
+      '\\nexport const route = defineRootRoute().config({ mode: "ssr" }).notFound(RootNotFound).layout(({ children }) => (<html lang="en"><head><HeadContent /></head><body><div data-testid="root-layout">{children}</div><Scripts /></body></html>));\\n'
+  );
+}
+
 function resetNotFoundTestState() {
   __setDevMode(true);
   __resetTemplateState();
@@ -55,13 +66,9 @@ try {
   __setDevMode(true);
   process.chdir(app.path);
 
-  writeAppFile(
-    app.path,
-    "src/pages/not-found.tsx",
-    'export default function RootNotFound() { return <div data-testid="root-not-found">Nothing at this URL</div>; }\\n'
-  );
+  writeRootNotFound(app.path, 'function RootNotFound() { return <div data-testid="root-not-found">Nothing at this URL</div>; }');
 
-  let plugin = await furin({ pagesDir: join(app.path, "src/pages") });
+  let plugin = await furin({ pagesDir: join(app.path, "src/pages"), style: "tanstack" });
   let parent = new Elysia().use(plugin);
   let response = await parent.handle(new Request("http://furin/does-not-exist"));
 
@@ -76,13 +83,9 @@ try {
   __setDevMode(true);
   process.chdir(app.path);
 
-  writeAppFile(
-    app.path,
-    "src/pages/not-found.tsx",
-    "export default function RootNotFound() { return <div>Nothing at this URL</div>; }\\n"
-  );
+  writeRootNotFound(app.path, "function RootNotFound() { return <div>Nothing at this URL</div>; }");
 
-  plugin = await furin({ pagesDir: join(app.path, "src/pages") });
+  plugin = await furin({ pagesDir: join(app.path, "src/pages"), style: "tanstack" });
   parent = new Elysia().use(plugin).get("/api/ping", () => ({ ok: true }));
 
   let apiResponse = await parent.handle(new Request("http://furin/api/does-not-exist"));
@@ -97,13 +100,9 @@ try {
   __setDevMode(true);
   process.chdir(app.path);
 
-  writeAppFile(
-    app.path,
-    "src/pages/not-found.tsx",
-    "export default function RootNotFound() { return <div>HTML 404</div>; }\\n"
-  );
+  writeRootNotFound(app.path, "function RootNotFound() { return <div>HTML 404</div>; }");
 
-  plugin = await furin({ pagesDir: join(app.path, "src/pages") });
+  plugin = await furin({ pagesDir: join(app.path, "src/pages"), style: "tanstack" });
   parent = new Elysia()
     .onError(NotFound, ({ path }) => {
       if (path.startsWith("/api/")) {
@@ -127,7 +126,7 @@ try {
   __setDevMode(true);
   process.chdir(app.path);
 
-  plugin = await furin({ pagesDir: join(app.path, "src/pages") });
+  plugin = await furin({ pagesDir: join(app.path, "src/pages"), style: "tanstack" });
   parent = new Elysia().use(plugin);
   response = await parent.handle(new Request("http://furin/does-not-exist"));
 
@@ -141,7 +140,7 @@ try {
   __setDevMode(true);
   process.chdir(app.path);
 
-  plugin = await furin({ pagesDir: join(app.path, "src/pages") });
+  plugin = await furin({ pagesDir: join(app.path, "src/pages"), style: "tanstack" });
   parent = new Elysia().use(plugin);
   response = await parent.handle(new Request("http://furin/no-route-here"));
 

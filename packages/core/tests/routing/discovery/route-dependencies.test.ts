@@ -18,25 +18,27 @@ function assert(condition, message) {
 const fixturesDir = join(process.cwd(), "tests/fixtures/pages/default");
 
 let pagePath = join(fixturesDir, "nested/deep/index.tsx");
-let rootPath = join(fixturesDir, "root.tsx");
-let deps = computeRouteDependencies(pagePath, rootPath);
+let rootPath = join(fixturesDir, "__root.tsx");
+const layoutPaths = [join(fixturesDir, "nested/route.tsx"), join(fixturesDir, "nested/deep/route.tsx")];
+let deps = computeRouteDependencies(pagePath, rootPath, layoutPaths);
 for (const dep of deps) {
   assert(existsSync(dep), "dependency should exist: " + dep);
 }
 assert(deps.length === 4, "expected 4 dependencies, got " + deps.length);
 
 pagePath = join(fixturesDir, "isr-page.tsx");
-rootPath = join(fixturesDir, "root.tsx");
-deps = computeRouteDependencies(pagePath, rootPath);
+rootPath = join(fixturesDir, "__root.tsx");
+deps = computeRouteDependencies(pagePath, rootPath, []);
 assert(deps.length === 2, "expected 2 dependencies, got " + deps.length);
 assert(resolve(deps[0]) === pagePath, "first dependency should be the page path");
 assert(resolve(deps[1]) === rootPath, "second dependency should be the root path");
 
 const missingAsset = join(fixturesDir, "optional.mdx");
 devGraph(undefined).recordImports(pagePath, [missingAsset]);
-deps = computeRouteDependencies(pagePath, rootPath);
+deps = computeRouteDependencies(pagePath, rootPath, [join(fixturesDir, "missing/route.tsx")]);
 assert(!deps.some((path) => resolve(path) === missingAsset), "a missing optional import must not permanently invalidate the cache");
 assert(deps.some((path) => resolve(path) === pagePath), "existing page dependency must remain tracked");
+assert(deps.length === 2, "a deleted layout must not be tracked, got " + deps.length);
 
 process.exit(0);
 `;

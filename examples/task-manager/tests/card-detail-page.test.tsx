@@ -45,7 +45,7 @@ mock.module("../src/lib/api", () => ({
     }) as typeof fetch,
   }).use(furinSync),
 }));
-const { route } = await import("../src/pages/board/[boardId]/card/[cardId]");
+const { route } = await import("../src/routes/board/$boardId/card/$cardId");
 const page = adaptDefinedPage(route, { __type: "FURIN_ROUTE" });
 const match: LoadedClientRoute = {
   component: page.component,

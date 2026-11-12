@@ -3,11 +3,11 @@
 `head()` derives document metadata from validated params, search state, and public loader data. Furin renders it during SSR, SSG, and ISR, then replaces the route-owned head descriptors during SPA navigation.
 
 ```tsx
-// src/pages/blog/[slug].tsx
+// src/routes/blog/$slug.tsx
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 
-export const route = defineRoute("/blog/[slug]")
+export const route = defineRoute("/blog/$slug")
   .config({
     mode: "ssr",
     params: t.Object({ slug: t.String() }),

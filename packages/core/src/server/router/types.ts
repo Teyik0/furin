@@ -22,15 +22,28 @@ export interface SegmentBoundary {
    * can't survive the server→client boundary.
    */
   errorPath?: string;
+  /**
+   * TanStack style: the components are a route's `.error()` / `.notFound()`,
+   * read from `errorPath`'s `route` export instead of its default export.
+   */
+  fromRoute?: true;
   notFound?: NotFoundComponent;
   /** Absolute path to the `not-found.tsx` module, when present. */
   notFoundPath?: string;
-  /** Absolute directory path. */
+  /** Absolute directory path; the route file for a `fromRoute` boundary. */
   path: string;
+}
+
+/** A layout wrapping a page, from the route manifest. */
+export interface ResolvedLayout {
+  path: string;
+  pattern: string;
 }
 
 export interface ResolvedRoute {
   isrCache?: { html: string; generatedAt: number; revalidate: number };
+  /** Layouts wrapping the page, shallow → deep, the root excluded. */
+  layouts: ResolvedLayout[];
   mode: "ssr" | "ssg" | "isr";
   page: RuntimePage;
   path: string;

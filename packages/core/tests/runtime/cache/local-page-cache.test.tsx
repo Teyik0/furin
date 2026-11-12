@@ -42,6 +42,7 @@ function resolveRoute(terminal: Parameters<typeof adaptDefinedPage>[0]): Resolve
     path: "/catalog.tsx",
     pattern: "/catalog",
     routeChain: collectRouteChainFromRoute(page._route),
+    layouts: [],
     segmentBoundaries: [],
   };
 }

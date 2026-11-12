@@ -39,12 +39,12 @@ function trackedTmpApp(fixtureName: string): TmpApp {
 function createCompileTmpApp(): TmpApp {
   const app = trackedTmpApp("cli-app");
   writeFileSync(
-    join(app.path, "src/pages/blog/[slug].tsx"),
+    join(app.path, "src/pages/blog/$slug.tsx"),
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { t } from "elysia";',
       "",
-      "export const route = defineRoute(\"/blog/[slug]\")",
+      "export const route = defineRoute(\"/blog/$slug\")",
       '  .config({ params: t.Object({ slug: t.String() }) })',
       "  .page(() => <article>Blog post page</article>);",
     ].join("\n"),
@@ -63,11 +63,11 @@ afterEach(() => {
 describe.serial("buildBunTarget Bun branches", () => {
   test("app output bundles an inert application instead of a server boot entry", async () => {
     const app = createCompileTmpApp();
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
     const builds: Bun.BuildConfig[] = [];
     const manifest = await withBuildStub(() =>
       buildBunTarget(
-        [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
+        [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes, style: "tanstack" }],
         app.path,
         join(app.path, ".furin/build"),
         join(app.path, "src/server.ts"),
@@ -95,7 +95,7 @@ describe.serial("buildBunTarget Bun branches", () => {
         join(app.path, "src/pages/index.tsx"),
         'import { defineRoute } from "@teyik0/furin"; export const route = defineRoute("/").config({ mode: "ssr" }).page(() => <main>{process.env.FURIN_PUBLIC_AUDIT}{process.env.FURIN_PRIVATE_AUDIT}</main>);'
       );
-      const { root, routes } = await scanPages(join(app.path, "src/pages"));
+      const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
       const outDir = join(app.path, "environment-build");
       await buildClient(routes, {
         basePath: "",
@@ -137,7 +137,7 @@ describe.serial("buildBunTarget Bun branches", () => {
 
   test("compiled Windows server paths include the executable extension", async () => {
     const app = createCompileTmpApp();
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
     const buildConfigs: Bun.BuildConfig[] = [];
     const platformDescriptor = Object.getOwnPropertyDescriptor(process, "platform");
 
@@ -146,7 +146,7 @@ describe.serial("buildBunTarget Bun branches", () => {
       const manifest = await withBuildStub(
         () =>
           buildBunTarget(
-            [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
+            [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes, style: "tanstack" }],
             app.path,
             join(app.path, ".furin/build"),
             join(app.path, "src/server.ts"),
@@ -174,13 +174,13 @@ describe.serial("buildBunTarget Bun branches", () => {
 
   test("compile server keeps client assets and uses split ESM bytecode", async () => {
     const app = createCompileTmpApp();
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
     const buildConfigs: Bun.BuildConfig[] = [];
 
     await withBuildStub(
       () =>
         buildBunTarget(
-          [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
+          [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes, style: "tanstack" }],
           app.path,
           join(app.path, ".furin/build"),
           join(app.path, "src/server.ts"),
@@ -202,14 +202,14 @@ describe.serial("buildBunTarget Bun branches", () => {
 
   test("server builds precompile the exported Elysia app after user plugins and client builds compile an in-memory hydration entry with React Compiler", async () => {
     const app = createCompileTmpApp();
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
     const buildConfigs: Bun.BuildConfig[] = [];
     const userPlugin: Bun.BunPlugin = { name: "test-user-plugin", setup() {} };
 
     await withBuildStub(
       () =>
         buildBunTarget(
-          [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
+          [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes, style: "tanstack" }],
           app.path,
           join(app.path, ".furin/build"),
           join(app.path, "src/server.ts"),
@@ -248,13 +248,13 @@ describe.serial("buildBunTarget Bun branches", () => {
 
   test("compile embed removes client assets and embeds asset directories into the bundled server", async () => {
     const app = createCompileTmpApp();
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
     const buildConfigs: Bun.BuildConfig[] = [];
 
     await withBuildStub(
       () =>
         buildBunTarget(
-          [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
+          [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes, style: "tanstack" }],
           app.path,
           join(app.path, ".furin/build"),
           join(app.path, "src/server.ts"),
@@ -283,13 +283,13 @@ describe.serial("buildBunTarget Bun branches", () => {
 
   test("client builds allow Bun's native React Compiler to be disabled", async () => {
     const app = createCompileTmpApp();
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
     const buildConfigs: Bun.BuildConfig[] = [];
 
     await withBuildStub(
       () =>
         buildBunTarget(
-          [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
+          [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes, style: "tanstack" }],
           app.path,
           join(app.path, ".furin/build"),
           join(app.path, "src/server.ts"),
@@ -306,13 +306,13 @@ describe.serial("buildBunTarget Bun branches", () => {
 
   test("client builds pass explicit barrel optimizations to Bun", async () => {
     const app = createCompileTmpApp();
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
     const buildConfigs: Bun.BuildConfig[] = [];
 
     await withBuildStub(
       () =>
         buildBunTarget(
-          [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
+          [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes, style: "tanstack" }],
           app.path,
           join(app.path, ".furin/build"),
           join(app.path, "src/server.ts"),
@@ -329,7 +329,7 @@ describe.serial("buildBunTarget Bun branches", () => {
 
   test("virtual hydration entries still resolve page imports through user plugins", async () => {
     const app = createCompileTmpApp();
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
     const resolvedPages: string[] = [];
     const plugin: Bun.BunPlugin = {
       name: "test-user-plugin",
@@ -354,7 +354,7 @@ describe.serial("buildBunTarget Bun branches", () => {
 
   test("client analysis writes Bun's complete build metafile", async () => {
     const app = createCompileTmpApp();
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
     const metafilePath = join(app.path, ".furin/build/analysis/client.json");
 
     await buildClient(routes, {
@@ -373,7 +373,7 @@ describe.serial("buildBunTarget Bun branches", () => {
 
   test("the default client bundle excludes Furin's evlog router import", async () => {
     const app = createCompileTmpApp();
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
     const metafilePath = join(app.path, "client.json");
 
     await buildClient(routes, {
@@ -395,7 +395,7 @@ describe.serial("buildBunTarget Bun branches", () => {
       join(app.path, "src/pages/index.tsx"),
       'import { log } from "evlog";\nimport { defineRoute } from "@teyik0/furin";\nexport const route = defineRoute("/").config({ mode: "ssr" }).page(() => <main>{String(log.info)}</main>);'
     );
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
     const metafilePath = join(app.path, "client.json");
 
     await buildClient(routes, {
@@ -413,12 +413,12 @@ describe.serial("buildBunTarget Bun branches", () => {
 
   test("Bun target analysis emits its client metafile outside served assets", async () => {
     const app = createCompileTmpApp();
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
     const buildRoot = join(app.path, ".furin/build");
 
     await withBuildStub(() =>
       buildBunTarget(
-        [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
+        [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes, style: "tanstack" }],
         app.path,
         buildRoot,
         join(app.path, "src/server.ts"),

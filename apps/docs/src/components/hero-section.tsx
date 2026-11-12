@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const TAB_NAMES = ["pages/index.tsx", "pages/root.tsx", "server.ts"] as const;
+const TAB_NAMES = ["routes/index.tsx", "routes/__root.tsx", "server.ts"] as const;
 type TabName = (typeof TAB_NAMES)[number];
 
 const LINE_HEIGHT = "calc(13px * 1.7)";
@@ -13,7 +13,7 @@ export function HeroCodeWindow({
   hintPosition: { column: number; line: number } | undefined;
 }) {
   "use no memo";
-  const [active, setActive] = useState<TabName>("pages/index.tsx");
+  const [active, setActive] = useState<TabName>("routes/index.tsx");
 
   return (
     <div className="code-glass relative w-full overflow-hidden rounded-2xl">
@@ -41,7 +41,7 @@ export function HeroCodeWindow({
         </div>
       </div>
       <div className="relative">
-        {active === "pages/index.tsx" && hintPosition && (
+        {active === "routes/index.tsx" && hintPosition && (
           <div
             className="type-hint-line pointer-events-none absolute inset-x-0 max-sm:hidden"
             style={{
@@ -57,7 +57,7 @@ export function HeroCodeWindow({
           // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted TanStack Highlight syntax-highlighted output; never contains user input
           dangerouslySetInnerHTML={{ __html: codeHtmlMap[active] }}
         />
-        {active === "pages/index.tsx" && hintPosition && (
+        {active === "routes/index.tsx" && hintPosition && (
           <div
             className="pointer-events-none absolute -translate-y-1/2 font-mono text-[13px] max-sm:hidden"
             style={{

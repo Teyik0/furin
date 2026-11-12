@@ -170,7 +170,11 @@ test.serial(
 
 async function runSharedSsgWarmup(): Promise<void> {
   __setDevMode(false);
-  const result = await scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
+  const result = await scanPages({
+    pagesDir: join(import.meta.dir, "../../fixtures/pages/default"),
+    prefix: "",
+    style: "tanstack",
+  });
   const matched = result.routes.find((candidate) => candidate.pattern === "/ssg-page");
   if (matched === undefined) {
     throw new Error("Route /ssg-page not found");

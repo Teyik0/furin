@@ -14,7 +14,7 @@ test("SSR discovery does not acquire application resources and preserves the bui
     writeAppFile(
       app.path,
       "furin.config.ts",
-      'export default { apps: [{ pagesDir: "src/pages" }] };'
+      'export default { apps: [{ pagesDir: "src/pages", style: "tanstack" }] };'
     );
     writeAppFile(
       app.path,
@@ -31,7 +31,7 @@ export const api = new Elysia({ name: "isolated-api" }).get("/message", () => ({
       `import { Elysia } from "elysia";
 import { furin } from "@teyik0/furin";
 import { api } from "./api";
-export default new Elysia({ name: "isolated-server" }).use(api).use(await furin({ pagesDir: "./src/pages" }));`
+export default new Elysia({ name: "isolated-server" }).use(api).use(await furin({ style: "tanstack", pagesDir: "./src/pages" }));`
     );
     writeAppFile(
       app.path,
@@ -57,7 +57,7 @@ export const route = defineRoute("/")
   })
   .page(({ message }) => <main>{message}</main>);`
     );
-    await generateRouteTypes({ rootDir: app.path, pagesDir: "src/pages" });
+    await generateRouteTypes({ apps: [{ pagesDir: "src/pages", style: "tanstack" }], rootDir: app.path });
     expect(await Bun.file(join(app.path, "furin-env.d.ts")).text()).toContain('"/":');
     database.exec("ROLLBACK");
     const result = await runCli(["build", "--target", "bun", "--output", "app"], { cwd: app.path });

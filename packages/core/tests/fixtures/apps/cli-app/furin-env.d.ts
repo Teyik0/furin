@@ -5,6 +5,6 @@ import "@teyik0/furin/routes";
 declare module "@teyik0/furin/routes" {
   interface RouteMap {
     "/": typeof import("./src/pages/index").route;
-    "/blog/:slug": typeof import("./src/pages/blog/[slug]").route;
+    "/blog/:slug": typeof import("./src/pages/blog/$slug").route;
   }
 }

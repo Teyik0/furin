@@ -22,7 +22,12 @@ test("static exports render composite server components", async () => {
       ].join("\n")
     );
 
-    await buildApp({ rootDir: app.path, staticConfig: { outDir: "dist" }, target: "static" });
+    await buildApp({
+      apps: [{ pagesDir: "src/pages", style: "tanstack" }],
+      rootDir: app.path,
+      staticConfig: { outDir: "dist" },
+      target: "static",
+    });
 
     const html = readFileSync(join(app.path, "dist/rsc/index.html"), "utf8");
     expect(html).toContain("RSC page");

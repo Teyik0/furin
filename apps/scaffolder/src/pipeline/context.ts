@@ -9,12 +9,20 @@ export type TemplateId = "simple" | "full";
 export const TEMPLATE_IDS = ["simple", "full"] as const satisfies readonly TemplateId[];
 export type TemplateFileKind = "ejs" | "static";
 
+/** File-routing style of the generated app: `furin({ style })`. */
+export type RouteStyle = "nextjs" | "tanstack";
+
+/** All valid routing styles — used by arg parsing and the style prompt. */
+export const ROUTE_STYLES = ["tanstack", "nextjs"] as const satisfies readonly RouteStyle[];
+
 export interface TemplateBackedManifestFile {
   /** Destination path relative to project root, e.g. "package.json" */
   dest: string;
   kind: TemplateFileKind;
   /** Path relative to templates/ dir, e.g. "simple/src/server.ts.ejs" */
   src: string;
+  /** Only generated for this routing style; generated for both when absent. */
+  style?: RouteStyle;
 }
 
 export interface PackageJsonManifestFile {
@@ -71,6 +79,7 @@ export interface EjsTemplateVars {
   projectName: string;
   projectNameKebab: string;
   projectNamePascal: string;
+  routeStyle: RouteStyle;
   /** All resolved dep versions, keyed by package name */
   versions: Record<string, string>;
 }
@@ -99,6 +108,8 @@ export interface PipelineContext {
   projectName: string;
   projectNameKebab: string;
   projectNamePascal: string;
+  /** Stage 2: Selection */
+  routeStyle: RouteStyle | null;
   targetDir: string;
 
   // Stage 2: Selection
@@ -129,6 +140,7 @@ export function createContext(overrides?: Partial<PipelineContext>): PipelineCon
     projectName: "",
     projectNameKebab: "",
     projectNamePascal: "",
+    routeStyle: null,
     targetDir: "",
     templateId: null,
     treePreviewLines: [],

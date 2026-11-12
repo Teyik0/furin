@@ -74,18 +74,39 @@
         },
         {
           "src": "simple/src/pages/globals.css",
-          "dest": "src/pages/globals.css",
-          "kind": "static"
+          "dest": "src/routes/globals.css",
+          "kind": "static",
+          "style": "tanstack"
+        },
+        {
+          "src": "simple/src/pages/globals.css",
+          "dest": "src/app/globals.css",
+          "kind": "static",
+          "style": "nextjs"
         },
         {
           "src": "simple/src/pages/root.tsx",
-          "dest": "src/pages/root.tsx",
-          "kind": "static"
+          "dest": "src/routes/__root.tsx",
+          "kind": "static",
+          "style": "tanstack"
+        },
+        {
+          "src": "simple/src/pages/root.tsx",
+          "dest": "src/app/layout.tsx",
+          "kind": "static",
+          "style": "nextjs"
         },
         {
           "src": "simple/src/pages/index.tsx",
-          "dest": "src/pages/index.tsx",
-          "kind": "static"
+          "dest": "src/routes/index.tsx",
+          "kind": "static",
+          "style": "tanstack"
+        },
+        {
+          "src": "simple/src/pages/index.tsx",
+          "dest": "src/app/page.tsx",
+          "kind": "static",
+          "style": "nextjs"
         },
         {
           "src": "simple/public/favicon.ico",
@@ -153,9 +174,9 @@
           "kind": "ejs"
         },
         {
-          "src": "full/components.json",
+          "src": "full/components.json.ejs",
           "dest": "components.json",
-          "kind": "static"
+          "kind": "ejs"
         },
         {
           "src": "full/src/server.ts.ejs",
@@ -174,8 +195,15 @@
         },
         {
           "src": "full/src/pages/globals.css",
-          "dest": "src/pages/globals.css",
-          "kind": "static"
+          "dest": "src/routes/globals.css",
+          "kind": "static",
+          "style": "tanstack"
+        },
+        {
+          "src": "full/src/pages/globals.css",
+          "dest": "src/app/globals.css",
+          "kind": "static",
+          "style": "nextjs"
         },
         {
           "src": "full/src/components/ui/button.tsx",
@@ -194,13 +222,27 @@
         },
         {
           "src": "full/src/pages/root.tsx",
-          "dest": "src/pages/root.tsx",
-          "kind": "static"
+          "dest": "src/routes/__root.tsx",
+          "kind": "static",
+          "style": "tanstack"
+        },
+        {
+          "src": "full/src/pages/root.tsx",
+          "dest": "src/app/layout.tsx",
+          "kind": "static",
+          "style": "nextjs"
         },
         {
           "src": "full/src/pages/index.tsx",
-          "dest": "src/pages/index.tsx",
-          "kind": "static"
+          "dest": "src/routes/index.tsx",
+          "kind": "static",
+          "style": "tanstack"
+        },
+        {
+          "src": "full/src/pages/index.tsx",
+          "dest": "src/app/page.tsx",
+          "kind": "static",
+          "style": "nextjs"
         },
         {
           "src": "full/public/favicon.ico",

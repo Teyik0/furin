@@ -6,7 +6,7 @@ import { renderDocContent } from "@/lib/doc-content";
 import { DOCS_BY_PATH } from "@/lib/docs";
 import { getDocSourceText } from "@/lib/docs-server";
 
-export const route = defineRoute("/docs")
+export const route = defineRoute("/docs/")
   .config({ mode: "ssg" })
   .loader(async () => {
     const { default: Introduction } = await import("@/content/docs/introduction.mdx");

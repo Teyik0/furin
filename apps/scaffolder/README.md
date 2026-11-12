@@ -35,10 +35,11 @@ bun apps/scaffolder/src/index.ts my-app
 ```text
 Usage:
   bun create furin@latest <dir>
-  bun create furin@latest <dir> --template <simple|full>
+  bun create furin@latest <dir> --template <simple|full> --style <tanstack|nextjs>
 
 Options:
   -t, --template <simple|full>   Template choice (default: prompted); --template=<id> also works
+  --style <tanstack|nextjs>      File-routing style (default: prompted); --style=<id> also works
   -y, --yes                      Skip interactive confirmations (requires <dir>)
   --no-install                   Do not run bun install after scaffolding
   -v, --version                  Show the create-furin package version
@@ -52,11 +53,24 @@ Options:
 bun create furin@latest my-app
 
 # Scaffold directly, no prompts
-bun create furin@latest my-app --template full --yes
+bun create furin@latest my-app --template full --style nextjs --yes
 
 # Scaffold without installing dependencies
 bun create furin@latest my-app --no-install
 ```
+
+---
+
+## Routing styles
+
+Every template is generated in the file-routing style you pick, passed to `furin({ style })`:
+
+| Style | Pages directory | Root layout | Index page |
+| --- | --- | --- | --- |
+| `tanstack` (TanStack Start) | `src/routes/` | `__root.tsx` | `index.tsx` |
+| `nextjs` (Next.js App Router) | `src/app/` | `layout.tsx` | `page.tsx` |
+
+The trees below show the `tanstack` style.
 
 ---
 
@@ -80,9 +94,9 @@ my-app/
     ├── server.ts
     ├── api/
     │   └── hello.ts
-    └── pages/
+    └── routes/
         ├── globals.css
-        ├── root.tsx
+        ├── __root.tsx
         └── index.tsx
 ```
 
@@ -118,9 +132,9 @@ my-app/
     │       ├── button.tsx
     │       ├── card.tsx
     │       └── input.tsx
-    └── pages/
+    └── routes/
         ├── globals.css     ← CSS oklch variables (light + dark theme)
-        ├── root.tsx
+        ├── __root.tsx
         └── index.tsx
 ```
 

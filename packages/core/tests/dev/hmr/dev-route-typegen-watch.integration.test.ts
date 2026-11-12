@@ -26,7 +26,7 @@ function typedRouteSource(version: "after" | "before"): string {
     'import { defineRoute } from "@teyik0/furin";',
     'import { t } from "elysia";',
     "",
-    'export const route = defineRoute("/items/[id]")',
+    'export const route = defineRoute("/items/$id")',
     "  .config({",
     '    mode: "ssr",',
     `    params: t.Object({ id: ${schema} }),`,
@@ -81,8 +81,8 @@ test.serial(
     let compiler: RunningCli | undefined;
     let server: RunningCli | undefined;
 
-    writeAppFile(app.path, "src/pages/root.tsx", rootRouteSource());
-    writeAppFile(app.path, "src/pages/items/[id].tsx", typedRouteSource("before"));
+    writeAppFile(app.path, "src/pages/__root.tsx", rootRouteSource());
+    writeAppFile(app.path, "src/pages/items/$id.tsx", typedRouteSource("before"));
     writeAppFile(app.path, "type-consumer.ts", typeConsumerSource("before"));
     writeAppFile(
       app.path,
@@ -95,8 +95,8 @@ test.serial(
           extends: "../../../../tsconfig.base.json",
           include: [
             "furin-env.d.ts",
-            "src/pages/items/[id].tsx",
-            "src/pages/root.tsx",
+            "src/pages/items/$id.tsx",
+            "src/pages/__root.tsx",
             "type-consumer.ts",
           ],
         },
@@ -141,7 +141,7 @@ test.serial(
       const serverPid = server.pid;
       const outputOffset = compilerOutput(compiler).length;
 
-      writeAppFile(app.path, "src/pages/items/[id].tsx", typedRouteSource("after"));
+      writeAppFile(app.path, "src/pages/items/$id.tsx", typedRouteSource("after"));
 
       await waitForCompilerMessage(compiler, outputOffset, "Found 4 errors");
       expect(compiler.pid).toBe(compilerPid);

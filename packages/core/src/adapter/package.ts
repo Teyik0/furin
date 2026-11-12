@@ -56,7 +56,7 @@ export async function buildPackageTarget(
     metafilePath: options.analyze ? join(buildRoot, "analysis", "package-client.json") : undefined,
     optimizeImports: options.optimizeImports,
     outDir: targetDir,
-    pagesDir,
+    pages: { pagesDir, style: app.style },
     routeRegistry: app.routeRegistry,
     plugins: options.plugins,
     preloadRouteChunks: options.preload?.routeChunks,
@@ -103,23 +103,27 @@ export async function buildPackageTarget(
   const routeMetadata: Record<
     string,
     {
+      layouts: Array<{ path: string; pattern: string }>;
       requestKeys?: string[];
       requestKeysByLoader?: string[][];
       segmentBoundaries: Array<{
         depth: number;
         path: string;
         errorPath?: string;
+        fromRoute?: true;
         notFoundPath?: string;
       }>;
     }
   > = {};
   for (const route of routes) {
     routeMetadata[toPosixPath(route.path)] = {
+      layouts: route.layouts.map((layout) => ({ ...layout, path: toPosixPath(layout.path) })),
       requestKeys: route.requestKeys,
       requestKeysByLoader: route.requestKeysByLoader,
       segmentBoundaries: route.segmentBoundaries.map((b) => ({
         depth: b.depth,
         errorPath: b.errorPath ? toPosixPath(b.errorPath) : undefined,
+        ...(b.fromRoute ? { fromRoute: b.fromRoute } : {}),
         notFoundPath: b.notFoundPath ? toPosixPath(b.notFoundPath) : undefined,
         path: toPosixPath(b.path),
       })),
@@ -194,7 +198,7 @@ const CLIENT_DIR = fileURLToPath(new URL("./client", import.meta.url));
  * Mounts this packaged furin app as an Elysia plugin.
  *
  * @param {object} [options] Extra furin() options (logger, sync, ...) —
- * pagesDir/prefix/clientDir are baked into the package and cannot be overridden.
+ * pagesDir/prefix/style/clientDir are baked into the package and cannot be overridden.
  * @returns {ReturnType<typeof import("@teyik0/furin").furin>}
  */
 export function createFurinApp(options = {}) {
@@ -202,6 +206,7 @@ export function createFurinApp(options = {}) {
     ...options,
     pagesDir: PAGES_DIR,
     prefix: ${JSON.stringify(prefix)},
+    style: ${JSON.stringify(app.style)},
     clientDir: CLIENT_DIR,
   });
 }
@@ -212,8 +217,8 @@ export const prefix = ${JSON.stringify(prefix)};
 
   const dtsSource = `import type { FurinOptions, furin } from "@teyik0/furin";
 
-/** Extra furin() options — pagesDir/prefix/clientDir are baked into the package and cannot be overridden. */
-export type CreateFurinAppOptions = Omit<FurinOptions, "pagesDir" | "prefix" | "clientDir">;
+/** Extra furin() options — pagesDir/prefix/style/clientDir are baked into the package and cannot be overridden. */
+export type CreateFurinAppOptions = Omit<FurinOptions, "pagesDir" | "prefix" | "style" | "clientDir">;
 export declare function createFurinApp(options?: CreateFurinAppOptions): ReturnType<typeof furin>;
 export declare const prefix: string;
 `;

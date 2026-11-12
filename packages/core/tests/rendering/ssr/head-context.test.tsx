@@ -61,6 +61,7 @@ describe("SSR head context", () => {
       pattern: "/account",
       requestKeys: ["result"],
       routeChain: collectRouteChainFromRoute(page._route),
+      layouts: [],
       segmentBoundaries: [],
     };
 
@@ -101,6 +102,7 @@ describe("SSR head context", () => {
       path: "/account.tsx",
       pattern: "/account",
       routeChain: collectRouteChainFromRoute(page._route),
+      layouts: [],
       segmentBoundaries: [],
     };
     const syncData = { params: {}, path: "/account", query: {} };
@@ -152,6 +154,7 @@ describe("SSR head context", () => {
       pattern: "/account",
       requestKeys: ["user"],
       routeChain: collectRouteChainFromRoute(page._route),
+      layouts: [],
       segmentBoundaries: [],
     };
 

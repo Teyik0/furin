@@ -76,7 +76,7 @@ export async function createDocsServer() {
           new Elysia()
         )
       )
-      .use(await furin({ pagesDir: "./src/pages" }))
+      .use(await furin({ pagesDir: "./src/pages", style: "tanstack" }))
   );
 }
 

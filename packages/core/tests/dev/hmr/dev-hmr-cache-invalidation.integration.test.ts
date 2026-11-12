@@ -21,7 +21,7 @@ const CATALOG_RUNS = /data-test="catalog-runs">(\d+)<\/span>/;
  *
  * This test reproduces the precise scenario:
  *   1. ISR home at `/` is rendered + cached on first visit.
- *   2. An unrelated `pages/sub/_route.tsx` is edited.
+ *   2. An unrelated `pages/sub/route.tsx` is edited.
  *   3. Bun rebundles; the `_bun_hmr_entry` chunk URL flips.
  *   4. On the next visit to `/`, the served HTML MUST embed the new chunk URL.
  */
@@ -33,7 +33,7 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
 
   writeAppFile(
     app.path,
-    "src/pages/root.tsx",
+    "src/pages/__root.tsx",
     [
       'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
       "",
@@ -84,11 +84,11 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
 
   writeAppFile(
     app.path,
-    "src/pages/sub/_route.tsx",
+    "src/pages/sub/route.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
       "",
-      'export const route = defineRoute("/sub/_route")',
+      'export const route = defineRoute("/sub")',
       '  .config({ mode: "ssr" })',
       '  .layout(({ children }) => <section data-test="sub-v1">{children}</section>);',
     ].join("\n")
@@ -165,20 +165,20 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
     expect(bobHtml.match(CATALOG_RUNS)?.[1]).toBe(aliceHtml.match(CATALOG_RUNS)?.[1]);
   });
 
-  test("editing pages/sub/_route.tsx invalidates the cached ISR home page so the next reload embeds the fresh chunk URL", async () => {
+  test("editing pages/sub/route.tsx invalidates the cached ISR home page so the next reload embeds the fresh chunk URL", async () => {
     // Step 1: warm the ISR cache for `/` and capture the initial chunk URL.
     const warmHtml = await (await fetch(`http://localhost:${port}/`)).text();
     const initialChunk = extractDevClientEntry(warmHtml);
     expect(initialChunk).not.toBeNull();
 
-    // Step 2: edit pages/sub/_route.tsx — an unrelated layout (NOT a dependency of `/`).
+    // Step 2: edit pages/sub/route.tsx — an unrelated layout (NOT a dependency of `/`).
     writeAppFile(
       app.path,
-      "src/pages/sub/_route.tsx",
+      "src/pages/sub/route.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
         "",
-        'export const route = defineRoute("/sub/_route")',
+        'export const route = defineRoute("/sub")',
         '  .config({ mode: "ssr" })',
         '  .layout(({ children }) => <section data-test="sub-v2">{children}</section>);',
       ].join("\n")

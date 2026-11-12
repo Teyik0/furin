@@ -187,7 +187,10 @@ test.serial.each<ClientDirCase>([
   }
 
   await setCompileContext(app.path);
-  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
+  const instance = await createTestApp({
+    style: "tanstack",
+    pagesDir: join(app.path, "src/pages"),
+  });
 
   expect(instance).toBeInstanceOf(Elysia);
   expect(inRuntime(getProductionTemplate)).toContain(marker);
@@ -201,7 +204,7 @@ test.serial("furin() production rejects missing FURIN_CLIENT_DIR assets", async 
 
   await setCompileContext(app.path);
 
-  await expect(furin({ pagesDir: join(app.path, "src/pages") })).rejects.toThrow(
+  await expect(furin({ style: "tanstack", pagesDir: join(app.path, "src/pages") })).rejects.toThrow(
     "No pre-built assets found"
   );
 });
@@ -222,6 +225,7 @@ test.serial(
     });
 
     const instance = await createTestApp({
+      style: "tanstack",
       clientLogging: false,
       pagesDir: join(app.path, "src/pages"),
     });
@@ -259,7 +263,10 @@ test.serial("furin() production hydrates embedded SSG cache", async () => {
     },
   });
 
-  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
+  const instance = await createTestApp({
+    style: "tanstack",
+    pagesDir: join(app.path, "src/pages"),
+  });
 
   expect(instance).toBeInstanceOf(Elysia);
   expect(inRuntime(() => getSSGCache("/"))?.html).toBe("<html>prebuilt</html>");
@@ -270,7 +277,7 @@ test.serial(
   async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
     __setDevMode(false);
-    const rootPath = join(app.path, "src/pages/root.tsx");
+    const rootPath = join(app.path, "src/pages/__root.tsx");
     writeFileSync(
       rootPath,
       (await Bun.file(rootPath).text()).replace('mode: "ssr"', 'mode: "ssg"')
@@ -303,7 +310,14 @@ test.serial(
         .onBeforeHandle(({ request }) => {
           guarded.push(new URL(request.url).pathname);
         })
-        .use(await furin({ clientDir, pagesDir: join(app.path, "src/pages"), prefix }))
+        .use(
+          await furin({
+            style: "tanstack",
+            clientDir,
+            pagesDir: join(app.path, "src/pages"),
+            prefix,
+          })
+        )
     );
 
     const response = await composed.handle(new Request(`http://localhost${prefix}/`));
@@ -332,7 +346,10 @@ test.serial("furin() production preloads route chunks from the compiled manifest
     preloadManifest: { modules: {}, routes: { "/": ["/_client/index-abc.js"] } },
   });
 
-  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
+  const instance = await createTestApp({
+    style: "tanstack",
+    pagesDir: join(app.path, "src/pages"),
+  });
   const html = await (await instance.handle(new Request("http://localhost/"))).text();
 
   expect(html).toContain('<link rel="modulepreload" href="/_client/index-abc.js"/>');
@@ -361,7 +378,7 @@ test.serial("furin() production revalidates embedded SSG cache tags", async () =
     },
   });
 
-  await furin({ pagesDir: join(app.path, "src/pages") });
+  await furin({ style: "tanstack", pagesDir: join(app.path, "src/pages") });
 
   expect(await revalidateTag("boards")).toBe(true);
   expect(inRuntime(() => ssgCache.has("/"))).toBe(false);
@@ -376,7 +393,9 @@ test.serial("furin() production rejects embedded context without HTML template",
   mkdirSync(clientDir);
   await setCompileContext(app.path, { clientDir });
 
-  await expect(furin({ pagesDir: join(app.path, "src/pages") })).rejects.toThrow("HTML template");
+  await expect(furin({ style: "tanstack", pagesDir: join(app.path, "src/pages") })).rejects.toThrow(
+    "HTML template"
+  );
 });
 
 test.serial("furin() production serves embedded client and public assets", async () => {
@@ -399,7 +418,10 @@ test.serial("furin() production serves embedded client and public assets", async
     publicDir,
   });
 
-  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
+  const instance = await createTestApp({
+    style: "tanstack",
+    pagesDir: join(app.path, "src/pages"),
+  });
   const okClient = await instance.handle(new Request("http://furin/_client/app.js"));
   const okPublic = await instance.handle(new Request("http://furin/public/logo.png"));
   const missClient = await instance.handle(new Request("http://furin/_client/missing.js"));

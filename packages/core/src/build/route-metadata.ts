@@ -25,11 +25,14 @@ interface RouteBuildInfo {
 export interface BuildRoute
   extends Pick<
     ResolvedRoute,
-    "mode" | "path" | "pattern" | "requestKeys" | "requestKeysByLoader" | "tags"
+    "layouts" | "mode" | "path" | "pattern" | "requestKeys" | "requestKeysByLoader" | "tags"
   > {
   build: RouteBuildInfo;
   routeChain: { layout: boolean; sourcePath?: string }[];
-  segmentBoundaries: Pick<SegmentBoundary, "depth" | "path" | "errorPath" | "notFoundPath">[];
+  segmentBoundaries: Pick<
+    SegmentBoundary,
+    "depth" | "path" | "errorPath" | "fromRoute" | "notFoundPath"
+  >[];
 }
 
 export type BuildRouteInput = BuildRoute | ResolvedRoute;
@@ -70,6 +73,7 @@ export function routeBuildInfo(route: BuildRouteInput): RouteBuildInfo {
 export function buildRouteMetadata(route: ResolvedRoute): BuildRoute {
   return {
     build: routeBuildInfo(route),
+    layouts: route.layouts,
     mode: route.mode,
     path: route.path,
     pattern: route.pattern,
@@ -79,12 +83,15 @@ export function buildRouteMetadata(route: ResolvedRoute): BuildRoute {
       layout: !!entry.layout,
       sourcePath: entry.sourcePath,
     })),
-    segmentBoundaries: route.segmentBoundaries.map(({ depth, path, errorPath, notFoundPath }) => ({
-      depth,
-      path,
-      errorPath,
-      notFoundPath,
-    })),
+    segmentBoundaries: route.segmentBoundaries.map(
+      ({ depth, path, errorPath, fromRoute, notFoundPath }) => ({
+        depth,
+        path,
+        errorPath,
+        ...(fromRoute ? { fromRoute } : {}),
+        notFoundPath,
+      })
+    ),
     tags: route.tags,
   };
 }

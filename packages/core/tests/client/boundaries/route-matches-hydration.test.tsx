@@ -69,7 +69,7 @@ const root: RootLayout = {
   route: adaptDefinedLayout(rootDefinition, undefined),
 };
 
-const shopDefinition = defineRoute("/shop-definition/_route")
+const shopDefinition = defineRoute("/shop-definition")
   .config({ mode: "ssr" })
   .loader(({ path }) => {
     if (path === "/shop/broken") {
@@ -171,8 +171,8 @@ afterEach(async () => {
 async function createApp(routes: TestRoute[]): Promise<AnyElysia> {
   const pagesDir = `/furin-virtual/${crypto.randomUUID()}`;
   const modules: { [path: string]: CompiledModule } = {
-    [`${pagesDir}/root.tsx`]: { route: rootDefinition },
-    [`${pagesDir}/shop/_route.tsx`]: { route: shopDefinition },
+    [`${pagesDir}/layout.tsx`]: { route: rootDefinition },
+    [`${pagesDir}/shop/layout.tsx`]: { route: shopDefinition },
   };
   const conventionPath = (directory: string, name: string, component: unknown) => {
     if (component === undefined) {
@@ -189,6 +189,9 @@ async function createApp(routes: TestRoute[]): Promise<AnyElysia> {
     const path = `${pagesDir}${pattern}.page.tsx`;
     modules[path] = { route: definition };
     routeMetadata[path] = {
+      layouts: pattern.startsWith("/shop/")
+        ? [{ path: `${pagesDir}/shop/layout.tsx`, pattern: "/shop" }]
+        : [],
       segmentBoundaries: segmentBoundaries.map((boundary) => {
         const directory = boundary.path.slice("/pages".length);
         return {
@@ -210,7 +213,7 @@ async function createApp(routes: TestRoute[]): Promise<AnyElysia> {
       errorPath: conventionPath("", "error", root.error),
       notFoundPath: conventionPath("", "not-found", root.notFound),
     },
-    rootPath: `${pagesDir}/root.tsx`,
+    rootPath: `${pagesDir}/layout.tsx`,
     routeMetadata,
     routes: compiledRoutes,
     adapter: {
@@ -219,7 +222,7 @@ async function createApp(routes: TestRoute[]): Promise<AnyElysia> {
     },
     templateHtml: TEMPLATE,
   });
-  return new Elysia().use(await furin({ pagesDir }));
+  return new Elysia().use(await furin({ pagesDir, style: "nextjs" }));
 }
 
 async function documentData(): Promise<RuntimeData> {

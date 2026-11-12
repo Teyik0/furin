@@ -35,9 +35,9 @@ const tmpApps: TmpApp[] = [];
 const ROOT_CATCH_ALL_PAGE = [
   'import { defineRoute, notFound } from "@teyik0/furin";',
   'import { t } from "elysia";',
-  'export const route = defineRoute("/[...rest]")',
-  '  .config({ mode: "ssr", params: t.Object({ "*": t.String() }) })',
-  '  .loader(({ params }) => params["*"] === "missing" ? notFound({ message: "Missing page" }) : {})',
+  'export const route = defineRoute("/$")',
+  '  .config({ mode: "ssr", params: t.Object({ _splat: t.String() }) })',
+  '  .loader(({ params }) => params._splat === "missing" ? notFound({ message: "Missing page" }) : {})',
   "  .page(() => <main>Catch-all page</main>);",
 ].join("\n");
 const MOUNTED_SERVER = [
@@ -45,7 +45,7 @@ const MOUNTED_SERVER = [
   'import { Elysia } from "elysia";',
   "const app = new Elysia()",
   '  .use(new Elysia({ prefix: "/api" }).mount((request) => new Response("auth:" + new URL(request.url).pathname)))',
-  '  .use(await furin({ pagesDir: import.meta.dir + "/pages" }));',
+  '  .use(await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages" }));',
   "export default app;",
 ].join("\n");
 
@@ -100,7 +100,7 @@ async function waitForFileContent(path: string, expected: string): Promise<void>
 function createBuiltRouteContext(appPath: string): Promise<CompileContext> {
   return createFixtureCompileContext(appPath, [
     { file: "index.tsx", mode: "ssg", pattern: "/" },
-    { file: "blog/[slug].tsx", mode: "ssg", pattern: "/blog/:slug" },
+    { file: "blog/$slug.tsx", mode: "ssg", pattern: "/blog/:slug" },
   ]);
 }
 
@@ -115,7 +115,7 @@ test.serial("furin() runs inherited private data in an SSR child loader", async 
   const app = rememberTmpApp(createTmpApp("cli-app"));
   writeAppFile(
     app.path,
-    "src/pages/root.tsx",
+    "src/pages/__root.tsx",
     [
       'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
       'export const route = defineRootRoute().config({ mode: "ssr" })',
@@ -134,7 +134,10 @@ test.serial("furin() runs inherited private data in an SSR child loader", async 
     ].join("\n")
   );
   process.chdir(app.path);
-  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
+  const instance = await createTestApp({
+    style: "tanstack",
+    pagesDir: join(app.path, "src/pages"),
+  });
   const response = await instance.handle(new Request("http://furin/"));
   expect(response.status).toBe(200);
   expect(await response.text()).toContain("<main>private</main>");
@@ -146,6 +149,7 @@ test.serial("furin() writes dev files in development", async () => {
   process.chdir(app.path);
 
   const instance = await createTestApp({
+    style: "tanstack",
     pagesDir: join(app.path, "src/pages"),
   });
 
@@ -160,8 +164,8 @@ test.serial("furin() rejects one pages directory mounted under two prefixes", as
   __setDevMode(true);
   process.chdir(app.path);
   const pagesDir = join(app.path, "src/pages");
-  const parent = new Elysia().use(await furin({ pagesDir }));
-  const admin = await furin({ pagesDir, prefix: "/admin" });
+  const parent = new Elysia().use(await furin({ style: "tanstack", pagesDir }));
+  const admin = await furin({ style: "tanstack", pagesDir, prefix: "/admin" });
 
   expect(() => parent.use(admin)).toThrow(
     `[furin] pagesDir "${pagesDir.replaceAll("\\", "/")}" is mounted under both prefix "/" and prefix "/admin". Route ids carry their mount's prefix, so one pages directory serves one mount: give each mount its own pages directory.`
@@ -179,6 +183,7 @@ test.serial("each furin() instance purges paths and tags through its own purgers
   new Elysia()
     .use(
       await furin({
+        style: "tanstack",
         cachePurger: (paths) => {
           purged.front.push(paths);
           return Promise.resolve();
@@ -192,6 +197,7 @@ test.serial("each furin() instance purges paths and tags through its own purgers
     )
     .use(
       await furin({
+        style: "tanstack",
         cachePurger: (paths) => {
           purged.admin.push(paths);
           return Promise.resolve();
@@ -223,8 +229,9 @@ test.serial("furin() instances sharing a tag purger purge each tag once", async 
     return Promise.resolve();
   };
 
-  new Elysia().use(await furin({ cacheTagPurger, pagesDir })).use(
+  new Elysia().use(await furin({ style: "tanstack", cacheTagPurger, pagesDir })).use(
     await furin({
+      style: "tanstack",
       cacheTagPurger,
       pagesDir: copyPagesForPrefix(app.path, "src/admin", "/admin"),
       prefix: "/admin",
@@ -239,14 +246,14 @@ test.serial("furin() instances sharing a tag purger purge each tag once", async 
 test.serial("furin() scaffolds empty root and index route files into a working app", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   const pagesDir = join(app.path, "src/pages");
-  const rootPath = join(pagesDir, "root.tsx");
+  const rootPath = join(pagesDir, "__root.tsx");
   const indexPath = join(pagesDir, "index.tsx");
   writeFileSync(rootPath, "\n");
   writeFileSync(indexPath, "   \n");
   __setDevMode(true);
   process.chdir(app.path);
 
-  const instance = await createTestApp({ pagesDir });
+  const instance = await createTestApp({ style: "tanstack", pagesDir });
   const response = await instance.handle(new Request("http://furin/"));
 
   expect(response.status).toBe(200);
@@ -261,7 +268,7 @@ test.serial("furin() refreshes route types after a topology change", async () =>
   __setDevMode(true);
   process.chdir(app.path);
 
-  const instance = await createTestApp({ pagesDir });
+  const instance = await createTestApp({ style: "tanstack", pagesDir });
   instance.listen(0);
   try {
     await waitForHttp(`http://127.0.0.1:${instance.server?.port}/?_furin=data`, {
@@ -300,7 +307,7 @@ test.serial("a failed route import keeps its tags while healthy route types upda
   __setDevMode(true);
   process.chdir(app.path);
 
-  const instance = await createTestApp({ pagesDir });
+  const instance = await createTestApp({ style: "tanstack", pagesDir });
   instance.listen(0);
   try {
     await waitForHttp(`http://127.0.0.1:${instance.server?.port}/?_furin=data`, {
@@ -344,7 +351,7 @@ test.serial("furin() serves data requests from the watcher-managed route snapsho
   __setDevMode(true);
   process.chdir(app.path);
 
-  const instance = await createTestApp({ pagesDir });
+  const instance = await createTestApp({ style: "tanstack", pagesDir });
   const importsAfterBoot = Number(
     (globalThis as typeof globalThis & { [key: string]: unknown })[importCountKey]
   );
@@ -408,7 +415,7 @@ test.serial(
         },
       })
       .guard({ adminArea: true })
-      .use(await furin({ pagesDir, prefix: "/admin" }));
+      .use(await furin({ style: "tanstack", pagesDir, prefix: "/admin" }));
 
     const denied = await instance.handle(new Request("http://furin/admin/secret?_furin=data"));
     expect(denied.status).toBe(200);
@@ -465,7 +472,9 @@ test.serial("page authorization leaves public assets accessible", async () => {
     })
     .guard({ protectedPage: true })
     .post("/admin/", () => "mutation")
-    .use(await furin({ pagesDir: join(app.path, "src/pages"), prefix: "/admin" }));
+    .use(
+      await furin({ style: "tanstack", pagesDir: join(app.path, "src/pages"), prefix: "/admin" })
+    );
 
   const document = await instance.handle(new Request("http://furin/admin/"));
   expect(document.status).toBe(401);
@@ -493,7 +502,7 @@ test.serial("SPA data for an API path is answered by that route, never a page", 
 
   const instance = new Elysia()
     .get("/api/private", ({ request }) => ({ url: request.url }))
-    .use(await furin({ pagesDir: join(app.path, "src/pages") }));
+    .use(await furin({ style: "tanstack", pagesDir: join(app.path, "src/pages") }));
 
   const response = await instance.handle(new Request("http://furin/api/private?_furin=data"));
   expect(response.headers.get("content-type")).toContain("application/json");
@@ -505,7 +514,7 @@ test.serial("dev navigation data reports a page module that fails to import", as
   const pagesDir = join(app.path, "src/pages");
   __setDevMode(true);
   process.chdir(app.path);
-  const instance = await createTestApp({ pagesDir });
+  const instance = await createTestApp({ style: "tanstack", pagesDir });
   const ready = await instance.handle(new Request("http://furin/?_furin=data"));
   expect(ready.status).toBe(200);
 
@@ -544,15 +553,19 @@ test.serial("furin() preserves route data while an edited route is invalid", asy
 
   let instance: Awaited<ReturnType<typeof createTestApp>> | undefined;
   try {
-    instance = await createTestApp({ pagesDir });
+    instance = await createTestApp({ style: "tanstack", pagesDir });
     instance.listen(0);
     await waitForHttp(`http://127.0.0.1:${instance.server?.port}/?_furin=data`, {
       timeoutMs: 3000,
     });
     const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
     try {
-      // An error.tsx without a default export fails the snapshot refresh.
-      writeAppFile(app.path, "src/pages/error.tsx", "export const broken = true;\n");
+      // A grouped index duplicating "/" fails the snapshot refresh.
+      writeAppFile(
+        app.path,
+        "src/pages/(duplicate)/index.tsx",
+        'import { defineRoute } from "@teyik0/furin";\nexport const route = defineRoute("/(duplicate)/").config({ mode: "ssr" }).page(() => null);\n'
+      );
       await waitFor(
         () =>
           errorSpy.mock.calls.some(
@@ -586,7 +599,7 @@ test.serial("furin() reports a removed route id without rewriting the file", asy
   __setDevMode(true);
   process.chdir(app.path);
 
-  const instance = await createTestApp({ pagesDir });
+  const instance = await createTestApp({ style: "tanstack", pagesDir });
   instance.listen(0);
   await waitForHttp(`http://127.0.0.1:${instance.server?.port}/?_furin=data`, {
     timeoutMs: 3000,
@@ -628,8 +641,10 @@ test.serial("furin() registers native routes in dev without replacing SSR respon
   __setDevMode(true);
   process.chdir(app.path);
 
-  const instance = await createTestApp({ pagesDir });
-  const nativeModule = (await import(routeModuleSpecifier({ pagesDir, prefix: "" }))) as {
+  const instance = await createTestApp({ style: "tanstack", pagesDir });
+  const nativeModule = (await import(
+    routeModuleSpecifier({ pagesDir, prefix: "", style: "tanstack" })
+  )) as {
     furinApp: { handle: (request: Request) => Promise<Response> };
   };
   const nativeResponse = await nativeModule.furinApp.handle(new Request("http://furin/"));
@@ -644,7 +659,7 @@ test.serial("furin() registers native routes in dev without replacing SSR respon
 test.serial("furin() lets a prefixed mount handle GET before a root catch-all page", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   const pagesDir = join(app.path, "src/pages");
-  writeAppFile(app.path, "src/pages/[...rest].tsx", ROOT_CATCH_ALL_PAGE);
+  writeAppFile(app.path, "src/pages/$.tsx", ROOT_CATCH_ALL_PAGE);
   __setDevMode(true);
   process.chdir(app.path);
 
@@ -654,10 +669,12 @@ test.serial("furin() lets a prefixed mount handle GET before a root catch-all pa
         (request) => new Response(`auth:${new URL(request.url).pathname}`)
       )
     )
-    .use(await furin({ pagesDir }));
+    .use(await furin({ style: "tanstack", pagesDir }));
   const response = await instance.handle(new Request("http://furin/api/auth/session"));
   const pageResponse = await instance.handle(new Request("http://furin/some-page"));
-  const nativeModule = (await import(routeModuleSpecifier({ pagesDir, prefix: "" }))) as {
+  const nativeModule = (await import(
+    routeModuleSpecifier({ pagesDir, prefix: "", style: "tanstack" })
+  )) as {
     furinApp: { handle: (request: Request) => Promise<Response> };
   };
   const standaloneResponse = await nativeModule.furinApp.handle(
@@ -674,7 +691,7 @@ test.serial("furin() lets a prefixed mount handle GET before a root catch-all pa
 test.serial("furin() keeps a prefixed catch-all page behind a mounted handler", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   const pagesDir = join(app.path, "src/pages");
-  writeAppFile(app.path, "src/pages/[...rest].tsx", ROOT_CATCH_ALL_PAGE);
+  writeAppFile(app.path, "src/pages/$.tsx", ROOT_CATCH_ALL_PAGE);
   keyPagesForPrefix(app.path, "src/pages", "/site");
   __setDevMode(true);
   process.chdir(app.path);
@@ -685,7 +702,7 @@ test.serial("furin() keeps a prefixed catch-all page behind a mounted handler", 
         (request) => new Response(`auth:${new URL(request.url).pathname}`)
       )
     )
-    .use(await furin({ pagesDir, prefix: "/site" }));
+    .use(await furin({ style: "tanstack", pagesDir, prefix: "/site" }));
   const apiResponse = await instance.handle(new Request("http://furin/api/auth/session"));
   const pageResponse = await instance.handle(new Request("http://furin/site/some-page"));
 
@@ -698,7 +715,7 @@ test.serial(
   "furin() built catch-all page coexists with a prefixed mount",
   async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
-    writeAppFile(app.path, "src/pages/[...rest].tsx", ROOT_CATCH_ALL_PAGE);
+    writeAppFile(app.path, "src/pages/$.tsx", ROOT_CATCH_ALL_PAGE);
     writeAppFile(app.path, "src/server.ts", MOUNTED_SERVER);
 
     const result = await runCli(["build", "--target", "bun"], { cwd: app.path });
@@ -734,12 +751,12 @@ test.serial(
   "dev HTTP routes validate current params schemas before SSR and navigation loaders",
   async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
-    const pagePath = "src/pages/items/[id].tsx";
+    const pagePath = "src/pages/items/$id.tsx";
     const pageSource = (version: "after" | "before") =>
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
-        'export const route = defineRoute("/items/[id]")',
+        'export const route = defineRoute("/items/$id")',
         `  .config({ ${version === "before" ? 'mode: "ssr"' : 'mode: "isr", revalidate: 60'},`,
         `    params: t.Object({ id: t.${version === "before" ? "Number" : "String"}() }),`,
         `    query: t.Object({ page: t.${version === "before" ? "Number" : "String"}() }) })`,
@@ -809,11 +826,11 @@ test.serial(
     const pagesDir = join(app.path, "src/pages");
     writeAppFile(
       app.path,
-      "src/pages/boards/_route.tsx",
+      "src/pages/boards/route.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
-        'export const route = defineRoute("/boards/_route")',
+        'export const route = defineRoute("/boards")',
         '  .config({ mode: "ssr", query: t.Object({ locale: t.String() }) })',
         "  .loader(() => ({ organization: 'Furin' }))",
         "  .layout(({ children }) => <section>{children}</section>);",
@@ -821,11 +838,11 @@ test.serial(
     );
     writeAppFile(
       app.path,
-      "src/pages/boards/[id].tsx",
+      "src/pages/boards/$id.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
-        'export const route = defineRoute("/boards/[id]")',
+        'export const route = defineRoute("/boards/$id")',
         '  .config({ mode: "ssr", params: t.Object({ id: t.Number() }) })',
         "  .loader(async (context) => {",
         "    const parent = context as typeof context & { organization: Promise<string> | string; query: { locale: string } };",
@@ -838,7 +855,7 @@ test.serial(
     __setDevMode(true);
     process.chdir(app.path);
 
-    const instance = await createTestApp({ pagesDir });
+    const instance = await createTestApp({ style: "tanstack", pagesDir });
     const valid = await instance.handle(new Request("http://furin/boards/42?locale=fr"));
     const invalid = await instance.handle(new Request("http://furin/boards/42"));
 
@@ -865,7 +882,7 @@ test.serial("native routes preserve deferred renderer streaming", async () => {
   __setDevMode(true);
   process.chdir(app.path);
 
-  const instance = await createTestApp({ pagesDir });
+  const instance = await createTestApp({ style: "tanstack", pagesDir });
   const response = await instance.handle(new Request("http://furin/"));
   const html = await response.text();
 
@@ -882,7 +899,7 @@ test.serial("furin() dev serves public files before the application 404", async 
   writeAppFile(app.path, "public/favicon.ico", "favicon");
   writeAppFile(
     app.path,
-    "src/pages/root.tsx",
+    "src/pages/__root.tsx",
     [
       'import { defineRootRoute } from "@teyik0/furin";',
       "export const route = defineRootRoute()",
@@ -894,7 +911,7 @@ test.serial("furin() dev serves public files before the application 404", async 
   __setDevMode(true);
   process.chdir(app.path);
 
-  const instance = await createTestApp({ pagesDir });
+  const instance = await createTestApp({ style: "tanstack", pagesDir });
   const publicResponse = await instance.handle(new Request("http://furin/public/health.txt"));
   const faviconResponse = await instance.handle(new Request("http://furin/favicon.ico"));
   const notFoundResponse = await instance.handle(new Request("http://furin/unknown"));
@@ -915,7 +932,7 @@ test.serial("furin() dev serves public files and 404s under a prefix", async () 
   __setDevMode(true);
   process.chdir(app.path);
 
-  const instance = await createTestApp({ pagesDir, prefix: "/admin" });
+  const instance = await createTestApp({ style: "tanstack", pagesDir, prefix: "/admin" });
   const publicResponse = await instance.handle(new Request("http://furin/admin/public/health.txt"));
   const notFoundResponse = await instance.handle(new Request("http://furin/admin/unknown"));
 
@@ -931,6 +948,7 @@ test.serial("furin() excludes internal DevTools requests from logging", async ()
 
   const capture = captureEvlogEvents();
   const instance = await createTestApp({
+    style: "tanstack",
     logger: { drain: capture.drain },
     pagesDir: join(app.path, "src/pages"),
   });
@@ -951,7 +969,9 @@ test.serial("furin() production without build output throws", async () => {
   __setDevMode(false);
   process.chdir(app.path);
 
-  await expect(furin({ pagesDir: join(app.path, "src/pages") })).rejects.toThrow("furin build");
+  await expect(furin({ style: "tanstack", pagesDir: join(app.path, "src/pages") })).rejects.toThrow(
+    "furin build"
+  );
 });
 
 test.serial("furin() production plugin starts from built output", async () => {
@@ -969,6 +989,7 @@ test.serial("furin() production plugin starts from built output", async () => {
   await setBuiltRouteContext(app.path);
 
   const instance = await createTestApp({
+    style: "tanstack",
     pagesDir: join(app.path, "src/pages"),
   });
   const htmlResponse = await instance.handle(new Request("http://furin/"));
@@ -1032,7 +1053,10 @@ test.serial(
       ),
     });
 
-    const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
+    const instance = await createTestApp({
+      style: "tanstack",
+      pagesDir: join(app.path, "src/pages"),
+    });
     const response = await instance.handle(new Request("http://furin/"));
 
     expect(response.status).toBe(200);
@@ -1059,6 +1083,7 @@ test.serial("furin() rejects a custom page cache when the platform caches pages"
 
   await expect(
     createTestApp({
+      style: "tanstack",
       pageCache: createMemoryPageCache(),
       pagesDir: join(app.path, "src/pages"),
     })
@@ -1082,7 +1107,10 @@ test.serial("furin() leaves assets to a platform that serves them", async () => 
     templateHtml: "<html><head></head><body><!--ssr-outlet--></body></html>",
   });
 
-  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
+  const instance = await createTestApp({
+    style: "tanstack",
+    pagesDir: join(app.path, "src/pages"),
+  });
   const asset = await instance.handle(new Request("http://furin/_client/app.js"));
 
   expect(asset.status).toBe(404);
@@ -1100,6 +1128,7 @@ test.serial("furin() streams browser events over SSE without WebSocket support",
   });
 
   const instance = await createTestApp({
+    style: "tanstack",
     pagesDir: join(app.path, "src/pages"),
     sync: {
       adapter: {
@@ -1122,7 +1151,7 @@ test.serial("furin() streams browser events over SSE without WebSocket support",
 
 test.serial("furin() rejects dev pages without a root layout", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
-  removeAppPath(app.path, "src/pages/root.tsx");
+  removeAppPath(app.path, "src/pages/__root.tsx");
   writeAppFile(
     app.path,
     "src/pages/index.tsx",
@@ -1134,7 +1163,7 @@ test.serial("furin() rejects dev pages without a root layout", async () => {
   );
   writeAppFile(
     app.path,
-    "src/pages/blog/[slug].tsx",
+    "src/pages/blog/$slug.tsx",
     [
       'import { defineRoute } from "furin";',
       'import { t } from "elysia";',
@@ -1148,8 +1177,6 @@ test.serial("furin() rejects dev pages without a root layout", async () => {
   process.chdir(app.path);
 
   await expect(
-    furin({
-      pagesDir: join(app.path, "src/pages"),
-    })
+    furin({ style: "tanstack", pagesDir: join(app.path, "src/pages") })
   ).rejects.toThrow();
 });

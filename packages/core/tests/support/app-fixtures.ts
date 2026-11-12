@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { fileRouteId, routeSourcePaths } from "../../src/plugin/route-tree.ts";
+import { scanRouteManifest } from "../../src/plugin/route-manifest.ts";
 import { assertDistFresh } from "./dist.ts";
 
 const FIXTURES_ROOT = resolve(import.meta.dir, "../fixtures/apps");
@@ -64,10 +64,16 @@ export function writeAppFile(appPath: string, relativePath: string, contents: st
  * name its prefixed ids.
  */
 export function keyPagesForPrefix(appPath: string, pagesDir: string, prefix: string): void {
-  const instance = { pagesDir: assertWithinAppPath(appPath, pagesDir), prefix };
-  for (const file of routeSourcePaths(instance)) {
-    const id = JSON.stringify(fileRouteId(instance, file));
-    writeFileSync(file, readFileSync(file, "utf8").replace(ROUTE_ID_RE, `defineRoute(${id})`));
+  const instance = {
+    pagesDir: assertWithinAppPath(appPath, pagesDir),
+    prefix,
+    style: "tanstack" as const,
+  };
+  for (const { id, sourcePath } of scanRouteManifest(instance).routes) {
+    writeFileSync(
+      sourcePath,
+      readFileSync(sourcePath, "utf8").replace(ROUTE_ID_RE, `defineRoute(${JSON.stringify(id)})`)
+    );
   }
 }
 

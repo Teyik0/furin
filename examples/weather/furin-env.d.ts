@@ -7,19 +7,19 @@ declare module "@teyik0/furin/routes" {
     "/": {
       kind: "page";
       pattern: "/";
-      parent: typeof import("./src/pages/root").route;
+      parent: typeof import("./src/app/layout").route;
       pathParams: {};
     };
-    "/weather/[city]": {
+    "/weather/$city/": {
       kind: "page";
       pattern: "/weather/:city";
-      parent: typeof import("./src/pages/root").route;
+      parent: typeof import("./src/app/layout").route;
       pathParams: { city: string };
     };
-    "/weather/search": {
+    "/weather/search/": {
       kind: "page";
       pattern: "/weather/search";
-      parent: typeof import("./src/pages/root").route;
+      parent: typeof import("./src/app/layout").route;
       pathParams: {};
     };
   }
@@ -27,8 +27,8 @@ declare module "@teyik0/furin/routes" {
 
 declare module "@teyik0/furin/routes" {
   interface RouteMap {
-    "/": typeof import("./src/pages/index").route;
-    "/weather/:city": typeof import("./src/pages/weather/[city]").route;
-    "/weather/search": typeof import("./src/pages/weather/search").route;
+    "/": typeof import("./src/app/page").route;
+    "/weather/:city": typeof import("./src/app/weather/[city]/page").route;
+    "/weather/search": typeof import("./src/app/weather/search/page").route;
   }
 }

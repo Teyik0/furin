@@ -42,6 +42,7 @@ const route: ResolvedRoute = {
   path: "/virtual/board.tsx",
   pattern: "/route-api-board/:boardId",
   routeChain: [pageRoute],
+  layouts: [],
   segmentBoundaries: [],
 };
 

@@ -17,6 +17,7 @@ test("a runtime plugin registered earlier cannot claim the route module", async 
   const instance = {
     pagesDir: join(import.meta.dir, "../../fixtures/routes-v2/root"),
     prefix: "/claimed",
+    style: "tanstack" as const,
   };
   const specifier = routeModuleSpecifier(instance);
   const query = specifier.slice(specifier.indexOf("?"));
@@ -41,6 +42,7 @@ test("the dev runtime resolves a composed Elysia app from the stable route speci
   const instance = {
     pagesDir: join(import.meta.dir, "../../fixtures/routes-v2/root"),
     prefix: "",
+    style: "tanstack" as const,
   };
   registerDevRoutesPlugin([instance]);
 
@@ -63,6 +65,7 @@ test("the dev runtime serves nested groups through their own layout chains", asy
   const instance = {
     pagesDir: join(import.meta.dir, "../../fixtures/pages/route-groups"),
     prefix: "",
+    style: "nextjs" as const,
   };
   registerDevRoutesPlugin([instance]);
 

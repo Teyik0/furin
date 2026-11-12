@@ -67,7 +67,11 @@ async function advanceFakeTime(ms: number): Promise<void> {
 let fixturePromise: ReturnType<typeof scanPages> | undefined;
 
 function scanFixture(): ReturnType<typeof scanPages> {
-  fixturePromise ??= scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
+  fixturePromise ??= scanPages({
+    pagesDir: join(import.meta.dir, "../../fixtures/pages/default"),
+    prefix: "",
+    style: "tanstack",
+  });
   return fixturePromise;
 }
 

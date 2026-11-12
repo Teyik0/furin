@@ -13,7 +13,7 @@ import { highlighter } from "@/lib/highlight";
 import { LandingServer, type LandingSlots } from "../components/landing/landing-server";
 
 const FILES = {
-  "pages/index.tsx": `import { defineRoute } from "@teyik0/furin"
+  "routes/index.tsx": `import { defineRoute } from "@teyik0/furin"
 
 export const route = defineRoute("/")
   .config({ mode: "ssr" })
@@ -24,7 +24,7 @@ export const route = defineRoute("/")
   .page(({ message, renderedAt }) => (
     <h1>{message} · {renderedAt}</h1>
   ))`,
-  "pages/root.tsx": `import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin"
+  "routes/__root.tsx": `import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin"
 import { Link } from "@teyik0/furin/link"
 import "./styles/globals.css"
 
@@ -55,7 +55,7 @@ import { furin } from "@teyik0/furin"
 export const port = Number(process.env.PORT ?? 3000)
 
 const app = new Elysia()
-  .use(await furin({ pagesDir: "./pages" }))
+  .use(await furin({ style: "tanstack" }))
 
 if (import.meta.main) {
   app.listen(port)
@@ -117,7 +117,7 @@ export const route = defineRoute("/")
   .config({ mode: "ssg" })
   .loader(async () => {
     const entries = Object.entries(FILES) as [FileName, string][];
-    const lines = FILES["pages/index.tsx"].split("\n");
+    const lines = FILES["routes/index.tsx"].split("\n");
     const hintLine = lines.findIndex((line) => line.includes(".page(("));
     const hintSource = lines[hintLine];
     const data = {

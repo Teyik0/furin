@@ -10,6 +10,7 @@ export async function run(args: ParsedArgs): Promise<void> {
   const ctx = createContext({
     install: args.install,
     projectName: args.targetDir ?? "",
+    routeStyle: args.style,
     templateId: args.template,
     yes: args.yes,
   });

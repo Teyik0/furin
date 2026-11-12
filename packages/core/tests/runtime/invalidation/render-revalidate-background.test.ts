@@ -64,7 +64,11 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
   __setDevMode(false);
   __resetCacheState();
 
-  const result = await scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
+  const result = await scanPages({
+    pagesDir: join(import.meta.dir, "../../fixtures/pages/default"),
+    prefix: "",
+    style: "tanstack",
+  });
   const matchedIsrRoute = result.routes.find((candidate) => candidate.pattern === "/isr-page");
   if (!matchedIsrRoute) {
     throw new Error("Route /isr-page not found");
@@ -228,7 +232,11 @@ test.serial(
 async function runNotFoundGenerationRace(source: "head" | "loader"): Promise<void> {
   __setDevMode(false);
   __resetCacheState();
-  const { root, routes } = await scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
+  const { root, routes } = await scanPages({
+    pagesDir: join(import.meta.dir, "../../fixtures/pages/default"),
+    prefix: "",
+    style: "tanstack",
+  });
   const base = routes.find((candidate) => candidate.pattern === "/isr-page");
   if (base === undefined) {
     throw new Error("Route /isr-page not found");

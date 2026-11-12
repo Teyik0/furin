@@ -16,8 +16,9 @@ test("unchanged dev artifacts do not report another write", () => {
       basePath: "",
       clientLogging: false,
       outDir,
+      pages: { pagesDir: join(projectRoot, "src/pages"), style: "tanstack" as const },
       publicPath: "/_client/",
-      rootLayout: join(projectRoot, "src/pages/root.tsx"),
+      rootLayout: join(projectRoot, "src/pages/__root.tsx"),
       prefix: "",
     };
     writeDevFiles([], options, projectRoot);
@@ -38,6 +39,7 @@ test("an unloadable development route is included in generated route types", () 
     page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE" }, component: () => null },
     path: join(projectRoot, "src/pages/cards.tsx"),
     pattern: "/cards",
+    layouts: [],
     routeChain: [],
     segmentBoundaries: [],
   } as unknown as ResolvedRoute;
@@ -50,8 +52,9 @@ test("an unloadable development route is included in generated route types", () 
         basePath: "",
         clientLogging: false,
         outDir: join(projectRoot, ".furin"),
+        pages: { pagesDir: join(projectRoot, "src/pages"), style: "tanstack" },
         publicPath: "/_client/",
-        rootLayout: join(projectRoot, "src/pages/root.tsx"),
+        rootLayout: join(projectRoot, "src/pages/__root.tsx"),
         prefix: "",
       },
       projectRoot
@@ -67,7 +70,7 @@ test("an unloadable development route is included in generated route types", () 
 
 test("each mounted app adds its route files to the one furin-env.d.ts", () => {
   const projectRoot = mkdtempSync(join(tmpdir(), "furin-dev-files-"));
-  for (const file of ["src/pages/root.tsx", "src/pages/cards.tsx", "src/admin/root.tsx"]) {
+  for (const file of ["src/pages/__root.tsx", "src/pages/cards.tsx", "src/admin/__root.tsx"]) {
     mkdirSync(join(projectRoot, file, ".."), { recursive: true });
     writeFileSync(join(projectRoot, file), "");
   }
@@ -77,6 +80,7 @@ test("each mounted app adds its route files to the one furin-env.d.ts", () => {
     page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE" }, component: () => null },
     path: join(projectRoot, "src/pages/cards.tsx"),
     pattern: "/cards",
+    layouts: [],
     routeChain: [],
     segmentBoundaries: [],
   } as unknown as ResolvedRoute;
@@ -84,9 +88,10 @@ test("each mounted app adds its route files to the one furin-env.d.ts", () => {
     basePath: prefix,
     clientLogging: false,
     outDir: join(projectRoot, ".furin", prefix),
+    pages: { pagesDir: join(projectRoot, pagesDir), style: "tanstack" as const },
     prefix,
     publicPath: `${prefix}/_client/`,
-    rootLayout: join(projectRoot, pagesDir, "root.tsx"),
+    rootLayout: join(projectRoot, pagesDir, "__root.tsx"),
   });
   const log = spyOn(console, "log").mockImplementation(() => undefined);
 
