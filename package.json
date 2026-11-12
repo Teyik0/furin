@@ -22,7 +22,6 @@
     "tscheck": "tsc --noEmit -p scripts/tsconfig.release.json && bun run --parallel --filter '*' tscheck"
   },
   "overrides": {
-    "@esbuild-kit/core-utils>esbuild": "0.25.12",
     "postcss-selector-parser": "7.1.6"
   },
   "devDependencies": {

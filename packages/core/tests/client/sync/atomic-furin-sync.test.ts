@@ -21,7 +21,7 @@ test.serial.each(["", "/api"])(
     const sqlite = new Database(":memory:");
     migrateSqliteSync(sqlite);
     const sync = {
-      adapter: drizzleSyncAdapter({ db: drizzle(sqlite), namespace: "furin-mount" }),
+      adapter: drizzleSyncAdapter({ db: drizzle({ client: sqlite }), namespace: "furin-mount" }),
       principal: () => {
         throw new Error("Mounted handlers own their authentication and mutation semantics");
       },
@@ -75,7 +75,7 @@ test.serial(
     const counter = sqliteTable("counter", { value: integer().notNull() });
     sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
     migrateSqliteSync(sqlite);
-    const db = drizzle(sqlite);
+    const db = drizzle({ client: sqlite });
     const sync = {
       adapter: drizzleSyncAdapter({ db, namespace: "furin-parent" }),
       principal: () => "user",
@@ -132,7 +132,7 @@ test.serial("independent Furin mounts select their transactional Sync runtime", 
   migrateSqliteSync(sqlite);
   const counter = sqliteTable("counter", { value: integer().notNull() });
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   let authorized = false;
   let firstCalls = 0;
   let secondCalls = 0;

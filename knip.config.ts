@@ -65,6 +65,9 @@ const config: KnipConfig = {
         "tests/**/*.{ts,tsx}",
         "tests/fixtures/sync-prisma/schema.prisma",
       ],
+      // generate:sync-prisma runs the prisma CLI by file path, and only the
+      // generated test client imports @prisma/client.
+      ignoreDependencies: ["prisma", "@prisma/client"],
       ignore: [
         "src/server/dev-page-plugin.production.ts",
         "src/server/dev/runtime.production.ts",
