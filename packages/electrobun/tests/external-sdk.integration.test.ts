@@ -42,7 +42,7 @@ async function findFile(root: string, match: (name: string) => boolean): Promise
   return "";
 }
 
-// Validated only with a macOS arm64 SDK 2.0.2 devkit and its npm CLI; never opens a GUI.
+// Validated only with a macOS arm64 SDK devkit and its npm CLI; never opens a GUI.
 test.skipIf(!(sdk && devkit && process.platform === "darwin" && process.arch === "arm64"))(
   "macOS arm64 SDK stable archive retains materialized external runtime packages",
   async () => {
@@ -110,9 +110,12 @@ test.skipIf(!(sdk && devkit && process.platform === "darwin" && process.arch ===
       await rm(source, { recursive: true, force: true });
       await cp(devkit, join(project, ".hutch/devkit"), { recursive: true, dereference: true });
       await writeFile(join(project, "package.json"), '{"type":"module"}');
+      const { version: sdkVersion }: { version: string } = await Bun.file(
+        join(dirname(dirname(sdk)), "package.json")
+      ).json();
       await writeFile(
         join(project, "hutch.config.ts"),
-        'export default { electrobun: { version: "2.0.2" } };'
+        `export default { electrobun: { version: ${JSON.stringify(sdkVersion)} } };`
       );
       await writeFile(join(project, "main.ts"), "export const inert = true;");
       await writeFile(
@@ -160,7 +163,9 @@ test.skipIf(!(sdk && devkit && process.platform === "darwin" && process.arch ===
       );
       const packagedBun = await findFile(extracted, (path) => basename(path) === "bun");
       expect(packagedBun).not.toBe("");
-      expect((await run([packagedBun, "--version"], extracted)).trim()).toBe("1.4.0");
+      // Each SDK release embeds its own Bun; it must still satisfy Furin's engine floor.
+      const packagedVersion = (await run([packagedBun, "--version"], extracted)).trim();
+      expect(Bun.semver.satisfies(packagedVersion, ">=1.4.0"), packagedVersion).toBe(true);
       const app = dirname(modules);
       await writeFile(
         join(app, "verify.ts"),

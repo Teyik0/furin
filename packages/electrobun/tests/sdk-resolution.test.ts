@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { desktopCommand } from "../src/cli";
-import { prepareSdkResolution } from "../src/sdk-resolution";
+import { prepareSdkResolution, resolveSdk } from "../src/sdk-resolution";
 import { installSdk } from "./fixtures/sdk";
 
 test("prepare exposes the projected SDK to TypeScript without copying its obsolete baseUrl", async () => {
@@ -23,14 +23,15 @@ test("prepare exposes the projected SDK to TypeScript without copying its obsole
       join(devkit, "package.json"),
       JSON.stringify({
         exports: {
-          "./main": "./api/main.ts",
+          "./main": "./api/sdks/main/index.ts",
           "./main/events": "./api/events.ts",
         },
       })
     );
     await writeFile(join(devkit, "tsconfig.json"), '{"compilerOptions":{"baseUrl":"."}}');
+    await mkdir(join(devkit, "api/sdks/main"), { recursive: true });
     await writeFile(
-      join(devkit, "api/main.ts"),
+      join(devkit, "api/sdks/main/index.ts"),
       'export default { kind: "projected-sdk" as const };'
     );
     await writeFile(join(devkit, "api/events.ts"), 'export const name = "events" as const;');
@@ -85,12 +86,12 @@ test.each([
     try {
       const generated = join(root, ".furin/electrobun");
       const devkit = join(generated, ".hutch/devkit");
-      await mkdir(join(devkit, "api"), { recursive: true });
+      await mkdir(join(devkit, "api/sdks/main"), { recursive: true });
       await writeFile(
         join(devkit, "package.json"),
-        JSON.stringify({ exports: { "./main": "./api/main.ts" } })
+        JSON.stringify({ exports: { "./main": "./api/sdks/main/index.ts" } })
       );
-      await writeFile(join(devkit, "api/main.ts"), "export default {};");
+      await writeFile(join(devkit, "api/sdks/main/index.ts"), "export default {};");
       await prepareSdkResolution(generated);
       await writeFile(join(generated, "native-env.d.ts"), "export {};");
       await mkdir(join(root, "src"));
@@ -125,3 +126,53 @@ test.each([
     }
   }
 );
+
+async function installLauncher(root: string, version: string) {
+  const directory = join(root, "node_modules/electrobun");
+  await mkdir(join(directory, "bin"), { recursive: true });
+  await writeFile(join(directory, "package.json"), JSON.stringify({ name: "electrobun", version }));
+  await writeFile(join(directory, "bin/electrobun.cjs"), "");
+}
+
+test("the SDK version comes from the installed launcher it runs", async () => {
+  const root = await mkdtemp(join(tmpdir(), "furin-sdk-version-"));
+  try {
+    await installLauncher(root, "2.0.6");
+    const sdk = await resolveSdk(root);
+    expect(sdk.version).toBe("2.0.6");
+    expect(sdk.launcher).toBe(join(root, "node_modules/electrobun/bin/electrobun.cjs"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("an Electrobun release outside the supported range fails with both versions", async () => {
+  const root = await mkdtemp(join(tmpdir(), "furin-sdk-range-"));
+  try {
+    await installLauncher(root, "2.1.0");
+    await expect(resolveSdk(root)).rejects.toThrow(
+      "electrobun 2.1.0 is installed; Furin supports ~2.0.2"
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a devkit whose electrobun/main is not the generated bootstrap's module is rejected", async () => {
+  const root = await mkdtemp(join(tmpdir(), "furin-sdk-contract-"));
+  try {
+    const generated = join(root, ".furin/electrobun");
+    const devkit = join(generated, ".hutch/devkit");
+    await mkdir(join(devkit, "api/main"), { recursive: true });
+    await writeFile(
+      join(devkit, "package.json"),
+      JSON.stringify({ exports: { "./main": "./api/main/index.ts" } })
+    );
+    await writeFile(join(devkit, "api/main/index.ts"), "export default {};");
+    await expect(prepareSdkResolution(generated)).rejects.toThrow(
+      "Electrobun devkit no longer exposes electrobun/main at ./api/sdks/main/index.ts"
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

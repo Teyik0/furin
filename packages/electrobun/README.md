@@ -1,6 +1,6 @@
 # @teyik0/furin-electrobun
 
-Furin desktop packaging with Electrobun 2.0.2 and one Bun main process in production. Your React DOM pages, SSR, API, Eden client and sync code serve both web and desktop.
+Furin desktop packaging with Electrobun `~2.0.2` and one Bun main process in production. Your React DOM pages, SSR, API, Eden client and sync code serve both web and desktop.
 
 Guides: [teyik0.github.io/furin/docs/desktop](https://teyik0.github.io/furin/docs/desktop). Requires Bun 1.4+, `@teyik0/furin` `>=0.9.0-alpha.1 <0.10.0` and Elysia `^2.0.0-rc.1`.
 
@@ -205,7 +205,7 @@ bunx --bun furin-electrobun prepare
 }
 ```
 
-Preserve your existing compiler options instead of copying the example's second extends path. `prepare`, `dev` and desktop builds regenerate exact aliases from the SDK export map; rerun preparation after relocating a checkout. Published Furin declarations reference original `electrobun/main` types, never a build machine's absolute paths. No GUI is needed to prepare/typecheck. First preparation needs network access; later runs reuse the SDK cache. The optional SDK dependency is pinned to 2.0.2; if optional dependencies were omitted, install it with `bun add -d electrobun@2.0.2`. All tools run through Bun.
+Preserve your existing compiler options instead of copying the example's second extends path. `prepare`, `dev` and desktop builds regenerate exact aliases from the SDK export map; rerun preparation after relocating a checkout. Published Furin declarations reference original `electrobun/main` types, never a build machine's absolute paths. No GUI is needed to prepare/typecheck. First preparation needs network access; later runs reuse the SDK cache. Electrobun is a peer dependency in the range `~2.0.2`; install it with `bun add -d electrobun@~2.0.2`. Preparation rejects a release outside that range. All tools run through Bun.
 
 ## Development and production
 

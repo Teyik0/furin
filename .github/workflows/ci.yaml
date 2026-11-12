@@ -204,10 +204,15 @@ jobs:
         shell: bash
         run: ${{ matrix.command }}
 
+  # The electrobun peer is a range: test its floor and the locked latest.
   macos:
-    name: macOS desktop compatibility
+    name: macOS desktop compatibility (electrobun ${{ matrix.electrobun }})
     runs-on: macos-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        electrobun: [floor, locked]
 
     steps:
       - name: Checkout
@@ -224,17 +229,35 @@ jobs:
         with:
           bun-version-file: .bun-version
 
+      - name: Pin electrobun to the peer floor
+        if: matrix.electrobun == 'floor'
+        working-directory: packages/electrobun
+        run: |
+          floor="$(jq -r '.peerDependencies.electrobun | ltrimstr("~")' package.json)"
+          jq --arg floor "$floor" '.devDependencies.electrobun = $floor' package.json > package.next.json
+          mv package.next.json package.json
+
       - name: Install packages
-        run: bun install --frozen-lockfile
+        run: bun install ${{ matrix.electrobun == 'locked' && '--frozen-lockfile' || '' }}
 
       - name: Build
         run: bun run build
 
       # The desktop host's FFI locks, LaunchServices queries and launcher paths
-      # differ on macOS; the headless suite runs against the documented SDK boundary.
+      # differ on macOS; the headless suite runs against the documented SDK boundary,
+      # and the SDK integration test packages a real archive with the installed release.
       - name: Test desktop package
         working-directory: packages/electrobun
-        run: bun run test
+        run: |
+          launcher="$(dirname "$(bun -e 'console.log(Bun.resolveSync("electrobun/package.json", process.cwd()))')")"
+          echo "electrobun $(jq -r .version "$launcher/package.json")"
+          FURIN_ELECTROBUN_SDK_CLI="$launcher/bin/electrobun.cjs" \
+          FURIN_ELECTROBUN_SDK_DEVKIT="$PWD/.furin/sdk/.hutch/devkit" \
+            bun run test
+
+      - name: Build the example desktop app
+        working-directory: examples/electrobun-todo
+        run: bun run build:desktop
 
   vercel-benchmark:
     name: Vercel framework benchmark

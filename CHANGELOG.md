@@ -16,6 +16,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Optional path segments** — `{-$lang}/about.tsx` serves `/about` and `/fr/about` (pattern `/:lang?/about`); `<Link>` drops the segment when the param is omitted.
 - **Route-defined boundaries** — in the TanStack style, `.error(Component)` and `.notFound(Component)` render in place of the route inside its parent layout, catching its own failures and those of the routes below it; on `__root.tsx` they are the app-wide boundaries.
 
+### Changed
+- **Electrobun is a peer range** — `@teyik0/furin-electrobun` declares `electrobun ~2.0.2` as a peer dependency instead of pinning `2.0.2` as an optional dependency, so projects choose their 2.0.x release. The installed launcher is the single source of the SDK version: `prepare`, `dev` and `build` write it to the generated Hutch config instead of `2.0.2`, so the launcher and the paired runtime always come from the same release. They also reject a release outside the range (`electrobun 2.1.0 is installed; Furin supports ~2.0.2`) and a devkit whose `electrobun/main` is no longer the module the generated bootstrap imports. CI packages a real macOS SDK archive and the example desktop app on the range's floor and on the locked release (2.0.6), and a weekly workflow repeats it on `electrobun@latest`.
+- **`@types/bun` is a required peer** — `@teyik0/furin`'s published declarations use Bun types (`BunPlugin`, `Bun.SQL`, `bun:sqlite`…), so a project without them failed to type-check; the peer is no longer marked optional. Bun installs it automatically, and generated projects already list it.
+
 ## [0.9.0-alpha.1] — 2026-11-12
 
 ### Fixed

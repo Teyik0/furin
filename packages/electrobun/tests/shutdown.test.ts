@@ -28,7 +28,7 @@ test("generated SDK host closes the window and quits with failure when cleanup h
         app: { name: "Fixture", identifier: "local.furin.fixture", version: "1.0.0" },
         dataDir: join(root, "data"),
       },
-      { mode: "build", root, serverEntry: join(root, "server.ts") }
+      { electrobunVersion: "2.0.2", mode: "build", root, serverEntry: join(root, "server.ts") }
     );
     await installSdk(root, "close-window");
     const bundle = join(root, "bundle/app");

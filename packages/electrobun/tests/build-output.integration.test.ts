@@ -11,7 +11,13 @@ test("package build removes stale outputs and emits config and server exports", 
   const root = await mkdtemp(join(packageRoot, ".build-output-"));
   try {
     await cp(join(packageRoot, "src"), join(root, "src"), { recursive: true });
-    for (const name of ["build.ts", "prepare-sdk.ts", "tsconfig.json", "tsconfig.dts.json"]) {
+    for (const name of [
+      "build.ts",
+      "package.json",
+      "prepare-sdk.ts",
+      "tsconfig.json",
+      "tsconfig.dts.json",
+    ]) {
       // biome-ignore lint/performance/noAwaitInLoops: Copy the build inputs before invoking the build.
       await cp(join(packageRoot, name), join(root, name));
     }
@@ -159,7 +165,12 @@ test("package build removes stale outputs and emits config and server exports", 
     const generated: string = await prepareDesktop(
       project,
       { app: { name: "Probe", identifier: "local.furin.probe", version: "1.0.0" } },
-      { mode: "dev", root: project, serverEntry: join(project, "src/server.ts") }
+      {
+        electrobunVersion: "2.0.2",
+        mode: "dev",
+        root: project,
+        serverEntry: join(project, "src/server.ts"),
+      }
     );
     expect(await Bun.file(join(generated, "runtime.ts")).exists()).toBe(true);
     expect(await Bun.file(join(generated, "desktop-bridge.ts")).exists()).toBe(true);

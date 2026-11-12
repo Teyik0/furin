@@ -18,7 +18,10 @@ test("desktop build keeps the whole Furin artifact outside the SDK main bundle",
       {
         app: { name: "Relay", identifier: "local.furin.relay", version: "1.2.3" },
       },
-      { mode: "build", root, serverEntry: join(root, "src/server.ts") }
+      { electrobunVersion: "2.0.6", mode: "build", root, serverEntry: join(root, "src/server.ts") }
+    );
+    expect(await readFile(join(generated, "hutch.config.ts"), "utf8")).toContain(
+      'version: "2.0.6"'
     );
     expect(await readFile(join(generated, "furin/client/nested/chunk.js"), "utf8")).toBe("client");
     expect(await readFile(join(generated, "furin/public/logo.svg"), "utf8")).toBe("public");
@@ -64,7 +67,7 @@ test("native customization preserves packaging ownership and platform integratio
         },
         release: { baseUrl: "https://example.com/releases" },
       },
-      { mode: "build", root, serverEntry: join(root, "src/server.ts") }
+      { electrobunVersion: "2.0.2", mode: "build", root, serverEntry: join(root, "src/server.ts") }
     );
     const { default: sdk } = await import(join(generated, "electrobun.config.ts"));
     expect(sdk.build.bun.entrypoint).toBe("main.ts");
@@ -120,7 +123,7 @@ test("SDK copy destinations cannot alias or escape the reserved artifact", async
             app: { name: "Fixture", identifier: "local.furin.fixture", version: "1.0.0" },
             build: { copy: { asset: destination } },
           },
-          { mode: "dev", root, serverEntry: join(root, "server.ts") }
+          { electrobunVersion: "2.0.2", mode: "dev", root, serverEntry: join(root, "server.ts") }
         )
       ).rejects.toThrow("SDK copy destinations");
     }
@@ -156,7 +159,7 @@ test("packaging preserves SDK options and explicit CEF/WGPU opt-ins", async () =
         runtime: { applicationSetting: true },
         release: { generatePatch: false },
       },
-      { mode: "dev", root, serverEntry: join(root, "server.ts") }
+      { electrobunVersion: "2.0.2", mode: "dev", root, serverEntry: join(root, "server.ts") }
     );
     const { default: config } = await import(join(generated, "electrobun.config.ts"));
     for (const platform of ["mac", "win", "linux"]) {
