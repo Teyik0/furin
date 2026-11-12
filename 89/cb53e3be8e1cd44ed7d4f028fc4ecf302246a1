@@ -1,0 +1,35 @@
+apps/docs/src/components/docs-mobile-nav.tsx
+  s_2d3b48c2109c35::t_913d9307e99761 15-16
+apps/docs/src/lib/docs.ts
+  s_2d3b48c2109c35::t_913d9307e99761 3-4
+apps/docs/src/lib/docs-platform.ts
+  s_2d3b48c2109c35::t_913d9307e99761 1-10
+apps/docs/src/lib/docs-search.ts
+  s_2d3b48c2109c35::t_913d9307e99761 3
+  s_2d3b48c2109c35::t_cd3475ab812612 5
+  s_2d3b48c2109c35::t_999b8ce4a0d4c8 2
+apps/docs/src/components/docs-search-dialog.tsx
+  s_2d3b48c2109c35::t_913d9307e99761 15
+apps/docs/src/components/docs-search-trigger.tsx
+  s_2d3b48c2109c35::t_913d9307e99761 4
+apps/docs/src/components/root-layout.tsx
+  s_2d3b48c2109c35::t_913d9307e99761 8
+apps/docs/src/pages/docs/_route.tsx
+  s_2d3b48c2109c35::t_913d9307e99761 7-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "89cb53e3be8e1cd44ed7d4f028fc4ecf302246a1",
+  "prompts": {},
+  "sessions": {
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
