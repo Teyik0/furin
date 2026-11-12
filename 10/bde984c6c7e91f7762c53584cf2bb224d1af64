@@ -1,0 +1,26 @@
+packages/electrobun/tests/dev-lifecycle.test.ts
+  s_ee1fcc24a80de0::t_b44c77b8d209c4 20-21
+packages/electrobun/bunfig.toml
+  s_ee1fcc24a80de0::t_7122709ec7254e 1-2
+packages/electrobun/tests/setup/app-data.ts
+  s_ee1fcc24a80de0::t_7122709ec7254e 1,3-5,7-11
+packages/electrobun/tests/supervisor-stop.test.ts
+  s_ee1fcc24a80de0::t_68bcd1d64cebc8 3,54
+  s_ee1fcc24a80de0::t_1dc9a51e9650c5 57,174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "10bde984c6c7e91f7762c53584cf2bb224d1af64",
+  "prompts": {},
+  "sessions": {
+    "s_ee1fcc24a80de0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dc1429f-f948-43fb-a015-32a96578a2b9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
