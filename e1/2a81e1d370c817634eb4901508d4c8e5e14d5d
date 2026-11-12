@@ -1,0 +1,33 @@
+.github/workflows/hmr-soak.yaml
+  s_c42f91ff61129f::t_3834bdf191ba58 30
+.github/workflows/pages.yaml
+  s_c42f91ff61129f::t_3834bdf191ba58 41
+.github/workflows/vercel-benchmark.yaml
+  s_c42f91ff61129f::t_3834bdf191ba58 81
+.github/workflows/electrobun-latest.yaml
+  s_c42f91ff61129f::t_3834bdf191ba58 28
+.github/workflows/distributed-sync-validation.yaml
+  s_c42f91ff61129f::t_3834bdf191ba58 55
+.github/workflows/cd.yaml
+  s_c42f91ff61129f::t_3834bdf191ba58 37
+.github/workflows/ci.yaml
+  s_c42f91ff61129f::t_3834bdf191ba58 41,128,133,186,191,225,230,303,458,463
+package.json
+  s_c42f91ff61129f::t_d87b9b3268cb39 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e12a81e1d370c817634eb4901508d4c8e5e14d5d",
+  "prompts": {},
+  "sessions": {
+    "s_c42f91ff61129f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ab4c9980-c729-437a-bec6-d0f9dab83131",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
