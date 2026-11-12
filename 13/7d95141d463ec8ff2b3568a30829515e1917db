@@ -1,0 +1,30 @@
+packages/electrobun/tests/dev-bootstrap.test.ts
+  s_2d3b48c2109c35::t_e489a5e769a7ed 1-22
+  s_05939466d0a8c3::t_f302872b841f35 23-29
+packages/electrobun/src/dev-bootstrap.ts
+  s_2d3b48c2109c35::t_46727d97b1e807 28,58,60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "137d95141d463ec8ff2b3568a30829515e1917db",
+  "prompts": {},
+  "sessions": {
+    "s_05939466d0a8c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d305fcd8-382b-468d-a110-93b64d6f3b8c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
