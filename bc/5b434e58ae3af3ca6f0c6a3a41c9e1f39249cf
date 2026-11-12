@@ -1,0 +1,25 @@
+packages/core/tests/bench/dbg-growth.bench.ts
+  s_3548c3ff716ea7::t_accadbedb0b1e0 19,25,28,41
+packages/core/tests/bench/params-validation.bench.ts
+  s_3548c3ff716ea7::t_accadbedb0b1e0 76,84,88,104
+.github/workflows/ci.yaml
+  s_3548c3ff716ea7::t_b55c7ee2bb38e3 285-286,293,372-374
+apps/scaffolder/tests/package.test.ts
+  s_3548c3ff716ea7::t_00a0d45d7f09fd 30-35,59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bc5b434e58ae3af3ca6f0c6a3a41c9e1f39249cf",
+  "prompts": {},
+  "sessions": {
+    "s_3548c3ff716ea7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "277c9017-b362-4fee-aab0-a0f1c68f2234",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
