@@ -158,7 +158,11 @@ test("web development startup timeout is a failure and drains the partial applic
         stdin: "ignore",
         stdout: "pipe",
         stderr: "pipe",
-        timeout: 38_000,
+        env: {
+          ...process.env,
+          BUN_OPTIONS: `--preload ${resolve(import.meta.dir, "../support/short-startup-budget.ts")}`,
+        },
+        timeout: 10_000,
         killSignal: "SIGKILL",
       }
     );
@@ -173,7 +177,7 @@ test("web development startup timeout is a failure and drains the partial applic
     await child?.exited;
     await rm(root, { recursive: true, force: true });
   }
-}, 40_000);
+});
 
 test("web hot replacement awaits source cleanup before reacquiring an exclusive resource", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-web-restart-"));
