@@ -1,0 +1,33 @@
+apps/docs/src/content/desktop/architecture.mdx
+  s_2d3b48c2109c35::t_f0801e1e35b8ea 13
+apps/docs/src/content/docs/rendering.mdx
+  s_2d3b48c2109c35::t_716fdd81601767 11
+apps/docs/src/content/docs/cli.mdx
+  s_2d3b48c2109c35::t_2aa1dad0fc0151 53,92
+apps/docs/src/content/docs/sync.mdx
+  s_2d3b48c2109c35::t_e3f06b57c0996a 260,399
+apps/docs/src/content/desktop/installation.mdx
+  s_2d3b48c2109c35::t_041a9aa734df6c 46
+packages/electrobun/README.md
+  s_2d3b48c2109c35::t_c6e885ef910a02 5,176
+apps/docs/src/content/desktop/windows.mdx
+  s_2d3b48c2109c35::t_f8d46761fcd4e4 13,16-27
+apps/docs/src/content/docs/configuration.mdx
+  s_2d3b48c2109c35::t_2aa1dad0fc0151 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0cb98c18a5802b76a5ebad2c66328bd5b1930ec3",
+  "prompts": {},
+  "sessions": {
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
