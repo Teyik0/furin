@@ -26,7 +26,7 @@ describe("compare-performance-reports", () => {
       totalClientGzipBytes: 151_500,
     });
 
-    const comparison = comparePerformanceReports(base, head, "19.2.8", "19.2.8");
+    const comparison = comparePerformanceReports(base, head, "19.2.8", "19.2.8", false, false);
 
     expect(comparison.regressions).toEqual([]);
     expect(comparison.rows.every((row) => row.status === "pass")).toBe(true);
@@ -45,7 +45,7 @@ describe("compare-performance-reports", () => {
       initialJavaScriptGzipBytes: 102_001,
     });
 
-    const comparison = comparePerformanceReports(base, head, "19.2.8", "19.2.8");
+    const comparison = comparePerformanceReports(base, head, "19.2.8", "19.2.8", false, false);
 
     expect(comparison.regressions).toHaveLength(1);
     expect(comparison.regressions[0]).toMatchObject({
@@ -66,7 +66,7 @@ describe("compare-performance-reports", () => {
     });
 
     const markdown = formatPerformanceComparison(
-      comparePerformanceReports(base, base, "19.2.8", "19.2.8")
+      comparePerformanceReports(base, base, "19.2.8", "19.2.8", false, false)
     );
 
     expect(markdown).toStartWith("<!-- furin-performance-report -->\n");
@@ -89,8 +89,33 @@ test("allows the measured React 19.3 migration cost only for that version change
     totalClientGzipBytes: 159_000,
   });
 
-  expect(comparePerformanceReports(base, head, "19.2.8", "19.3.0").regressions).toEqual([]);
-  expect(comparePerformanceReports(base, head, "19.3.0", "19.3.0").regressions).toHaveLength(
+  expect(comparePerformanceReports(base, head, "19.2.8", "19.3.0", false, false).regressions).toEqual([]);
+  expect(comparePerformanceReports(base, head, "19.3.0", "19.3.0", false, false).regressions).toHaveLength(
     2
   );
+});
+
+test("allows the measured docs workbench CSS only when the PR introduces it", () => {
+  const base = report({
+    initialCssGzipBytes: 14_000,
+    initialJavaScriptGzipBytes: 117_000,
+    largestLazyChunkGzipBytes: 23_000,
+    serverBinaryBytes: 96_000_000,
+    totalClientGzipBytes: 247_000,
+  });
+  const head = report({ ...base.metrics, initialCssGzipBytes: 16_000 });
+
+  expect(
+    comparePerformanceReports(base, head, "19.3.1", "19.3.1", false, true).regressions
+  ).toEqual([]);
+  expect(
+    comparePerformanceReports(base, head, "19.3.1", "19.3.1", true, true).regressions.map(
+      (row) => row.label
+    )
+  ).toEqual(["Initial CSS gzip"]);
+  expect(
+    formatPerformanceComparison(
+      comparePerformanceReports(base, head, "19.3.1", "19.3.1", false, true)
+    )
+  ).toContain("workbench");
 });

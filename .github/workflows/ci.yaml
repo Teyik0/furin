@@ -459,13 +459,16 @@ jobs:
         run: |
           base_react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$RUNNER_TEMP/furin-base/package.json")"
           head_react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$GITHUB_WORKSPACE/package.json")"
+          docs_workbench() { if [ -f "$1/apps/docs/src/content/desktop/overview.mdx" ]; then echo true; else echo false; fi; }
           set +e
           bun scripts/compare-performance-reports.ts \
             "$RUNNER_TEMP/furin-performance/base.json" \
             "$RUNNER_TEMP/furin-performance/head.json" \
             "$RUNNER_TEMP/furin-performance/budgets.md" \
             "$base_react_version" \
-            "$head_react_version"
+            "$head_react_version" \
+            "$(docs_workbench "$RUNNER_TEMP/furin-base")" \
+            "$(docs_workbench "$GITHUB_WORKSPACE")"
           comparison_status=$?
           bun scripts/compare-dev-startup.ts \
             "$RUNNER_TEMP/furin-performance/startup-base.json" \
