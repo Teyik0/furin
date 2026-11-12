@@ -42,6 +42,7 @@ export function createTestRoute(
   }
 ): ResolvedRoute {
   const { component, loader, pattern, ...boundary } = options;
+  const directory = pattern === "/" ? "/test-pages" : `/test-pages${pattern}`;
   return {
     mode: "ssr",
     page: {
@@ -50,14 +51,12 @@ export function createTestRoute(
       component,
       ...(loader ? { loader } : {}),
     },
-    path: `/test-pages${pattern}/index.tsx`,
+    path: `${directory}/index.tsx`,
     pattern,
     routeChain: [ROOT_ROUTE],
     // The page's own directory boundary, inside the root layout.
     segmentBoundaries:
-      boundary.error || boundary.notFound
-        ? [{ depth: 0, ...boundary, path: `/test-pages${pattern}` }]
-        : [],
+      boundary.error || boundary.notFound ? [{ depth: 0, ...boundary, path: directory }] : [],
     tags: [],
   };
 }

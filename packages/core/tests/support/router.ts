@@ -51,6 +51,7 @@ export async function loadInitialMatch(route: ClientRoute): Promise<LoadedClient
     ...route,
     component: mod.default.component,
     pageRoute: mod.default._route,
+    segmentBoundaries: mod.segmentBoundaries ?? route.segmentBoundaries,
   };
 }
 

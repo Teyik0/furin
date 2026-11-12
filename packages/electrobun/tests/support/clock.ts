@@ -31,8 +31,9 @@ export async function settleOnFakeClock(pending: Promise<unknown>, limit: number
     // biome-ignore lint/performance/noAwaitInLoops: Each turn must observe real I/O before the clock moves.
     await new Promise((resolve) => setImmediate(resolve));
     turns += 1;
-    if (Date.now() - start < limit && turns % TURNS_PER_STEP === 0) {
-      jest.advanceTimersByTime(100);
+    const remaining = limit - (Date.now() - start);
+    if (remaining > 0 && turns % TURNS_PER_STEP === 0) {
+      jest.advanceTimersByTime(Math.min(100, remaining));
     }
   }
   if (!settled) {
