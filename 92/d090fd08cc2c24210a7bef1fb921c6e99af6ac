@@ -1,0 +1,28 @@
+packages/electrobun/package.json
+  s_2d3b48c2109c35::t_d5e1fd6729aa70 3
+  s_2d3b48c2109c35::t_37d9dd77b1517b 79
+CHANGELOG.md
+  s_2d3b48c2109c35::t_37d9dd77b1517b 17
+packages/electrobun/README.md
+  s_2d3b48c2109c35::t_a4874d2cd3df75 5
+apps/docs/src/content/desktop/overview.mdx
+  s_2d3b48c2109c35::t_742630a7856ef9 24
+bun.lock
+  s_2d3b48c2109c35::t_100ec33c3f6f3c 183,199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "92d090fd08cc2c24210a7bef1fb921c6e99af6ac",
+  "prompts": {},
+  "sessions": {
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
