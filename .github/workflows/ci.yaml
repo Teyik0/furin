@@ -255,7 +255,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: Teyik0/furin-vercel-benchmarks
-          ref: 0eabe4369a98d0d072019336f5050555725746e1
+          ref: 76df39c9e174a46175712691838de87144a8d658
           path: .benchmark
           persist-credentials: false
 
@@ -264,7 +264,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: Teyik0/furin-vercel-benchmarks
-          ref: 0eabe4369a98d0d072019336f5050555725746e1
+          ref: 76df39c9e174a46175712691838de87144a8d658
           path: .benchmark-base
           persist-credentials: false
 

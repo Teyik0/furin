@@ -1,6 +1,10 @@
 import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { createBuildFingerprint, type RuntimeTargetApp } from "../adapter/runtime-build.ts";
+import {
+  buildCompileMetadata,
+  createBuildFingerprint,
+  type RuntimeTargetApp,
+} from "../adapter/runtime-build.ts";
 import { PRODUCTION_DEFINE, runBunBuild } from "../build/bun-build.ts";
 import { buildClient } from "../build/client.ts";
 import { buildEntrySource, PRERENDER_SNAPSHOT_FILE } from "../build/entry-template.ts";
@@ -93,42 +97,7 @@ export async function buildPackageTarget(
   const indexHtml = generateProdIndexHtml(entryChunk, cssChunks, buildId, undefined, false);
   writeFileSync(join(clientDir, "index.html"), indexHtml);
 
-  const rootConventions =
-    root.errorPath || root.notFoundPath
-      ? {
-          errorPath: root.errorPath ? toPosixPath(root.errorPath) : undefined,
-          notFoundPath: root.notFoundPath ? toPosixPath(root.notFoundPath) : undefined,
-        }
-      : undefined;
-  const routeMetadata: Record<
-    string,
-    {
-      layouts: Array<{ path: string; pattern: string }>;
-      requestKeys?: string[];
-      requestKeysByLoader?: string[][];
-      segmentBoundaries: Array<{
-        depth: number;
-        path: string;
-        errorPath?: string;
-        fromRoute?: true;
-        notFoundPath?: string;
-      }>;
-    }
-  > = {};
-  for (const route of routes) {
-    routeMetadata[toPosixPath(route.path)] = {
-      layouts: route.layouts.map((layout) => ({ ...layout, path: toPosixPath(layout.path) })),
-      requestKeys: route.requestKeys,
-      requestKeysByLoader: route.requestKeysByLoader,
-      segmentBoundaries: route.segmentBoundaries.map((b) => ({
-        depth: b.depth,
-        errorPath: b.errorPath ? toPosixPath(b.errorPath) : undefined,
-        ...(b.fromRoute ? { fromRoute: b.fromRoute } : {}),
-        notFoundPath: b.notFoundPath ? toPosixPath(b.notFoundPath) : undefined,
-        path: toPosixPath(b.path),
-      })),
-    };
-  }
+  const { rootConventions, routeMetadata } = buildCompileMetadata(root, routes);
 
   // 1. register.ts — context registration side-effect module.
   const registerSource = buildEntrySource({

@@ -128,6 +128,16 @@ describe.serial("Vercel deployment adapter", () => {
       const app = createVercelApp();
       writeAppFile(
         app.path,
+        "src/pages/{-$lang}/promo.tsx",
+        `import { defineRoute } from "@teyik0/furin";
+import { t } from "elysia";
+export const route = defineRoute("/{-$lang}/promo")
+  .config({ mode: "ssg", params: t.Object({ lang: t.Optional(t.String()) }) })
+  .staticParams(() => [{ lang: "fr" }])
+  .page(() => <main>Promo</main>);`
+      );
+      writeAppFile(
+        app.path,
         "src/pages/account/route.tsx",
         `import { defineRoute } from "@teyik0/furin";
 export const route = defineRoute("/account")
@@ -226,6 +236,12 @@ export const route = defineRoute("/catalog/")
         dest: "/blog/[slug]-ssg?__furin_path=$__furin_path",
         src: "(?<__furin_path>/blog/[^/]+)",
       });
+      // `?` is not portable in function directory names: `:lang?` becomes `[[lang]]`.
+      expect(config.routes).toContainEqual({
+        dest: "/[[lang]]/promo-ssg?__furin_path=$__furin_path",
+        src: "(?<__furin_path>(?:/[^/]+)?/promo)",
+      });
+      expect(existsSync(join(functionsDir, "[[lang]]/promo-ssg.func"))).toBe(true);
       expect(config.routes.at(-1)).toEqual({ dest: "/__server", src: "/(.*)" });
 
       expect(functionConfig).toEqual({
@@ -327,7 +343,7 @@ export const route = defineRoute("/catalog/")
       }
       expect(manifest.isrRoutes).toEqual(["/catalog", "/events/:slug", "/news", "/search"]);
       expect(manifest.outputDir).toBe(".vercel/output");
-      expect(manifest.ssgRoutes).toEqual(["/", "/blog/hello-world"]);
+      expect(manifest.ssgRoutes).toEqual(["/", "/blog/hello-world", "/fr/promo"]);
     }
 
     runScenario().then(() => done(), done);

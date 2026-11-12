@@ -30,7 +30,10 @@ export interface SegmentBoundary {
   notFound?: NotFoundComponent;
   /** Absolute path to the `not-found.tsx` module, when present. */
   notFoundPath?: string;
-  /** Absolute directory path; the route file for a `fromRoute` boundary. */
+  /**
+   * Absolute directory path; the route file for a `fromRoute` boundary,
+   * except the root's, which is the pages directory.
+   */
   path: string;
 }
 

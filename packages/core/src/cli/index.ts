@@ -28,7 +28,7 @@ function singleApp(
   style: string | undefined,
   prefix: string | undefined
 ): [{ pagesDir: string; prefix: string; style: RouteStyle }] | undefined {
-  if (pagesDir === undefined) {
+  if (!pagesDir) {
     return;
   }
   if (style !== "nextjs" && style !== "tanstack") {
@@ -283,7 +283,7 @@ BUILD OPTIONS
 
 TYPEGEN OPTIONS
   Writes furin-env.d.ts for every mounted app (run it before tsc in CI)
-  --pagesDir  Pages directory (default: config apps, then the server entry's furin() mounts)
+  --pagesDir  Pages directory (default: config pagesDir, config apps, then the server entry's furin() mounts)
   --style     File-routing style of --pagesDir: nextjs or tanstack
   --config    Config file path
 

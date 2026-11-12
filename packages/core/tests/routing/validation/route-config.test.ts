@@ -417,6 +417,14 @@ export const route = defineRoute("/about/")
   .error(AboutError)
   .page(() => null);
 `,
+      "contact/page.tsx": `import { defineRoute } from "@teyik0/furin";
+
+const ContactNotFound = () => null;
+export const route = defineRoute("/contact/")
+  .config({ mode: "ssg" })
+  .notFound(ContactNotFound)
+  .page(() => null);
+`,
       "layout.tsx": ROOT,
     });
 
@@ -424,6 +432,7 @@ export const route = defineRoute("/about/")
       validateRouteConfig({ pagesDir, prefix: "", style: "nextjs" }).map(({ message }) => message)
     ).toEqual([
       ".error() is the TanStack style. In the nextjs style, default-export the component from an error.tsx next to this route.",
+      ".notFound() is the TanStack style. In the nextjs style, default-export the component from a not-found.tsx next to this route.",
     ]);
     expect(validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" })).not.toContainEqual(
       expect.objectContaining({ message: expect.stringContaining(".error()") })

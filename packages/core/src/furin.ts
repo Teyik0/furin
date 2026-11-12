@@ -345,6 +345,11 @@ const mountedPrefixes = new WeakMap<AnyElysia, Map<string, FurinInstance>>();
  * ```
  */
 export async function furin(options: FurinOptions) {
+  if (options.style !== "nextjs" && options.style !== "tanstack") {
+    throw new Error(
+      `[furin] furin() requires style: "nextjs" or "tanstack", received ${JSON.stringify(options.style)}.`
+    );
+  }
   const registration = {
     pagesDir: options.pagesDir ?? DEFAULT_PAGES_DIRS[options.style],
     prefix: normalizePrefix(options.prefix),

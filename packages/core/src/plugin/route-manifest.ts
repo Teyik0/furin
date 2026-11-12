@@ -339,9 +339,11 @@ function assertSplatLast(candidate: Candidate): void {
 
 /** Collision keys of a page: one per concrete variant, params renamed `:param`. */
 function patternKeys(pattern: string): string[] {
-  return expandOptionalSegments(pattern).map((variant) =>
+  const keys = expandOptionalSegments(pattern).map((variant) =>
     variant.replace(PARAM_SEGMENT, "$1:param")
   );
+  // `/{-$a}/{-$b}/docs` serves `/:param/docs` twice: one page, not a collision.
+  return [...new Set(keys)];
 }
 
 /** Records a page's collision keys, rejecting one another page already claims. */

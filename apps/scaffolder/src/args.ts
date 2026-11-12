@@ -78,6 +78,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
     throw new ScaffolderError("Target directory is required when using --yes");
   }
 
+  if (result.yes && result.style === null) {
+    throw new ScaffolderError("--style <tanstack|nextjs> is required when using --yes");
+  }
+
   return result;
 }
 

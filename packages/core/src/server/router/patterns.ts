@@ -74,8 +74,8 @@ export function escapeRegExp(value: string): string {
 /**
  * Unanchored regex source for a route pattern: literal characters (e.g. dots
  * in `v1.0`) are escaped, each `:param` becomes `sources.param` and `*`
- * becomes `sources.catchAll`. `paramNames` lists them in order (`*` for the
- * catch-all).
+ * becomes `sources.catchAll`. `paramNames` lists them in order (`_splat` for
+ * the catch-all).
  */
 export function routePatternRegexSource(
   pattern: string,

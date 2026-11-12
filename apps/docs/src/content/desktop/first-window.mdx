@@ -19,13 +19,13 @@ const app = new Elysia()
       renderer: "native",
     },
   }))
-  .use(await furin({ style: "tanstack" }))
+  .use(await furin({ pagesDir: "src/routes", style: "tanstack" }))
   .listen({ hostname: "127.0.0.1", port: 4242 });
 
 export default app;
 ```
 
-Keep your existing pages and root layout. The window loads the Furin app; it does not need a separate HTML file or React root. Window options come from Electrobun, while Furin owns the managed URL and navigation boundary.
+Keep your existing routes and root layout, in the [routing style](/docs/routing) you chose. The window loads the Furin app; it does not need a separate HTML file or React root. Window options come from Electrobun, while Furin owns the managed URL and navigation boundary.
 
 ## Run in development
 

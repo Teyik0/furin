@@ -70,7 +70,10 @@ beforeAll(async () => {
 afterAll(() => {
   __resetCompileContext();
   __setDevMode(originalDevMode);
-  rmSync(pagesDir, { force: true, recursive: true });
+  // beforeAll may have failed before assigning it.
+  if (typeof pagesDir === "string") {
+    rmSync(pagesDir, { force: true, recursive: true });
+  }
 });
 
 async function render(path: string): Promise<{ html: string; status: number }> {

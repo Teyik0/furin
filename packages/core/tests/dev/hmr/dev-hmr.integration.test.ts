@@ -260,7 +260,7 @@ describe.serial("dev HMR", () => {
     expect(listenCount).toBe(1);
   }, 15_000);
 
-  test("editing root.tsx keeps nested hook layouts rendering without invalid hook crashes", async () => {
+  test("editing __root.tsx keeps nested hook layouts rendering without invalid hook crashes", async () => {
     let response: Response | undefined;
     let html = "";
 
@@ -323,7 +323,7 @@ describe.serial("dev HMR", () => {
 
   test("editing an unrelated _route still serves the new dev shell from / (no infinite reload loop)", async () => {
     // Regression: previously the dev ISR cache held the assembled HTML with the
-    // OLD client chunk URL embedded. Editing an unrelated _route.tsx rebundled
+    // OLD client chunk URL embedded. Editing an unrelated route.tsx rebundled
     // the client (new chunk URL on /_bun_hmr_entry) but the cache kept serving
     // the stale HTML, sending the browser into an infinite reload loop.
     //
@@ -332,7 +332,7 @@ describe.serial("dev HMR", () => {
     // template embedded in each response carries the latest Bun client
     // chunk URL, and the loader cache is invalidated source-aware via
     // `isDevLoaderCacheValid` (mtime-checked dependency walk on every
-    // read), so a sibling _route.tsx edit drops dependent entries on the
+    // read), so a sibling route.tsx edit drops dependent entries on the
     // very next request.
     const warmHtml = await (await fetch(`http://localhost:${port}/`)).text();
     const initialBundle = extractDevClientEntry(warmHtml);

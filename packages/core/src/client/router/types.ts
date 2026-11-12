@@ -48,27 +48,30 @@ type OptionalSegmentMatches<Rest extends string, Path extends string> =
 
 /**
  * Mirrors the router: `:param` matches one non-empty segment, `:param?` one
- * or none, `*` the rest.
+ * or none, `*` the rest. `Head` is always a single segment: `${infer Head}/`
+ * stops at the first slash.
  */
 type PatternMatches<Pattern extends string, Path extends string> = Pattern extends "*"
   ? true
-  : Pattern extends `:${string}?/${infer Rest}`
-    ? OptionalSegmentMatches<Rest, Path>
+  : Pattern extends `${infer Head}/${infer Rest}`
+    ? Head extends `:${string}?`
+      ? OptionalSegmentMatches<Rest, Path>
+      : Path extends `${infer PathHead}/${infer PathRest}`
+        ? SegmentMatches<Head, PathHead> extends true
+          ? PatternMatches<Rest, PathRest>
+          : false
+        : Rest extends `${string}/${string}`
+          ? false
+          : Rest extends `:${string}?`
+            ? SegmentMatches<Head, Path>
+            : false
     : Pattern extends `:${string}?`
       ? Path extends `${string}/${string}`
         ? false
         : true
-      : Pattern extends `${infer Head}/${infer Rest}`
-        ? Path extends `${infer PathHead}/${infer PathRest}`
-          ? SegmentMatches<Head, PathHead> extends true
-            ? PatternMatches<Rest, PathRest>
-            : false
-          : Rest extends `:${string}?`
-            ? SegmentMatches<Head, Path>
-            : false
-        : Path extends `${string}/${string}`
-          ? false
-          : SegmentMatches<Pattern, Path>;
+      : Path extends `${string}/${string}`
+        ? false
+        : SegmentMatches<Pattern, Path>;
 
 type MatchingPattern<Path extends string> = {
   [Pattern in RoutePattern]: PatternMatches<Pattern, Path> extends true ? Pattern : never;

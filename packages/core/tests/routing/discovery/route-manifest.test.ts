@@ -7,7 +7,8 @@ import { type RouteStyle, scanRouteManifest } from "../../../src/plugin/route-ma
 let pagesDir: string;
 
 beforeEach(() => {
-  pagesDir = mkdtempSync(join(tmpdir(), "furin-route-manifest-"));
+  // The manifest reports POSIX paths on every platform.
+  pagesDir = mkdtempSync(join(tmpdir(), "furin-route-manifest-")).replaceAll("\\", "/");
 });
 
 afterEach(() => {

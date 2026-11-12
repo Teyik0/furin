@@ -73,6 +73,7 @@ initLogger({
 });
 
 await furin({
+  style: "tanstack",
   logger: {
     keep: (context) => {
       if (context.method !== "GET") context.shouldKeep = true;
@@ -87,6 +88,7 @@ This head-samples ordinary info events, then force-keeps errors, slow requests, 
 
 ```ts
 await furin({
+  style: "tanstack",
   logger: {
     redact: {
       paths: ["user.email", "**.password", "*_token"],
@@ -104,6 +106,7 @@ await furin({
 import { createAxiomDrain } from "evlog/axiom";
 
 await furin({
+  style: "tanstack",
   logger: {
     drain: createAxiomDrain({
       apiKey: process.env.AXIOM_API_KEY!,
@@ -121,6 +124,7 @@ For local NDJSON files:
 import { createFsDrain } from "evlog/fs";
 
 await furin({
+  style: "tanstack",
   logger: {
     drain: createFsDrain({ dir: ".evlog/logs" }),
   },

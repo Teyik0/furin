@@ -9,7 +9,7 @@ import { startProcess } from "../../support/process.ts";
 const CATALOG_RUNS = /data-test="catalog-runs">(\d+)<\/span>/;
 
 /**
- * Regression test for issue: editing a `_route.tsx` in a sibling subdirectory
+ * Regression test for issue: editing a `route.tsx` in a sibling subdirectory
  * (one that is NOT a dependency of the currently-cached page) used to leave
  * the ISR/SSG cache untouched on the next request. The browser then loaded
  * the cached HTML which embedded the OLD client chunk URL, while Bun had
@@ -26,7 +26,7 @@ const CATALOG_RUNS = /data-test="catalog-runs">(\d+)<\/span>/;
  *   4. On the next visit to `/`, the served HTML MUST embed the new chunk URL.
  */
 
-describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
+describe.serial("dev HMR cache invalidation on unrelated route.tsx edit", () => {
   const app = createTmpApp("cli-app");
   let port: number;
   let server: ReturnType<typeof startProcess>;

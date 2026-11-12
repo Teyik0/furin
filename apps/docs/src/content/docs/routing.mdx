@@ -13,7 +13,7 @@ import { Elysia } from "elysia";
 const app = new Elysia().use(await furin({ style: "tanstack" }));
 ```
 
-Both styles produce the same routes, keyed by the same [TanStack Start ids](#route-ids). Only the file names differ, so moving an app from one style to the other means renaming files, not rewriting route modules. Pass `pagesDir` to read pages from another directory.
+Both styles produce routes keyed by the same [TanStack Start ids](#route-ids), so route modules do not change when an app moves between styles: its files are renamed. TanStack-only features (pathless `_name` layouts, optional `{-$name}` segments, `name_` and flat `a.$b` nesting) have no Next.js file and need restructuring first. Pass `pagesDir` to read pages from another directory.
 
 ## Conventions
 

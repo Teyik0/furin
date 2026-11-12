@@ -58,6 +58,7 @@ describe("refreshLayoutChain", () => {
 
   test("patches TanStack-style boundaries on the layout entry", async () => {
     const BoardError = () => null;
+    const BoardNotFound = () => null;
     const chain: RuntimeRoute[] = [
       { __type: "FURIN_ROUTE", layout: () => "root" },
       { __type: "FURIN_ROUTE", layout: () => "board" },
@@ -68,13 +69,14 @@ describe("refreshLayoutChain", () => {
         route: defineRootRoute()
           .config({ mode: "ssr" })
           .error(BoardError)
+          .notFound(BoardNotFound)
           .layout(({ children }) => children),
       });
 
     await refreshLayoutChain(chain, [BOARD_LAYOUT], importFn);
 
     expect(chain[1]?.errorComponent).toBe(BoardError);
-    expect(chain[1]?.notFoundComponent).toBeUndefined();
+    expect(chain[1]?.notFoundComponent).toBe(BoardNotFound);
   });
 
   test("rejects with the layout export contract while the layout has no layout terminal", async () => {

@@ -47,7 +47,16 @@ test.skipIf(process.env.FURIN_SCAFFOLDER_RELEASE_SMOKE !== "1").each(["simple", 
       await run(consumer, ["install", "--frozen-lockfile", "--ignore-scripts"]);
       const cli = join(consumer, "node_modules/create-furin/dist/index.js");
       expect((await run(consumer, [cli, "--version"])).trim()).toBe(version);
-      await run(consumer, [cli, "generated", "--template", template, "--yes", "--no-install"]);
+      await run(consumer, [
+        cli,
+        "generated",
+        "--template",
+        template,
+        "--style",
+        "tanstack",
+        "--yes",
+        "--no-install",
+      ]);
       const project = join(consumer, "generated");
       const manifest: { dependencies: { "@teyik0/furin": string } } = await Bun.file(
         join(project, "package.json")

@@ -40,7 +40,7 @@ Usage:
 Options:
   -t, --template <simple|full>   Template choice (default: prompted); --template=<id> also works
   --style <tanstack|nextjs>      File-routing style (default: prompted); --style=<id> also works
-  -y, --yes                      Skip interactive confirmations (requires <dir>)
+  -y, --yes                      Skip interactive confirmations (requires <dir> and --style)
   --no-install                   Do not run bun install after scaffolding
   -v, --version                  Show the create-furin package version
   -h, --help                     Show help

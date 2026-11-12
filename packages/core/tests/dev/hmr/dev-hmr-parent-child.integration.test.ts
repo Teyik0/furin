@@ -24,7 +24,7 @@ const HELLO_ATTR_RE = /data-hello="([^"]+)"/;
  *   is in flight (or has just been served) — the next SSR response must embed the
  *   new layout and produce no "Invalid hook call" or dispatcher errors.
  *
- * #5 (P1): Editing the parent `_route.tsx` must propagate the updated layout to
+ * #5 (P1): Editing the parent `route.tsx` must propagate the updated layout to
  *   BOTH the parent route (`/blog`) AND the child route (`/blog/hello`) on their
  *   respective next SSR cycles — without a server restart.
  *
@@ -33,7 +33,7 @@ const HELLO_ATTR_RE = /data-hello="([^"]+)"/;
  *   Mechanism: `isDevLoaderCacheValid` stat-checks every entry dependency
  *   against `entry.generatedAt` at cache-read time.  No fs watcher needed.
  *
- * #9 (P0): Editing the LOADER in `root.tsx` MUST be reflected on the next
+ * #9 (P0): Editing the LOADER in `__root.tsx` MUST be reflected on the next
  *   request to any page whose data depends on the root loader.  This is the
  *   same mechanism as #7 but exercises the depth-0 (root) edge of the
  *   dependency chain — the case where the user's actual bug surfaced.
@@ -91,7 +91,7 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     [
       'import { defineRoute } from "@teyik0/furin";',
       "",
-      'export const route = defineRoute("/blog")',
+      'export const route = defineRoute("/blog/")',
       '  .config({ mode: "ssg" })',
       '  .page(() => <main data-blog-listing="true">Blog listing</main>);',
     ].join("\n")
@@ -239,8 +239,8 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
    * violations or dispatcher errors.
    *
    * The dangerous scenario: the parent layout component changes identity (new
-   * module evaluation), but child pages hold a stale import of `_route.tsx`.
-   * Bun's `?t=<ts>` mechanism re-imports `_route.tsx` from disk on the next
+   * module evaluation), but child pages hold a stale import of `route.tsx`.
+   * Bun's `?t=<ts>` mechanism re-imports `route.tsx` from disk on the next
    * child request, so both parent and child use the same, current React module
    * graph — hooks stay valid.
    */
@@ -298,7 +298,7 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   // ── #5 (P1) ───────────────────────────────────────────────────────────────
 
   /**
-   * After editing the parent `_route.tsx`, BOTH the parent route (`/blog`) AND
+   * After editing the parent `route.tsx`, BOTH the parent route (`/blog`) AND
    * the child route (`/blog/hello`) must embed the updated layout in their next
    * SSR response — without a server restart.
    *
@@ -364,7 +364,7 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
    *
    * Mechanism — pre-read dependency mtime check (`isDevLoaderCacheValid`):
    *   • Each cache entry stores `dependencies: string[]` (page + every
-   *     `_route.tsx` between page and pages root + `root.tsx`).
+   *     `route.tsx` between page and pages root + `__root.tsx`).
    *   • At cache-read time, every dep is `statSync`-ed and its `mtimeMs` is
    *     compared to `entry.generatedAt`.  If any dep has been edited since
    *     the entry was written, the entry is considered invalid and the
@@ -442,18 +442,18 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   // ── #9 (P0) — root.tsx loader edits propagate ─────────────────────────────
 
   /**
-   * Editing the LOADER in `root.tsx` MUST be reflected on the next request
+   * Editing the LOADER in `__root.tsx` MUST be reflected on the next request
    * to any page whose data depends on the root loader.  This is the
    * exact scenario that surfaced the user's bug:
    *
-   *   1. `root.tsx` exports `loader: () => ({ hello: "v1" })`.
+   *   1. `__root.tsx` exports `loader: () => ({ hello: "v1" })`.
    *   2. Page renders `<div data-hello={hello}>` from props.
    *   3. First request → cache populated with `{ hello: "v1" }`.
-   *   4. User edits `root.tsx` → loader returns `{ hello: "v2" }`.
+   *   4. User edits `__root.tsx` → loader returns `{ hello: "v2" }`.
    *   5. Second request → MUST embed `data-hello="v2"`.
    *
    * Without `isDevLoaderCacheValid`, step 5 served stale data because
-   * `root.tsx` is at depth 0 of the dependency chain — neither the page
+   * `__root.tsx` is at depth 0 of the dependency chain — neither the page
    * file's `?furin-server` namespace `onLoad` nor `--hot`'s eager
    * invalidation reliably flushed the cache before the next read.
    *

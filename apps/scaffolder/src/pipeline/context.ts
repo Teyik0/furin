@@ -12,7 +12,7 @@ export type TemplateFileKind = "ejs" | "static";
 /** File-routing style of the generated app: `furin({ style })`. */
 export type RouteStyle = "nextjs" | "tanstack";
 
-/** All valid routing styles — used by arg parsing and the style prompt. */
+/** All valid routing styles — used by arg parsing (`--style`). */
 export const ROUTE_STYLES = ["tanstack", "nextjs"] as const satisfies readonly RouteStyle[];
 
 export interface TemplateBackedManifestFile {

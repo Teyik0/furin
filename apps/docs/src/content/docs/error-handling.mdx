@@ -82,7 +82,8 @@ Without an authored boundary, Furin renders its built-in safe error screen insid
 | What failed | What renders |
 |---|---|
 | A page loader, `head()` or `notFound()` in a page | The nearest boundary, inside every layout above it |
-| A layout loader | The nearest boundary in a parent directory, inside the layouts above it |
+| A layout loader (Next.js style) | The nearest boundary in a parent directory, inside the layouts above it |
+| A layout loader (TanStack style) | The layout's own `.error()`, else the nearest one above it, inside the layouts above it |
 | The root loader, or the document shell during rendering | The root boundary inside the framework's minimal document |
 
 The root boundary also handles any failure that no deeper boundary declares, inside the root layout. A shell render failure cannot be traced to one segment, so the server and the client both render it as a root failure.

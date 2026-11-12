@@ -45,7 +45,7 @@ function printHelp(): void {
   Options:
     --template <simple|full>   Template to use (default: prompted)
     --style <tanstack|nextjs>  File-routing style (default: prompted)
-    --yes                      Skip confirmation prompts
+    --yes                      Skip confirmation prompts (requires --style)
     --no-install               Skip bun install
     --help                     Show this help
     --version                  Show version

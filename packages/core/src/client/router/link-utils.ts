@@ -91,7 +91,9 @@ export function applyLinkParams(
   const values = params ?? {};
   let url = to
     .replaceAll(/\/:([a-zA-Z0-9_]+)\?(?=\/|$)/g, (_match: string, name: string) =>
-      values[name] === undefined ? "" : `/${encodeURIComponent(String(values[name]))}`
+      values[name] === undefined || values[name] === ""
+        ? ""
+        : `/${encodeURIComponent(String(values[name]))}`
     )
     .replaceAll(/:([a-zA-Z0-9_]+)/g, (match: string, name: string) =>
       name in values ? encodeURIComponent(String(values[name])) : match
