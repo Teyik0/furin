@@ -6,6 +6,29 @@ import { waitForFixture } from "./fixtures/standard-launch";
 
 const ORIGIN = /Web development: (https?:\/\/127\.0\.0\.1:\d+)/;
 
+/**
+ * Windows can keep the freshly compiled opener executable locked (EPERM) after
+ * its process exits, and `rm`'s own retries do not cover it. Retry, then leave
+ * the temporary directory behind on Windows: cleanup is not under test.
+ */
+async function removeFixture(root: string): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      // biome-ignore lint/performance/noAwaitInLoops: Each retry waits for Windows to release the lock.
+      await rm(root, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (process.platform !== "win32" || (error as { code?: string }).code !== "EPERM") {
+        throw error;
+      }
+      if (attempt === 50) {
+        return;
+      }
+    }
+    await Bun.sleep(100);
+  }
+}
+
 test.each([
   { tls: false, opener: "exit" },
   { tls: true, opener: "exit" },
@@ -293,8 +316,7 @@ test.each([
         child.kill("SIGKILL");
       }
       await child?.exited;
-      // Windows releases a terminated opener's handles late; retry like core's app fixtures.
-      await rm(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
+      await removeFixture(root);
     }
   },
   15_000
