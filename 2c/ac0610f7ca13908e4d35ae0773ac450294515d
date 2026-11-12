@@ -1,0 +1,62 @@
+packages/electrobun/src/sdk-resolution.ts
+  s_3548c3ff716ea7::t_7b7ca682563e6c 1-31,43-47,65
+README.md
+  s_3548c3ff716ea7::t_7b7ca682563e6c 33,62-63
+packages/electrobun/tests/sdk-resolution.test.ts
+  s_3548c3ff716ea7::t_7b7ca682563e6c 6,26,32,34,89,92,94,129-178
+packages/electrobun/tests/shutdown.test.ts
+  s_3548c3ff716ea7::t_7b7ca682563e6c 31
+packages/electrobun/README.md
+  s_3548c3ff716ea7::t_7b7ca682563e6c 3,208
+packages/electrobun/tests/external-sdk.integration.test.ts
+  s_3548c3ff716ea7::t_7b7ca682563e6c 45,113-115,118,166-168
+packages/electrobun/tests/build-output.integration.test.ts
+  s_3548c3ff716ea7::t_7b7ca682563e6c 14-20,168-173
+packages/electrobun/src/cli.ts
+  s_3548c3ff716ea7::t_7b7ca682563e6c 8,152,154-158,229,253
+apps/docs/src/content/desktop/overview.mdx
+  s_3548c3ff716ea7::t_7b7ca682563e6c 24
+.github/workflows/electrobun-latest.yaml
+  s_3548c3ff716ea7::t_7b7ca682563e6c 1-53
+packages/electrobun/tests/prepare.test.ts
+  s_3548c3ff716ea7::t_7b7ca682563e6c 21-24,70,126,162
+.github/workflows/ci.yaml
+  s_3548c3ff716ea7::t_7b7ca682563e6c 207,209,212-215,232-239,241,247-248,251-260
+packages/electrobun/native-host.md
+  s_3548c3ff716ea7::t_7b7ca682563e6c 3,41
+packages/electrobun/src/prepare.ts
+  s_3548c3ff716ea7::t_7b7ca682563e6c 19-20,112
+packages/electrobun/prepare-sdk.ts
+  s_3548c3ff716ea7::t_7b7ca682563e6c 2-3,5,7,12,27
+apps/docs/src/content/desktop/architecture.mdx
+  s_3548c3ff716ea7::t_7b7ca682563e6c 7
+packages/core/tests/architecture/runtime-peers.test.ts
+  s_3548c3ff716ea7::t_7b7ca682563e6c 21,23
+CHANGELOG.md
+  s_3548c3ff716ea7::t_7b7ca682563e6c 19-21
+  s_3548c3ff716ea7::t_1e3b2b4cd9f1d5 22
+packages/electrobun/package.json
+  s_3548c3ff716ea7::t_7b7ca682563e6c 74,81
+packages/electrobun/tests/startup-failure.test.ts
+  s_3548c3ff716ea7::t_7b7ca682563e6c 28
+apps/docs/src/content/desktop/installation.mdx
+  s_3548c3ff716ea7::t_7b7ca682563e6c 8,11
+bun.lock
+  s_3548c3ff716ea7::t_1583b056b6bfc0 190,197,1199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2cac0610f7ca13908e4d35ae0773ac450294515d",
+  "prompts": {},
+  "sessions": {
+    "s_3548c3ff716ea7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "277c9017-b362-4fee-aab0-a0f1c68f2234",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
