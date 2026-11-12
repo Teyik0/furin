@@ -1,0 +1,21 @@
+packages/core/tests/architecture/runtime-peers.test.ts
+  s_df67d91227c4b3::t_06583760891312 21,23
+CHANGELOG.md
+  s_df67d91227c4b3::t_07716a348795d9 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9ba2aaac8ba942076e6b264eb7a7bbd8b1e46479",
+  "prompts": {},
+  "sessions": {
+    "s_df67d91227c4b3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8db72b8-2db8-4e6b-b18d-01b078375b13",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
