@@ -53,7 +53,7 @@
     },
     "apps/scaffolder": {
       "name": "create-furin",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "bin": {
         "create-furin": "./dist/index.js",
       },
@@ -179,7 +179,7 @@
     },
     "packages/electrobun": {
       "name": "@teyik0/furin-electrobun",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "bin": {
         "furin-electrobun": "./src/cli.ts",
       },

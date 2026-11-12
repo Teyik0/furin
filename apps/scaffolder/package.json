@@ -1,6 +1,6 @@
 {
   "name": "create-furin",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Official scaffolder for Furin — the React meta-framework on Elysia + Bun",
   "type": "module",
   "bin": {
