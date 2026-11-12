@@ -27,7 +27,7 @@ jobs:
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version-file: .bun-version
+          bun-version-file: package.json
 
       - name: Install packages
         run: bun install --frozen-lockfile
