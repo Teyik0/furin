@@ -186,7 +186,12 @@ test.each([
           eden: "in-process",
         });
       }
-      const url = await Bun.file(join(root, "browser-url")).text();
+      // The CLI reports readiness without waiting for the opener to exit.
+      const browserUrl = Bun.file(join(root, "browser-url"));
+      const url = await waitForFixture(
+        async () => ((await browserUrl.exists()) ? await browserUrl.text() : ""),
+        (value) => value !== ""
+      );
       expect(output).not.toContain(new URL(url).pathname);
       expect(output).not.toContain("furin_web_dev");
       const bootstrapOrigin = new URL(url).origin;
