@@ -1,0 +1,58 @@
+packages/core/tests/dev/hmr/dev-root-identity.integration.test.ts
+  s_ee1fcc24a80de0::t_024c8e88f92ef6 6
+  s_ee1fcc24a80de0::t_fd47742078970a 92-99
+packages/core/tests/build/adapters/adapter-bun-client.test.ts
+  s_ee1fcc24a80de0::t_c75b98054384e2 175,194-195,239-246,249,268
+  s_ee1fcc24a80de0::t_f8cd2a5f46b639 203
+packages/core/tests/build/build-metafile.test.ts
+  s_ee1fcc24a80de0::t_0ef96209940c2c 2-3,8,11,20
+packages/core/tests/build/bun-app-output.integration.test.ts
+  s_ee1fcc24a80de0::t_e50fa0ff442250 74-76
+  s_ee1fcc24a80de0::t_a582d5e1b3d9bb 73
+packages/core/tests/build/server-entry.integration.test.ts
+  s_ee1fcc24a80de0::t_24c6fbf61183a5 2,7-15,26,29-31
+packages/core/tests/build/embed/build-embed.test.ts
+  s_ee1fcc24a80de0::t_4c792f341933b6 2-3,11-25,57,101-102
+  s_ee1fcc24a80de0::t_555fbb72261ab6 33-37,206,213,252,260,290,324,349,371,389
+packages/core/tests/support/http.ts
+  s_ee1fcc24a80de0::t_024c8e88f92ef6 1,38-50
+  s_ee1fcc24a80de0::t_34425263d054b0 51
+packages/core/tests/dev/hmr/dev-hmr-parent-child.integration.test.ts
+  s_ee1fcc24a80de0::t_024c8e88f92ef6 6
+packages/core/tests/build/server-sourcemaps.integration.test.ts
+  s_ee1fcc24a80de0::t_24c6fbf61183a5 44,53-56
+packages/core/tests/build/devtools-production-isolation.test.ts
+  s_ee1fcc24a80de0::t_4c792f341933b6 2
+packages/core/tests/build/private-server-sourcemaps.test.ts
+  s_ee1fcc24a80de0::t_0ef96209940c2c 2-3,12,14-15,27,32,34,36,45
+packages/core/tests/build/adapters/bundle-prerender.test.ts
+  s_ee1fcc24a80de0::t_e2d7eb0ad2c1ce 51,79-84,87-88,91,100-103
+  s_ee1fcc24a80de0::t_9b5fc2e8f47ce8 104
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  s_ee1fcc24a80de0::t_024c8e88f92ef6 8
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  s_ee1fcc24a80de0::t_024c8e88f92ef6 6
+  s_ee1fcc24a80de0::t_b01c12cf7a11b1 373,375
+  s_ee1fcc24a80de0::t_fd47742078970a 213-220,246-253,264,267-275,299,301-309,366-371,374,376-381,402,404-412
+  s_ee1fcc24a80de0::t_94a44d5c6b10bd 372
+packages/core/tests/dev/hmr/dev-hmr-cache-invalidation.integration.test.ts
+  s_ee1fcc24a80de0::t_fd47742078970a 118-119,121-123,125-128,189-192,194-197,209,211-216,218-220,222-225
+  s_ee1fcc24a80de0::t_024c8e88f92ef6 6
+  s_ee1fcc24a80de0::t_2d127b67bb30f0 117,120,193,217,221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "61c5b828891aa8907ea06d2795be231a69826f5d",
+  "prompts": {},
+  "sessions": {
+    "s_ee1fcc24a80de0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dc1429f-f948-43fb-a015-32a96578a2b9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
