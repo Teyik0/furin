@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 - **Elysia and TypeBox peers accept newer releases** — `@teyik0/furin@0.9.0-alpha.0` published exact versions (`elysia@2.0.0-rc.1`, `typebox@1.3.34`, `@elysia/eden@2.0.0-rc.1`, `@elysia/static@2.0.0-rc.0`), so no install could satisfy both Furin and `elysia@2.0.0-rc.3`, which requires `typebox >=1.3.35`. They are now ranges: `elysia ^2.0.0-rc.1`, `typebox ^1.3.34`, `@elysia/eden ^2.0.0-rc.1` and `@elysia/static ^2.0.0-rc.0`. `@teyik0/furin-electrobun` declares `elysia ^2.0.0-rc.1`.
+- **React and TypeScript ranges** — the `react` and `react-dom` peers are `^19.3.1` (the floor `react-server-dom-webpack@19.3.1` requires) in both packages, and the `typescript` dependency is `^7.0.2` instead of exactly `7.0.2`. TypeScript 8 stays excluded because request field inference uses `typescript/unstable/async`.
 
 ## [0.9.0-alpha.0] — 2026-11-11
 
