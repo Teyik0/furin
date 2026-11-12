@@ -26,13 +26,14 @@ Returning a plain promise inside a plain object does not opt into streaming: it 
 
 Route files are also bundled for the browser. Furin removes `loader()`, `requestLoader()`, `head()`, `staticParams()` and `config()` (keeping only `remountDeps`) from that bundle, together with the module-level functions and imports only they use. Code the page or layout still references stays in the browser bundle, including its imports.
 
-Mark modules that must never reach the browser, such as database clients or modules that read secrets, with `furin/server-only`. Any browser build that still imports one then fails instead of shipping it:
+Mark modules that must never reach the browser, such as database clients or modules that read secrets, with `@teyik0/furin/server-only`. Any browser build that still imports one then fails instead of shipping it:
 
 ```ts
 // src/db.server.ts
 import "@teyik0/furin/server-only";
+import { SQL } from "bun";
 
-export const db = createClient(process.env.DATABASE_URL);
+export const db = new SQL(process.env.DATABASE_URL);
 ```
 
 ## Reading Data In Descendant Components

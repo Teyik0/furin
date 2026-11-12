@@ -1,6 +1,6 @@
 import { create, insertMultiple, search } from "@orama/orama";
-import type { DocNavItem } from "./docs";
-import { DOCS_CARDS } from "./docs";
+import type { DocNavItem, DocsPlatform } from "./docs";
+import { DOCS_CARDS, getDocsPlatform } from "./docs";
 import { getUniqueHeadingId } from "./docs-heading";
 import {
   dedupeAndSortHits,
@@ -33,7 +33,10 @@ const searchSchema = {
 } as const;
 
 const searchIndexEntries = buildSearchIndexEntries();
-const searchIndexPromise = buildSearchIndex(searchIndexEntries);
+const searchIndexes = {
+  web: buildSearchIndex(getSearchIndexEntries("web")),
+  desktop: buildSearchIndex(getSearchIndexEntries("desktop")),
+};
 
 function stripMarkdownInline(value: string): string {
   return value
@@ -188,20 +191,23 @@ async function buildSearchIndex(entries: SearchIndexEntry[]) {
   return index;
 }
 
-export function getSearchIndexEntries(): SearchIndexEntry[] {
-  return searchIndexEntries;
+export function getSearchIndexEntries(platform?: DocsPlatform): SearchIndexEntry[] {
+  return platform === undefined
+    ? searchIndexEntries
+    : searchIndexEntries.filter((entry) => getDocsPlatform(entry.href) === platform);
 }
 
 export async function searchDocs(
   rawQuery: string,
-  rawLimit: number | undefined
+  rawLimit: number | undefined,
+  platform?: DocsPlatform
 ): Promise<SearchResult[]> {
   const query = rawQuery.trim();
   if (query.length < SEARCH_MIN_QUERY_LENGTH) {
     return [];
   }
 
-  const index = await searchIndexPromise;
+  const index = await searchIndexes[platform ?? "web"];
   const limit = clampLimit(rawLimit);
   const response = await search(index, {
     boost: {

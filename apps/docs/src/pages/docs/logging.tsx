@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/logging")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/logging.md",
+      },
+    ],
     meta: [{ title: "Logging — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

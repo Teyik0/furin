@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/getting-started")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/getting-started.md",
+      },
+    ],
     meta: [{ title: "Getting Started — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

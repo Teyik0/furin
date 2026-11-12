@@ -116,3 +116,22 @@ describe("docs search endpoint", () => {
     expect(body.results.some((result) => result.href.startsWith("/docs/data-loading"))).toBe(true);
   });
 });
+
+test("search stays inside the selected documentation", async () => {
+  const app = await createDocsServer();
+  await Promise.all(
+    ["web", "desktop"].map(async (platform) => {
+      const response = await app.handle(
+        new Request(`http://localhost/api/search?q=Furin&platform=${platform}`)
+      );
+      const body = (await response.json()) as { results: Array<{ href: string }> };
+      expect(response.status).toBe(200);
+      expect(body.results.length).toBeGreaterThan(0);
+      expect(
+        body.results.every(
+          (result) => result.href.startsWith("/docs/desktop") === (platform === "desktop")
+        )
+      ).toBe(true);
+    })
+  );
+});

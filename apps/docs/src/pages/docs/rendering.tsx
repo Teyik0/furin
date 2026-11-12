@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/rendering")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/rendering.md",
+      },
+    ],
     meta: [{ title: "Rendering Modes — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

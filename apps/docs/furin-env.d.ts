@@ -82,15 +82,63 @@ declare module "@teyik0/furin/routes" {
       parent: typeof import("./src/pages/docs/_route").route;
       pathParams: {};
     };
-    "/docs/desktop/client": {
+    "/docs/desktop/bridge": {
       kind: "page";
-      pattern: "/docs/desktop/client";
+      pattern: "/docs/desktop/bridge";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/desktop/build": {
+      kind: "page";
+      pattern: "/docs/desktop/build";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/desktop/first-window": {
+      kind: "page";
+      pattern: "/docs/desktop/first-window";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/desktop/installation": {
+      kind: "page";
+      pattern: "/docs/desktop/installation";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/desktop/integration": {
+      kind: "page";
+      pattern: "/docs/desktop/integration";
       parent: typeof import("./src/pages/docs/_route").route;
       pathParams: {};
     };
     "/docs/desktop/migration": {
       kind: "page";
       pattern: "/docs/desktop/migration";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/desktop/native-apis": {
+      kind: "page";
+      pattern: "/docs/desktop/native-apis";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/desktop/signing": {
+      kind: "page";
+      pattern: "/docs/desktop/signing";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/desktop/updates": {
+      kind: "page";
+      pattern: "/docs/desktop/updates";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/desktop/windows": {
+      kind: "page";
+      pattern: "/docs/desktop/windows";
       parent: typeof import("./src/pages/docs/_route").route;
       pathParams: {};
     };
@@ -183,8 +231,16 @@ declare module "@teyik0/furin/routes" {
     "/docs/deployment": typeof import("./src/pages/docs/deployment").route;
     "/docs/desktop": typeof import("./src/pages/docs/desktop/index").route;
     "/docs/desktop/architecture": typeof import("./src/pages/docs/desktop/architecture").route;
-    "/docs/desktop/client": typeof import("./src/pages/docs/desktop/client").route;
+    "/docs/desktop/bridge": typeof import("./src/pages/docs/desktop/bridge").route;
+    "/docs/desktop/build": typeof import("./src/pages/docs/desktop/build").route;
+    "/docs/desktop/first-window": typeof import("./src/pages/docs/desktop/first-window").route;
+    "/docs/desktop/installation": typeof import("./src/pages/docs/desktop/installation").route;
+    "/docs/desktop/integration": typeof import("./src/pages/docs/desktop/integration").route;
     "/docs/desktop/migration": typeof import("./src/pages/docs/desktop/migration").route;
+    "/docs/desktop/native-apis": typeof import("./src/pages/docs/desktop/native-apis").route;
+    "/docs/desktop/signing": typeof import("./src/pages/docs/desktop/signing").route;
+    "/docs/desktop/updates": typeof import("./src/pages/docs/desktop/updates").route;
+    "/docs/desktop/windows": typeof import("./src/pages/docs/desktop/windows").route;
     "/docs/dev-hmr": typeof import("./src/pages/docs/dev-hmr").route;
     "/docs/error-handling": typeof import("./src/pages/docs/error-handling").route;
     "/docs/getting-started": typeof import("./src/pages/docs/getting-started").route;

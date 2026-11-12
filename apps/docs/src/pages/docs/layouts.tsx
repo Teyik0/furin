@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/layouts")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/layouts.md",
+      },
+    ],
     meta: [{ title: "Nested Layouts — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

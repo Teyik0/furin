@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/dev-hmr")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/dev-hmr.md",
+      },
+    ],
     meta: [{ title: "Dev Mode HMR — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

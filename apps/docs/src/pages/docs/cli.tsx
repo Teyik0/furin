@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/cli")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/cli.md",
+      },
+    ],
     meta: [{ title: "CLI — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

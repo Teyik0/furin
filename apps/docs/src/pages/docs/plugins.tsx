@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/plugins")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/plugins.md",
+      },
+    ],
     meta: [{ title: "Plugins — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

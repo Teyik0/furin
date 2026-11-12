@@ -1,0 +1,50 @@
+# Your first desktop window
+
+Declare the primary window on your Elysia root with `desktopApp()`. Install it before listening and before mounting the rest of the application.
+
+## Register the primary window
+
+```ts
+// src/server.ts
+import { furin } from "@teyik0/furin";
+import { desktopApp } from "@teyik0/furin-electrobun/server";
+import { Elysia } from "elysia";
+
+const app = new Elysia()
+  .use(desktopApp({
+    window: {
+      title: "Relay",
+      frame: { width: 1100, height: 780 },
+      titleBarStyle: "hiddenInset",
+      renderer: "native",
+    },
+  }))
+  .use(await furin({ pagesDir: "src/pages" }))
+  .listen({ hostname: "127.0.0.1", port: 4242 });
+
+export default app;
+```
+
+Keep your existing pages and root layout. The window loads the Furin app; it does not need a separate HTML file or React root. Window options come from Electrobun, while Furin owns the managed URL and navigation boundary.
+
+## Run in development
+
+With the [preload configured](/docs/desktop/installation):
+
+```sh
+bun --hot src/server.ts
+```
+
+The preload activates for the configured hot server entry. It opens the native window and an authenticated browser against the same backend. To run only the Web app without initializing the native SDK:
+
+```sh
+bunx --bun furin dev --web
+```
+
+Frontend edits use Bun HMR and React Fast Refresh while retaining the window. Backend or native dependency edits trigger a controlled process restart; native modules are not hot-reloaded and backend state is not retained by contract.
+
+## Startup ownership
+
+The generated host waits for Elysia startup hooks before opening the primary window. Put shared startup work in `.onStart()` and cleanup in `.onStop()`.
+
+Do not call a separate host launch function or create another primary window in a native entrypoint. Use [Windows & Lifecycle](/docs/desktop/windows) for additional windows and native controls.

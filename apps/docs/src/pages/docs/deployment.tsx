@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/deployment")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/deployment.md",
+      },
+    ],
     meta: [{ title: "Deployment — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

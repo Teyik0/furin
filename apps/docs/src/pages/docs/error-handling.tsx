@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/error-handling")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/error-handling.md",
+      },
+    ],
     meta: [{ title: "Error Handling — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

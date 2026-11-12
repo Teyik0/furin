@@ -1,16 +1,20 @@
 import { furin } from "@teyik0/furin";
-import { Elysia } from "elysia";
+import { type AnyElysia, Elysia } from "elysia";
 import { initLogger } from "evlog";
+import { DOCS_LLMS } from "./generated/docs-llms";
 import mdxPlugin from "./lib/bun-mdx-plugin.ts";
-import { getDocByPath } from "./lib/docs";
+import { DOCS_CARDS, getDocByPath } from "./lib/docs";
 import { getSearchIndexEntries, searchDocs } from "./lib/docs-search";
 import { getDocSourceText } from "./lib/docs-server";
 import { stripMdxToMarkdown } from "./lib/strip-mdx";
 
 initLogger({ env: { service: "furin-docs" } });
 
-const llmsTxtFile = new URL("../public/llms.txt", import.meta.url);
-const llmsFullTxtFile = new URL("../public/llms-full.txt", import.meta.url);
+function markdownFile(path: keyof typeof DOCS_LLMS): Response {
+  return new Response(DOCS_LLMS[path], {
+    headers: { "Content-Type": "text/markdown; charset=utf-8" },
+  });
+}
 
 const globalDocsRuntime = globalThis as typeof globalThis & {
   __furinDocsMdxPluginRegistered?: boolean;
@@ -21,48 +25,36 @@ if (!globalDocsRuntime.__furinDocsMdxPluginRegistered) {
   globalDocsRuntime.__furinDocsMdxPluginRegistered = true;
 }
 
+function markdownResponse(path: string): Response {
+  const doc = getDocByPath(path);
+  if (!doc) {
+    return new Response("Not found", { status: 404 });
+  }
+  const clean = stripMdxToMarkdown(getDocSourceText(doc.sourcePath));
+  return new Response(`${clean}\n`, {
+    headers: { "Content-Type": "text/markdown; charset=utf-8" },
+  });
+}
+
 export async function createDocsServer() {
   return (
     new Elysia()
-      .get(
-        "/llms.txt",
-        () =>
-          new Response(Bun.file(llmsTxtFile), {
-            headers: { "Content-Type": "text/markdown; charset=utf-8" },
-          })
+      .get("/llms.txt", () => markdownFile("llms.txt"))
+      .get("/llms-full.txt", () => markdownFile("llms-full.txt"))
+      .get("/docs/llms.txt", () => markdownFile("docs/llms.txt"))
+      .get("/docs/llms-full.txt", () => markdownFile("docs/llms-full.txt"))
+      .get("/docs/desktop/llms.txt", () => markdownFile("docs/desktop/llms.txt"))
+      .get("/docs/desktop/llms-full.txt", () => markdownFile("docs/desktop/llms-full.txt"))
+      .get("/docs/desktop/:slug/llms.txt", ({ params }) =>
+        markdownResponse(`/docs/desktop/${params.slug}`)
       )
-      .get(
-        "/llms-full.txt",
-        () =>
-          new Response(Bun.file(llmsFullTxtFile), {
-            headers: { "Content-Type": "text/markdown; charset=utf-8" },
-          })
-      )
-      .get("/docs/llms.txt", () => {
-        const doc = getDocByPath("/docs");
-        if (!doc) {
-          return new Response("Not found", { status: 404 });
-        }
-        const raw = getDocSourceText(doc.sourcePath);
-        const clean = stripMdxToMarkdown(raw);
-        return new Response(`# ${doc.title}\n\n> ${doc.description}\n\n${clean}\n`, {
-          headers: { "Content-Type": "text/markdown; charset=utf-8" },
-        });
-      })
-      .get("/docs/:slug/llms.txt", ({ params }) => {
-        const doc = getDocByPath(`/docs/${params.slug}`);
-        if (!doc) {
-          return new Response("Not found", { status: 404 });
-        }
-        const raw = getDocSourceText(doc.sourcePath);
-        const clean = stripMdxToMarkdown(raw);
-        return new Response(`# ${doc.title}\n\n> ${doc.description}\n\n${clean}\n`, {
-          headers: { "Content-Type": "text/markdown; charset=utf-8" },
-        });
-      })
+      .get("/docs/:slug/llms.txt", ({ params }) => markdownResponse(`/docs/${params.slug}`))
       // Static JSON used by the client-side search in both dev and static deployments.
       // The same file is pre-generated into public/ by generate:content for static builds.
-      .get("/search-entries.json", () => Response.json(getSearchIndexEntries()))
+      .get("/search-entries.json", () => Response.json(getSearchIndexEntries("web")))
+      .get("/docs/desktop/search-entries.json", () =>
+        Response.json(getSearchIndexEntries("desktop"))
+      )
       .get("/api/search", async ({ request }) => {
         const url = new URL(request.url);
         const q = url.searchParams.get("q") ?? "";
@@ -71,9 +63,19 @@ export async function createDocsServer() {
 
         return {
           query: q,
-          results: await searchDocs(q, limit),
+          results: await searchDocs(
+            q,
+            limit,
+            url.searchParams.get("platform") === "desktop" ? "desktop" : "web"
+          ),
         };
       })
+      .use(
+        DOCS_CARDS.reduce<AnyElysia>(
+          (routes, doc) => routes.get(`${doc.href}.md`, () => markdownResponse(doc.href)),
+          new Elysia()
+        )
+      )
       .use(await furin({ pagesDir: "./src/pages" }))
   );
 }

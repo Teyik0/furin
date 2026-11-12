@@ -1,0 +1,61 @@
+# Desktop installation
+
+Start with a working Furin application and Bun 1.4 or later. The integration currently lives on the [`feat/electrobun-desktop` branch](https://github.com/teyik0/furin/tree/feat/electrobun-desktop); use that checkout when working from this repository.
+
+## Install and initialize
+
+For a project using the published package:
+
+```sh
+bun add -d @teyik0/furin-electrobun
+bunx --bun @teyik0/furin-electrobun init
+```
+
+`init` preserves existing development commands and configuration, adds `build:desktop`, and registers the desktop preload in `bunfig.toml`:
+
+```toml
+preload = ["@teyik0/furin-electrobun/preload"]
+```
+
+In a workspace checkout, install the repository dependencies with `bun install` and use the existing `examples/electrobun-todo` application as the starting point.
+
+## Configure packaging
+
+Keep packaging settings in the same `furin.config.ts` as the Web app:
+
+```ts
+// furin.config.ts
+import { defineConfig } from "@teyik0/furin/config";
+import { defineDesktopConfig } from "@teyik0/furin-electrobun";
+
+export default defineConfig({
+  desktop: defineDesktopConfig({
+    app: { name: "Relay", identifier: "local.furin.relay" },
+    build: { mainProcess: "bun" },
+  }),
+});
+```
+
+The identifier uses reverse-domain notation. `app.version` uses the consuming package version when omitted. The main process must be Bun because it runs your Elysia application in process.
+
+## Prepare native types
+
+The npm `electrobun` package is a launcher, not the full native API declaration set. Prepare the pinned devkit before typechecking native code:
+
+```sh
+bunx --bun furin-electrobun prepare
+```
+
+Extend its generated paths alongside your existing TypeScript configuration:
+
+```json
+{
+  "extends": ["./.furin/electrobun/tsconfig.json", "./tsconfig.base.json"]
+}
+```
+
+Use the path to your own base config rather than creating one just for this example. Keep existing compiler options. Preparation needs network access the first time and reuses the SDK cache afterward; rerun it after relocating a checkout. It does not open a GUI.
+
+If optional dependencies were omitted during installation, install the pinned SDK explicitly with `bun add -d electrobun@2.0.5`.
+
+Continue with [your first window](/docs/desktop/first-window).

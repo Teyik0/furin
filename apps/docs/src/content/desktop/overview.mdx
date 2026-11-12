@@ -1,0 +1,32 @@
+# Desktop overview
+
+`@teyik0/furin-electrobun` packages a Furin application with Electrobun. Your React DOM pages, loaders, Elysia API, Eden client and sync code serve both a browser and a native system WebView.
+
+These guides follow the integration on the [`feat/electrobun-desktop` branch](https://github.com/teyik0/furin/tree/feat/electrobun-desktop/packages/electrobun). Use a Furin version or checkout containing that integration; the Web documentation remains independent of it.
+
+## One backend, two interfaces
+
+The Elysia application and the native host share **one Bun main process**. The desktop window loads the same Furin pages as the browser, with an authenticated local session. React still renders in a WebView; native SDK integrations belong to the desktop process.
+
+| Responsibility | Where it belongs |
+|---|---|
+| React pages, layouts and loaders | Your existing Furin app |
+| API, data and shared services | Your Elysia root and plugins |
+| Primary window and desktop policy | `desktopApp()` on the Elysia root |
+| Packaging and native dependencies | `desktop` in `furin.config.ts` |
+| Menus, tray and SDK events | An optional native entrypoint |
+| Interface detection and system-browser links | `useDesktop()` in React |
+
+No second backend, replacement router or application launch function is required. The generated host opens the primary window after Elysia startup hooks succeed.
+
+## Start building
+
+Begin with [Installation](/docs/desktop/installation), then open [your first window](/docs/desktop/first-window). For an existing application, read [Furin Integration](/docs/desktop/integration).
+
+The integration currently pins **Electrobun 2.0.5** and requires **Bun 1.4 or later**. Native is the default renderer; CEF and WGPU are explicit packaging choices.
+
+## Reference and example
+
+The [package README](https://github.com/teyik0/furin/blob/feat/electrobun-desktop/packages/electrobun/README.md) describes the public contracts. The [Relay todo app](https://github.com/teyik0/furin/tree/feat/electrobun-desktop/examples/electrobun-todo) demonstrates shared pages, sync, a desktop API, native menus and a tray.
+
+Use [Electrobun's documentation](https://docs.electrobun.dev/electrobun/guides/what-is-electrobun/) for the original native SDK. Furin coordinates the host and application lifecycle rather than replacing that SDK.

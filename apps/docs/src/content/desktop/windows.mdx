@@ -1,0 +1,47 @@
+# Windows and lifecycle
+
+The controller is available as `desktop` in Elysia handlers with `desktopContext`, or through `getDesktopHost()` in a native module. Both refer to the same managed host.
+
+## The primary window
+
+`desktop.window` is a readonly getter for the current original Electrobun `BrowserWindow`. It becomes `undefined` after that window closes. Native methods and the original `webview` types remain available.
+
+`desktop.open()` activates the primary window, or creates it again after it closes. It returns the real SDK instance. Call it only after native readiness: it throws before that point, so do not call it at native module top level or await it during application startup.
+
+## Additional windows
+
+Create named windows from a ready desktop context:
+
+```ts
+const settings = desktop.windows.create("settings", {
+  path: "/settings",
+  title: "Settings",
+  frame: { width: 640, height: 480 },
+});
+
+desktop.windows.get("settings");
+```
+
+`path` refers to a route in your Furin app. Each managed window receives its own one-use authenticated bootstrap URL. Furin owns its URL, HTML, views root and navigation restrictions; other compatible SDK options pass through.
+
+Window names are runtime strings. `get(name)` returns `BrowserWindow | undefined`; a lookup cannot infer an RPC schema from an unrelated declaration. Keep the return value of `create(name, { rpc, ... })` when exact RPC inference matters.
+
+## Background mode
+
+A `background` callback controls whether the application can stay alive after its last managed window closes:
+
+```ts
+new Elysia()
+  .use(desktopApp({
+    window: { title: "Relay" },
+    background: () => true,
+  }));
+```
+
+Import `Elysia` and `desktopApp` as shown in [Furin Integration](/docs/desktop/integration). Background mode does not create a tray or menu; those remain application-owned native SDK integrations.
+
+## Shutdown and restart
+
+Use `desktop.quit()` and `desktop.restart()` for coordinated shutdown. The host guards managed windows and runs backend cleanup once. Application resources use Elysia `.onStart()` and `.onStop()` hooks.
+
+A raw SDK window or view is outside Furin's managed ownership and authentication. Prefer managed windows for routes that need the shared application session.

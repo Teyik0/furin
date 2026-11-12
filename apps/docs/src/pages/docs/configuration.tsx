@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/configuration")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/configuration.md",
+      },
+    ],
     meta: [{ title: "Configuration — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

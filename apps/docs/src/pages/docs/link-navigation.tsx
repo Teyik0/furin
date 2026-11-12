@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/link-navigation")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/link-navigation.md",
+      },
+    ],
     meta: [{ title: "Link & Navigation — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

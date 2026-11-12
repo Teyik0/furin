@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/api-routes")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/api-routes.md",
+      },
+    ],
     meta: [{ title: "API Routes — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

@@ -8,15 +8,27 @@ import { getDocSourceText } from "@/lib/docs-server";
 export const route = defineRoute("/docs/desktop")
   .config({ mode: "ssg" })
   .loader(async () => {
-    const { default: DesktopOverview } = await import("@/content/docs/desktop.mdx");
+    const { default: DesktopContent } = await import("@/content/desktop/overview.mdx");
     const doc = DOCS_BY_PATH["/docs/desktop"];
     return {
-      content: await renderDocContent(DesktopOverview),
+      content: await renderDocContent(DesktopContent),
       markdownSource: getDocSourceText(doc.sourcePath),
     };
   })
   .head(() => ({
-    meta: [{ title: "Desktop Overview — Furin" }],
+    links: [
+      {
+        rel: "describedby",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/desktop/llms.txt",
+      },
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/desktop.md",
+      },
+    ],
+    meta: [{ title: "Desktop overview — Furin Desktop" }],
   }))
   .page(({ content, markdownSource }) => (
     <DocPage doc={DOCS_BY_PATH["/docs/desktop"]} markdownSource={markdownSource}>

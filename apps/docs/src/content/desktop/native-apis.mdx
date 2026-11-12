@@ -1,0 +1,54 @@
+# Native APIs and SDK modules
+
+Use the original Electrobun SDK for native menus, tray icons, shortcuts, screen information, sessions and other platform features. Furin coordinates the host lifecycle rather than replacing these APIs.
+
+## Configure a native entrypoint
+
+The optional entrypoint is configured through `desktop.build.bun.entrypoint`:
+
+```ts
+// furin.config.ts
+import { defineConfig } from "@teyik0/furin/config";
+import { defineDesktopConfig } from "@teyik0/furin-electrobun";
+
+export default defineConfig({
+  desktop: defineDesktopConfig({
+    app: { name: "Relay", identifier: "local.furin.relay" },
+    build: { mainProcess: "bun", bun: { entrypoint: "src/desktop.ts" } },
+  }),
+});
+```
+
+It runs after the application module loads and before Elysia startup/listening. Register native integrations there. Do not start another backend or declare another primary window.
+
+## Register a menu
+
+```ts
+// src/desktop.ts
+import { getDesktopHost } from "@teyik0/furin-electrobun/host";
+import { ApplicationMenu } from "electrobun/main";
+
+ApplicationMenu.setApplicationMenu([
+  { label: "Relay", submenu: [{ label: "Open Relay", action: "open" }, { role: "quit" }] },
+]);
+
+ApplicationMenu.on("application-menu-clicked", () => {
+  Promise.resolve()
+    .then(() => getDesktopHost()?.open())
+    .catch((error) => console.error("Native action failed", error));
+});
+```
+
+Callbacks run outside HTTP. Handle both synchronous failures and rejected promises there; Elysia `.onError()` handles HTTP requests instead. Use the original SDK menu actions, roles and event payloads for more complex menus or trays.
+
+## Native imports stay native
+
+Import native SDK values from `electrobun/main` only in native modules. Shared API modules access the controller through `desktopContext` and use type-only SDK imports when needed. React components import the browser-safe `/client` entrypoint instead.
+
+Run [SDK preparation](/docs/desktop/installation#prepare-native-types) before typechecking. The generated aliases come from the pinned SDK export map rather than hand-written replacement declarations.
+
+## Deep links and files
+
+Declare URL schemes and file associations in `desktop.app.urlSchemes` and `desktop.app.fileAssociations`. Handle them in the native entrypoint with the original `Electrobun.events.on("open-url", handler)` API and its `event.data.url` payload. Files arrive as `file:` URLs.
+
+Furin forwards initial and secondary-instance inputs after host readiness. Coordinate any application-specific startup dependencies in your handler. There is no separate Furin `onOpen` option or native-module export contract.

@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/defer")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/defer.md",
+      },
+    ],
     meta: [{ title: "Deferred Data — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

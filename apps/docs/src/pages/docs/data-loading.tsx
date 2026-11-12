@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/data-loading")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/data-loading.md",
+      },
+    ],
     meta: [{ title: "Data Loading — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

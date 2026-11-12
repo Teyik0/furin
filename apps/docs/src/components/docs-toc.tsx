@@ -167,7 +167,7 @@ export function DocsToc() {
   }
 
   return (
-    <aside className="hidden w-56 shrink-0 xl:block">
+    <aside className="workbench-toc hidden xl:block">
       <div className="sticky top-24">
         <p className="mb-4 font-semibold text-foreground text-sm">On this page</p>
         <nav>
@@ -180,7 +180,7 @@ export function DocsToc() {
                     "block w-full py-1 text-left text-sm transition-colors",
                     heading.level === 3 && "pl-4 text-xs",
                     activeId === heading.id
-                      ? "font-medium text-foreground"
+                      ? "font-medium text-primary"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                   href={`#${heading.id}`}

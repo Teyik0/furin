@@ -17,6 +17,13 @@ export const route = defineRoute("/docs/head-seo")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/head-seo.md",
+      },
+    ],
     meta: [{ title: "Head & SEO — Furin" }],
   }))
   .page(({ content, doc, markdownSource }) => (

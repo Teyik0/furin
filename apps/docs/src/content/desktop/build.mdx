@@ -1,0 +1,46 @@
+# Build and distribute a desktop app
+
+The desktop build packages your Furin application and generates the Electrobun host around it. Packaging stays in `furin.config.ts`; runtime window policy stays on the Elysia root.
+
+## Build the application
+
+After [initialization](/docs/desktop/installation):
+
+```sh
+bun run build:desktop
+```
+
+The build prepares the pinned SDK, produces the inert Furin application artifact and generates the native bootstrap. The example's packaging output is under `.furin/electrobun`. Do not run a standalone Web server alongside the packaged desktop backend.
+
+The original `electrobun/main` public entrypoints remain available in the native module. Desktop builds regenerate SDK aliases; rerun `furin-electrobun prepare` after moving a checkout.
+
+## Choose a renderer
+
+Native system WebViews are the default. CEF and WGPU assets are not bundled unless explicitly enabled for the target platform.
+
+```ts
+// furin.config.ts
+import { defineConfig } from "@teyik0/furin/config";
+import { defineDesktopConfig } from "@teyik0/furin-electrobun";
+
+export default defineConfig({
+  desktop: defineDesktopConfig({
+    app: { name: "Relay", identifier: "local.furin.relay" },
+    build: { mainProcess: "bun", mac: { bundleCEF: true } },
+  }),
+});
+```
+
+A managed window using `renderer: "cef"` requires CEF assets for the current platform. The same rule applies to `defaultRenderer: "cef"`. Select compatible `build.mac`, `build.win` or `build.linux` options rather than assuming a renderer is present.
+
+## Runtime dependencies and files
+
+`desktop.external` lists package names that must remain runtime dependencies in the relocatable Furin artifact. Use it for dependencies that cannot be bundled. It accepts package names, not filesystem paths.
+
+Compatible SDK settings for platform permissions, views, copy rules, bundler options, scripts and release configuration pass through `defineDesktopConfig`. Furin reserves its generated main entry and required helper/copy destinations. `mainProcess` must remain `"bun"`.
+
+## Release workflow
+
+Set a stable application identifier and version, build on the appropriate target environment, and test the packaged artifact's startup, data directory and shutdown. Then configure [signing](/docs/desktop/signing) and [updates](/docs/desktop/updates) using the original SDK's release mechanisms.
+
+See the [Relay example](https://github.com/teyik0/furin/tree/feat/electrobun-desktop/examples/electrobun-todo) for the working scripts and configuration used by this integration.

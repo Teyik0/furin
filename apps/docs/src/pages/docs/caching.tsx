@@ -16,6 +16,13 @@ export const route = defineRoute("/docs/caching")
     };
   })
   .head(() => ({
+    links: [
+      {
+        rel: "alternate",
+        type: "text/markdown",
+        href: "https://teyik0.github.io/furin/docs/caching.md",
+      },
+    ],
     meta: [{ title: "Caching — Furin" }],
   }))
   .page(({ content, markdownSource }) => (

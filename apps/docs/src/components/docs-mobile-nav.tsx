@@ -12,9 +12,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { DOCS_NAV } from "@/lib/docs";
+import { getDocsNavigation, getDocsPlatform } from "@/lib/docs";
 
-export function DocsMobileNav() {
+export function DocsMobileNav({ pathname }: { pathname: string }) {
+  const navigation = getDocsNavigation(pathname);
+  const platform = getDocsPlatform(pathname);
   const [open, setOpen] = useState(false);
 
   return (
@@ -22,17 +24,19 @@ export function DocsMobileNav() {
       <SheetTrigger asChild>
         <Button className="w-full justify-start gap-2" size="sm" type="button" variant="outline">
           <Menu className="size-4" />
-          Browse docs
+          {platform === "desktop" ? "Browse desktop docs" : "Browse docs"}
         </Button>
       </SheetTrigger>
       <SheetContent className="p-0" side="left">
         <SheetHeader>
-          <SheetTitle>Documentation</SheetTitle>
+          <SheetTitle>
+            {platform === "desktop" ? "Desktop documentation" : "Documentation"}
+          </SheetTitle>
           <SheetDescription>Jump to any page from the current docs tree.</SheetDescription>
         </SheetHeader>
         <ScrollArea className="h-full px-5 pb-6">
           <nav className="space-y-6 py-4">
-            {DOCS_NAV.map((section) => (
+            {navigation.map((section) => (
               <div key={section.title}>
                 <p className="mb-2 font-semibold text-foreground text-xs uppercase tracking-[0.24em]">
                   {section.title}
