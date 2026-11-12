@@ -36,6 +36,8 @@ export async function prepareSdkResolution(
         compilerOptions: {
           paths: Object.fromEntries(Object.entries(aliases).map(([name, path]) => [name, [path]])),
         },
+        // Inherited even when the application tsconfig declares its own include.
+        files: ["native-env.d.ts"],
       },
       null,
       2

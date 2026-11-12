@@ -3,11 +3,13 @@
 export type {
   ApplicationRuntime,
   DesktopContext,
+  DesktopHost,
   DesktopIdentity,
   DesktopSnapshot,
   NativeActionContext,
   OpenEvent,
 } from "./capabilities";
+export { defineNative } from "./commands";
 export { getDesktopDevelopment } from "./development";
 export type { DesktopSdk } from "./native-sdk";
 export { getDesktopHost } from "./registry";

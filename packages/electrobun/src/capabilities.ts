@@ -1,5 +1,8 @@
 import type { BrowserWindow, WindowOptionsType } from "electrobun/main";
 import type { RPCWithTransport } from "electrobun/main/rpc";
+import type { DesktopContext } from "./commands";
+
+export type { DesktopContext, DesktopWindow, Register } from "./commands";
 
 export interface DesktopIdentity {
   channel: string;
@@ -28,7 +31,8 @@ export type DesktopWindowOptions<T extends RPCWithTransport = RPCWithTransport> 
   "url" | "html" | "navigationRules" | "allowedProtocols" | "viewsRoot"
 >;
 
-export interface DesktopContext {
+/** Native-side controller with original SDK objects. Only native modules receive it. */
+export interface DesktopHost {
   associations: {
     read: (target: AssociationTarget) => Promise<AssociationResult>;
     requestDefault: (target: AssociationTarget) => Promise<AssociationResult>;
@@ -59,7 +63,7 @@ export type ApplicationRuntime =
     };
 
 export interface NativeActionContext {
-  desktop: DesktopContext;
+  desktop: DesktopHost;
   identity: DesktopIdentity;
 }
 
@@ -82,5 +86,6 @@ export interface DesktopAppOptions {
   admission?: (request: Request, context: AdmissionContext) => Response | undefined;
   background?: () => boolean;
   restrictWebToLoopback?: boolean;
-  window?: DesktopWindowOptions;
+  /** Serializable main window options; window RPC belongs to native modules. */
+  window?: Omit<DesktopWindowOptions, "rpc">;
 }

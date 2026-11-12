@@ -15,11 +15,11 @@ export const desktopApi = new Elysia({ name: "relay-desktop", prefix: "/desktop"
     },
   })
   .guard({ desktopOnly: true })
-  .post("/minimize", ({ desktop }) => {
-    desktop.window?.minimize();
+  .post("/minimize", async ({ desktop }) => {
+    await desktop.window.minimize();
     return { ok: true };
   })
-  .post("/open", ({ desktop }) => {
-    desktop.open();
+  .post("/open", async ({ desktop }) => {
+    await desktop.open();
     return { ok: true };
   });

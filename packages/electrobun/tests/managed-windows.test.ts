@@ -6,7 +6,7 @@ import { treaty } from "@elysia/eden";
 import type { BrowserWindow } from "electrobun/main";
 import type { RPCWithTransport } from "electrobun/main/rpc";
 import { Elysia, status } from "elysia";
-import type { DesktopContext } from "../src/capabilities";
+import type { DesktopHost } from "../src/capabilities";
 import { getDesktopHost } from "../src/host";
 import type { DesktopSdk } from "../src/native-sdk";
 import { getDesktopState } from "../src/registry";
@@ -17,16 +17,16 @@ import { installSdk } from "./fixtures/sdk";
 test("managed windows keep SDK identity and independent APIs share the live controller", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-windows-"));
   const identity = { name: "Fixture", identifier: "local.furin.windows", version: "1.0.0" };
-  let desktop: DesktopContext | undefined;
+  let desktop: DesktopHost | undefined;
   let failBackground = false;
   let backgroundReads = 0;
   // Declared before host installation: provider must resolve the live value later.
-  const api = new Elysia().use(desktopContext).post("/minimize", ({ desktop: context }) => {
+  const api = new Elysia().use(desktopContext).post("/minimize", async ({ desktop: context }) => {
     if (!context) {
       return status(409, { error: "Desktop unavailable" });
     }
-    context.window?.minimize();
-    return { same: context === getDesktopHost(), ok: true };
+    await context.window.minimize();
+    return { ok: true };
   });
   expect(getDesktopState(api)).toBeUndefined();
   const app = new Elysia()
@@ -70,7 +70,7 @@ test("managed windows keep SDK identity and independent APIs share the live cont
     const client = treaty(app);
     const response = await client.minimize.post();
     expectTypeOf(response.error).not.toBeAny();
-    expect(response.data).toEqual({ same: true, ok: true });
+    expect(response.data).toEqual({ ok: true });
     // SDK boundary fixture exposes constructor inputs without replacing any Furin method.
     const first = desktop.window as BrowserWindow & {
       minimized: boolean;
@@ -123,7 +123,7 @@ test("managed windows keep SDK identity and independent APIs share the live cont
 // Compile-time assertion only: exact SDK RPC generics survive create without
 // pretending a dynamic string lookup can recover an unrelated schema.
 export function createTypedWindow<T extends RPCWithTransport>(
-  desktop: DesktopContext,
+  desktop: DesktopHost,
   rpc: T,
   sdk: DesktopSdk
 ) {
@@ -183,7 +183,7 @@ for (const failure of ["tray", "fence", "main", "extra", "quit"] as const) {
     const identity = { name: "Fixture", identifier: "local.furin.cleanup", version: "1.0.0" };
     const attempts: string[] = [];
     const codes: number[] = [];
-    let desktop: DesktopContext | undefined;
+    let desktop: DesktopHost | undefined;
     const attempt = (name: string) => {
       attempts.push(name);
       if (name === failure) {

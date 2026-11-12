@@ -1,60 +1,64 @@
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
-import type { DesktopConfig } from "./config";
-import { publishDevReady } from "./dev-server";
-import { type DesktopBackend, withShutdownDeadline } from "./runtime";
+import type { DesktopDevelopmentSettings } from "./cli";
+import type { DesktopCommand } from "./commands";
+import type { BackendInfo, ShellRequest } from "./desktop-dev";
+import { mintWindowUrl } from "./dev-bootstrap";
+import { createChannelPeer } from "./dev-channel";
+import type { DesktopBackend } from "./runtime";
 
-/** SDK host context provided by the desktop dev supervisor. */
+/** Native shell side of a development session; the backend runs in Furin's hot worker. */
 export async function getDesktopDevelopment() {
-  const settings = process.env.FURIN_DESKTOP_DEV;
-  if (!settings) {
+  const path = process.env.FURIN_DESKTOP_DEV;
+  const channel = process.env.FURIN_DESKTOP_CHANNEL;
+  if (!(path && channel)) {
     return;
   }
-  const {
-    root,
-    serverEntry,
-    config,
-  }: { root: string; serverEntry: string; config: DesktopConfig } = await Bun.file(settings).json();
-  const directory = join(settings, "..");
+  const settings: DesktopDevelopmentSettings = await Bun.file(path).json();
   // Call after loading the SDK, which resolves native resources from its launch CWD.
-  process.chdir(root);
+  process.chdir(settings.root);
   return {
-    config,
-    root,
-    serverEntry,
-    requestRestart() {
-      writeFileSync(join(directory, "restart"), crypto.randomUUID(), { mode: 0o600 });
-    },
-    reportFailure(kind: "shutdown-timeout" | "shutdown-failure") {
-      // Publish before the SDK exits; the supervisor reads this only after reaping.
-      writeFileSync(join(directory, "failure.json"), JSON.stringify({ kind }), { mode: 0o600 });
-    },
-    async ready(backend: DesktopBackend | undefined, shutdown: () => Promise<void>) {
-      let closing: Promise<void> | undefined;
-      const stop = () => {
-        closing ??= withShutdownDeadline(shutdown()).finally(() => clearInterval(timer));
-        closing.catch((error) => {
-          console.error("[furin-electrobun] Desktop development shutdown failed:", error);
-          process.exit(1);
-        });
-      };
-      const timer = setInterval(() => {
-        Bun.file(join(directory, "control"))
-          .text()
-          .then((command) => {
-            if (command) {
-              stop();
-            }
-          })
-          .catch(console.error);
-      }, 100);
-      process.on("SIGINT", stop);
-      process.on("SIGTERM", stop);
-      await publishDevReady(join(directory, "ready.json"), {
-        origin: backend?.origin ?? "views://manager",
-        bootstrapOrigin: backend?.bootstrapOrigin ?? "",
-        url: backend?.url ?? "views://manager",
+    config: settings.config,
+    dataDir: settings.dataDir,
+    root: settings.root,
+    async connect(
+      execute: (command: DesktopCommand) => Promise<unknown>,
+      disconnected: () => void
+    ) {
+      const { url }: { url: string } = JSON.parse(channel);
+      const socket = new WebSocket(url);
+      const peer = createChannelPeer(
+        (data) => socket.send(data),
+        (body) => execute(body as DesktopCommand)
+      );
+      const opened = Promise.withResolvers<void>();
+      socket.addEventListener("open", () => opened.resolve());
+      socket.addEventListener("error", () =>
+        opened.reject(new Error("Desktop backend is unreachable."))
+      );
+      socket.addEventListener("message", (event) => peer.receive(String(event.data)));
+      socket.addEventListener("close", () => {
+        peer.close("Desktop backend disconnected.");
+        disconnected();
       });
+      await opened.promise;
+      const request = (body: ShellRequest) => peer.request(body);
+      const info = (await request({ type: "backend" })) as BackendInfo;
+      const createWindowUrl = (destination?: string) =>
+        mintWindowUrl(info.key, info.origin, destination);
+      const backend: DesktopBackend = {
+        origin: info.origin,
+        bootstrapOrigin: "",
+        url: createWindowUrl("/"),
+        cookie: "",
+        createWindowUrl,
+        // The hot worker owns the backend lifetime; the shell never stops it.
+        stop: () => Promise.resolve(),
+      };
+      return {
+        backend,
+        info,
+        background: () => request({ type: "background" }) as Promise<boolean>,
+        requestRestart: () => request({ type: "restart" }),
+      };
     },
   };
 }

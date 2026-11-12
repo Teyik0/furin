@@ -51,6 +51,7 @@ export async function installSdk(
       options;
       minimized = false;
       minimize() { this.minimized = true; }
+      isMinimized() { return this.minimized; }
       closed;
       webview = {
         on(name, callback) { if(name === "dom-ready") setTimeout(() => callback({}), 0); },

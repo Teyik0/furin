@@ -8,22 +8,47 @@ test.each([
   ["", true],
   ["--desktop", false],
 ] as const)(
-  "furin dev %s delegates once to the optional desktop package",
+  "furin dev %s prepares the desktop package and runs its integration in the hot worker",
   async (flag, openBrowser) => {
     const root = await mkdtemp(join(tmpdir(), "furin-dev-cli-"));
     try {
       await writeFile(join(root, "furin.config.ts"), "export default { desktop: {} };");
+      await mkdir(join(root, "src"));
+      await writeFile(
+        join(root, "src/server.ts"),
+        `import { Elysia } from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
+        export default new Elysia().get("/", () => "ok").listen({ hostname: "127.0.0.1", port: 0 });`
+      );
       const sdk = join(root, "node_modules/@teyik0/furin-electrobun");
       await mkdir(sdk, { recursive: true });
       await writeFile(
         join(sdk, "package.json"),
-        '{"name":"@teyik0/furin-electrobun","type":"module","exports":{"./dev":"./dev.ts"}}'
+        '{"name":"@teyik0/furin-electrobun","type":"module","exports":{"./dev":"./dev.ts","./desktop-dev":"./desktop-dev.ts"}}'
       );
       await writeFile(
         join(sdk, "dev.ts"),
         `
-        export async function runDesktopDevelopment(cwd, openBrowser) {
+        export async function prepareDesktopDevelopment(cwd, openBrowser) {
           await Bun.write(${JSON.stringify(join(root, "called.json"))}, JSON.stringify({ cwd, openBrowser }));
+          return { FURIN_FIXTURE_SETTINGS: "prepared" };
+        }
+      `
+      );
+      await writeFile(
+        join(sdk, "desktop-dev.ts"),
+        `
+        export function createDevelopment() {
+          return {
+            load: (load) => load(),
+            async ready(app) {
+              await Bun.write(${JSON.stringify(join(root, "ready.json"))}, JSON.stringify({
+                listening: Boolean(app.server),
+                settings: process.env.FURIN_FIXTURE_SETTINGS,
+              }));
+              process.kill(process.pid, "SIGINT");
+            },
+            stop: async () => {},
+          };
         }
       `
       );
@@ -34,7 +59,7 @@ test.each([
           "dev",
           ...(flag ? [flag] : []),
         ],
-        { cwd: root, stdout: "pipe", stderr: "pipe", timeout: 5000 }
+        { cwd: root, stdout: "pipe", stderr: "pipe", timeout: 10_000 }
       );
       const [status, diagnostic] = await Promise.all([
         child.exited,
@@ -46,6 +71,10 @@ test.each([
       ).json();
       expect(await realpath(actual.cwd)).toBe(await realpath(root));
       expect(actual.openBrowser).toBe(openBrowser);
+      expect(await Bun.file(join(root, "ready.json")).json()).toEqual({
+        listening: true,
+        settings: "prepared",
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

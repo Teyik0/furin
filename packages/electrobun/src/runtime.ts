@@ -36,7 +36,7 @@ export interface DesktopSession {
   value: string;
 }
 
-function desktopOrigin(serverUrl: URL): string {
+export function desktopOrigin(serverUrl: URL): string {
   const url = new URL(serverUrl);
   if (url.hostname === "0.0.0.0") {
     url.hostname = "127.0.0.1";

@@ -69,9 +69,8 @@ test("package build removes stale outputs and emits config and server exports", 
       join(root, "consumer.ts"),
       `
       import { Elysia } from "elysia";
-      import { desktopApp, desktopContext } from "./dist/server";
+      import { desktopApp, desktopContext, type DesktopWindow } from "./dist/server";
       import { useDesktop, type OpenBrowserResult } from "./dist/client";
-      import type { BrowserWindow } from "electrobun/main";
       export function Download() {
         const desktop = useDesktop();
         const opened: Promise<OpenBrowserResult> = desktop.browser.open("/any-untyped-url");
@@ -94,10 +93,15 @@ test("package build removes stale outputs and emits config and server exports", 
             },
           },
         })
-        .get("/native", ({ desktop }) => {
-        const window: BrowserWindow | undefined = desktop?.window;
-        window?.minimize();
-        return { available: desktop !== null };
+        .get("/native", async ({ desktop }) => {
+        const window: DesktopWindow | undefined = desktop?.window;
+        await window?.minimize();
+        const size: { width: number; height: number } | undefined = await window?.getSize();
+        // @ts-expect-error Native objects stay in the native module.
+        window?.webview;
+        // @ts-expect-error RPC belongs to native modules, not serializable window options.
+        await desktop?.windows.create("rpc", { path: "/", rpc: {} });
+        return { available: desktop !== null, size };
       });
       export const app = new Elysia().use(api)
         .use(desktopApp({ window: { title: "Consumer", titleBarStyle: "hiddenInset" } }))
@@ -108,9 +112,9 @@ test("package build removes stale outputs and emits config and server exports", 
           background: () => torrents.settings.runInBackground === true,
         })))
         .onStop(() => {})
-        .get("/after", { nativeOnly: true }, ({ desktop }) => {
-          const window: BrowserWindow | undefined = desktop.window;
-          return window !== undefined;
+        .get("/after", { nativeOnly: true }, async ({ desktop }) => {
+          const window: DesktopWindow = desktop.window;
+          return await window.isMinimized();
         });
       export const explicit = new Elysia().use(api)
         .use(parent => desktopApp(parent, ({ access }) => ({ admission: access.admit.bind(access) })))

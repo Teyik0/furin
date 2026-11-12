@@ -39,6 +39,11 @@
       "bun": "./src/client.ts",
       "import": "./dist/client.js"
     },
+    "./desktop-dev": {
+      "types": "./dist/desktop-dev.d.ts",
+      "bun": "./src/desktop-dev.ts",
+      "import": "./dist/desktop-dev.js"
+    },
     "./web-dev": {
       "types": "./dist/web-dev.d.ts",
       "bun": "./src/web-dev.ts",
