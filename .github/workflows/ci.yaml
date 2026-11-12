@@ -52,13 +52,6 @@ jobs:
       - name: Type Check
         run: bun run tscheck
 
-      - name: Test
-        run: bun run test
-
-      - name: HMR Browser Conformance
-        working-directory: packages/core
-        run: bun run test:webview
-
       - name: Knip
         run: bun run knip
 
@@ -161,10 +154,26 @@ jobs:
           path: packages/core/coverage/lcov.info
           if-no-files-found: warn
 
-  windows:
-    name: Windows compatibility
-    runs-on: windows-latest
+  # Suites run on separate runners: in one job they ran back to back.
+  test:
+    name: Test (${{ matrix.suite }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        suite: [core, electrobun, apps]
+        include:
+          - suite: core
+            command: bun run --filter '@teyik0/furin' test
+          - suite: electrobun
+            command: bun run --filter '@teyik0/furin-electrobun' test
+          - suite: apps
+            command: bun run test:release && bun run --sequential --filter './apps/*' --filter './examples/*' test
+          - os: ubuntu-latest
+            suite: webview
+            command: bun run --cwd packages/core test:webview
 
     steps:
       - name: Checkout
@@ -188,10 +197,12 @@ jobs:
         run: bun run build
 
       - name: Type Check
+        if: matrix.os == 'windows-latest' && matrix.suite == 'apps'
         run: bun run tscheck
 
       - name: Test
-        run: bun run test
+        shell: bash
+        run: ${{ matrix.command }}
 
   macos:
     name: macOS desktop compatibility
