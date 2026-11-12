@@ -293,7 +293,8 @@ test.each([
         child.kill("SIGKILL");
       }
       await child?.exited;
-      await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      // Windows releases a terminated opener's handles late; retry like core's app fixtures.
+      await rm(root, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
     }
   },
   15_000
