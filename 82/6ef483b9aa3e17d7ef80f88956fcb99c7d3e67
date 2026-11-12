@@ -1,0 +1,23 @@
+packages/electrobun/tests/desktop-dev.test.ts
+  s_2d3b48c2109c35::t_7fe75253c65dc0 316,319,323,373-376
+  s_2d3b48c2109c35::t_e47fe2424b5bd1 309,336,354,358-361,372
+  s_2d3b48c2109c35::t_0b3c70484da606 296-308,310-315,317-318,320-322,324-335,337-340
+packages/electrobun/src/desktop-dev.ts
+  s_2d3b48c2109c35::t_d7bd63b2565875 98-101,131-147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "826ef483b9aa3e17d7ef80f88956fcb99c7d3e67",
+  "prompts": {},
+  "sessions": {
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
