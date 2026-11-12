@@ -1,0 +1,41 @@
+packages/core/tests/routing/discovery/patterns.test.ts
+  s_3548c3ff716ea7::t_e14b397c402a4d 83
+  s_3548c3ff716ea7::t_74232c023bb481 130,132-152
+  s_3548c3ff716ea7::t_65915015d8874f 127-129
+  s_3548c3ff716ea7::t_377e1c2a8c789d 131
+packages/core/src/plugin/route-manifest.ts
+  s_3548c3ff716ea7::t_2fa23e5ca15d82 347-364,416
+  s_3548c3ff716ea7::t_98193713cc8ac6 3,77,249-253,340-343
+apps/docs/src/content/docs/routing.mdx
+  s_3548c3ff716ea7::t_b184d0ca954bb2 184
+  s_3548c3ff716ea7::t_cc99df61d1bf2e 168
+packages/core/src/server/router/patterns.ts
+  s_3548c3ff716ea7::t_65915015d8874f 105-108
+  s_3548c3ff716ea7::t_2fa23e5ca15d82 151-172,189
+packages/core/src/shared/route-specificity.ts
+  s_3548c3ff716ea7::t_98193713cc8ac6 5,8-9,29-60
+packages/core/tests/client/link/apply-link-params.test.ts
+  s_3548c3ff716ea7::t_74232c023bb481 55-59
+packages/core/tests/routing/discovery/route-manifest.test.ts
+  s_3548c3ff716ea7::t_74232c023bb481 224-239
+packages/core/src/adapter/vercel.ts
+  s_3548c3ff716ea7::t_2bd3591a8a955b 161-162
+packages/core/src/client/router/link-utils.ts
+  s_3548c3ff716ea7::t_98193713cc8ac6 91,94,97,102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1d20f7ce05d665cf948e190505bcc34beeceb18b",
+  "prompts": {},
+  "sessions": {
+    "s_3548c3ff716ea7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "277c9017-b362-4fee-aab0-a0f1c68f2234",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
