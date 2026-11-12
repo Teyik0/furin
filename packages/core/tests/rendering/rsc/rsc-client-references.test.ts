@@ -927,7 +927,7 @@ export const route = defineRoute("/").config({ mode: "isr", revalidate: 300 })
       } catch (error) {
         throw new Error(server.getStderr().slice(0, 6000) || String(error), { cause: error });
       } finally {
-        server.kill();
+        server.kill("SIGKILL");
         await server.exitCode;
       }
     } finally {

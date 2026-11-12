@@ -141,7 +141,7 @@ export default app;
       });
       socket.close();
     } finally {
-      server.kill();
+      server.kill("SIGKILL");
       await server.exitCode;
     }
     },

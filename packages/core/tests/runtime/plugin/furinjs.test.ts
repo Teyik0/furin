@@ -783,7 +783,7 @@ test.serial(
       expect(await apiResponse.text()).toBe("auth:/auth/session");
       expect(missingResponse.status).toBe(404);
     } finally {
-      server.kill();
+      server.kill("SIGKILL");
       await server.exitCode;
     }
   },
@@ -821,7 +821,7 @@ test.serial(
       );
       expect(pageHtml).toContain("Catch-all page");
     } finally {
-      server.kill();
+      server.kill("SIGKILL");
       await server.exitCode;
     }
   },
