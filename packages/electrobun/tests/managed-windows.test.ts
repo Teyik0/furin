@@ -260,6 +260,7 @@ test("a window opened while the async background policy is pending keeps the app
   const identity = { name: "Fixture", identifier: "local.furin.background", version: "1.0.0" };
   const decision = Promise.withResolvers<boolean>();
   const quits: number[] = [];
+  let policyCalls = 0;
   let desktop: DesktopHost | undefined;
   try {
     await Bun.write(join(root, ".furin/electrobun/host.json"), JSON.stringify({ app: identity }));
@@ -279,12 +280,18 @@ test("a window opened while the async background policy is pending keeps the app
       load: async () => ({
         // Development shells answer the background policy asynchronously over their channel.
         default: new Elysia().use(
-          desktopApp({ background: (() => decision.promise) as unknown as () => boolean })
+          desktopApp({
+            background: (() => {
+              policyCalls += 1;
+              return decision.promise;
+            }) as unknown as () => boolean,
+          })
         ),
       }),
     });
     desktop?.window?.close();
     const reopened = desktop?.open();
+    expect(policyCalls).toBe(1);
     decision.resolve(false);
     await Bun.sleep(10);
     expect(desktop?.snapshot().phase).toBe("ready");
