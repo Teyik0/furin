@@ -18,9 +18,9 @@ test.each(["exact-mirror", "typebox"])(
   }
 );
 
-test("Furin declares @types/bun as an optional peer because published types import from bun", () => {
+test("Furin declares @types/bun as a required peer because published types import from bun", () => {
   expect(manifest.peerDependencies["@types/bun"]).toBeDefined();
-  expect(manifest.peerDependenciesMeta["@types/bun"]?.optional).toBe(true);
+  expect(manifest.peerDependenciesMeta["@types/bun"]?.optional).not.toBe(true);
 });
 
 // Peers are the public contract; the workspace catalog only pins the monorepo.

@@ -65,8 +65,6 @@ const config: KnipConfig = {
         "tests/**/*.{ts,tsx}",
         "tests/fixtures/sync-prisma/schema.prisma",
       ],
-      // @types/bun is an intentionally optional peer for consumers type-checking Bun APIs.
-      ignoreDependencies: ["@types/bun"],
       ignore: [
         "src/server/dev-page-plugin.production.ts",
         "src/server/dev/runtime.production.ts",
