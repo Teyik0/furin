@@ -1,0 +1,23 @@
+packages/core/src/shared/not-found.ts
+  s_0e895c2dd52d86::t_aaa38d31ddd87a 29
+packages/core/tests/routing/errors/not-found.test.ts
+  s_0e895c2dd52d86::t_8fb3b72c974804 6,9
+CHANGELOG.md
+  s_0e895c2dd52d86::t_0ac9bcb9e0f98f 9-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0902ce73800c2042f743b9e1c0209e85a1995de9",
+  "prompts": {},
+  "sessions": {
+    "s_0e895c2dd52d86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "905c2edc-e3e7-4eb5-adb3-575e0ce891c4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
