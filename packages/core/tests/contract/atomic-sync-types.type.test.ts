@@ -2,7 +2,8 @@
 
 import type { Database } from "bun:sqlite";
 import { test } from "bun:test";
-import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
+import { defineRelations } from "drizzle-orm";
+import type { SQLiteBunDatabase } from "drizzle-orm/bun-sqlite";
 import { integer, sqliteTable } from "drizzle-orm/sqlite-core";
 import { Elysia } from "elysia";
 import { expectTypeOf } from "expect-type";
@@ -16,8 +17,8 @@ import { prismaSyncAdapter } from "../../src/server/sync/prisma/index.ts";
 import type { Prisma, PrismaClient } from "../fixtures/sync-prisma/generated/index.js";
 
 const counter = sqliteTable("typed_counter", { value: integer().notNull() });
-const schema = { counter };
-type Db = BunSQLiteDatabase<typeof schema> & { $client: Database };
+const relations = defineRelations({ counter });
+type Db = SQLiteBunDatabase<typeof relations> & { $client: Database };
 
 function typedApp(db: Db) {
   const adapter = drizzleSyncAdapter({ db, namespace: "types" });

@@ -33,8 +33,8 @@ function listColumn(column: "backlog" | "todo" | "doing" | "done") {
 }
 
 function totalChanges() {
-  const result = db.get(sql<[number]>`select total_changes()`);
-  const total = result?.[0];
+  const result = db.get<{ total: number }>(sql`select total_changes() as total`);
+  const total = result?.total;
   if (total === undefined) {
     throw new Error("Failed to read SQLite total_changes()");
   }

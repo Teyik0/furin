@@ -65,6 +65,10 @@ const config: KnipConfig = {
         "tests/**/*.{ts,tsx}",
         "tests/fixtures/sync-prisma/schema.prisma",
       ],
+      // generate:sync-prisma runs the prisma CLI by file path, and only the
+      // generated test client imports @prisma/client. @types/bun is an
+      // intentionally optional peer for consumers type-checking Bun APIs.
+      ignoreDependencies: ["prisma", "@prisma/client", "@types/bun"],
       ignore: [
         "src/server/dev-page-plugin.production.ts",
         "src/server/dev/runtime.production.ts",

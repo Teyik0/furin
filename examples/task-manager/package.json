@@ -21,7 +21,7 @@
     "@teyik0/furin": "workspace:*",
     "bun-plugin-tailwind": "^0.1.2",
     "clsx": "^2.1.1",
-    "drizzle-orm": "^0.45.4",
+    "drizzle-orm": "^1.0.0-rc.5",
     "elysia": "catalog:",
     "evlog": "catalog:",
     "exact-mirror": "catalog:",
@@ -35,7 +35,7 @@
   "devDependencies": {
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "drizzle-kit": "^0.31.11",
+    "drizzle-kit": "^1.0.0-rc.5",
     "tailwindcss": "^4.3.3"
   }
 }

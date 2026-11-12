@@ -207,7 +207,7 @@ test("atomic handler invalidations commit with the transaction and roll back wit
   database.run("CREATE TABLE imperative_cards (board_id TEXT NOT NULL)");
   migrateSqliteSync(database);
   const cards = sqliteTable("imperative_cards", { boardId: text("board_id").notNull() });
-  const db = drizzle(database);
+  const db = drizzle({ client: database });
   const sync = {
     adapter: drizzleSyncAdapter({ db, namespace: "imperative-atomic" }),
     principal: () => "alice",
@@ -287,7 +287,10 @@ test("invalidate() after mutation() resolved throws in development and is droppe
   const database = new Database(":memory:");
   migrateSqliteSync(database);
   const sync = {
-    adapter: drizzleSyncAdapter({ db: drizzle(database), namespace: "invalidate-late" }),
+    adapter: drizzleSyncAdapter({
+      db: drizzle({ client: database }),
+      namespace: "invalidate-late",
+    }),
     principal: () => "alice",
   };
   const app = new Elysia()

@@ -21,7 +21,7 @@ test.each(["", "/api"])(
     const sqlite = new Database(":memory:");
     sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
     migrateSqliteSync(sqlite);
-    const db = drizzle(sqlite);
+    const db = drizzle({ client: sqlite });
     const sync = {
       adapter: drizzleSyncAdapter({ db, namespace: "mounted-sync" }),
       principal: () => "user",

@@ -16,7 +16,10 @@ const counter = sqliteTable("counter", { value: integer().notNull() });
 test("Drizzle SQLite journals invalidations without a mutation lease", async () => {
   const sqlite = new Database(":memory:");
   migrateSqliteSync(sqlite);
-  const adapter = drizzleSyncAdapter({ db: drizzle(sqlite), namespace: "journal-only" });
+  const adapter = drizzleSyncAdapter({
+    db: drizzle({ client: sqlite }),
+    namespace: "journal-only",
+  });
   const invalidations = [{ kind: "tags", tags: ["journal-only"] }] as const;
   const cursor = await adapter.appendInvalidations(invalidations);
   expect(cursor).toBe("1");
@@ -30,7 +33,7 @@ test("bodyless default Responses honor the explicit HTTP status before committin
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "response-set-status" });
   let status = 400;
   const app = new Elysia()
@@ -67,7 +70,10 @@ test("bodyless default Responses honor the explicit HTTP status before committin
 test("status response headers survive encoding and exclude cookies only from replay", async () => {
   const sqlite = new Database(":memory:");
   migrateSqliteSync(sqlite);
-  const adapter = drizzleSyncAdapter({ db: drizzle(sqlite), namespace: "status-headers" });
+  const adapter = drizzleSyncAdapter({
+    db: drizzle({ client: sqlite }),
+    namespace: "status-headers",
+  });
   const app = new Elysia().use(furinSync({ adapter, principal: () => "user" })).post(
     "/counter",
     {
@@ -117,7 +123,10 @@ test("status response headers survive encoding and exclude cookies only from rep
 test("bodyless mutation responses keep cookies on the initial response only", async () => {
   const sqlite = new Database(":memory:");
   migrateSqliteSync(sqlite);
-  const adapter = drizzleSyncAdapter({ db: drizzle(sqlite), namespace: "initial-cookie" });
+  const adapter = drizzleSyncAdapter({
+    db: drizzle({ client: sqlite }),
+    namespace: "initial-cookie",
+  });
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
     .post("/session", ({ mutation }) =>
@@ -148,7 +157,7 @@ test("a returned Error rolls back and releases its key like a thrown error", asy
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "returned-error" });
   const failures = new Set(["business"]);
   const app = new Elysia()
@@ -182,7 +191,7 @@ test.each([
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: alias });
   let value = "bad" as unknown as number;
   const app = new Elysia()
@@ -213,7 +222,7 @@ test("replacement routes validate against the last registered response schema", 
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "replacement-route" });
   let count = 1;
   const app = new Elysia()
@@ -248,7 +257,7 @@ test("unbound parent response guards cannot silently commit a child mutation", a
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "parent-response-guard" });
   let calls = 0;
   const child = new Elysia()
@@ -281,7 +290,7 @@ test("numeric status and code fields in a successful DTO commit and replay", asy
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "dto-status-fields" });
   let calls = 0;
   const app = new Elysia()
@@ -344,7 +353,7 @@ test("merged Standard Schema response guards roll back invalid business results"
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "merged-response-guards" });
   const app = new Elysia()
     .get("/counter", () => db.select().from(counter).all())
@@ -383,7 +392,7 @@ test("merged response guard codecs encode once, matching native Elysia", async (
   encodes = 0;
   const sqlite = new Database(":memory:");
   migrateSqliteSync(sqlite);
-  const adapter = drizzleSyncAdapter({ db: drizzle(sqlite), namespace: "guard-codec" });
+  const adapter = drizzleSyncAdapter({ db: drizzle({ client: sqlite }), namespace: "guard-codec" });
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
     .guard({ schema: "merge", response })
@@ -397,7 +406,7 @@ test("merged response guard codecs encode once, matching native Elysia", async (
 test("replays short-circuit a generic application error fallback", async () => {
   const sqlite = new Database(":memory:");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "error-fallback" });
   let calls = 0;
   const app = new Elysia()
@@ -427,7 +436,7 @@ test("separate route plugins validate against their own response schemas", async
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "separate-plugins" });
   const sync = furinSync({ adapter, principal: () => "user" });
   const first = new Elysia()
@@ -475,7 +484,7 @@ test("separate route plugins validate against their own response schemas", async
 test("method-specific response schemas take precedence over ALL routes", async () => {
   const sqlite = new Database(":memory:");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "method-priority" });
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
@@ -500,7 +509,7 @@ test("ALL mutations beside a mount roll back invalid responses and commit retrie
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "all-route" });
   let count = "invalid" as unknown as number;
   const app = new Elysia()
@@ -546,8 +555,8 @@ test("notifications observe the committed business write from another connection
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
   const reader = new Database(join(directory, "db.sqlite"), { readonly: true });
-  const db = drizzle(sqlite);
-  const observer = drizzle(reader);
+  const db = drizzle({ client: sqlite });
+  const observer = drizzle({ client: reader });
   const adapter = drizzleSyncAdapter({ db, namespace: "notification" });
   let observed = 0;
   const notifier = {
@@ -592,7 +601,7 @@ test("losing a lease cannot commit a business write", async () => {
   sqlite.run(
     "CREATE TRIGGER expire_lease AFTER INSERT ON counter BEGIN UPDATE furin_sync_mutations SET lease_expires_at = 0; END"
   );
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "lease" });
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
@@ -621,7 +630,7 @@ test("serialization failure rolls back business writes and releases the idempote
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "serialization" });
   const circularResults = new Set(["enabled"]);
   interface Result {
@@ -662,7 +671,7 @@ test("a journal failure rolls back the business write and publishes no invalidat
   sqlite.run(
     "CREATE TRIGGER deny_journal BEFORE INSERT ON furin_sync_changes BEGIN SELECT RAISE(ABORT, 'journal unavailable'); END"
   );
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "journal-failure" });
   let publishes = 0;
   const notifier = {
@@ -707,7 +716,7 @@ test("response codecs encode once inside the transaction and replay the encoded 
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "codec" });
   const responseSchema = t
     .Codec(t.Number())
@@ -735,7 +744,7 @@ test("prefixed nested plugins validate named response schemas before committing"
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "nested" });
   const plugin = new Elysia()
     .model("result", t.Object({ count: t.Number() }))
@@ -768,7 +777,7 @@ test("an atomic mutation replays its response without repeating the business wri
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "atomic" });
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
@@ -798,7 +807,7 @@ test("response schema failure rolls back the business write before commit", asyn
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "validation" });
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
@@ -826,7 +835,7 @@ test("a business failure releases its key even with an application error fallbac
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
-  const db = drizzle(sqlite);
+  const db = drizzle({ client: sqlite });
   const adapter = drizzleSyncAdapter({ db, namespace: "rollback" });
   const failures = new Set(["business"]);
   const app = new Elysia()

@@ -29,7 +29,7 @@ if (!inAotBuild()) {
   sqlite = new Database(${JSON.stringify(path)});
   sqlite.exec("BEGIN EXCLUSIVE");
   migrateSqliteSync(sqlite);
-  db = drizzle(sqlite);
+  db = drizzle({ client: sqlite });
 }
 export let factoryCalls = 0;
 export const sync = {

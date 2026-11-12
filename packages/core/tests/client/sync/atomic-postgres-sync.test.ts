@@ -38,7 +38,10 @@ function request(path: string, key: string) {
 
 test.skipIf(!url)("ORM adapters reject notifiers reading a different namespace", async () => {
   const sql = new SQL(url ?? "");
-  const adapter = drizzleSyncAdapter({ db: drizzle(sql), namespace: crypto.randomUUID() });
+  const adapter = drizzleSyncAdapter({
+    db: drizzle({ client: sql }),
+    namespace: crypto.randomUUID(),
+  });
   const notifier = postgresSyncNotifier({ sql, namespace: crypto.randomUUID() });
   try {
     expect(() =>
@@ -53,7 +56,7 @@ test.skipIf(!url)("a locked native transaction retains its lease until commit", 
   const sql = new SQL(url ?? "");
   await sql.unsafe(migration);
   const namespace = crypto.randomUUID();
-  const adapter = drizzleSyncAdapter({ db: drizzle(sql), namespace });
+  const adapter = drizzleSyncAdapter({ db: drizzle({ client: sql }), namespace });
   const reservation = await adapter.beginMutation({
     key: "one",
     principal: "user",
@@ -92,7 +95,7 @@ test.skipIf(!url)(
     const sql = new SQL(url ?? "");
     await sql.unsafe(migration);
     await sql`CREATE TABLE IF NOT EXISTS furin_atomic_counter (id text PRIMARY KEY, value integer NOT NULL, "createdAt" timestamp NOT NULL DEFAULT now())`;
-    const db = drizzle(sql);
+    const db = drizzle({ client: sql });
     const namespace = crypto.randomUUID();
     const adapter = drizzleSyncAdapter({ db, namespace });
     const entered = Promise.withResolvers<void>();
@@ -144,7 +147,7 @@ test.skipIf(!url)(
     await sql.unsafe(migration);
     await sql`CREATE TABLE IF NOT EXISTS furin_atomic_counter (id text PRIMARY KEY, value integer NOT NULL, "createdAt" timestamp NOT NULL DEFAULT now())`;
     const namespace = crypto.randomUUID();
-    const db = drizzle(sql);
+    const db = drizzle({ client: sql });
     const adapter = drizzleSyncAdapter({ db, namespace });
     const cache = createMemoryPageCache();
     const identity = {
@@ -213,7 +216,7 @@ test.skipIf(!url).each(["drizzle", "prisma"] as const)(
         : undefined;
     const adapter = client
       ? prismaSyncAdapter({ client, namespace })
-      : drizzleSyncAdapter({ db: drizzle(sql), namespace });
+      : drizzleSyncAdapter({ db: drizzle({ client: sql }), namespace });
     const invalidations = [{ kind: "tags", tags: [namespace] }] as const;
     try {
       const cursor = await adapter.appendInvalidations(invalidations);
@@ -241,7 +244,7 @@ test.skipIf(!url).each(["drizzle", "prisma"] as const)(
     const sync = {
       adapter: client
         ? prismaSyncAdapter({ client, namespace })
-        : drizzleSyncAdapter({ db: drizzle(sql), namespace }),
+        : drizzleSyncAdapter({ db: drizzle({ client: sql }), namespace }),
       principal: () => "user",
       secret: "a-test-secret-of-at-least-32-characters",
     };
@@ -323,7 +326,7 @@ test.skipIf(!url)(
     try {
       await sql.unsafe(migration);
       await sql`CREATE TABLE IF NOT EXISTS furin_atomic_counter (id text PRIMARY KEY, value integer NOT NULL, "createdAt" timestamp NOT NULL DEFAULT now())`;
-      const adapter = drizzleSyncAdapter({ db: drizzle(sql), namespace });
+      const adapter = drizzleSyncAdapter({ db: drizzle({ client: sql }), namespace });
       const oversized = new Set(["response"]);
       let calls = 0;
       const app = new Elysia()

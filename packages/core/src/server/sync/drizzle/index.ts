@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
-import { sql as drizzleSql } from "drizzle-orm";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql";
-import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
+import { type AnyRelations, sql as drizzleSql } from "drizzle-orm";
+import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
+import type { SQLiteBunDatabase } from "drizzle-orm/bun-sqlite";
 import type {
   AtomicMutationResult,
   AtomicMutationValue,
@@ -14,14 +14,10 @@ import { PostgresSyncAdapter } from "../postgres/index.ts";
 import { transactionSql } from "../postgres/sql.ts";
 import { SqliteSyncAdapter } from "../sqlite/index.ts";
 
-interface Schema {
-  [table: string]: unknown;
-}
-type Transaction<Db extends BunSQLiteDatabase<Schema> | BunSQLDatabase<Schema>> = Parameters<
-  Parameters<Db["transaction"]>[0]
->[0];
+type Transaction<Db extends SQLiteBunDatabase<AnyRelations> | BunSQLDatabase<AnyRelations>> =
+  Parameters<Parameters<Db["transaction"]>[0]>[0];
 
-function drizzleTransactionSql(db: Pick<BunSQLDatabase<Schema>, "execute">) {
+function drizzleTransactionSql(db: Pick<BunSQLDatabase<AnyRelations>, "execute">) {
   return transactionSql(<Rows>(strings: TemplateStringsArray, values: unknown[]) =>
     Promise.resolve(db.execute(drizzleSql(strings, ...values))).then(
       (rows) => rows as unknown as Rows
@@ -29,7 +25,7 @@ function drizzleTransactionSql(db: Pick<BunSQLDatabase<Schema>, "execute">) {
   );
 }
 
-export class DrizzleSqliteSyncAdapter<Db extends BunSQLiteDatabase<Schema>>
+export class DrizzleSqliteSyncAdapter<Db extends SQLiteBunDatabase<AnyRelations>>
   extends SqliteSyncAdapter
   implements TransactionalSyncAdapter<Transaction<Db>, "sync">
 {
@@ -70,7 +66,7 @@ export class DrizzleSqliteSyncAdapter<Db extends BunSQLiteDatabase<Schema>>
   }
 }
 
-export class DrizzlePostgresSyncAdapter<Db extends BunSQLDatabase<Schema>>
+export class DrizzlePostgresSyncAdapter<Db extends BunSQLDatabase<AnyRelations>>
   extends PostgresSyncAdapter
   implements TransactionalSyncAdapter<Transaction<Db>, "async">
 {
@@ -107,30 +103,33 @@ export class DrizzlePostgresSyncAdapter<Db extends BunSQLDatabase<Schema>>
   }
 }
 
-export function drizzleSyncAdapter<Db extends BunSQLiteDatabase<Schema>>(options: {
+export function drizzleSyncAdapter<Db extends SQLiteBunDatabase<AnyRelations>>(options: {
   db: Db & { $client: import("bun:sqlite").Database };
   namespace: string;
 }): DrizzleSqliteSyncAdapter<Db>;
-export function drizzleSyncAdapter<Db extends BunSQLDatabase<Schema>>(options: {
+export function drizzleSyncAdapter<Db extends BunSQLDatabase<AnyRelations>>(options: {
   db: Db & { $client: import("bun").SQL };
   namespace: string;
 }): DrizzlePostgresSyncAdapter<Db>;
 export function drizzleSyncAdapter(options: {
-  db: (BunSQLiteDatabase<Schema> | BunSQLDatabase<Schema>) & {
+  db: (SQLiteBunDatabase<AnyRelations> | BunSQLDatabase<AnyRelations>) & {
     $client: import("bun:sqlite").Database | import("bun").SQL;
   };
   namespace: string;
 }):
-  | DrizzleSqliteSyncAdapter<BunSQLiteDatabase<Schema>>
-  | DrizzlePostgresSyncAdapter<BunSQLDatabase<Schema>> {
+  | DrizzleSqliteSyncAdapter<SQLiteBunDatabase<AnyRelations>>
+  | DrizzlePostgresSyncAdapter<BunSQLDatabase<AnyRelations>> {
   if (!(options.db.$client instanceof Database)) {
     return new DrizzlePostgresSyncAdapter(
-      options as { db: BunSQLDatabase<Schema> & { $client: import("bun").SQL }; namespace: string }
+      options as {
+        db: BunSQLDatabase<AnyRelations> & { $client: import("bun").SQL };
+        namespace: string;
+      }
     );
   }
   return new DrizzleSqliteSyncAdapter(
     options as {
-      db: BunSQLiteDatabase<Schema> & { $client: import("bun:sqlite").Database };
+      db: SQLiteBunDatabase<AnyRelations> & { $client: import("bun:sqlite").Database };
       namespace: string;
     }
   );

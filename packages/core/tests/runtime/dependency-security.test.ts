@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 
 const workspace = resolve(import.meta.dir, "../../../..");
 
-test("Drizzle Kit loads its TypeScript config and generates migrations with the overridden esbuild", async () => {
+test("Drizzle Kit loads its TypeScript config and generates migrations", async () => {
   const appDir = join(workspace, "examples/task-manager");
   const outDir = mkdtempSync(join(tmpdir(), "furin-drizzle-compat-"));
   const configDir = join(appDir, ".furin", `drizzle-review-${crypto.randomUUID()}`);
@@ -30,7 +30,7 @@ test("Drizzle Kit loads its TypeScript config and generates migrations with the 
       new Response(child.stderr).text(),
     ]);
     expect(exitCode, stdout + stderr).toBe(0);
-    const migrations = Array.from(new Bun.Glob("*.sql").scanSync(outDir));
+    const migrations = Array.from(new Bun.Glob("*/migration.sql").scanSync(outDir));
     expect(migrations).toHaveLength(1);
     const [migration] = migrations;
     if (migration === undefined) {
