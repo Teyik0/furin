@@ -1,4 +1,4 @@
-import type { HeadOptions, MetaDescriptor } from "../../client.ts";
+import type { MetaDescriptor } from "../../client.ts";
 
 export function extractTitle(meta?: MetaDescriptor[]): string | undefined {
   if (!meta) {
@@ -9,15 +9,6 @@ export function extractTitle(meta?: MetaDescriptor[]): string | undefined {
       return (entry as { title: string }).title;
     }
   }
-}
-
-export function isMetaTag(entry: MetaDescriptor): boolean {
-  return !(
-    "title" in entry ||
-    "charSet" in entry ||
-    "script:ld+json" in entry ||
-    "tagName" in entry
-  );
 }
 
 export function escapeHtml(str: string): string {
@@ -35,86 +26,6 @@ export function safeJson(value: unknown): string {
     .replace(/>/g, "\\u003e")
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029");
-}
-
-export function renderAttrs(obj: Record<string, string | undefined>): string {
-  const parts: string[] = [];
-  for (const [k, v] of Object.entries(obj)) {
-    if (v !== undefined) {
-      parts.push(`${k}="${escapeHtml(String(v))}"`);
-    }
-  }
-  return parts.join(" ");
-}
-
-// ---------------------------------------------------------------------------
-// Head injection helpers
-// ---------------------------------------------------------------------------
-
-export function buildMetaParts(meta: MetaDescriptor[]): string[] {
-  const parts: string[] = [];
-  const title = extractTitle(meta);
-  if (title) {
-    parts.push(`<title>${escapeHtml(title)}</title>`);
-  }
-  for (const m of meta) {
-    if (isMetaTag(m)) {
-      parts.push(`<meta ${renderAttrs(m as Record<string, string>)} />`);
-    }
-    if ("script:ld+json" in m) {
-      parts.push(`<script type="application/ld+json">${safeJson(m["script:ld+json"])}</script>`);
-    }
-  }
-  return parts;
-}
-
-export function buildLinkParts(links: NonNullable<HeadOptions["links"]>): string[] {
-  return links.map((link) => `<link ${renderAttrs(link)} />`);
-}
-
-export function buildScriptParts(scripts: NonNullable<HeadOptions["scripts"]>): string[] {
-  return scripts.map((script) => {
-    const { children, ...rest } = script;
-    const attrs = renderAttrs(rest as Record<string, string | undefined>);
-    if (children) {
-      return `<script ${attrs}>${children}</script>`;
-    }
-    return `<script ${attrs}></script>`;
-  });
-}
-
-export function buildStyleParts(styles: NonNullable<HeadOptions["styles"]>): string[] {
-  return styles.map((style) => {
-    const typeAttr = style.type ? ` type="${escapeHtml(style.type)}"` : "";
-    return `<style${typeAttr}>${style.children}</style>`;
-  });
-}
-
-/**
- * Builds the string to inject into the <!--ssr-head--> placeholder.
- * Handles title, meta tags, links, inline scripts, and inline styles from
- * the page's `head()` function.  CSS is handled by Bun (imported in user files).
- */
-export function buildHeadInjection(headData: HeadOptions | undefined): string {
-  const parts: string[] = [];
-
-  if (headData?.meta) {
-    parts.push(...buildMetaParts(headData.meta));
-  }
-
-  if (headData?.links) {
-    parts.push(...buildLinkParts(headData.links));
-  }
-
-  if (headData?.scripts) {
-    parts.push(...buildScriptParts(headData.scripts));
-  }
-
-  if (headData?.styles) {
-    parts.push(...buildStyleParts(headData.styles));
-  }
-
-  return parts.length > 0 ? `\n  ${parts.join("\n  ")}\n` : "";
 }
 
 export function generateIndexHtml(): string {
