@@ -21,7 +21,7 @@ bun install
 bun run dev
 ```
 
-Furin supports exactly Elysia `2.0.0-rc.1` while Elysia 2 is a release candidate; a weekly workflow tests upcoming `elysia@next` releases.
+Furin supports Elysia `^2.0.0-rc.1` while Elysia 2 is a release candidate; a weekly workflow tests the latest `elysia@rc` release.
 
 For the shadcn/ui starter:
 

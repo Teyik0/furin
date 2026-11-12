@@ -134,7 +134,7 @@
     },
     "packages/core": {
       "name": "@teyik0/furin",
-      "version": "0.9.0-alpha.0",
+      "version": "0.9.0-alpha.1",
       "bin": {
         "furin": "./src/cli/index.ts",
         "furin-sync-postgres-migrate": "./dist/server/sync/postgres/migrate.js",
