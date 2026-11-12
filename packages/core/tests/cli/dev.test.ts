@@ -45,7 +45,8 @@ test.each([
                 listening: Boolean(app.server),
                 settings: process.env.FURIN_FIXTURE_SETTINGS,
               }));
-              process.kill(process.pid, "SIGINT");
+              // A real SIGINT ends the process abruptly on Windows; emit runs the worker's handler.
+              process.emit("SIGINT");
             },
             stop: async () => {},
           };
@@ -189,7 +190,8 @@ test("web development startup timeout is a failure and drains the partial applic
         stderr: "pipe",
         env: {
           ...process.env,
-          BUN_OPTIONS: `--preload ${resolve(import.meta.dir, "../support/short-startup-budget.ts")}`,
+          // BUN_OPTIONS is split like a command line, which drops Windows backslashes.
+          BUN_OPTIONS: `--preload ${resolve(import.meta.dir, "../support/short-startup-budget.ts").replaceAll("\\", "/")}`,
         },
         timeout: 10_000,
         killSignal: "SIGKILL",
