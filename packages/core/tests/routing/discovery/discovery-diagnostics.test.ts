@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { type RouteStyle, scanRouteManifest } from "../../../src/plugin/route-manifest.ts";
 import { scanPages, scanRootLayout } from "../../../src/server/router/discovery.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 
@@ -25,6 +26,10 @@ function createPagesDir(files: { [relativePath: string]: string }): string {
   return pagesDir.replaceAll("\\", "/");
 }
 
+function rootOf(pagesDir: string, style: RouteStyle) {
+  return scanRootLayout(scanRouteManifest({ pagesDir, prefix: "", style }), pagesDir, style);
+}
+
 beforeAll(() => {
   tempDir = mkdtempSync(join(tmpdir(), "furin-discovery-diagnostics-"));
 });
@@ -33,34 +38,37 @@ afterAll(() => {
   rmSync(tempDir, { force: true, recursive: true });
 });
 
-describe("root.tsx diagnostics", () => {
-  test("names the resolved pages directory when root.tsx is missing", async () => {
+describe("root layout diagnostics", () => {
+  test("names the style's root file and the resolved pages directory when it is missing", async () => {
     const pagesDir = createPagesDir({});
 
-    await expect(scanRootLayout(pagesDir)).rejects.toThrow(
-      `[furin] root.tsx: not found in ${pagesDir}.`
+    await expect(rootOf(pagesDir, "tanstack")).rejects.toThrow(
+      `[furin] __root.tsx: not found in ${pagesDir}.`
+    );
+    await expect(rootOf(pagesDir, "nextjs")).rejects.toThrow(
+      `[furin] layout.tsx: not found in ${pagesDir}.`
     );
   });
 
   test("refers to defineRootRoute() when the route export is invalid", async () => {
-    const pagesDir = createPagesDir({ "root.tsx": "export const route = { notARoute: true };" });
+    const pagesDir = createPagesDir({ "__root.tsx": "export const route = { notARoute: true };" });
 
-    const error = await scanRootLayout(pagesDir).catch((caught: unknown) => caught);
+    const error = await rootOf(pagesDir, "tanstack").catch((caught: unknown) => caught);
 
     expect(String(error)).toContain(
-      "root.tsx must export `route = defineRootRoute().config({ mode }).layout(...)`"
+      "__root.tsx must export `route = defineRootRoute().config({ mode }).layout(...)`"
     );
     expect(String(error)).not.toContain("defineRoute(");
   });
 
   test("refers to defineRootRoute() when the root has no layout", async () => {
     const pagesDir = createPagesDir({
-      "root.tsx": `import { defineRootRoute } from ${furinEntry};
+      "__root.tsx": `import { defineRootRoute } from ${furinEntry};
 export const route = defineRootRoute().config({ mode: "ssr" }).page(() => null);`,
     });
 
-    await expect(scanRootLayout(pagesDir)).rejects.toThrow(
-      "root.tsx: defineRootRoute() must end with .layout(({ children }) => ...)"
+    await expect(rootOf(pagesDir, "tanstack")).rejects.toThrow(
+      "__root.tsx: defineRootRoute() must end with .layout(({ children }) => ...)"
     );
   });
 });
@@ -69,10 +77,10 @@ describe("convention file diagnostics", () => {
   test("reports an error.tsx without a default export", async () => {
     const pagesDir = createPagesDir({
       "error.tsx": "export function ErrorPage() { return null; }",
-      "root.tsx": VALID_ROOT,
+      "layout.tsx": VALID_ROOT,
     });
 
-    const error = await scanRootLayout(pagesDir).catch((caught: unknown) => caught);
+    const error = await rootOf(pagesDir, "nextjs").catch((caught: unknown) => caught);
 
     expect(String(error)).toContain(
       `[furin] ${pagesDir}/error.tsx: error.tsx must default-export a React component (found exports: ErrorPage).`
@@ -84,11 +92,11 @@ describe("convention file diagnostics", () => {
 
   test("reports a not-found.tsx without a default export", async () => {
     const pagesDir = createPagesDir({
+      "layout.tsx": VALID_ROOT,
       "not-found.tsx": "export const NotFound = () => null;",
-      "root.tsx": VALID_ROOT,
     });
 
-    const error = await scanRootLayout(pagesDir).catch((caught: unknown) => caught);
+    const error = await rootOf(pagesDir, "nextjs").catch((caught: unknown) => caught);
 
     expect(String(error)).toContain(
       `[furin] ${pagesDir}/not-found.tsx: not-found.tsx must default-export a React component (found exports: NotFound).`
@@ -104,19 +112,21 @@ describe("nested layout diagnostics", () => {
     __setDevMode(initialDevMode);
   });
 
-  test("reports a _route.tsx that does not export a layout route", async () => {
+  test("reports a route.tsx that does not export a layout route", async () => {
     __setDevMode(false);
     const pagesDir = createPagesDir({
-      "blog/_route.tsx": "export const route = { layout: true };",
+      "__root.tsx": VALID_ROOT,
       "blog/index.tsx": `import { defineRoute } from ${furinEntry};
-export const route = defineRoute("/blog").config({ mode: "ssr" }).page(() => null);`,
-      "root.tsx": VALID_ROOT,
+export const route = defineRoute("/blog/").config({ mode: "ssr" }).page(() => null);`,
+      "blog/route.tsx": "export const route = { layout: true };",
     });
 
-    const error = await scanPages(pagesDir).catch((caught: unknown) => caught);
+    const error = await scanPages({ pagesDir, prefix: "", style: "tanstack" }).catch(
+      (caught: unknown) => caught
+    );
 
     expect(String(error)).toContain(
-      `[furin] ${pagesDir}/blog/_route.tsx: _route.tsx must export \`route = defineRoute(id).config({ mode }).layout(({ children }) => ...)\`, with the file's id.`
+      `[furin] ${pagesDir}/blog/route.tsx: a layout file must export \`route = defineRoute(id).config({ mode }).layout(({ children }) => ...)\`, with the file's id.`
     );
   });
 });

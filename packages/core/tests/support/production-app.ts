@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { type AnyElysia, Elysia } from "elysia";
 import { furin } from "../../src/furin.ts";
+import type { RouteInstanceSpec } from "../../src/plugin/route-manifest.ts";
 import { materializedRouteModuleSource } from "../../src/plugin/route-registry.ts";
 import type { PageCacheAdapter } from "../../src/server/cache/page-cache.ts";
 import { allInstances, type FurinInstance } from "../../src/server/instance.ts";
@@ -76,7 +77,9 @@ async function mount(
   pageCache: PageCacheAdapter | undefined
 ): Promise<MountedApp> {
   __setCompileContext(context);
-  const app = new Elysia().use(await furin({ pageCache, pagesDir, prefix: context.prefix }));
+  const app = new Elysia().use(
+    await furin({ pageCache, pagesDir, prefix: context.prefix, style: "tanstack" })
+  );
   // Furin stores pagesDir with POSIX separators on every platform.
   const instance = allInstances().find(
     (candidate) => candidate.pagesDir === pagesDir.replaceAll("\\", "/")
@@ -94,7 +97,7 @@ async function mount(
  */
 export function mountProductionApp(options: ProductionAppOptions): Promise<MountedApp> {
   const pagesDir = `/furin-virtual/${crypto.randomUUID()}`;
-  const rootPath = `${pagesDir}/root.tsx`;
+  const rootPath = `${pagesDir}/__root.tsx`;
   const modules: { [path: string]: CompiledModule } = { [rootPath]: { route: options.root } };
   const rootConventions: NonNullable<CompileContext["rootConventions"]> = {};
   if (options.rootError) {
@@ -111,8 +114,11 @@ export function mountProductionApp(options: ProductionAppOptions): Promise<Mount
   for (const [index, page] of options.pages.entries()) {
     const directory = page.layout ? `${pagesDir}/${page.layout.segment}` : pagesDir;
     const segmentBoundaries: SegmentBoundaryMetadata[] = [];
+    const layouts: { path: string; pattern: string }[] = [];
     if (page.layout) {
-      modules[`${directory}/_route.tsx`] = { route: page.layout.route };
+      const layoutPath = `${directory}/route.tsx`;
+      modules[layoutPath] = { route: page.layout.route };
+      layouts.push({ path: layoutPath, pattern: `/${page.layout.segment}` });
       const boundary: SegmentBoundaryMetadata = { depth: 1, path: directory };
       if (page.layout.error) {
         boundary.errorPath = `${directory}/error.tsx`;
@@ -129,7 +135,7 @@ export function mountProductionApp(options: ProductionAppOptions): Promise<Mount
     const path = `${directory}/page-${index}.tsx`;
     modules[path] = { route: page.route };
     routes.push({ mode: pageMode(page.route), path, pattern: page.pattern });
-    routeMetadata[path] = { requestKeys: page.requestKeys, segmentBoundaries };
+    routeMetadata[path] = { layouts, requestKeys: page.requestKeys, segmentBoundaries };
     nativeRoutes.use(new Elysia({ prefix: page.pattern }).use(page.route.elysia));
   }
   return mount(
@@ -155,8 +161,11 @@ export function mountProductionApp(options: ProductionAppOptions): Promise<Mount
  * Mounts a pages directory through a real production `furin()`: the compile
  * context a build would emit, with the build's own Elysia route composition.
  */
-export async function mountProductionPages(pagesDir: string, buildId: string): Promise<MountedApp> {
-  const { root, routes } = await scanPages(pagesDir);
+export async function mountProductionPages(
+  instance: RouteInstanceSpec,
+  buildId: string
+): Promise<MountedApp> {
+  const { root, routes } = await scanPages(instance);
   const paths = new Set([root.path, root.errorPath, root.notFoundPath]);
   const routeMetadata: NonNullable<CompileContext["routeMetadata"]> = {};
   for (const route of routes) {
@@ -169,12 +178,14 @@ export async function mountProductionPages(pagesDir: string, buildId: string): P
       paths.add(boundary.notFoundPath);
     }
     routeMetadata[route.path] = {
+      layouts: route.layouts,
       requestKeys: route.requestKeys,
       requestKeysByLoader: route.requestKeysByLoader,
       segmentBoundaries: route.segmentBoundaries.map(
-        ({ depth, errorPath, notFoundPath, path }) => ({
+        ({ depth, errorPath, fromRoute, notFoundPath, path }) => ({
           depth,
           errorPath,
+          ...(fromRoute ? { fromRoute } : {}),
           notFoundPath,
           path,
         })
@@ -191,7 +202,7 @@ export async function mountProductionPages(pagesDir: string, buildId: string): P
   );
   mkdirSync(TMP_ROOT, { recursive: true });
   const routesModule = join(TMP_ROOT, `native-routes-${crypto.randomUUID()}.ts`);
-  writeFileSync(routesModule, await materializedRouteModuleSource({ pagesDir, prefix: "" }));
+  writeFileSync(routesModule, await materializedRouteModuleSource({ ...instance, prefix: "" }));
   const { furinApp } = (await import(routesModule)) as { furinApp: AnyElysia };
   return mount(
     {

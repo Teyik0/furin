@@ -191,6 +191,12 @@ export async function loadCliConfig(
     );
   }
 
+  if (configToValidate.pagesDir !== undefined && configToValidate.style === undefined) {
+    throw new Error(
+      `[furin] Invalid config at ${configPath}: pagesDir needs its file-routing style: add style: "nextjs" or "tanstack".`
+    );
+  }
+
   const resolvedRootDir = resolve(rootDir, configToValidate.rootDir ?? ".");
   return {
     ...configToValidate,

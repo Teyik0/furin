@@ -1,26 +1,92 @@
 # File-Based Routing
 
-Furin maps source files in `src/pages` to URL paths. Directories create URL segments; `index` files collapse to their parent path. Route-group directories such as `(admin)` organize pages without adding a URL segment.
+Furin maps source files to URL paths with one of two conventions, chosen per app with the required `style` option:
 
-| File | URL |
-|---|---|
-| `pages/index.tsx` | `/` |
-| `pages/about.tsx` | `/about` |
-| `pages/blog/index.tsx` | `/blog` |
-| `pages/blog/archive.tsx` | `/blog/archive` |
-| `pages/blog/[slug].tsx` | `/blog/:slug` |
-| `pages/docs/[...path].tsx` | `/docs/*` |
-| `pages/(marketing)/pricing.tsx` | `/pricing` |
-| `pages/(admin)/users/[id].tsx` | `/users/:id` |
+- `style: "nextjs"`: the Next.js App Router layout: `layout.tsx`, `page.tsx`, `[id]`, `error.tsx`. Pages live in `src/app` by default.
+- `style: "tanstack"`: the TanStack Start layout: `__root.tsx`, `index.tsx`, `route.tsx`, `$id`, flat `a.$b.tsx` files. Pages live in `src/routes` by default.
 
-Route modules may use `.tsx`, `.ts`, `.jsx`, or `.js` (`.d.ts` files are ignored). Furin rejects duplicate route patterns, including ambiguous dynamic names such as `[id].tsx` and `[slug].tsx` in the same directory.
+```ts
+// src/server.ts
+import { furin } from "@teyik0/furin";
+import { Elysia } from "elysia";
+
+const app = new Elysia().use(await furin({ style: "tanstack" }));
+```
+
+Both styles produce routes keyed by the same [TanStack Start ids](#route-ids), so route modules do not change when an app moves between styles: its files are renamed. TanStack-only features (pathless `_name` layouts, optional `{-$name}` segments, `name_` and flat `a.$b` nesting) have no Next.js file and need restructuring first. Pass `pagesDir` to read pages from another directory.
+
+## Conventions
+
+| | `nextjs` | `tanstack` | Route id |
+|---|---|---|---|
+| Root document | `layout.tsx` at the top | `__root.tsx` | `defineRootRoute()` |
+| Layout | `about/layout.tsx` | `about/route.tsx` or `about.tsx` next to `about/` | `"/about"` |
+| Page | `about/page.tsx` | `about/index.tsx` | `"/about/"` |
+| Leaf page | `about/page.tsx` | `about.tsx` | `"/about"` |
+| Dynamic segment | `[id]` | `$id` | `"/posts/$id"` |
+| Catch-all | `[...slug]`, `[[...slug]]` | `$` | `"/docs/$"`, read as `params._splat` |
+| Optional segment | — | `{-$lang}` | `"/{-$lang}/about"` |
+| Route group | `(group)` | `(group)` | `"/(group)/…"` |
+| Private, ignored | `_folder/` | `-folder/`, `-file.tsx` | — |
+| Pathless layout | — (use a group) | `_auth.tsx` + `_auth/` | `"/_auth"` |
+| Leave the parent layout | — | `posts_.$id.edit.tsx` | `"/posts_/$id/edit"` |
+| Flat nesting | — | `posts.$id.edit.tsx` | `"/posts/$id/edit"` |
+| Error / 404 boundary | `error.tsx`, `not-found.tsx` | `.error()`, `.notFound()` on the route | — |
+
+Route modules may use `.tsx`, `.ts`, `.jsx`, or `.js` (`.d.ts` files are ignored). Furin rejects two pages that resolve to the same URL, including ambiguous dynamic names such as `$id.tsx` and `$slug.tsx` in the same directory, and names both files.
+
+### Next.js style
+
+```text
+src/app/
+├── layout.tsx                   → root document
+├── page.tsx                     → /
+├── error.tsx · not-found.tsx    → root boundaries
+├── board/
+│   ├── layout.tsx               → layout of /board
+│   └── [boardId]/
+│       ├── page.tsx             → /board/:boardId
+│       └── board-header.tsx     → ignored: not a route file
+├── (marketing)/about/page.tsx   → /about
+├── docs/[...slug]/page.tsx      → /docs/*
+└── _lib/                        → private, ignored
+```
+
+Only `page`, `layout`, `error` and `not-found` files are route files, so components and helpers can sit next to them. A `route.ts` file fails the scan with `route handlers are not supported`: Furin serves no route handlers, so declare API routes on your Elysia app (see [API Routes](/docs/api-routes)). Furin does not support `loading.tsx`, `template.tsx`, parallel routes (`@slot`) or intercepting routes (`(.)`).
+
+### TanStack Start style
+
+```text
+src/routes/
+├── __root.tsx                   → root document
+├── index.tsx                    → /
+├── board/
+│   ├── route.tsx                → layout of /board
+│   └── $boardId/
+│       ├── index.tsx            → /board/:boardId
+│       └── card/$cardId.tsx     → /board/:boardId/card/:cardId
+├── settings.tsx                 → layout of the settings/ directory
+├── settings/profile.tsx         → /settings/profile
+├── posts.$postId.edit.tsx       → /posts/:postId/edit
+├── _auth.tsx                    → pathless layout
+├── _auth/login.tsx              → /login, wrapped by _auth.tsx
+├── posts_.$postId.tsx           → /posts/:postId, not wrapped by posts.tsx
+├── {-$lang}/about.tsx           → /about and /fr/about
+├── docs/$.tsx                   → /docs/*
+├── script[.]js.tsx              → /script.js
+└── -components/                 → private, ignored
+```
+
+Dots in a file name nest like directories: `posts.$postId.edit.tsx` and `posts/$postId/edit.tsx` are the same route. Brackets escape a dot: `script[.]js.tsx` serves `/script.js`. A file with the same name as a directory, such as `settings.tsx` next to `settings/`, or with a flat child such as `posts.tsx` next to `posts.index.tsx`, is that directory's layout. A file prefixed with `_` is a pathless layout: it wraps the routes below it without adding a URL segment. A segment suffixed with `_`, such as `posts_`, keeps its URL segment but leaves the `posts` layout.
+
+`error.tsx` and `not-found.tsx` are ordinary routes in this style (`/error`, `/not-found`). Declare boundaries with [`.error()` and `.notFound()`](/docs/error-handling#tanstack-style-boundaries). A top-level `route.tsx` is rejected: the root document lives in `__root.tsx`.
 
 ## A Page Route
 
 Every page exports a named `route` terminal, built by `defineRoute(id)` with the file's [id](#route-ids):
 
 ```tsx
-// src/pages/about.tsx
+// src/routes/about.tsx (tanstack) or src/app/about/page.tsx (nextjs: "/about/")
 import { defineRoute } from "@teyik0/furin";
 
 export const route = defineRoute("/about")
@@ -40,7 +106,7 @@ defineRoute(id)
   → page() or layout()
 ```
 
-`config()` and the terminal `page()` or `layout()` are required. Each stage only exposes the methods allowed after it, so out-of-order declarations fail to type-check. `staticParams()` is restricted to SSG/ISR and must precede both loader stages; see [Rendering Modes](/docs/rendering#ssg) for nested build-time params. `head()` is page-only: a chain that calls it must end with `page()`.
+`config()` and the terminal `page()` or `layout()` are required. Each stage only exposes the methods allowed after it, so out-of-order declarations fail to type-check. `staticParams()` is restricted to SSG/ISR and must precede both loader stages; see [Rendering Modes](/docs/rendering#ssg) for nested build-time params. `head()` is page-only: a chain that calls it must end with `page()`. In the TanStack style, `.error()` and `.notFound()` may be added at any stage before the terminal.
 
 An SSR page cannot declare its own `requestLoader()`; use its `loader()` for request data. Shared layouts may still use `requestLoader()` so their private fields reach nested pages.
 
@@ -48,32 +114,33 @@ An SSR page cannot declare its own `requestLoader()`; use its `loader()` for req
 
 Furin never rewrites a route file that has content. When you create an empty route file, or one with only whitespace, the development server writes a starter route into it, with its [id](#route-ids) and the params of its dynamic segments.
 
-The development server and `furin build` check every route file for mistakes that TypeScript can't see because they depend on where the file sits in `pages`:
+The development server and `furin build` check every route file for mistakes that TypeScript can't see because they depend on where the file sits in the pages tree:
 
-- `root.tsx` uses `defineRootRoute()`, and other route files use `defineRoute(id)`.
+- The root document uses `defineRootRoute()`, and other route files use `defineRoute(id)`.
 - `defineRoute(id)` passes the file's own [id](#route-ids), and `config()` has no `layout` option.
 - `defineRoute(id)` is followed by `config()` with a `mode`.
-- A page's own `params` schema declares every dynamic segment of its path, including the segments its layouts also declare.
+- A page's own `params` schema declares every path param of its URL, including the params its layouts also declare.
+- A Next.js-style app does not call `.error()` or `.notFound()`: it declares `error.tsx` and `not-found.tsx` files instead.
 
 Each issue names the file, line and column and gives the code to write:
 
 ```text
-[furin] src/pages/blog/[slug].tsx:4:34: defineRoute("/posts/[slug]") does not match this file. Its id is "/blog/[slug]":
-  defineRoute("/blog/[slug]")
+[furin] src/routes/blog/$slug.tsx:4:34: defineRoute("/posts/$slug") does not match this file. Its id is "/blog/$slug":
+  defineRoute("/blog/$slug")
 ```
 
 In development, the first issue is printed in the terminal and shown in the error overlay until you fix it. `furin build` and `furin typegen` fail and list every issue. Files that don't parse are skipped, because the transform already reports syntax errors.
 
 ## Dynamic Parameters
 
-Filename brackets declare a parameter. Declare it in the page's TypeBox `params` schema to validate it at runtime and infer it everywhere else; the [route config checks](#route-config-checks) report a missing one:
+A dynamic segment (`[slug]` in the Next.js style, `$slug` in the TanStack style) declares a parameter. Declare it in the page's TypeBox `params` schema to validate it at runtime and infer it everywhere else; the [route config checks](#route-config-checks) report a missing one:
 
 ```tsx
-// src/pages/blog/[slug].tsx
+// src/routes/blog/$slug.tsx (tanstack) or src/app/blog/[slug]/page.tsx (nextjs: "/blog/$slug/")
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 
-export const route = defineRoute("/blog/[slug]")
+export const route = defineRoute("/blog/$slug")
   .config({
     mode: "ssr",
     params: t.Object({ slug: t.String({ minLength: 1 }) }),
@@ -82,24 +149,46 @@ export const route = defineRoute("/blog/[slug]")
   .page(({ params, post }) => <article>{post.title}</article>);
 ```
 
-Parameter names must match `[A-Za-z_][A-Za-z0-9_]*` (letters, digits and underscores, not starting with a digit). Catch-all routes use Elysia's wildcard key, regardless of the filename label:
+Parameter names must match `[A-Za-z_][A-Za-z0-9_]*` (letters, digits and underscores, not starting with a digit).
+
+### Catch-all segments
+
+A catch-all segment captures the rest of the URL as `params._splat`, as in TanStack Start, whatever the name in the file (`[...slug]` is still read as `_splat`). It must be the last segment of its path:
 
 ```tsx
-// src/pages/docs/[...path].tsx
-export const route = defineRoute("/docs/[...path]")
+// src/routes/docs/$.tsx (tanstack) or src/app/docs/[...slug]/page.tsx (nextjs)
+export const route = defineRoute("/docs/$")
   .config({
     mode: "ssr",
-    params: t.Object({ "*": t.String() }),
+    params: t.Object({ _splat: t.String() }),
   })
-  .page(({ params }) => <p>{params["*"]}</p>);
+  .page(({ params }) => <p>{params._splat}</p>);
 ```
+
+Furin maps both `[...slug]` and `[[...slug]]` to the same `$` catch-all. As in TanStack Start, a catch-all also serves its bare parent path with an empty `params._splat` (`/docs` for `docs/[...slug]/page.tsx`), unless a `page.tsx` in the parent directory claims that path. So `[[...slug]]` behaves as in Next.js, and `[...slug]` matches the bare path too. A `layout.tsx` cannot sit in a catch-all folder: put it in the parent folder.
+
+### Optional segments
+
+In the TanStack style, `{-$lang}` declares a segment that may be absent. `{-$lang}/about.tsx` serves both `/about` and `/fr/about`; declare the param as optional:
+
+```tsx
+// src/routes/{-$lang}/about.tsx
+export const route = defineRoute("/{-$lang}/about")
+  .config({
+    mode: "ssr",
+    params: t.Object({ lang: t.Optional(t.String()) }),
+  })
+  .page(({ params }) => <About lang={params.lang ?? "en"} />);
+```
+
+The route pattern is `/:lang?/about`. `<Link to="/:lang?/about">` drops the segment when `lang` is omitted. Like the server, Furin ranks an optional pattern by its most specific form: `/about` is served by `{-$lang}/about.tsx` before `$id.tsx`. A page whose optional segment collides with another page (`index.tsx` and `{-$lang}/index.tsx` both serve `/`) is rejected as a duplicate pattern.
 
 ## Validated Search Parameters
 
 The `query` schema controls both request validation and navigation types:
 
 ```tsx
-// src/pages/products.tsx
+// src/routes/products.tsx
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 
@@ -131,8 +220,8 @@ A child route inherits the `params` and `query` schemas of every layout above it
 Path params are the exception: a page still declares every dynamic segment of its path in its own `params` schema, including `org`. The page's schema validates the matched URL, and a segment it omits is rejected by the [route config checks](#route-config-checks) and when the route module loads:
 
 ```tsx
-// src/pages/orgs/[org]/projects/[project].tsx
-export const route = defineRoute("/orgs/[org]/projects/[project]")
+// src/routes/orgs/$org/projects/$project.tsx
+export const route = defineRoute("/orgs/$org/projects/$project")
   .config({
     mode: "ssr",
     params: t.Object({ org: t.String(), project: t.String() }),
@@ -142,93 +231,90 @@ export const route = defineRoute("/orgs/[org]/projects/[project]")
 
 By default, changing path parameters remounts the page, while query and hash changes preserve its state. Use `remountDeps` to customize this [page lifecycle](/docs/layouts#page-state-and-navigation).
 
-## Special Files
-
-| File | Role | Creates a URL? |
-|---|---|---|
-| `root.tsx` | Required document layout | No |
-| `_route.tsx` | Layout for its directory | No |
-| `error.tsx` | Nearest segment error boundary | No |
-| `not-found.tsx` | Nearest segment 404 boundary | No |
-| Any other file or directory beginning with `_` | Private co-located module | No |
-
-The route scanner skips every file whose name starts with `_` (except `_route`) and every directory whose name starts with `_`, including all of its contents. Keep page-local helpers and components in files such as `_chart.tsx` or folders such as `_components/`.
-
 ## Layout Hierarchy
 
-Filesystem nesting decides which layouts wrap a page:
+The pages tree decides which layouts wrap a page:
 
 ```text
-pages/root.tsx
-└── pages/dashboard/_route.tsx
-    └── pages/dashboard/settings.tsx
+src/app/layout.tsx                 src/routes/__root.tsx
+└── dashboard/layout.tsx           └── dashboard/route.tsx (or dashboard.tsx)
+    └── dashboard/settings/page.tsx    └── dashboard/settings.tsx
 ```
 
-The settings page's parent is the dashboard layout, whose parent is the root route. Each route's [id](#route-ids) gives TypeScript that chain from the generated route types, so a route never imports its layout. See [Nested Layouts](/docs/layouts).
+In both trees, the settings page's parent is the dashboard layout, whose parent is the root route. Each route's [id](#route-ids) gives TypeScript that chain from the generated route types, so a route never imports its layout. In the TanStack style the chain follows ids rather than directories: a flat `dashboard.settings.tsx` is also wrapped by the dashboard layout, a pathless `_auth.tsx` wraps `_auth/login.tsx`, and `dashboard_.print.tsx` skips the dashboard layout. See [Nested Layouts](/docs/layouts).
 
 **Route groups**
 
-Wrap a directory name in parentheses to create a route group:
+Wrap a directory name in parentheses to create a route group, in either style:
 
 ```text
-src/pages/
-├── root.tsx
-├── (marketing)/
-│   ├── _route.tsx
-│   ├── index.tsx          → /
-│   └── about.tsx          → /about
-└── (admin)/
-    ├── _route.tsx
-    └── users/
-        └── [id].tsx       → /users/:id
+src/app/                           src/routes/
+├── layout.tsx                     ├── __root.tsx
+├── (marketing)/                   ├── (marketing)/
+│   ├── layout.tsx                 │   ├── route.tsx
+│   ├── page.tsx      → /          │   ├── index.tsx      → /
+│   └── about/page.tsx → /about    │   └── about.tsx      → /about
+└── (admin)/                       └── (admin)/
+    ├── layout.tsx                     ├── route.tsx
+    └── users/[id]/page.tsx → /users/:id   └── users/$id.tsx  → /users/:id
 ```
 
-Groups may appear at any directory level and may be nested. For example, `pages/(admin)/(settings)/users/[id].tsx` still resolves to `/users/:id`.
+Groups may appear at any directory level and may be nested. For example, `(admin)/(settings)/users/$id.tsx` still resolves to `/users/:id`.
 
-A group's `_route.tsx` wraps only pages inside that group. Layout loaders, `error.tsx`, and `not-found.tsx` keep their normal filesystem scope. Route ids keep the group, such as `"/(admin)/users/[id]"`. The shared `pages/root.tsx` remains required.
+A group's layout wraps only the routes inside that group. In the Next.js style, `error.tsx` and `not-found.tsx` keep their normal directory scope. Route ids keep the group, such as `"/(admin)/users/$id"`. The root document remains required.
 
-Groups do not create routes or access controls by themselves. Two pages cannot resolve to the same URL: `(admin)/about.tsx` and `(marketing)/about.tsx` conflict, as do `(admin)/users/[id].tsx` and `(marketing)/users/[slug].tsx`. Furin reports both source paths when rejecting a conflict.
+Groups do not create routes or access controls by themselves. Two pages cannot resolve to the same URL: `(admin)/about` and `(marketing)/about` conflict, as do `(admin)/users/$id` and `(marketing)/users/$slug`. Furin reports both source paths when rejecting a conflict.
 
-Links and navigation APIs use the public URL, such as `/users/:id`, while generated types retain the grouped source path for imports. Only directories are groups; a file named `(admin).tsx` creates the literal route `/(admin)`.
+Links and navigation APIs use the public URL, such as `/users/:id`, while generated types retain the grouped source path for imports.
 
 ## Route Ids
 
-`defineRoute(id)` takes the route file's id. The parent layout comes from the pages tree, not from an import, so `config()` has no `layout` option:
+`defineRoute(id)` takes the route file's id, in the TanStack Start format in both styles. The parent layout comes from the pages tree, not from an import, so `config()` has no `layout` option:
 
 ```tsx
-// src/pages/board/[boardId]/card/_route.tsx
+// src/routes/board/$boardId/card/route.tsx (tanstack) or src/app/board/[boardId]/card/layout.tsx (nextjs)
 import { defineRoute } from "@teyik0/furin";
 
-export const route = defineRoute("/board/[boardId]/card/_route")
+export const route = defineRoute("/board/$boardId/card")
   .config({ mode: "ssr" })
   .layout(({ children, params }) => <section data-board={params.boardId}>{children}</section>);
 ```
 
-The id is the file's path under `pages`, without the extension: brackets and route groups stay, a trailing `/index` is dropped, and layouts end in `/_route`. For example, `board/[boardId]/index.tsx` is `"/board/[boardId]"` and `(marketing)/about.tsx` is `"/(marketing)/about"`.
+The id is the route's path in TanStack Start notation, without the extension:
 
-In an app mounted with a `prefix`, the id starts with that prefix. In `furin({ pagesDir: "./src/admin", prefix: "/admin" })`, `users.tsx` is `"/admin/users"`, `index.tsx` is `"/admin"` and `settings/_route.tsx` is `"/admin/settings/_route"`. Ids are therefore unique across the apps of a project, and a pages directory serves one mount: mounting it under two prefixes fails at startup and in `furin build`. Give each mount its own pages directory.
+- dynamic segments are `$name`, catch-alls are `$`, optional segments are `{-$name}`;
+- route groups (`(marketing)`), pathless layouts (`_auth`) and un-nested segments (`posts_`) stay in the id;
+- a layout is keyed by its path: `board/route.tsx`, `board.tsx` and `board/layout.tsx` are all `"/board"`;
+- an index page ends with a slash: `board/$boardId/index.tsx` and `board/[boardId]/page.tsx` are both `"/board/$boardId/"`, and the root index is `"/"`;
+- a leaf page has no trailing slash: `about.tsx` is `"/about"`, and a Next.js catch-all page `docs/[...slug]/page.tsx` is `"/docs/$"`.
+
+Because ids don't depend on the style, `createFileRoute` paths copied from a TanStack Start app work as is, and switching style only renames files.
+
+In an app mounted with a `prefix`, the id starts with that prefix. In `furin({ pagesDir: "./src/admin", prefix: "/admin", style: "tanstack" })`, `users.tsx` is `"/admin/users"`, `index.tsx` is `"/admin/"` and `settings/route.tsx` is `"/admin/settings"`. Ids are therefore unique across the apps of a project, and a pages directory serves one mount: mounting it under two prefixes fails at startup and in `furin build`. Give each mount its own pages directory.
 
 The id is type-only. It looks the file up in the `FileRoutes` interface of [`furin-env.d.ts`](#generated-route-types), which gives the route:
 
 - its parent layout's loader data, `params` and `query`;
-- its path params as strings, so `params` only needs to refine them. A layout doesn't declare a segment it doesn't have;
-- its terminal: a `_route` id only accepts `layout()`, any other id only `page()`.
+- its path params as strings (optional segments as optional strings), so `params` only needs to refine them. A layout doesn't declare a segment it doesn't have;
+- its terminal: a layout id only accepts `layout()`, a page id only `page()`.
 
 A page still declares every dynamic segment in its own `params` schema, because that schema validates the URL at runtime. The [route config checks](#route-config-checks) report a missing segment.
 
 You don't type the id of a new file: create the file empty and the development server writes a starter route with its id. Furin never rewrites a file that has content. After you move or rename a route file, TypeScript reports the stale id once `furin-env.d.ts` is regenerated, and the [route config checks](#route-config-checks) report it with the call to write:
 
 ```text
-[furin] src/pages/posts/index.tsx:3:34: defineRoute("/blog") does not match this file. Its id is "/posts":
-  defineRoute("/posts")
+[furin] src/routes/posts/index.tsx:3:34: defineRoute("/blog/") does not match this file. Its id is "/posts/":
+  defineRoute("/posts/")
 ```
+
+In the TanStack style, a file becomes a layout as soon as another route nests under it: adding `posts/$id.tsx` next to `posts.tsx` turns `posts.tsx` into the `/posts` layout. The id stays `"/posts"`, and TypeScript then asks for `layout()` instead of `page()`.
 
 > [!CAUTION]
 > Do not edit `furin-env.d.ts` and exclude it from formatters such as Biome or Prettier: Furin rewrites it whenever routes change.
 
 ## Generated Route Types
 
-Furin writes `furin-env.d.ts` when the development server starts, on every `furin build`, and on `furin typegen`. It declares one `FileRoutes` entry per route file for [route ids](#route-ids), read from the pages tree without loading the modules, and one `RouteMap` entry per route pattern, such as `"/blog/:slug"`. `RouteMap` types `<Link>`, `useNavigate()`, and `useSearch()`:
+Furin writes `furin-env.d.ts` when the development server starts, on every `furin build`, and on `furin typegen`. It declares one `FileRoutes` entry per route file for [route ids](#route-ids), read from the pages tree without loading the modules, and one `RouteMap` entry per route pattern, such as `"/blog/:slug"`. `RouteMap` gives you typed links: it types `<Link>`, `useNavigate()`, and `useSearch()`:
 
 ```tsx
 import { Link } from "@teyik0/furin/link";
@@ -271,4 +357,4 @@ Commit `furin-env.d.ts` if your team wants route types available before the dev 
 
 The output is sorted by file id and route pattern, so regenerating it with the same routes gives a byte-identical file.
 
-`furin-env.d.ts` is one project-wide declaration. Every mounted `furin()` instance adds its route files to `FileRoutes`, under ids that start with its prefix, such as `furin({ pagesDir: "./src/admin", prefix: "/admin" })`. `RouteMap` only lists the root-mounted instance's patterns: the pages of a prefixed instance work at runtime, but `<Link>` doesn't type their URLs.
+`furin-env.d.ts` is one project-wide declaration. Every mounted `furin()` instance adds its route files to `FileRoutes`, under ids that start with its prefix, such as `furin({ pagesDir: "./src/admin", prefix: "/admin", style: "nextjs" })`. `RouteMap` only lists the root-mounted instance's patterns: the pages of a prefixed instance work at runtime, but `<Link>` doesn't type their URLs.

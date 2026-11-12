@@ -64,6 +64,7 @@ function resolveRoute(
     path,
     pattern,
     routeChain: collectRouteChainFromRoute(page._route),
+    layouts: [],
     segmentBoundaries: [],
   };
 }

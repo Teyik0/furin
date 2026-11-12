@@ -12,6 +12,22 @@ describe("parseArgs", () => {
     expect(result.install).toBe(true);
   });
 
+  it("parses --style and --style=", () => {
+    expect(parseArgs(["--style", "nextjs"]).style).toBe("nextjs");
+    expect(parseArgs(["--style=tanstack"]).style).toBe("tanstack");
+    expect(parseArgs([]).style).toBeNull();
+  });
+
+  it("rejects an unknown or missing --style", () => {
+    expect(() => parseArgs(["--style", "remix"])).toThrow('Invalid style "remix"');
+    expect(() => parseArgs(["--style"])).toThrow("Missing value for --style");
+  });
+
+  it("requires --style with --yes so a scripted run never prompts", () => {
+    expect(() => parseArgs(["my-app", "--yes"])).toThrow("--style <tanstack|nextjs> is required");
+    expect(parseArgs(["my-app", "--yes", "--style", "nextjs"]).style).toBe("nextjs");
+  });
+
   it("parses positional target directory", () => {
     const result = parseArgs(["my-app"]);
     expect(result.targetDir).toBe("my-app");
@@ -63,7 +79,7 @@ describe("parseArgs", () => {
   });
 
   it("parses --yes flag", () => {
-    const result = parseArgs(["my-app", "--yes"]);
+    const result = parseArgs(["my-app", "--yes", "--style", "tanstack"]);
     expect(result.yes).toBe(true);
   });
 

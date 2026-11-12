@@ -36,7 +36,7 @@ test("the dev topology watcher reloads only when the route set changes", async (
   const topologies: string[][] = [];
   const touchedSources: string[][] = [];
   let touchedRouteFiles = 0;
-  const instance = { pagesDir, prefix: "" };
+  const instance = { pagesDir, prefix: "", style: "tanstack" as const };
   const watcher = registerDevRouteTopologyWatcher({
     instance,
     onRouteFilesTouched: (sourcePaths) => {
@@ -94,7 +94,7 @@ test("the dev topology watcher reports changed sources with POSIX separators", a
 
   const touchedSources: string[][] = [];
   const watcher = registerDevRouteTopologyWatcher({
-    instance: { pagesDir, prefix: "" },
+    instance: { pagesDir, prefix: "", style: "tanstack" as const },
     onRouteFilesTouched: (sourcePaths) => {
       touchedSources.push([...sourcePaths]);
     },
@@ -126,14 +126,14 @@ test("a reloaded server mount replaces its watcher without letting stale cleanup
   let staleChanges = 0;
   let currentChanges = 0;
   const previous = registerDevRouteTopologyWatcher({
-    instance: { pagesDir, prefix: "" },
+    instance: { pagesDir, prefix: "", style: "tanstack" as const },
     owner: { app: server, prefix: "/admin" },
     onTopologyChange: () => {
       staleChanges += 1;
     },
   });
   const current = registerDevRouteTopologyWatcher({
-    instance: { pagesDir, prefix: "" },
+    instance: { pagesDir, prefix: "", style: "tanstack" as const },
     owner: { app: server, prefix: "/admin" },
     onTopologyChange: () => {
       currentChanges += 1;
@@ -172,7 +172,7 @@ test("the dev topology watcher observes transitive route dependencies", async ()
 
   let touchedRouteFiles = 0;
   const watcher = registerDevRouteTopologyWatcher({
-    instance: { pagesDir, prefix: "" },
+    instance: { pagesDir, prefix: "", style: "tanstack" as const },
     onRouteFilesTouched: () => {
       touchedRouteFiles += 1;
     },
@@ -216,7 +216,7 @@ test("the dev topology watcher skips installed packages but follows linked proje
 
   const touchedSources: string[][] = [];
   const watcher = registerDevRouteTopologyWatcher({
-    instance: { pagesDir, prefix: "" },
+    instance: { pagesDir, prefix: "", style: "tanstack" as const },
     onRouteFilesTouched: (sourcePaths) => {
       touchedSources.push([...sourcePaths]);
     },
@@ -265,7 +265,7 @@ test("the dev topology watcher reports source transform errors", async () => {
   const sourceErrors: Array<{ error: unknown; sourcePath: string }> = [];
   let touchedRouteFiles = 0;
   const watcher = registerDevRouteTopologyWatcher({
-    instance: { pagesDir, prefix: "" },
+    instance: { pagesDir, prefix: "", style: "tanstack" as const },
     onRouteFilesTouched: () => {
       touchedRouteFiles += 1;
     },
@@ -298,7 +298,7 @@ test("the dev topology watcher can refresh before the filesystem debounce", asyn
 
   let touchedRouteFiles = 0;
   const watcher = registerDevRouteTopologyWatcher({
-    instance: { pagesDir, prefix: "" },
+    instance: { pagesDir, prefix: "", style: "tanstack" as const },
     onRouteFilesTouched: () => {
       touchedRouteFiles += 1;
     },
@@ -328,7 +328,7 @@ test("the dev topology watcher keeps an edit saved while a refresh is running", 
 
   let touchedRouteFiles = 0;
   const watcher = registerDevRouteTopologyWatcher({
-    instance: { pagesDir, prefix: "" },
+    instance: { pagesDir, prefix: "", style: "tanstack" as const },
     onRouteFilesTouched: () => {
       touchedRouteFiles += 1;
       if (touchedRouteFiles === 1) {
@@ -370,7 +370,7 @@ test("the dev topology watcher picks up a save that lands as a refresh ends", as
 
   let touchedRouteFiles = 0;
   const watcher = registerDevRouteTopologyWatcher({
-    instance: { pagesDir, prefix: "" },
+    instance: { pagesDir, prefix: "", style: "tanstack" as const },
     onRouteFilesTouched: () => {
       touchedRouteFiles += 1;
       if (touchedRouteFiles === 1) {
@@ -403,7 +403,7 @@ test("the dev topology watcher migrates state retained across a soft reload", as
   mkdirSync(pagesDir, { recursive: true });
   writeFileSync(join(pagesDir, "index.ts"), "export const route = 1;\n");
   const watcher = registerDevRouteTopologyWatcher({
-    instance: { pagesDir, prefix: "" },
+    instance: { pagesDir, prefix: "", style: "tanstack" as const },
     onTopologyChange: () => undefined,
   });
 
@@ -443,7 +443,7 @@ test.serial(
     let attempts = 0;
     const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
     const watcher = registerDevRouteTopologyWatcher({
-      instance: { pagesDir, prefix: "" },
+      instance: { pagesDir, prefix: "", style: "tanstack" as const },
       onRouteFilesTouched: () => {
         attempts += 1;
         if (attempts === 1) {

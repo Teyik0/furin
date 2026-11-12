@@ -1,6 +1,5 @@
 import { dirname, join, resolve } from "node:path";
 import { detectLoaderFromPath } from "../server/lang-detect.ts";
-import { isRouteGroup } from "../server/router/patterns.ts";
 import {
   loadRouteModule,
   type RouteModuleInfo,
@@ -15,7 +14,6 @@ import {
   type RouteInstanceSpec,
   type RouteTreeNode,
   routeModuleSpecifier,
-  segmentPath,
 } from "./route-tree.ts";
 
 const ROUTES_NAMESPACE_PREFIX = "furin-routes";
@@ -63,18 +61,11 @@ function emitRouteNode(
   includeRootCatchAll: boolean
 ): string {
   const childIndentation = `${indentation}  `;
-  const prefix = node.name && !isRouteGroup(node.name) ? `/${segmentPath(node.name)}` : "";
-  const head = `new Elysia({ prefix: ${JSON.stringify(prefix)} })`;
+  const head = `new Elysia({ prefix: ${JSON.stringify(node.prefix)} })`;
   const content: string[] = [];
-  if (node.indexRoute) {
+  for (const route of node.pages.filter((file) => includeRootCatchAll || file.path !== "/*")) {
     content.push(
-      `${childIndentation}.use(new Elysia({ prefix: "" }).use(${node.indexRoute.id}.elysia))`
-    );
-  }
-  for (const route of node.fileRoutes.filter((file) => includeRootCatchAll || file.path !== "/*")) {
-    const segment = route.path.slice(route.path.lastIndexOf("/") + 1);
-    content.push(
-      `${childIndentation}.use(new Elysia({ prefix: ${JSON.stringify(`/${segment}`)} }).use(${route.id}.elysia))`
+      `${childIndentation}.use(new Elysia({ prefix: ${JSON.stringify(route.prefix)} }).use(${route.id}.elysia))`
     );
   }
   for (const child of node.children) {
@@ -112,15 +103,10 @@ async function retainComposableRoutes(node: RouteTreeNode): Promise<void> {
   if (node.layout && !(await isComposable(node.layout))) {
     node.layout = undefined;
   }
-  if (node.indexRoute && !(await isComposable(node.indexRoute))) {
-    node.indexRoute = undefined;
-  }
   const composableRoutes = (
-    await Promise.all(
-      node.fileRoutes.map(async (route) => ({ keep: await isComposable(route), route }))
-    )
+    await Promise.all(node.pages.map(async (route) => ({ keep: await isComposable(route), route })))
   ).flatMap(({ keep, route }) => (keep ? [route] : []));
-  node.fileRoutes = composableRoutes;
+  node.pages = composableRoutes;
   await Promise.all(node.children.map((child) => retainComposableRoutes(child)));
 }
 
@@ -139,7 +125,7 @@ async function generateServerInstance(
       : instance.routeRegistry.composable;
   }
   const instanceId = Bun.hash(instanceKey(instance)).toString(16);
-  const tree = buildRouteTree(instance.pagesDir, instanceId);
+  const tree = buildRouteTree(instance, instanceId);
   await retainComposableRoutes(tree);
   const imports = collectRouteFiles(tree)
     .sort((left, right) => left.sourcePath.localeCompare(right.sourcePath))
@@ -207,7 +193,7 @@ async function clientRoutesSource(instance: RegistryInstance): Promise<string> {
   if (instance.routeRegistry) {
     return instance.routeRegistry.client;
   }
-  const tree = buildRouteTree(instance.pagesDir, Bun.hash(instanceKey(instance)).toString(16));
+  const tree = buildRouteTree(instance, Bun.hash(instanceKey(instance)).toString(16));
   const routes = collectRouteFiles(tree)
     .filter((route) => route.path !== "")
     .sort((left, right) => left.path.localeCompare(right.path));

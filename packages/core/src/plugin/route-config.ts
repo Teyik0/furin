@@ -1,12 +1,17 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join, relative, resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import type { CallExpression, Node, ObjectExpression, ObjectProperty, Program } from "yuku-parser";
 import type { DevDiagnosticStore } from "../server/dev/diagnostics.ts";
 import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts";
-import { parseDynamicRouteSegment } from "../server/router/patterns.ts";
 import { parseSource } from "../shared/parser.ts";
 import { collectDefineRouteBindings, exportedRouteChain } from "./route-chains.ts";
-import { fileRouteId, type RouteInstanceSpec, routeSourcePaths } from "./route-tree.ts";
+import {
+  type ManifestRoute,
+  type RouteInstanceSpec,
+  type RouteManifest,
+  type RouteParam,
+  scanRouteManifest,
+} from "./route-manifest.ts";
 
 /**
  * Static route-config checks shared by the dev server and `furin build`.
@@ -21,9 +26,7 @@ export interface RouteConfigIssue {
   message: string;
 }
 
-const EXTENSION_RE = /\.(?:[cm]?[jt]sx?)$/;
 const IDENTIFIER_RE = /^[A-Za-z_$][\w$]*$/;
-const PATH_SEPARATOR_RE = /[\\/]/;
 
 interface Import {
   imported: string;
@@ -44,10 +47,6 @@ interface ParsedRoute {
   imports: Map<string, Import>;
   route: RouteExport;
   source: string;
-}
-
-function withoutExtension(path: string): string {
-  return path.replace(EXTENSION_RE, "");
 }
 
 function propertyName(key: Node | null): string | undefined {
@@ -149,11 +148,11 @@ function issueAt(file: string, parsed: ParsedRoute, node: Node, message: string)
  */
 function checkKey(
   file: string,
-  instance: RouteInstanceSpec,
+  route: ManifestRoute,
   parsed: ParsedRoute
 ): RouteConfigIssue | undefined {
   const { config, head, id } = parsed.route;
-  const expected = fileRouteId(instance, file);
+  const expected = route.id;
   if (!id) {
     return issueAt(
       file,
@@ -200,11 +199,11 @@ function suggestedMode(route: RouteExport, isRoot: boolean): string {
 
 function checkFactory(
   file: string,
-  instance: RouteInstanceSpec,
+  manifestRoute: ManifestRoute | undefined,
   parsed: ParsedRoute
 ): RouteConfigIssue | undefined {
   const { route } = parsed;
-  const isRoot = withoutExtension(file) === join(instance.pagesDir, "root");
+  const isRoot = manifestRoute === undefined;
   if (isRoot === route.isRootFactory) {
     return;
   }
@@ -214,14 +213,14 @@ function checkFactory(
       file,
       parsed,
       route.head,
-      `root.tsx must use defineRootRoute(), which has no parent layout:\n  import { defineRootRoute } from "@teyik0/furin";\n  export const route = defineRootRoute().config({ mode: "${mode}" })`
+      `The root layout must use defineRootRoute(), which has no parent layout:\n  import { defineRootRoute } from "@teyik0/furin";\n  export const route = defineRootRoute().config({ mode: "${mode}" })`
     );
   }
   return issueAt(
     file,
     parsed,
     route.head,
-    `defineRootRoute() is reserved for root.tsx. Use defineRoute with this file's id:\n  import { defineRoute } from "@teyik0/furin";\n  export const route = defineRoute("${fileRouteId(instance, file)}").config({ mode: "${mode}" })`
+    `defineRootRoute() is reserved for the root layout. Use defineRoute with this file's id:\n  import { defineRoute } from "@teyik0/furin";\n  export const route = defineRoute("${manifestRoute.id}").config({ mode: "${mode}" })`
   );
 }
 
@@ -269,24 +268,15 @@ function declaredParams(route: RouteExport): Set<string> | true {
   return new Set(keys.filter((key) => key !== undefined));
 }
 
-/** Dynamic segments of the file's path missing from `declared`. */
-function undeclaredSegments(
-  file: string,
-  pagesDir: string,
-  declared: Set<string> | true
-): { key: string; segment: string }[] {
-  return withoutExtension(relative(pagesDir, file))
-    .split(PATH_SEPARATOR_RE)
-    .flatMap((segment) => {
-      const dynamic = parseDynamicRouteSegment(segment, file);
-      return dynamic ? [{ key: dynamic.catchAll ? "*" : dynamic.name, segment }] : [];
-    })
-    .filter(({ key }) => declared !== true && !declared.has(key));
+/** Path params of the route missing from `declared`. */
+function undeclaredParams(route: ManifestRoute, declared: Set<string> | true): RouteParam[] {
+  return route.params.filter(({ name }) => declared !== true && !declared.has(name));
 }
 
-function paramsSchema(segments: { key: string }[]): string {
-  const fields = segments.map(
-    ({ key }) => `${IDENTIFIER_RE.test(key) ? key : JSON.stringify(key)}: t.String()`
+function paramsSchema(params: RouteParam[]): string {
+  const fields = params.map(
+    ({ name, optional }) =>
+      `${IDENTIFIER_RE.test(name) ? name : JSON.stringify(name)}: ${optional ? "t.Optional(t.String())" : "t.String()"}`
   );
   return `params: t.Object({ ${fields.join(", ")} })`;
 }
@@ -294,10 +284,10 @@ function paramsSchema(segments: { key: string }[]): string {
 /** Static twin of `validateRouteParams()`, which rejects the page once its module loads. */
 function checkParams(
   file: string,
-  pagesDir: string,
+  route: ManifestRoute,
   parsed: ParsedRoute
 ): RouteConfigIssue | undefined {
-  const missing = undeclaredSegments(file, pagesDir, declaredParams(parsed.route));
+  const missing = undeclaredParams(route, declaredParams(parsed.route));
   if (missing.length === 0) {
     return;
   }
@@ -308,43 +298,68 @@ function checkParams(
     file,
     parsed,
     parsed.route.config ?? parsed.route.head,
-    `The URL segment${plural ? "s" : ""} ${missing.map(({ segment }) => segment).join(", ")} ${plural ? "are" : "is"} missing from this page's params schema. Each page declares every dynamic segment of its path, including those of its layouts. Add to config():${tImport}\n  ${paramsSchema(missing)}`
+    `The path param${plural ? "s" : ""} ${missing.map(({ name }) => name).join(", ")} ${plural ? "are" : "is"} missing from this page's params schema. Each page declares every dynamic segment of its path, including those of its layouts. Add to config():${tImport}\n  ${paramsSchema(missing)}`
+  );
+}
+
+/** Next.js-style apps declare boundaries as files, TanStack-style ones on the route. */
+function checkBoundaryMethods(
+  file: string,
+  instance: RouteInstanceSpec,
+  parsed: ParsedRoute
+): RouteConfigIssue | undefined {
+  const method = ["error", "notFound"].find((name) => parsed.route.methods.has(name));
+  if (instance.style !== "nextjs" || method === undefined) {
+    return;
+  }
+  const convention = method === "error" ? "an error.tsx" : "a not-found.tsx";
+  return issueAt(
+    file,
+    parsed,
+    parsed.route.head,
+    `.${method}() is the TanStack style. In the nextjs style, default-export the component from ${convention} next to this route.`
   );
 }
 
 function checkRoute(
   file: string,
   instance: RouteInstanceSpec,
+  route: ManifestRoute | undefined,
   parsed: ParsedRoute
 ): (RouteConfigIssue | undefined)[] {
-  const factory = checkFactory(file, instance, parsed);
+  const factory = checkFactory(file, route, parsed);
   if (factory) {
     return [factory];
   }
-  const isLayout = basename(withoutExtension(file)) === "_route";
   return [
     checkConfig(file, parsed),
-    parsed.route.isRootFactory ? undefined : checkKey(file, instance, parsed),
+    route === undefined ? undefined : checkKey(file, route, parsed),
     checkMode(file, parsed),
-    parsed.route.isRootFactory || isLayout
-      ? undefined
-      : checkParams(file, instance.pagesDir, parsed),
+    route === undefined || route.kind === "layout" ? undefined : checkParams(file, route, parsed),
+    checkBoundaryMethods(file, instance, parsed),
   ];
 }
 
-function routeFiles(pagesDir: string): string[] {
-  const root = join(pagesDir, "root.tsx");
-  return [
-    ...(existsSync(root) ? [root] : []),
-    ...routeSourcePaths({ pagesDir, prefix: "" }),
-  ].toSorted((left, right) => left.localeCompare(right));
+/** The root layout (`undefined` route) and every route file, sorted. */
+function routeFiles(manifest: RouteManifest): [string, ManifestRoute | undefined][] {
+  // Issues and scaffolded files report native paths, as the editor opens them.
+  const files: [string, ManifestRoute | undefined][] = manifest.routes.map((route) => [
+    resolve(route.sourcePath),
+    route,
+  ]);
+  if (existsSync(manifest.rootPath)) {
+    files.push([resolve(manifest.rootPath), undefined]);
+  }
+  return files.toSorted(([left], [right]) => left.localeCompare(right));
 }
 
-export function validateRouteConfig({ pagesDir, prefix }: RouteInstanceSpec): RouteConfigIssue[] {
-  const instance = { pagesDir: resolve(pagesDir), prefix };
-  return routeFiles(instance.pagesDir).flatMap((file) => {
+export function validateRouteConfig(spec: RouteInstanceSpec): RouteConfigIssue[] {
+  const instance = { ...spec, pagesDir: resolve(spec.pagesDir) };
+  return routeFiles(scanRouteManifest(instance)).flatMap(([file, route]) => {
     const parsed = parseRoute(file);
-    return parsed ? checkRoute(file, instance, parsed).filter((issue) => issue !== undefined) : [];
+    return parsed
+      ? checkRoute(file, instance, route, parsed).filter((issue) => issue !== undefined)
+      : [];
   });
 }
 
@@ -420,15 +435,15 @@ export const route = defineRootRoute()
   ));
 `;
 
-function scaffoldTemplate(file: string, instance: RouteInstanceSpec): string {
-  if (withoutExtension(file) === join(instance.pagesDir, "root")) {
+function scaffoldTemplate(route: ManifestRoute | undefined): string {
+  if (route === undefined) {
     return ROOT_TEMPLATE;
   }
-  const isLayout = basename(withoutExtension(file)) === "_route";
-  const params = undeclaredSegments(file, instance.pagesDir, new Set());
+  const isLayout = route.kind === "layout";
+  const { params } = route;
   return `import { defineRoute } from "@teyik0/furin";${params.length > 0 ? '\nimport { t } from "elysia";' : ""}
 
-export const route = defineRoute("${fileRouteId(instance, file)}")
+export const route = defineRoute("${route.id}")
   .config({ mode: "${isLayout ? "ssr" : "ssg"}"${params.length > 0 ? `, ${paramsSchema(params)}` : ""} })
   .${isLayout ? "layout(({ children }) => children)" : "page(() => null)"};
 `;
@@ -438,14 +453,14 @@ export const route = defineRoute("${fileRouteId(instance, file)}")
  * Writes a starter route, keyed by the file's id, into route files that are
  * empty or whitespace-only, the only case where Furin writes to a source file.
  */
-export function scaffoldEmptyRoutes({ pagesDir, prefix }: RouteInstanceSpec): string[] {
-  const instance = { pagesDir: resolve(pagesDir), prefix };
+export function scaffoldEmptyRoutes(spec: RouteInstanceSpec): string[] {
+  const instance = { ...spec, pagesDir: resolve(spec.pagesDir) };
   const written: string[] = [];
-  for (const file of routeFiles(instance.pagesDir).filter(
-    (path) => readSource(path)?.trim() === ""
-  )) {
-    writeFileSync(file, scaffoldTemplate(file, instance));
-    written.push(file);
+  for (const [file, route] of routeFiles(scanRouteManifest(instance))) {
+    if (readSource(file)?.trim() === "") {
+      writeFileSync(file, scaffoldTemplate(route));
+      written.push(file);
+    }
   }
   return written;
 }

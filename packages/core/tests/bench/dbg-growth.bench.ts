@@ -16,16 +16,16 @@ process.on("exit", () => rmSync(benchRoot, { force: true, recursive: true }));
 const pagesDir = join(benchRoot, "pages");
 mkdirSync(join(pagesDir, "posts"), { recursive: true });
 writeFileSync(
-  join(pagesDir, "root.tsx"),
+  join(pagesDir, "__root.tsx"),
   `import { defineRootRoute } from "@teyik0/furin";
 export const route = defineRootRoute().config({ mode: "ssr" }).layout(({ children }) => children);
 `
 );
 writeFileSync(
-  join(pagesDir, "posts/[id].tsx"),
+  join(pagesDir, "posts/$id.tsx"),
   `import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
-export const route = defineRoute("/posts/[id]")
+export const route = defineRoute("/posts/$id")
   .config({ mode: "ssr", params: t.Object({ id: t.String() }) })
   .loader(({ params }) => ({ id: params.id }))
   .page(({ id }) => id);
@@ -38,7 +38,7 @@ export const route = defineRoute("/").config({ mode: "ssr" }).page(() => "home")
 `
 );
 
-const options = { pagesDir } as FurinOptions;
+const options: FurinOptions = { pagesDir, style: "tanstack" };
 const app = new Elysia().use(await furin(options));
 
 const TOTAL = 20_000;

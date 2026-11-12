@@ -17,7 +17,7 @@ Modes can mix along a layout chain. SSR loaders run per request with the Elysia 
 ## SSR
 
 ```tsx
-// src/pages/dashboard/index.tsx
+// src/routes/dashboard.tsx
 import { defineRoute } from "@teyik0/furin";
 
 export const route = defineRoute("/dashboard")
@@ -31,7 +31,7 @@ SSR returns `Cache-Control: no-store, no-cache, must-revalidate`. Its `loader()`
 ## SSG
 
 ```tsx
-// src/pages/features.tsx
+// src/routes/features.tsx
 import { defineRoute } from "@teyik0/furin";
 
 export const route = defineRoute("/features")
@@ -45,11 +45,11 @@ The Bun server stores SSG HTML and route data in the build snapshot or warms the
 Dynamic SSG routes enumerate their buildable paths with `staticParams()`:
 
 ```tsx
-// src/pages/blog/[slug].tsx
+// src/routes/blog/$slug.tsx
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 
-export const route = defineRoute("/blog/[slug]")
+export const route = defineRoute("/blog/$slug")
   .config({
     mode: "ssg",
     params: t.Object({ slug: t.String() }),
@@ -64,8 +64,8 @@ A pure static export requires `staticParams()` for dynamic SSG routes. The Bun s
 `staticParams()` is a build-time builder stage, so it must appear directly after `config()` and before `requestLoader()` or `loader()`. On nested routes it receives the params already produced by ancestor `staticParams()` stages plus the parent loader fields as typed promises. Parent loaders stay lazy: Furin runs them only when the callback reads one of those fields, and repeated field reads share one execution for the current branch.
 
 ```tsx
-// src/pages/shop/[category]/[product].tsx
-export const route = defineRoute("/shop/[category]/[product]")
+// src/routes/shop/$category/$product.tsx
+export const route = defineRoute("/shop/$category/$product")
   .config({
     mode: "ssg",
     params: t.Object({ category: t.String(), product: t.String() }),
@@ -86,11 +86,11 @@ export const route = defineRoute("/shop/[category]/[product]")
 ## ISR
 
 ```tsx
-// src/pages/products/[id].tsx
+// src/routes/products/$id.tsx
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 
-export const route = defineRoute("/products/[id]")
+export const route = defineRoute("/products/$id")
   .config({
     mode: "isr",
     params: t.Object({ id: t.String() }),
@@ -109,7 +109,7 @@ The first request renders and stores a healthy response. After 60 seconds, the n
 SSG and ISR can cache public data while rendering a request-private section on each request:
 
 ```tsx
-// src/pages/catalog.tsx
+// src/routes/catalog.tsx
 import { Await, defineRoute } from "@teyik0/furin";
 import { Suspense } from "react";
 
@@ -160,7 +160,7 @@ export function Counter() {
 The loader builds the server tree once and returns it as loader data. `children` is a slot: the server tree marks where it goes, and the layout fills it with live React elements when it renders `<CompositeComponent>`.
 
 ```tsx
-// src/pages/root.tsx
+// src/routes/__root.tsx
 import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
 import { Link } from "@teyik0/furin/link";
 import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";
@@ -218,11 +218,11 @@ export const app = new Elysia()
       "base-uri 'self'",
     ].join("; "),
   }))
-  .use(await furin({ pagesDir: "./src/pages" }));
+  .use(await furin({ style: "tanstack" }));
 ```
 
 ```tsx
-// src/pages/account.tsx
+// src/routes/account.tsx
 export const route = defineRoute("/account")
   .config({ mode: "ssr" })
   .head(() => ({ scripts: [{ children: "window.accountReady = true" }] }))

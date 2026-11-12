@@ -5,6 +5,8 @@ import type { HeadOptions, RenderingMode } from "./client.ts";
 import { applySchemaDefaults, coerceRouteInput } from "./server/router/schemas.ts";
 import type { FurinSchema, FurinUnwrap, FurinUnwrapInput } from "./shared/elysia-contract.ts";
 import { getSchemaValidator, isTypeBoxObjectSchema } from "./shared/elysia-contract.ts";
+import type { ErrorComponent } from "./shared/error.ts";
+import type { NotFoundComponent } from "./shared/not-found.ts";
 import type { RemountDependency, RemountDeps } from "./shared/page-key.ts";
 
 type NoFields = NonNullable<unknown>;
@@ -344,22 +346,45 @@ function routeHandler(route: FurinRouteKey) {
   };
 }
 
+interface ElysiaPathParams {
+  [name: string]: string | undefined;
+}
+
+/**
+ * Elysia names a catch-all `*`; routes read it as `_splat`, as in TanStack
+ * Start. A transform hook runs before validation, so params schemas see it.
+ */
+function renameSplatParam(context: { params: ElysiaPathParams | undefined }): void {
+  if (context.params !== undefined && "*" in context.params) {
+    const { "*": splat, ...params } = context.params;
+    context.params = { ...params, _splat: splat };
+  }
+}
+
 function registerPlain(route: FurinRouteKey) {
-  return new Elysia().get("", routeHandler(route));
+  return new Elysia().get("", { transform: renameSplatParam }, routeHandler(route));
 }
 
 function registerSchema<
   ParamsSchema extends FurinSchema,
   QuerySchema extends FurinSchema | undefined,
 >(route: FurinRouteKey, paramsSchema: ParamsSchema, querySchema: QuerySchema) {
-  return new Elysia().get("", { params: paramsSchema, query: querySchema }, routeHandler(route));
+  return new Elysia().get(
+    "",
+    { params: paramsSchema, query: querySchema, transform: renameSplatParam },
+    routeHandler(route)
+  );
 }
 
 function registerQuery<QuerySchema extends FurinSchema>(
   route: FurinRouteKey,
   querySchema: QuerySchema
 ) {
-  return new Elysia().get("", { query: querySchema }, routeHandler(route));
+  return new Elysia().get(
+    "",
+    { query: querySchema, transform: renameSplatParam },
+    routeHandler(route)
+  );
 }
 
 function schemaValues(value: unknown): SchemaValues {
@@ -622,14 +647,16 @@ type KindCheck<
   ? ValidComponent
   : FurinTypeError<
       Terminal extends "page"
-        ? "this route file is a layout (_route): finish it with layout()"
-        : "this route file is a page: finish it with page(); layouts live in _route files"
+        ? "this route file is a layout: finish it with layout()"
+        : "this route file is a page: finish it with page()"
     >;
 
 interface ChainRuntime {
+  errorComponent: ErrorComponent | undefined;
   head: unknown;
   loader: unknown;
   metadata: RouteMetadata;
+  notFoundComponent: NotFoundComponent | undefined;
   paramsSchema: FurinSchema | undefined;
   querySchema: FurinSchema | undefined;
   requestLoader: unknown;
@@ -638,19 +665,33 @@ interface ChainRuntime {
 // Named stages keep compile errors readable, e.g. "Property 'staticParams'
 // does not exist on type 'SsrRouteStage<...>'".
 
+/** `.error()` / `.notFound()` keep the stage they are called on. */
+type BoundaryMethods = "error" | "notFound";
+
+interface BoundaryStage<Stage> {
+  error: (component: ErrorComponent) => Stage;
+  notFound: (component: NotFoundComponent) => Stage;
+}
+
 /** SSR routes render per request: `staticParams()` needs mode `ssg` or `isr`. */
-interface SsrRouteStage<State extends ChainState> extends Omit<RouteChain<State>, "staticParams"> {}
+interface SsrRouteStage<State extends ChainState>
+  extends Omit<RouteChain<State>, "staticParams" | BoundaryMethods>,
+    BoundaryStage<SsrRouteStage<State>> {}
 
 /** `staticParams()` must come first and only once, before `requestLoader()`. */
 interface StaticParamsClosedStage<State extends ChainState>
-  extends Omit<RouteChain<State>, "staticParams"> {}
+  extends Omit<RouteChain<State>, "staticParams" | BoundaryMethods>,
+    BoundaryStage<StaticParamsClosedStage<State>> {}
 
 /** After `loader()`: attach `head()` or finish with `page()`/`layout()`. */
 interface LoadedRouteStage<State extends ChainState>
-  extends Pick<RouteChain<State>, "head" | "layout" | "page"> {}
+  extends Pick<RouteChain<State>, "head" | "layout" | "page">,
+    BoundaryStage<LoadedRouteStage<State>> {}
 
 /** `head()` metadata is page-only: a headed route can only finish with `page()`. */
-interface HeadedPageStage<State extends ChainState> extends Pick<RouteChain<State>, "page"> {}
+interface HeadedPageStage<State extends ChainState>
+  extends Pick<RouteChain<State>, "page">,
+    BoundaryStage<HeadedPageStage<State>> {}
 
 type ConfiguredStage<State extends ChainState> = State["mode"] extends infer Mode
   ? Mode extends "ssr"
@@ -669,6 +710,8 @@ type ElysiaOfSchemas<Schemas> = Schemas extends {
 
 type RouteTerminal<State extends ChainState> = {
   __type: "FURIN_ROUTE";
+  errorComponent: ErrorComponent | undefined;
+  notFoundComponent: NotFoundComponent | undefined;
   head:
     | Head<State["params"], State["query"], State["parentData"], State["data"], State["mode"]>
     | undefined;
@@ -745,9 +788,20 @@ function schemaFields(paramsSchema: FurinSchema | undefined, querySchema: FurinS
 }
 
 function terminalFields(runtime: ChainRuntime) {
-  const { head, loader, metadata, paramsSchema, querySchema, requestLoader } = runtime;
+  const {
+    errorComponent,
+    head,
+    loader,
+    metadata,
+    notFoundComponent,
+    paramsSchema,
+    querySchema,
+    requestLoader,
+  } = runtime;
   return {
     __type: "FURIN_ROUTE" as const,
+    errorComponent,
+    notFoundComponent,
     mode: metadata.mode,
     revalidate: metadata.revalidate,
     remountDeps: metadata.remountDeps,
@@ -765,6 +819,19 @@ class RouteChain<State extends ChainState> {
 
   constructor(runtime: ChainRuntime) {
     this.runtime = runtime;
+  }
+
+  /**
+   * TanStack style: renders in place of this route (in its parent's outlet)
+   * when it or a route below it fails, as `errorComponent` does.
+   */
+  error(component: ErrorComponent): this {
+    return new RouteChain<State>({ ...this.runtime, errorComponent: component }) as this;
+  }
+
+  /** TanStack style: renders when this route or one below it calls `notFound()`. */
+  notFound(component: NotFoundComponent): this {
+    return new RouteChain<State>({ ...this.runtime, notFoundComponent: component }) as this;
   }
 
   requestLoader<Data extends RequestLoaderData>(
@@ -840,9 +907,11 @@ interface ConfigOptions {
 function configure(options: RouteMetadata & ConfigOptions): unknown {
   assertStaticParamsOutsideConfig(options);
   return new RouteChain({
+    errorComponent: undefined,
     head: undefined,
     loader: undefined,
     metadata: options,
+    notFoundComponent: undefined,
     paramsSchema: options.params,
     querySchema: options.query,
     requestLoader: undefined,
@@ -850,7 +919,7 @@ function configure(options: RouteMetadata & ConfigOptions): unknown {
 }
 
 /**
- * Stage for `pages/root.tsx` — the document shell has no layout above it, so
+ * Stage for the root layout — the document shell has no layout above it, so
  * `config()` requires only `mode` (the TanStack `createRootRoute` analogue).
  */
 class UnconfiguredRootRoute {
@@ -906,10 +975,10 @@ class UnconfiguredRootRoute {
 }
 
 /**
- * First stage of the builder, `defineRoute("/board/[boardId]")`: `config()` is
+ * First stage of the builder, `defineRoute("/board/$boardId/")`: `config()` is
  * MANDATORY and declares at least `mode`. The generated `FileRoutes` entry
  * supplies the parent layout, the path params and the terminal (`layout()` for
- * `_route` files, `page()` otherwise), so `config()` takes no `layout` and
+ * layout files, `page()` otherwise), so `config()` takes no `layout` and
  * `params` only refines the path params.
  */
 class UnconfiguredFileRoute<Entry> {
@@ -967,9 +1036,9 @@ class UnconfiguredFileRoute<Entry> {
 }
 
 /**
- * `defineRoute(id)` keys the route by its file id (the app's prefix, then the
- * path under `pagesDir` with brackets and groups, `/index` dropped, layouts
- * ending in `/_route`) and reads its parent from the generated `FileRoutes`.
+ * `defineRoute(id)` keys the route by its TanStack Start id (the app's
+ * prefix, then `/board/$boardId/` for an index, `/board` for a layout, in
+ * both routing styles) and reads its parent from the generated `FileRoutes`.
  * The id is type-only: the runtime chain comes from the pages tree.
  */
 export function defineRoute<Id extends FileRouteId>(

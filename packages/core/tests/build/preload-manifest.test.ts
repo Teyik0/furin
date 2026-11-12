@@ -52,13 +52,13 @@ function createPreloadApp(): TmpApp {
   );
   writeAppFile(
     app.path,
-    "src/pages/blog/[slug].tsx",
+    "src/pages/blog/$slug.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { t } from "elysia";',
       'import { a } from "../../lib/a";',
       'import { deep } from "../../lib/deep";',
-      "export const route = defineRoute(\"/blog/[slug]\")",
+      "export const route = defineRoute(\"/blog/$slug\")",
       '  .config({ mode: "ssg", params: t.Object({ slug: t.String() }) })',
       "  .page(() => <article>{a()}</article>);",
     ].join("\n")
@@ -79,7 +79,7 @@ function createPreloadApp(): TmpApp {
 
 async function buildPreloadApp(publicPath: string, preloadRouteChunks: boolean) {
   const app = createPreloadApp();
-  const { root, routes } = await scanPages(join(app.path, "src/pages"));
+  const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
   const outDir = join(app.path, ".furin/build/preload");
   const result = await buildClient(routes, {
     basePath: "",

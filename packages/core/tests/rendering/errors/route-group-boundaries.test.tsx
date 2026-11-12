@@ -32,7 +32,11 @@ test.each(scenarios.flatMap((scenario) => [false, true].map((dev) => ({ ...scena
   "nested groups handle $failure after hydration (dev=$dev)",
   async ({ dev, pattern, failure, fallback, message }) => {
     __setDevMode(dev);
-    const { root: layout, routes } = await scanPages(PAGES_DIR);
+    const { root: layout, routes } = await scanPages({
+      pagesDir: PAGES_DIR,
+      prefix: "",
+      style: "nextjs",
+    });
     const route = routes.find((candidate) => candidate.pattern === pattern);
     expectDefined(route);
     const match: LoadedClientRoute = {

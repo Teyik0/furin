@@ -130,7 +130,7 @@ import { Elysia } from "elysia";
 
 const app = new Elysia().use(
   await furin({
-    pagesDir: "./src/pages",
+    style: "tanstack",
   })
 );
 
@@ -314,7 +314,7 @@ Set `basePath` only when the host serves the site below a subpath. It updates as
 ## Packaged Apps
 
 ```sh
-furin build --target package --pagesDir ./src/admin --prefix /admin
+furin build --target package --pagesDir ./src/admin --style tanstack --prefix /admin
 ```
 
 This produces an Elysia plugin factory rather than a bootable server. See [Multi-Instance & Packaged Apps](/docs/multi-instance) for host composition and current executable limitations.

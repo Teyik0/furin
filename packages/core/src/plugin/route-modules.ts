@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import type { AnyElysia } from "elysia";
 import type { CompiledModule } from "../server/internal.ts";
 import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
+import { SPLAT_PARAM } from "../server/router/patterns.ts";
 
 const ROUTE_MODULE_CACHE_SYMBOL = Symbol.for("@teyik0/furin/route-module-cache");
 
@@ -12,6 +13,8 @@ export interface RouteModuleInfo {
   sourcePath: string;
 }
 
+const OPTIONAL_MARK = /\?$/;
+
 export function validateRouteParams(
   path: string,
   schemas: { params?: { properties?: object } } | undefined
@@ -19,7 +22,9 @@ export function validateRouteParams(
   const pathParams = path
     .split("/")
     .filter((segment) => segment === "*" || segment.startsWith(":"))
-    .map((segment) => (segment === "*" ? segment : segment.slice(1)));
+    .map((segment) =>
+      segment === "*" ? SPLAT_PARAM : segment.slice(1).replace(OPTIONAL_MARK, "")
+    );
   if (pathParams.length === 0) {
     return;
   }

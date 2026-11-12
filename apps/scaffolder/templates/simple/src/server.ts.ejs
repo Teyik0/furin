@@ -9,7 +9,7 @@ const app = new Elysia()
   .get("/api/hello", () => getHelloPayload())
   .use(
     await furin({
-      pagesDir: "./src/pages",
+      style: <%- JSON.stringify(routeStyle) %>,
     })
   );
 export const port = Number(process.env.PORT ?? 3000);

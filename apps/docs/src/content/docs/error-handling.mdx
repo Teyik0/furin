@@ -2,10 +2,19 @@
 
 Furin separates unexpected failures from expected missing content:
 
-- `error.tsx` catches loader and render failures.
-- `not-found.tsx` handles unmatched URLs and `notFound()` from a loader.
+- An error boundary catches loader and render failures.
+- A not-found boundary handles unmatched URLs and `notFound()` from a loader.
 
-Both conventions are scoped by directory. The nearest authored boundary wins, and a boundary failure bubbles to the next parent boundary.
+How you declare them follows the app's [routing style](/docs/routing):
+
+| | `nextjs` | `tanstack` |
+|---|---|---|
+| Error boundary | `error.tsx` default export | `.error(Component)` on the route |
+| Not-found boundary | `not-found.tsx` default export | `.notFound(Component)` on the route |
+| Scope | the directory, inside its layout | the route, in its parent's outlet |
+| App-wide boundary | `error.tsx` / `not-found.tsx` at the top | `.error()` / `.notFound()` on `__root.tsx` |
+
+The nearest authored boundary wins, and a boundary failure bubbles to the next parent boundary. Both styles share the components' props, the error normalization and the rendering rules below.
 
 These page conventions return HTML or Furin's navigation transport. For JSON APIs, use Elysia 2's `problem()` and class-based `.onError(ErrorClass, handler)` APIs so failures follow RFC 9457 and Eden can infer each error response:
 
@@ -30,7 +39,7 @@ Expected API failures use `application/problem+json`. Furin page `notFound()` re
 ## Error Boundaries
 
 ```tsx
-// src/pages/blog/error.tsx
+// src/app/blog/error.tsx
 import type { ErrorProps } from "@teyik0/furin";
 
 export default function BlogError({ error, reset }: ErrorProps) {
@@ -60,19 +69,22 @@ if (error) throw error;
 return { content };
 ```
 
-The nearest `error.tsx` handles this failure, including a 404 API response. Use `notFound()` when the page itself should render `not-found.tsx`. Failed renders are never cached; see [SPA And Cached Routes](#spa-and-cached-routes).
+The nearest error boundary handles this failure, including a 404 API response. Use `notFound()` when the page itself should render its not-found boundary. Failed renders are never cached; see [SPA And Cached Routes](#spa-and-cached-routes).
 
 Without an authored boundary, Furin renders its built-in safe error screen inside the root layout. If the root document itself cannot render, a framework-owned minimal document is the last resort.
 
 ## Boundary Scope
 
-A directory's `error.tsx` and `not-found.tsx` render inside that directory's layout. They handle failures of the directory's pages and deeper layouts, but not of the layout beside them: when `blog/_route.tsx` fails, the boundary in the parent directory handles it. This is the `error.tsx` scope of the Next.js App Router.
+**Next.js style.** A directory's `error.tsx` and `not-found.tsx` render inside that directory's layout. They handle failures of the directory's pages and deeper layouts, but not of the layout beside them: when `blog/layout.tsx` fails, the boundary in the parent directory handles it. This is the `error.tsx` scope of the Next.js App Router.
+
+**TanStack style.** A route's `.error()` and `.notFound()` render in place of that route, inside its parent layout, as `errorComponent` and `notFoundComponent` do in TanStack Start. They handle failures of the route itself and of every route below it that declares no boundary of its own: a layout's `.error()` also catches the layout's own loader failure, and a page's `.error()` renders inside the page's layout. The root's `.error()` and `.notFound()` are the app-wide boundaries.
 
 | What failed | What renders |
 |---|---|
 | A page loader, `head()` or `notFound()` in a page | The nearest boundary, inside every layout above it |
-| A layout loader | The nearest boundary in a parent directory, inside the layouts above it |
-| The root loader, or the document shell during rendering | The root `error.tsx` / `not-found.tsx` inside the framework's minimal document |
+| A layout loader (Next.js style) | The nearest boundary in a parent directory, inside the layouts above it |
+| A layout loader (TanStack style) | The layout's own `.error()`, else the nearest one above it, inside the layouts above it |
+| The root loader, or the document shell during rendering | The root boundary inside the framework's minimal document |
 
 The root boundary also handles any failure that no deeper boundary declares, inside the root layout. A shell render failure cannot be traced to one segment, so the server and the client both render it as a root failure.
 
@@ -81,7 +93,7 @@ The layouts that stay rendered keep their loader data. Furin does not rerun thei
 ## Not Found
 
 ```tsx
-// src/pages/blog/not-found.tsx
+// src/app/blog/not-found.tsx
 import type { NotFoundProps } from "@teyik0/furin";
 
 export default function BlogNotFound({ error }: NotFoundProps) {
@@ -97,11 +109,11 @@ export default function BlogNotFound({ error }: NotFoundProps) {
 Trigger it from a loader when the URL matches a page but its resource does not exist:
 
 ```tsx
-// src/pages/blog/[slug].tsx
+// src/app/blog/[slug]/page.tsx
 import { defineRoute, notFound } from "@teyik0/furin";
 import { t } from "elysia";
 
-export const route = defineRoute("/blog/[slug]")
+export const route = defineRoute("/blog/$slug/")
   .config({
     mode: "ssr",
     params: t.Object({ slug: t.String() }),
@@ -119,23 +131,64 @@ export const route = defineRoute("/blog/[slug]")
   .page(({ post }) => <Post value={post} />);
 ```
 
-`notFound()` never returns. It selects the nearest `not-found.tsx`, carries serializable `message` and `data`, and produces status `404`. A root `src/pages/not-found.tsx` also handles URLs that match no page.
+`notFound()` never returns. It selects the nearest not-found boundary, carries serializable `message` and `data`, and produces status `404`. The root not-found boundary (`src/app/not-found.tsx`, or `.notFound()` on `__root.tsx`) also handles URLs that match no page.
 
 ## Boundary Placement
 
 ```text
-src/pages/
+src/app/
 ├── error.tsx
 ├── not-found.tsx
-├── root.tsx
+├── layout.tsx
 └── blog/
     ├── error.tsx
     ├── not-found.tsx
-    ├── _route.tsx
-    └── [slug].tsx
+    ├── layout.tsx
+    └── [slug]/page.tsx
 ```
 
-Use root conventions for the whole application and add deeper files only where the UI or recovery action is meaningfully different.
+Use root boundaries for the whole application and add deeper ones only where the UI or recovery action is meaningfully different.
+
+## TanStack-Style Boundaries
+
+In the TanStack style, `error.tsx` and `not-found.tsx` are ordinary routes (`/error`, `/not-found`). Chain `.error()` and `.notFound()` on the route instead, at any stage before `page()` or `layout()`:
+
+```tsx
+// src/routes/blog/route.tsx
+import { defineRoute, type ErrorProps, type NotFoundProps } from "@teyik0/furin";
+
+function BlogError({ error, reset }: ErrorProps) {
+  return (
+    <section role="alert">
+      <p>{error.message}</p>
+      <button onClick={reset}>Try again</button>
+    </section>
+  );
+}
+
+function BlogNotFound({ error }: NotFoundProps) {
+  return <h1>{error.message}</h1>;
+}
+
+export const route = defineRoute("/blog")
+  .config({ mode: "ssr" })
+  .error(BlogError)
+  .notFound(BlogNotFound)
+  .layout(({ children }) => <section className="blog">{children}</section>);
+```
+
+The components receive the same `ErrorProps` and `NotFoundProps` as `error.tsx` and `not-found.tsx`. `notFound()` from `blog/$slug.tsx` renders `BlogNotFound` in place of the blog layout, inside the root document; give the page its own `.notFound()` to render inside the blog layout instead. Declare the app-wide boundaries on `__root.tsx`:
+
+```tsx
+// src/routes/__root.tsx
+export const route = defineRootRoute()
+  .config({ mode: "ssr" })
+  .error(AppError)
+  .notFound(AppNotFound)
+  .layout(({ children }) => <Document>{children}</Document>);
+```
+
+The [route config checks](/docs/routing#route-config-checks) report `.error()` and `.notFound()` in a Next.js-style app, where boundaries are files.
 
 ## Redirects And Responses
 

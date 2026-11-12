@@ -10,7 +10,6 @@ import tailwind from "bun-plugin-tailwind";
 
 export default defineConfig({
   rootDir: ".",
-  pagesDir: "src/pages",
   serverEntry: "src/server.ts",
   clientLogging: false,
   reactCompiler: true,
@@ -27,9 +26,10 @@ CLI flags override the corresponding file settings. Paths are resolved from the 
 | Field | Type | Default | Purpose |
 |---|---|---|---|
 | `rootDir` | `string` | Current directory | Project root for build paths |
-| `pagesDir` | `string` | Detected mounts, then `src/pages` | Pages directory for one root-mounted app |
+| `pagesDir` | `string` | Detected mounts | Pages directory for one root-mounted app; requires `style` |
+| `style` | `"nextjs" \| "tanstack"` | None | [Routing style](/docs/routing) of `pagesDir` |
 | `serverEntry` | `string` | `src/server.ts` | Elysia entry for server builds |
-| `apps` | `{ pagesDir; prefix? }[]` | Auto-detected | Explicit multi-instance build inputs |
+| `apps` | `{ pagesDir; prefix?; style }[]` | Auto-detected | Explicit multi-instance build inputs |
 | `clientLogging` | `boolean` | `false` | Include the browser evlog HTTP drain |
 | `reactCompiler` | `boolean` | `true` | Enable Bun's React compiler in client builds |
 | `optimizeImports` | `string[]` | Bun defaults | Extra package barrels for Bun import optimization |
@@ -42,15 +42,15 @@ CLI flags override the corresponding file settings. Paths are resolved from the 
 | `static` | `StaticExportConfig` | See below | Configure pure static output |
 | `targets` | `(BuildTarget \| FurinAdapter)[]` | `["bun"]` | What `furin build` builds without `--target`; also where adapters receive their options |
 
-`apps` takes precedence over `pagesDir`, which takes precedence over the server entry. When neither is configured, the build evaluates the server entry in a child process, where `furin()` only records its `{ pagesDir, prefix }`, and builds those apps; without any recorded mount it falls back to `src/pages`. Any `furin()` call counts, whatever its import name or how its options are computed. Relative `pagesDir` values resolve against `rootDir`.
+A `pagesDir` (with its `style`, from the config or `--pagesDir`/`--style`) builds that one root-mounted app. Otherwise `apps` lists the apps to build. When neither is configured, the build evaluates the server entry in a child process, where `furin()` only records its `{ pagesDir, prefix, style }`, and builds those apps; without any recorded mount the build fails and asks for a `furin({ style })` mount or an `apps` list. Any `furin()` call counts, whatever its import name or how its options are computed. Relative `pagesDir` values resolve against `rootDir`. A `pagesDir` without a `style` fails before the build starts.
 
 Server builds then check the result against the application: Elysia AOT evaluates the server entry again, and a mounted app the build did not produce, or a built app the server never mounts, fails the build and lists both sides. Applications using `.mount()` skip AOT and therefore this check.
 
 ```ts
 export default defineConfig({
   apps: [
-    { pagesDir: "./src/pages" },
-    { pagesDir: "./src/admin", prefix: "/admin" },
+    { pagesDir: "./src/routes", style: "tanstack" },
+    { pagesDir: "./src/admin", prefix: "/admin", style: "nextjs" },
   ],
 });
 ```
@@ -146,7 +146,8 @@ Runtime options live beside Elysia composition, not in the build config:
 
 ```ts
 await furin({
-  pagesDir: "./src/pages",
+  style: "nextjs",
+  pagesDir: "./src/admin",
   prefix: "/admin",
   clientDir: "./custom-client",
   clientLogging: true,
@@ -158,7 +159,8 @@ await furin({
 
 | Field | Purpose |
 |---|---|
-| `pagesDir` | Runtime pages identity; defaults to `src/pages` |
+| `style` | Required. File-routing convention of `pagesDir`: `"nextjs"` or `"tanstack"`; see [File-Based Routing](/docs/routing) |
+| `pagesDir` | Runtime pages identity; defaults to `src/app` in the `nextjs` style and `src/routes` in the `tanstack` style |
 | `prefix` | Full physical path of pages, framework endpoints, public assets, and client assets; the client bundle is built for it |
 | `clientDir` | Override production client assets; build artifacts normally resolve this automatically |
 | `clientLogging` | Enable the browser log drain in development and the `/_furin/ingest` endpoint; production browser bundles also need `clientLogging` in `furin.config.ts` |
@@ -168,6 +170,6 @@ await furin({
 | `pageCache` | Optional shared store for SSG, ISR, and PPR public artifacts; when omitted, the process-local render caches are used |
 | `sync` | Sync adapter, principal resolver, optional notifier, optional principal hash `secret`, and optional durable endpoint `path` |
 
-Keep the same `pagesDir` and `prefix` between the build and runtime mount. `prefix` is the full physical path: mount Furin on an Elysia instance without its own prefix. Each `furin()` call serves one application. See [Multi-Instance](/docs/multi-instance) and [Sync & Invalidations](/docs/sync).
+Keep the same `pagesDir`, `prefix` and `style` between the build and runtime mount. `prefix` is the full physical path: mount Furin on an Elysia instance without its own prefix. Each `furin()` call serves one application. See [Multi-Instance](/docs/multi-instance) and [Sync & Invalidations](/docs/sync).
 
 Omit `pageCache` for a single Bun process and on Vercel, whose adapter rejects it at initialization. For multiple Bun replicas, see [Caches And Replicas](/docs/deployment#caches-and-replicas) and [Caching](/docs/caching#shared-page-cache).

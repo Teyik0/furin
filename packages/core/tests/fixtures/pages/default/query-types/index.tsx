@@ -1,7 +1,7 @@
 import { defineRoute } from "@teyik0/furin";
-import { querySchema } from "./_route";
+import { querySchema } from "./route";
 
-export const route = defineRoute("/query-types")
+export const route = defineRoute("/query-types/")
   .config({ mode: "ssr", query: querySchema })
   .loader(({ query }) => ({
     queryFromLoader: query,

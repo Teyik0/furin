@@ -32,12 +32,11 @@ import { adaptDefinedLayout, adaptDefinedPage, isDefinedRouteTerminal } from "./
 import {
   annotateScannedRequestKeys,
   collectRouteTags,
-  getSourceModuleCandidates,
   invalidNestedLayoutError,
   isModuleNotFoundError,
 } from "./discovery.ts";
 import type { CurrentRoute, PagePorts } from "./dispatch.ts";
-import { collectIntermediateLayoutDirs, resolveMode, resolveRouteRevalidate } from "./patterns.ts";
+import { resolveMode, resolveRouteRevalidate } from "./patterns.ts";
 import { createRouteDataErrorResponse, isPprRoute } from "./plugin.ts";
 import { invalidateRouteModuleSourceVersions, routeModuleSourceVersion } from "./source-version.ts";
 import type { ResolvedRoute, RootLayout } from "./types.ts";
@@ -203,21 +202,19 @@ async function importFreshRouteModuleCandidate(
 }
 
 async function importFreshLayoutRouteModule(
-  layoutDir: string,
+  layoutPath: string,
   resolveImport: RouteModuleImport,
   ctx: CompileContext | null
 ): Promise<CompiledModule | undefined> {
-  for (const layoutPath of getSourceModuleCandidates(layoutDir, "_route")) {
-    const freshMod = await importFreshRouteModuleCandidate(layoutPath, resolveImport, ctx);
-    if (!freshMod) {
-      continue;
-    }
-    // Same contract as an invalid page export: the overlay names the file.
-    if (!(isDefinedRouteTerminal(freshMod.route) && typeof freshMod.route.layout === "function")) {
-      throw invalidExportFailure(invalidNestedLayoutError(layoutPath), layoutPath);
-    }
-    return freshMod;
+  const freshMod = await importFreshRouteModuleCandidate(layoutPath, resolveImport, ctx);
+  if (!freshMod) {
+    return;
   }
+  // Same contract as an invalid page export: the overlay names the file.
+  if (!(isDefinedRouteTerminal(freshMod.route) && typeof freshMod.route.layout === "function")) {
+    throw invalidExportFailure(invalidNestedLayoutError(layoutPath), layoutPath);
+  }
+  return freshMod;
 }
 
 function invalidExportFailure(error: Error, file: string): DevTransformFailure {
@@ -236,9 +233,11 @@ function patchRouteEntryFromFreshModule(
 
   if (isDefinedRouteTerminal(freshRoute) && typeof freshRoute.layout === "function") {
     const adapted = adaptDefinedLayout(freshRoute, entry.parent);
+    entry.errorComponent = adapted.errorComponent;
     entry.layout = adapted.layout;
     entry.loader = adapted.loader;
     entry.mode = adapted.mode;
+    entry.notFoundComponent = adapted.notFoundComponent;
     entry.params = adapted.params;
     entry.query = adapted.query;
     entry.requestLoader = adapted.requestLoader;
@@ -249,50 +248,29 @@ function patchRouteEntryFromFreshModule(
 }
 
 /**
- * Re-imports edited intermediate layout _route.tsx files with a versioned
- * module identity, then patches the layout/loader references on the existing
- * route-chain objects.
+ * Re-imports the page's layouts (`layoutPaths`, shallow → deep, as the route
+ * manifest lists them) with a versioned module identity, then patches the
+ * layout/loader references on the existing route-chain objects. `chain[0]`
+ * is the root, so layout `i` patches `chain[i + 1]`.
  *
  * The optional `importFn` parameter exists only for unit testing. In production
  * it defaults to the real `import()`.
  */
 export async function refreshLayoutChain(
   chain: RuntimeRoute[],
-  pagePath: string,
-  rootPath: string,
+  layoutPaths: readonly string[],
   importFn: ((specifier: string) => Promise<CompiledModule>) | undefined
 ): Promise<void> {
   const resolveImport = importFn ?? routeModuleImport;
   const ctx = getCompileContext();
-  const layoutDirs = collectIntermediateLayoutDirs(pagePath, rootPath);
-
-  // Track chainIdx independently rather than deriving it from layoutPaths
-  // index. Directories without a _route module produce import errors that are
-  // silently skipped, but those directories have no corresponding chain entry —
-  // so we must only advance chainIdx for directories whose _route module actually
-  // exists. A positional assumption (i = chainIdx - 1) drifts whenever
-  // isModuleNotFoundError is swallowed for a gap directory.
-  //
-  // Imports are parallelised for speed; patching stays sequential so the
-  // chainIdx-to-layoutDir positional mapping remains deterministic.
   const freshMods = await Promise.all(
-    layoutDirs.map((layoutDir) => importFreshLayoutRouteModule(layoutDir, resolveImport, ctx))
+    layoutPaths.map((layoutPath) => importFreshLayoutRouteModule(layoutPath, resolveImport, ctx))
   );
-  let chainIdx = 1; // chain[0] is the root
-  for (const freshMod of freshMods) {
-    if (chainIdx >= chain.length) {
-      break;
+  for (const [index, freshMod] of freshMods.entries()) {
+    // A layout deleted since the scan keeps its entry until the topology rescan.
+    if (freshMod) {
+      patchRouteEntryFromFreshModule(chain[index + 1], freshMod);
     }
-    if (!freshMod) {
-      // No _route module in this directory — no chain entry to match, so
-      // do NOT advance chainIdx. The next deeper layoutDir may correspond
-      // to the current chainIdx.
-      continue;
-    }
-
-    patchRouteEntryFromFreshModule(chain[chainIdx], freshMod);
-    // A valid _route module exists at this depth (invalid exports throw on import).
-    chainIdx += 1;
   }
 }
 
@@ -352,7 +330,11 @@ export async function resolveCurrentDevRoute(
   let chain: RuntimeRoute[] | undefined;
   if (isDefinedRouteTerminal(pageMod.route) && typeof pageMod.route.page === "function") {
     const currentChain = route.routeChain;
-    await refreshLayoutChain(currentChain, route.path, root.path, undefined);
+    await refreshLayoutChain(
+      currentChain,
+      route.layouts.map(({ path }) => path),
+      undefined
+    );
     const parent = currentChain.at(-2) ?? currentRoot.route;
     const adaptedPage = adaptDefinedPage(pageMod.route, parent);
     page = adaptedPage;
@@ -363,7 +345,7 @@ export async function resolveCurrentDevRoute(
     // and layout.  `refreshLayoutChain` deliberately starts at chainIdx=1
     // because the root is already loaded separately above; without this
     // patch, chain[0] is the root adapted by the last route scan — a
-    // STALE reference for a nested page between a root.tsx edit and the
+    // STALE reference for a nested page between a root layout edit and the
     // topology watcher's rescan.  Mirroring the pattern used by
     // patchRouteEntryFromFreshModule.
     if (chain[0] && currentRoot.route) {
@@ -463,7 +445,11 @@ async function loadCachedDevLoaderData(
       : await runPublicLoaders(route, loaderCtx);
   if (result.type === "data") {
     const entry: DevLoaderCacheEntry = {
-      dependencies: computeRouteDependencies(route.path, root.path),
+      dependencies: computeRouteDependencies(
+        route.path,
+        root.path,
+        route.layouts.map(({ path }) => path)
+      ),
       generatedAt: Date.now(),
       headers: result.headers,
       loaderData: result.syncData,
@@ -550,26 +536,22 @@ export const developmentPagePorts: PagePorts = {
 
 /**
  * @internal Lists every source file whose contents can affect the render
- * output for a given page: the page itself, every intermediate `_route.*`
- * between the page and the pages root, `root.tsx`, and their local imports.
+ * output for a given page: the page itself, its layouts, the root layout,
+ * and their local imports.
  *
  * Only paths that EXIST on disk are returned.  `isDevLoaderCacheValid` treats
  * a `statSync` throw as "invalid" (conservative on missing files), so listing
- * non-authored extension candidates here would force a permanent cache MISS
- * for every nested route — silently disabling the dev ISR/SSG cache for any
- * page in a subdirectory.  Renames and deletions of TRACKED deps are still
- * detected: the path that previously existed will then `statSync`-throw on
- * the next read and yield the same conservative miss.
+ * missing files here would force a permanent cache MISS. Renames and
+ * deletions of TRACKED deps are still detected: the path that previously
+ * existed will then `statSync`-throw on the next read and yield the same
+ * conservative miss.
  */
-export function computeRouteDependencies(pagePath: string, rootPath: string): string[] {
-  const deps = [pagePath, rootPath];
-  for (const dir of collectIntermediateLayoutDirs(pagePath, rootPath)) {
-    for (const candidate of getSourceModuleCandidates(dir, "_route")) {
-      if (existsSync(candidate)) {
-        deps.push(candidate);
-      }
-    }
-  }
+export function computeRouteDependencies(
+  pagePath: string,
+  rootPath: string,
+  layoutPaths: readonly string[]
+): string[] {
+  const deps = [pagePath, rootPath, ...layoutPaths.filter((path) => existsSync(path))];
   const graph = devGraph(undefined);
   return [...new Set(deps.flatMap((path) => graph.sourceDependencies(path)))].filter(existsSync);
 }

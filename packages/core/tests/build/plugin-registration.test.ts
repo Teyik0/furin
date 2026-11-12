@@ -54,7 +54,11 @@ test("isolated typegen preserves programmatic plugin closures and virtual module
 import { tags } from "route-info:metadata";
 export const route = defineRoute("/").config({ mode: "ssg", tags }).page(() => null);`
     );
-    const options = { pagesDir: "src/pages", plugins: [plugin], rootDir: app.path };
+    const options = {
+      apps: [{ pagesDir: "src/pages", style: "tanstack" as const }],
+      plugins: [plugin],
+      rootDir: app.path,
+    };
     await generateRouteTypes(options);
     expect(await Bun.file(join(app.path, "furin-env.d.ts")).text()).toContain(tag);
     tag = "second-discovery";
@@ -103,7 +107,7 @@ export const route = defineRoute("/")
   .loader(() => ({ value }))
   .page(() => null);`
       );
-      await generateRouteTypes({ pagesDir: "src/pages", plugins: [plugin], rootDir: app.path });
+      await generateRouteTypes({ apps: [{ pagesDir: "src/pages", style: "tanstack" }], plugins: [plugin], rootDir: app.path });
       expect(calls).toBe(1);
       expect(await Bun.file(join(app.path, "furin-env.d.ts")).text()).toContain("configured-tag");
     } finally {

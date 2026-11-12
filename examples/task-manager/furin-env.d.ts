@@ -7,41 +7,41 @@ declare module "@teyik0/furin/routes" {
     "/": {
       kind: "page";
       pattern: "/";
-      parent: typeof import("./src/pages/root").route;
+      parent: typeof import("./src/routes/__root").route;
       pathParams: {};
     };
-    "/board/[boardId]": {
-      kind: "page";
-      pattern: "/board/:boardId";
-      parent: typeof import("./src/pages/board/_route").route;
-      pathParams: { boardId: string };
-    };
-    "/board/[boardId]/card/[cardId]": {
-      kind: "page";
-      pattern: "/board/:boardId/card/:cardId";
-      parent: typeof import("./src/pages/board/[boardId]/card/_route").route;
-      pathParams: { boardId: string; cardId: string };
-    };
-    "/board/[boardId]/card/_route": {
-      kind: "layout";
-      pattern: "/board/:boardId/card";
-      parent: typeof import("./src/pages/board/_route").route;
-      pathParams: { boardId: string };
-    };
-    "/board/_route": {
+    "/board": {
       kind: "layout";
       pattern: "/board";
-      parent: typeof import("./src/pages/root").route;
+      parent: typeof import("./src/routes/__root").route;
       pathParams: {};
+    };
+    "/board/$boardId/": {
+      kind: "page";
+      pattern: "/board/:boardId";
+      parent: typeof import("./src/routes/board/route").route;
+      pathParams: { boardId: string };
+    };
+    "/board/$boardId/card": {
+      kind: "layout";
+      pattern: "/board/:boardId/card";
+      parent: typeof import("./src/routes/board/route").route;
+      pathParams: { boardId: string };
+    };
+    "/board/$boardId/card/$cardId": {
+      kind: "page";
+      pattern: "/board/:boardId/card/:cardId";
+      parent: typeof import("./src/routes/board/$boardId/card/route").route;
+      pathParams: { boardId: string; cardId: string };
     };
   }
 }
 
 declare module "@teyik0/furin/routes" {
   interface RouteMap {
-    "/": typeof import("./src/pages/index").route;
-    "/board/:boardId": typeof import("./src/pages/board/[boardId]/index").route;
-    "/board/:boardId/card/:cardId": typeof import("./src/pages/board/[boardId]/card/[cardId]").route;
+    "/": typeof import("./src/routes/index").route;
+    "/board/:boardId": typeof import("./src/routes/board/$boardId/index").route;
+    "/board/:boardId/card/:cardId": typeof import("./src/routes/board/$boardId/card/$cardId").route;
   }
 }
 

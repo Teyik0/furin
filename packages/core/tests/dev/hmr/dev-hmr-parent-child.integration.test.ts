@@ -17,14 +17,14 @@ const HELLO_ATTR_RE = /data-hello="([^"]+)"/;
  * Each case targets a distinct scenario where a file change in one part of the
  * route hierarchy must (or must not) propagate to another part:
  *
- * #3 (P0): Edit child page `/blog/[slug].tsx` while the parent `/blog` has been
+ * #3 (P0): Edit child page `/blog/$slug.tsx` while the parent `/blog` has been
  *   served — the next request to the child must reflect the updated component.
  *
- * #4 (P0): Edit the parent `blog/_route.tsx` while a child request `/blog/hello`
+ * #4 (P0): Edit the parent `blog/route.tsx` while a child request `/blog/hello`
  *   is in flight (or has just been served) — the next SSR response must embed the
  *   new layout and produce no "Invalid hook call" or dispatcher errors.
  *
- * #5 (P1): Editing the parent `_route.tsx` must propagate the updated layout to
+ * #5 (P1): Editing the parent `route.tsx` must propagate the updated layout to
  *   BOTH the parent route (`/blog`) AND the child route (`/blog/hello`) on their
  *   respective next SSR cycles — without a server restart.
  *
@@ -33,7 +33,7 @@ const HELLO_ATTR_RE = /data-hello="([^"]+)"/;
  *   Mechanism: `isDevLoaderCacheValid` stat-checks every entry dependency
  *   against `entry.generatedAt` at cache-read time.  No fs watcher needed.
  *
- * #9 (P0): Editing the LOADER in `root.tsx` MUST be reflected on the next
+ * #9 (P0): Editing the LOADER in `__root.tsx` MUST be reflected on the next
  *   request to any page whose data depends on the root loader.  This is the
  *   same mechanism as #7 but exercises the depth-0 (root) edge of the
  *   dependency chain — the case where the user's actual bug surfaced.
@@ -61,7 +61,7 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   // Root layout (minimal — only wraps content with a root marker).
   writeAppFile(
     app.path,
-    "src/pages/root.tsx",
+    "src/pages/__root.tsx",
     [
       'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
       "",
@@ -74,11 +74,11 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   // Blog section: parent layout with a versioned marker.
   writeAppFile(
     app.path,
-    "src/pages/blog/_route.tsx",
+    "src/pages/blog/route.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
       "",
-      'export const route = defineRoute("/blog/_route")',
+      'export const route = defineRoute("/blog")',
       '  .config({ mode: "ssr" })',
       '  .layout(({ children }) => <nav data-blog-layout="blog-v1">{children}</nav>);',
     ].join("\n")
@@ -91,7 +91,7 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     [
       'import { defineRoute } from "@teyik0/furin";',
       "",
-      'export const route = defineRoute("/blog")',
+      'export const route = defineRoute("/blog/")',
       '  .config({ mode: "ssg" })',
       '  .page(() => <main data-blog-listing="true">Blog listing</main>);',
     ].join("\n")
@@ -100,12 +100,12 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   // Blog post page (child route: /blog/[slug]).
   writeAppFile(
     app.path,
-    "src/pages/blog/[slug].tsx",
+    "src/pages/blog/$slug.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { t } from "elysia";',
       "",
-      'export const route = defineRoute("/blog/[slug]")',
+      'export const route = defineRoute("/blog/$slug")',
       '  .config({ mode: "ssg", params: t.Object({ slug: t.String() }) })',
       "  .page(() => (",
       '    <article data-post-version="post-v1">Blog post content</article>',
@@ -175,14 +175,14 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   // ── #3 (P0) ───────────────────────────────────────────────────────────────
 
   /**
-   * Editing `/blog/[slug].tsx` while the parent `/blog` has been served must
+   * Editing `/blog/$slug.tsx` while the parent `/blog` has been served must
    * produce fresh child content on the next child request.
    *
    * Mechanism: SSR imports page modules via `?furin-server&t=<ts>`.  A new
    * timestamp is generated on each request, so Bun always evaluates the latest
    * on-disk file — no stale child component is possible after an edit.
    */
-  test("#3 — editing /blog/[slug].tsx serves fresh child content on next child request", async () => {
+  test("#3 — editing /blog/$slug.tsx serves fresh child content on next child request", async () => {
     // Warm the parent route first (simulates user browsing /blog).
     const parentRes = await fetch(`http://localhost:${port}/blog`);
     expect(parentRes.status).toBe(200);
@@ -198,12 +198,12 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     // Edit the child page — bump version to post-v2.
     writeAppFile(
       app.path,
-      "src/pages/blog/[slug].tsx",
+      "src/pages/blog/$slug.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
         "",
-        'export const route = defineRoute("/blog/[slug]")',
+        'export const route = defineRoute("/blog/$slug")',
         '  .config({ mode: "ssg", params: t.Object({ slug: t.String() }) })',
         "  .page(() => (",
         '    <article data-post-version="post-v2">Updated blog post</article>',
@@ -234,17 +234,17 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   // ── #4 (P0) ───────────────────────────────────────────────────────────────
 
   /**
-   * Editing `/blog/_route.tsx` while a child page has just been served must
+   * Editing `/blog/route.tsx` while a child page has just been served must
    * refresh the layout on the next child request without any React hook
    * violations or dispatcher errors.
    *
    * The dangerous scenario: the parent layout component changes identity (new
-   * module evaluation), but child pages hold a stale import of `_route.tsx`.
-   * Bun's `?t=<ts>` mechanism re-imports `_route.tsx` from disk on the next
+   * module evaluation), but child pages hold a stale import of `route.tsx`.
+   * Bun's `?t=<ts>` mechanism re-imports `route.tsx` from disk on the next
    * child request, so both parent and child use the same, current React module
    * graph — hooks stay valid.
    */
-  test("#4 — editing /blog/_route.tsx refreshes the layout on child requests, no Invalid hook call", async () => {
+  test("#4 — editing /blog/route.tsx refreshes the layout on child requests, no Invalid hook call", async () => {
     // Confirm baseline: child is rendered inside blog-v1 layout.
     let html1 = "";
     const baselineOk = await pollUntil(
@@ -262,11 +262,11 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     // Edit the parent layout — bump to blog-v2.
     writeAppFile(
       app.path,
-      "src/pages/blog/_route.tsx",
+      "src/pages/blog/route.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
         "",
-        'export const route = defineRoute("/blog/_route")',
+        'export const route = defineRoute("/blog")',
         '  .config({ mode: "ssr" })',
         '  .layout(({ children }) => <nav data-blog-layout="blog-v2">{children}</nav>);',
       ].join("\n")
@@ -298,7 +298,7 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   // ── #5 (P1) ───────────────────────────────────────────────────────────────
 
   /**
-   * After editing the parent `_route.tsx`, BOTH the parent route (`/blog`) AND
+   * After editing the parent `route.tsx`, BOTH the parent route (`/blog`) AND
    * the child route (`/blog/hello`) must embed the updated layout in their next
    * SSR response — without a server restart.
    *
@@ -309,11 +309,11 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     // Edit parent layout to blog-v3 (v2 was set in #4 above).
     writeAppFile(
       app.path,
-      "src/pages/blog/_route.tsx",
+      "src/pages/blog/route.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
         "",
-        'export const route = defineRoute("/blog/_route")',
+        'export const route = defineRoute("/blog")',
         '  .config({ mode: "ssr" })',
         '  .layout(({ children }) => <nav data-blog-layout="blog-v3">{children}</nav>);',
       ].join("\n")
@@ -364,7 +364,7 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
    *
    * Mechanism — pre-read dependency mtime check (`isDevLoaderCacheValid`):
    *   • Each cache entry stores `dependencies: string[]` (page + every
-   *     `_route.tsx` between page and pages root + `root.tsx`).
+   *     `route.tsx` between page and pages root + `__root.tsx`).
    *   • At cache-read time, every dep is `statSync`-ed and its `mtimeMs` is
    *     compared to `entry.generatedAt`.  If any dep has been edited since
    *     the entry was written, the entry is considered invalid and the
@@ -442,18 +442,18 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   // ── #9 (P0) — root.tsx loader edits propagate ─────────────────────────────
 
   /**
-   * Editing the LOADER in `root.tsx` MUST be reflected on the next request
+   * Editing the LOADER in `__root.tsx` MUST be reflected on the next request
    * to any page whose data depends on the root loader.  This is the
    * exact scenario that surfaced the user's bug:
    *
-   *   1. `root.tsx` exports `loader: () => ({ hello: "v1" })`.
+   *   1. `__root.tsx` exports `loader: () => ({ hello: "v1" })`.
    *   2. Page renders `<div data-hello={hello}>` from props.
    *   3. First request → cache populated with `{ hello: "v1" }`.
-   *   4. User edits `root.tsx` → loader returns `{ hello: "v2" }`.
+   *   4. User edits `__root.tsx` → loader returns `{ hello: "v2" }`.
    *   5. Second request → MUST embed `data-hello="v2"`.
    *
    * Without `isDevLoaderCacheValid`, step 5 served stale data because
-   * `root.tsx` is at depth 0 of the dependency chain — neither the page
+   * `__root.tsx` is at depth 0 of the dependency chain — neither the page
    * file's `?furin-server` namespace `onLoad` nor `--hot`'s eager
    * invalidation reliably flushed the cache before the next read.
    *
@@ -468,7 +468,7 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     const writeRoot = (helloValue: string): void => {
       writeAppFile(
         app.path,
-        "src/pages/root.tsx",
+        "src/pages/__root.tsx",
         [
           'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
           "",

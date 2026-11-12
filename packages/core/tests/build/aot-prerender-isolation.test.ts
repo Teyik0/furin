@@ -28,7 +28,7 @@ export const api = new Elysia({ name: "locked-api" })
         `import Elysia from "elysia";
 import { furin } from "@teyik0/furin";
 import { api } from "./api";
-export default new Elysia({ name: "served-app" }).use(api).use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+export default new Elysia({ name: "served-app" }).use(api).use(await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages" }));`
       );
       writeAppFile(
         app.path,
@@ -147,7 +147,10 @@ export const api = new Elysia().get("/api/message", () => ({ message: "In-memory
       "src/pages/index.tsx",
       page.replace('.config({ mode: "ssg"', '.config({ mode: (() => { throw new Error("discovery regression"); })()')
     );
-    const options = { pagesDir: "src/pages", rootDir: app.path };
+    const options = {
+      apps: [{ pagesDir: "src/pages", style: "tanstack" as const }],
+      rootDir: app.path,
+    };
     await expect(generateRouteTypes(options)).rejects.toThrow("discovery regression");
     writeAppFile(app.path, "src/pages/index.tsx", page);
     await generateRouteTypes(options);
@@ -176,7 +179,7 @@ export const route = defineRoute("/").config({ mode: "ssr" })
   .loader(() => database.query("SELECT 'page lock' AS message").get())
   .page(({ message }) => <main>{message}</main>);`
     );
-    await generateRouteTypes({ pagesDir: "src/pages", rootDir: app.path });
+    await generateRouteTypes({ apps: [{ pagesDir: "src/pages", style: "tanstack" }], rootDir: app.path });
     expect(await Bun.file(join(app.path, "furin-env.d.ts")).text()).toContain('"/":');
   } finally {
     app.cleanup();
@@ -209,7 +212,7 @@ import { Elysia } from "elysia";
 import { furin } from "@teyik0/furin";
 import { database } from "./lease";
 const app = new Elysia().get("/lease", () => database.query("SELECT 1").get())
-  .use(await furin({ pagesDir: import.meta.dir + "/pages" }));
+  .use(await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages" }));
 export default app;
 `
   );
@@ -256,8 +259,8 @@ test
           app.path,
           "src/server.ts",
           server.replace(
-            'await furin({ pagesDir: import.meta.dir + "/pages" })',
-            'process.env.ELYSIA_AOT_BUILD ? new Elysia() : await furin({ pagesDir: import.meta.dir + "/pages" })'
+            'await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages" })',
+            'process.env.ELYSIA_AOT_BUILD ? new Elysia() : await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages" })'
           )
         );
       } else if (stage !== "bundle") {
@@ -285,7 +288,7 @@ if (process.env.ELYSIA_AOT_BUILD) {
             ]
           : [];
       const build = buildApp({
-        apps: [{ pagesDir: "src/pages" }],
+        apps: [{ pagesDir: "src/pages", style: "tanstack" }],
         rootDir: app.path,
         target: "bun",
         plugins,
@@ -356,7 +359,7 @@ export const route = defineRoute("/")
     "src/server.ts",
     `import { furin } from "@teyik0/furin";
 import { api } from "./api";
-export default api.use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+export default api.use(await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages" }));`
   );
   return app;
 }
@@ -404,7 +407,7 @@ export default api
   .onBeforeHandle(({ path, status }) => {
     if (path === "/") return status(404, "not found");
   })
-  .use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+  .use(await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages" }));`
       );
       const build = await runCli(["build", "--target", "vercel"], { cwd: app.path });
       expect(build.exitCode, build.stderr).toBe(0);
@@ -430,7 +433,7 @@ test.each(["use", "onStart"] as const)(
           "src/server.ts",
           `import { furin } from "@teyik0/furin";
 import { api } from "./api";
-export default api.onStart(() => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+export default api.onStart(() => {}).use(await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages" }));`
         );
       }
 
@@ -484,7 +487,7 @@ export default api
       body: await request.text(),
     }, { headers: { "set-cookie": "session=mounted; HttpOnly" } })
   ))
-  .use(await furin({ pagesDir: import.meta.dir + "/pages", sync }))
+  .use(await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages", sync }))
   .compile();`
       );
       const build = await runCli(["build", "--target", "vercel"], { cwd: app.path });
@@ -559,7 +562,7 @@ test("Vercel still rejects an API sealed inside the server entry itself", async 
       `import { furin } from "@teyik0/furin";
 import { api } from "./api";
 await api.handle(new Request("http://localhost/api/message"));
-export default api.onStart(() => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+export default api.onStart(() => {}).use(await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages" }));`
     );
     const build = await runCli(["build", "--target", "vercel"], { cwd: app.path });
     expect(build.exitCode).toBe(1);
@@ -586,7 +589,7 @@ const sync = {
   path: "/changes",
   principal: () => "test",
 };
-export default api.use(await furin({ pagesDir: "./src/pages", prefix: "/tasks", sync }));`
+export default api.use(await furin({ style: "tanstack", pagesDir: "./src/pages", prefix: "/tasks", sync }));`
     );
     keyPagesForPrefix(app.path, "src/pages", "/tasks");
     const build = await runCli(["build", "--target", "vercel"], { cwd: app.path });

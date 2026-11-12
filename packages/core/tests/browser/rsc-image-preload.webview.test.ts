@@ -17,7 +17,7 @@ browserTest.each(["development", "production"])(
       writeAppFile(app.path, "src/style.css", "body { font-family: sans-serif; }");
       writeAppFile(
         app.path,
-        "src/pages/root.tsx",
+        "src/pages/__root.tsx",
         `
 import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
 import "../style.css";

@@ -6,7 +6,7 @@ import { createElement } from "react";
 import { __resetCacheState } from "../../../src/server/cache/index.ts";
 import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
-import { route as fixtureRoot } from "../../fixtures/pages/default/root.tsx";
+import { route as fixtureRoot } from "../../fixtures/pages/default/__root.tsx";
 import { mountProductionApp, mountProductionPages } from "../../support/production-app.ts";
 
 const fixturesDir = join(import.meta.dir, "../../fixtures/pages/default");
@@ -25,7 +25,10 @@ afterEach(() => {
 });
 
 async function routeResponse(path: string, buildId: string): Promise<Response> {
-  const { app } = await mountProductionPages(fixturesDir, buildId);
+  const { app } = await mountProductionPages(
+    { pagesDir: fixturesDir, prefix: "", style: "tanstack" },
+    buildId
+  );
   return app.handle(new Request(`http://localhost${path}`));
 }
 
@@ -73,7 +76,10 @@ test("ISR ETags follow the build ID", async () => {
 });
 
 test("ISR revalidates conditional requests against the current ETag", async () => {
-  const { app } = await mountProductionPages(fixturesDir, "testbuild");
+  const { app } = await mountProductionPages(
+    { pagesDir: fixturesDir, prefix: "", style: "tanstack" },
+    "testbuild"
+  );
   const first = await app.handle(new Request("http://localhost/isr-page"));
   const firstEtag = first.headers.get("etag");
   expect(firstEtag).not.toBeNull();

@@ -15,7 +15,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Elysia, t } from "elysia";
-import type { FurinOptions } from "../../src/furin.ts";
 import { furin } from "../../src/furin.ts";
 
 const REQUESTS = 20_000;
@@ -74,7 +73,7 @@ const pagesDir = join(benchRoot, "pages");
 mkdirSync(join(pagesDir, "posts"), { recursive: true });
 
 writeFileSync(
-  join(pagesDir, "root.tsx"),
+  join(pagesDir, "__root.tsx"),
   `import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
 export const route = defineRootRoute().config({ mode: "ssr" }).layout(({ children }) => (
   <html><head><HeadContent /></head><body>{children}<Scripts /></body></html>
@@ -82,11 +81,11 @@ export const route = defineRootRoute().config({ mode: "ssr" }).layout(({ childre
 `
 );
 writeFileSync(
-  join(pagesDir, "posts/[id].tsx"),
+  join(pagesDir, "posts/$id.tsx"),
   `import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 
-export const route = defineRoute("/posts/[id]")
+export const route = defineRoute("/posts/$id")
   .config({ mode: "ssr", params: t.Object({ id: t.String() }) })
   .loader(({ params }) => ({ id: params.id }))
   .page(({ id }) => id);
@@ -102,7 +101,7 @@ export const route = defineRoute("/")
 `
 );
 
-const benchApp = new Elysia().use(await furin({ pagesDir } as FurinOptions));
+const benchApp = new Elysia().use(await furin({ pagesDir, style: "tanstack" }));
 
 // ── Exécution ──────────────────────────────────────────────────────────────
 

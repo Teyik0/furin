@@ -25,6 +25,7 @@ const adapter = {
 
 export default new Elysia().use(await furin({
   pagesDir: import.meta.dir + "/pages",
+  style: "tanstack",
   sync: { adapter, principal: () => "test" },
 }));`
     );

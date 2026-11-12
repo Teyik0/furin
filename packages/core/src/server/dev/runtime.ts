@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { staticPlugin } from "@elysia/static";
 import { type AnyElysia, Elysia, file } from "elysia";
+import type { RouteInstanceSpec, RouteStyle } from "../../plugin/route-manifest.ts";
 import { prefixSlug } from "../../shared/prefix.ts";
 import { invalidateDevLoaderCacheBySource } from "../cache/dev-loader.ts";
 import { createInstrumentationPlugin } from "../devtools/instrumentation.ts";
@@ -14,18 +15,10 @@ import { createSearchRouteMetadata } from "../router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import type { DevelopmentRouteSnapshot, DevGraph } from "./graph.ts";
 
-const LAYOUT_FILE_RE = /^_route\.[cm]?[jt]sx?$/;
-
-/**
- * A page is wrapped by the `_route` files of its directory and its ancestors.
- * Routes never import their layouts, so the import graph can't tell.
- */
-function wrapsRoute(sourcePath: string, routePath: string): boolean {
-  if (!LAYOUT_FILE_RE.test(basename(sourcePath))) {
-    return false;
-  }
-  const directory = dirname(sourcePath).replaceAll("\\", "/");
-  return routePath.replaceAll("\\", "/").startsWith(`${directory}/`);
+/** Routes never import their layouts, so the import graph can't tell what wraps a page. */
+function wrapsRoute(sourcePath: string, route: ResolvedRoute): boolean {
+  const normalized = sourcePath.replaceAll("\\", "/");
+  return route.layouts.some(({ path }) => path.replaceAll("\\", "/") === normalized);
 }
 
 function repairedDevelopmentRoutes(
@@ -41,7 +34,7 @@ function repairedDevelopmentRoutes(
           route.path === sourcePath ||
           snapshot.root.path === sourcePath ||
           graph.dependsOn(route.path, sourcePath) ||
-          wrapsRoute(sourcePath, route.path)
+          wrapsRoute(sourcePath, route)
       )
     ) {
       patterns.add(route.pattern);
@@ -84,9 +77,9 @@ function ownerAddsRouteHooks(app: AnyElysia, owner: AnyElysia): boolean {
   );
 }
 
-async function loadDevelopmentRoutes(resolvedPagesDir: string) {
+async function loadDevelopmentRoutes(routeInstance: RouteInstanceSpec) {
   const { scanPages } = await import("../router/discovery.ts");
-  return scanPages(resolvedPagesDir);
+  return scanPages(routeInstance);
 }
 
 function createDevelopmentRouteSnapshot(
@@ -116,6 +109,7 @@ function createDevelopmentRouteSnapshot(
 export async function createDevRuntime(
   instance: FurinInstance,
   resolvedPagesDir: string,
+  style: RouteStyle,
   options: ModeOptions
 ): Promise<ModeRuntime> {
   const { prefix, syncPath } = instance;
@@ -138,7 +132,7 @@ export async function createDevRuntime(
     "../../plugin/dev-routes.ts"
   );
   const { routeModuleSpecifier } = await import("../../plugin/route-tree.ts");
-  const routeInstance = { pagesDir: resolvedPagesDir, prefix };
+  const routeInstance: RouteInstanceSpec = { pagesDir: resolvedPagesDir, prefix, style };
   registerDevRoutesPlugin([routeInstance]);
 
   // Furin never rewrites route sources: it only fills empty route files and
@@ -154,7 +148,7 @@ export async function createDevRuntime(
     const { furinShell } = (await import(routeModuleSpecifier(routeInstance))) as {
       furinShell: AnyElysia;
     };
-    const loaded = await loadDevelopmentRoutes(resolvedPagesDir);
+    const loaded = await loadDevelopmentRoutes(routeInstance);
     return { nativeRoutesApp: furinShell, ...loaded };
   });
   const initialSnapshot = createDevelopmentRouteSnapshot(instance, root, routes);
@@ -260,6 +254,7 @@ export async function createDevRuntime(
         clientLogging: clientLogging ?? false,
         clientBoundaries,
         outDir: furinDir,
+        pages: { pagesDir: resolvedPagesDir, style },
         publicPath: `${prefix}/_client/`,
         prefix,
         rootLayout: snapshot.root.path,
@@ -278,7 +273,7 @@ export async function createDevRuntime(
       try {
         const previousSnapshot = currentSnapshot();
         const repaired = repairedDevelopmentRoutes(previousSnapshot, changedSources, graph);
-        const next = await loadDevelopmentRoutes(resolvedPagesDir);
+        const next = await loadDevelopmentRoutes(routeInstance);
         // Retain tags only for routes whose current module could not be loaded.
         const nextRoutes = next.routes.map((route) =>
           route.routeChain.length > 0
@@ -310,7 +305,7 @@ export async function createDevRuntime(
         }
       } catch (error) {
         publishDevDiagnostic(error, {
-          entryPath: join(resolvedPagesDir, "root.tsx"),
+          entryPath: currentSnapshot().root.path,
           phase: "import",
           route: "*",
         });
@@ -349,8 +344,7 @@ export async function createDevRuntime(
             onSourceError: (error, sourcePath) => {
               const route = currentSnapshot().routes.find(
                 (candidate) =>
-                  graph.dependsOn(candidate.path, sourcePath) ||
-                  wrapsRoute(sourcePath, candidate.path)
+                  graph.dependsOn(candidate.path, sourcePath) || wrapsRoute(sourcePath, candidate)
               );
               withInstance(instance, () =>
                 publishDevDiagnostic(error, {

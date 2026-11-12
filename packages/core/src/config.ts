@@ -45,6 +45,7 @@ export interface StaticExportConfig {
 }
 
 const compileTargetSchema = t.Union([t.Literal("server"), t.Literal("embed")]);
+const routeStyleSchema = t.Union([t.Literal("nextjs"), t.Literal("tanstack")]);
 
 export const configSchema = t.Object({
   /**
@@ -57,6 +58,7 @@ export const configSchema = t.Object({
       t.Object({
         pagesDir: t.String(),
         prefix: t.Optional(t.String()),
+        style: routeStyleSchema,
       })
     )
   ),
@@ -80,6 +82,7 @@ export const configSchema = t.Object({
    * Packages declaring `sideEffects: false` are optimized automatically.
    */
   optimizeImports: t.Optional(t.Array(t.String())),
+  /** Single-app build: its pages directory, with `style`. Prefer `apps` or the server entry's mounts. */
   pagesDir: t.Optional(t.String()),
   /**
    * Module preloading. `routeChunks` (default true) makes `<HeadContent />`
@@ -95,6 +98,8 @@ export const configSchema = t.Object({
   serverEntry: t.Optional(t.String()),
   /** Emit private server source maps for error-tool uploads. Off by default. */
   serverSourceMaps: t.Optional(t.Boolean()),
+  /** File-routing style of `pagesDir`: `"nextjs"` or `"tanstack"`. */
+  style: t.Optional(routeStyleSchema),
   static: t.Optional(
     t.Object({
       basePath: t.Optional(t.String()),

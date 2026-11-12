@@ -14,23 +14,23 @@ test("buildStaticTarget rejects all unsafe output paths before writing the expor
   const outDir = join(app.path, "dist");
   writeAppFile(
     app.path,
-    "src/pages/[...slug].tsx",
+    "src/pages/$.tsx",
     `import { defineRoute } from "@teyik0/furin";
 
-export const route = defineRoute("/[...slug]")
+export const route = defineRoute("/$")
   .config({ mode: "ssg" })
-  .staticParams(async () => [{ "*": "../../etc/passwd" }])
+  .staticParams(async () => [{ _splat: "../../etc/passwd" }])
   .page(() => null);
 `
   );
 
   try {
     const pagesDir = join(app.path, "src/pages");
-    const { root, routes } = await scanPages(pagesDir);
+    const { root, routes } = await scanPages({ pagesDir: pagesDir, prefix: "", style: "tanstack" });
     let thrown: unknown;
     try {
       await withBuildStub(() =>
-        buildStaticTarget({ pagesDir, prefix: "", root, routes }, app.path, buildRoot, {
+        buildStaticTarget({ pagesDir, prefix: "", root, routes, style: "tanstack" }, app.path, buildRoot, {
           staticConfig: { outDir },
           target: "static",
         })

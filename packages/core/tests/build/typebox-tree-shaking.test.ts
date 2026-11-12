@@ -27,7 +27,7 @@ function typeboxBytes(metafile: ServerMetafile): number {
 test("a Furin app without TypeBox schemas ships no TypeBox in its Vercel server chunks", async () => {
   const app = createTmpApp("cli-app-ssr");
   try {
-    removeAppPath(app.path, "src/pages/blog/[slug].tsx");
+    removeAppPath(app.path, "src/pages/blog/$slug.tsx");
     const result = await runCli(["build", "--target", "vercel", "--analyze"], { cwd: app.path });
     expect(result.exitCode).toBe(0);
 
@@ -53,7 +53,7 @@ test("a Furin app without TypeBox schemas ships no TypeBox in its Vercel server 
 test("a Furin app without TypeBox schemas ships no TypeBox in its Bun server bundle", async () => {
   const app = createTmpApp("cli-app-ssr");
   try {
-    removeAppPath(app.path, "src/pages/blog/[slug].tsx");
+    removeAppPath(app.path, "src/pages/blog/$slug.tsx");
     const result = await runCli(["build", "--target", "bun", "--analyze"], { cwd: app.path });
     expect(result.exitCode).toBe(0);
 

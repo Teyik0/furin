@@ -6,7 +6,7 @@ import { getHelloPayload } from "./api/hello";
 initLogger({ env: { service: <%- JSON.stringify(projectNameKebab) %> } });
 
 const app = new Elysia()
-  .use(await furin({ pagesDir: "./src/pages" }))
+  .use(await furin({ style: <%- JSON.stringify(routeStyle) %> }))
   .get("/api/hello", () => getHelloPayload());
 export const port = Number(process.env.PORT ?? 3000);
 

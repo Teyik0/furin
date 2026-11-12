@@ -22,7 +22,11 @@ function asResolvedRoute(route: unknown): ResolvedRoute {
 }
 
 async function getSsrFixtureRoute(): Promise<{ root: RootLayout; ssrRoute: ResolvedRoute }> {
-  const result = await scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
+  const result = await scanPages({
+    pagesDir: join(import.meta.dir, "../../fixtures/pages/default"),
+    prefix: "",
+    style: "tanstack",
+  });
   const ssrRoute = result.routes.find((route) => route.pattern === "/ssr-page");
   if (ssrRoute === undefined) {
     throw new Error("Route /ssr-page not found");

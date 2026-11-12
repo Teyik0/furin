@@ -19,17 +19,24 @@ describe("applyLinkParams", () => {
     );
   });
 
-  test('replaces the wildcard segment from params["*"]', () => {
-    expect(applyLinkParams("/docs/*", { "*": "a/b/c" })).toBe("/docs/a/b/c");
+  test("fills an optional segment, or drops it with its slash when absent", () => {
+    expect(applyLinkParams("/:lang?/about", { lang: "fr" })).toBe("/fr/about");
+    expect(applyLinkParams("/:lang?/about", {})).toBe("/about");
+    expect(applyLinkParams("/docs/:lang?", {})).toBe("/docs");
+    expect(applyLinkParams("/:lang?", {})).toBe("/");
+  });
+
+  test("replaces the wildcard segment from params._splat", () => {
+    expect(applyLinkParams("/docs/*", { _splat: "a/b/c" })).toBe("/docs/a/b/c");
   });
 
   test("does not interpret dollar replacement sequences in wildcard values", () => {
-    expect(applyLinkParams("/docs/*", { "*": "foo$&bar" })).toBe("/docs/foo%24%26bar");
-    expect(applyLinkParams("/docs/*", { "*": "foo$1bar" })).toBe("/docs/foo%241bar");
+    expect(applyLinkParams("/docs/*", { _splat: "foo$&bar" })).toBe("/docs/foo%24%26bar");
+    expect(applyLinkParams("/docs/*", { _splat: "foo$1bar" })).toBe("/docs/foo%241bar");
   });
 
   test("URL-encodes each wildcard path segment", () => {
-    expect(applyLinkParams("/docs/*", { "*": "hello world/setup?#&%" })).toBe(
+    expect(applyLinkParams("/docs/*", { _splat: "hello world/setup?#&%" })).toBe(
       "/docs/hello%20world/setup%3F%23%26%25"
     );
   });
@@ -44,4 +51,9 @@ describe("applyLinkParams", () => {
     expect(applyLinkParams("/about", { anything: 1 })).toBe("/about");
     expect(applyLinkParams("/about", undefined)).toBe("/about");
   });
+});
+
+test("drops an optional segment when no params are given", () => {
+  expect(applyLinkParams("/:lang?/about", undefined)).toBe("/about");
+  expect(applyLinkParams("/:lang?", null)).toBe("/");
 });

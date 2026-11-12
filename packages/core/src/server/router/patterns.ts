@@ -1,24 +1,9 @@
-import { parse } from "node:path";
 import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
 import { compareRouteSpecificity } from "../../shared/route-specificity.ts";
 import type { ResolvedRoute } from "./types.ts";
 
 // biome-ignore lint/performance/noBarrelFile: preserve the existing comparator import while sharing its implementation with the client.
 export { compareRouteSpecificity } from "../../shared/route-specificity.ts";
-
-export function collectIntermediateLayoutDirs(pagePath: string, rootPath: string): string[] {
-  const pageDir = pagePath.slice(0, pagePath.lastIndexOf("/"));
-  const pagesDir = rootPath.slice(0, rootPath.lastIndexOf("/"));
-  const layoutDirs: string[] = [];
-  let dir = pageDir;
-
-  while (dir.length > pagesDir.length) {
-    layoutDirs.unshift(dir);
-    dir = dir.slice(0, dir.lastIndexOf("/"));
-  }
-
-  return layoutDirs;
-}
 
 export function resolveRouteRevalidate(page: RuntimePage): number | undefined {
   return page.revalidate ?? page._route.revalidate;
@@ -77,90 +62,8 @@ export function resolveMode(page: RuntimePage, routeChain: RuntimeRoute[]): "ssr
   return "ssr";
 }
 
-const DYNAMIC_PARAMETER_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
-
-export interface DynamicRouteSegment {
-  catchAll: boolean;
-  name: string;
-}
-
-export function parseDynamicRouteSegment(
-  segment: string,
-  sourcePath: string | undefined
-): DynamicRouteSegment | undefined {
-  if (!(segment.startsWith("[") && segment.endsWith("]"))) {
-    return;
-  }
-  const inner = segment.slice(1, -1);
-  const catchAll = inner.startsWith("...");
-  const name = catchAll ? inner.slice(3) : inner;
-  if (!DYNAMIC_PARAMETER_NAME_RE.test(name)) {
-    throw new Error(
-      `[furin] Invalid dynamic parameter ${JSON.stringify(name)} in ${JSON.stringify(
-        sourcePath ?? segment
-      )}. Parameter names must match ${DYNAMIC_PARAMETER_NAME_RE}.`
-    );
-  }
-  return { catchAll, name };
-}
-
-export function routeSegmentToPattern(segment: string): string {
-  const dynamic = parseDynamicRouteSegment(segment, undefined);
-  if (!dynamic) {
-    return segment;
-  }
-  return dynamic.catchAll ? "*" : `:${dynamic.name}`;
-}
-
-const ROUTE_GROUP_RE = /^\([^()]+\)$/;
-
-export function isRouteGroup(segment: string): boolean {
-  return ROUTE_GROUP_RE.test(segment);
-}
-
-const DYNAMIC_ROUTE_SEGMENT_RE = /(^|\/):[^/]+/g;
-
-export function routePatternKey(pattern: string): string {
-  return pattern.replace(DYNAMIC_ROUTE_SEGMENT_RE, "$1:param");
-}
-
-export function filePathToPattern(path: string): string {
-  const parts = path.replaceAll("\\", "/").split("/");
-  const segments: string[] = [];
-  const lastIndex = parts.length - 1;
-
-  for (let idx = 0; idx < parts.length; idx += 1) {
-    const part = parts[idx];
-    if (part === undefined || part.length === 0) {
-      continue;
-    }
-
-    // Only the leaf (file) segment carries an extension to strip. Directory
-    // segments are kept verbatim so valid folder names with dots — e.g.
-    // `v1.0` — are not truncated into `v1` by `parse().ext` handling.
-    const isFile = idx === lastIndex;
-    const name = isFile ? parse(part).name : part;
-
-    if (!isFile && isRouteGroup(name)) {
-      continue;
-    }
-
-    // `index` collapses to its parent ONLY as a leaf filename. A directory
-    // literally named `index` is a real route segment and must be preserved.
-    if (isFile && name === "index") {
-      continue;
-    }
-
-    const dynamic = parseDynamicRouteSegment(name, path);
-    if (dynamic) {
-      segments.push(dynamic.catchAll ? "*" : `:${dynamic.name}`);
-    } else {
-      segments.push(name);
-    }
-  }
-
-  return `/${segments.join("/")}`;
-}
+/** Param name of a catch-all segment (`*` in patterns), as in TanStack Start. */
+export const SPLAT_PARAM = "_splat";
 
 const REGEX_META_CHARS_RE = /[.*+?^${}()|[\]\\]/g;
 
@@ -171,8 +74,8 @@ export function escapeRegExp(value: string): string {
 /**
  * Unanchored regex source for a route pattern: literal characters (e.g. dots
  * in `v1.0`) are escaped, each `:param` becomes `sources.param` and `*`
- * becomes `sources.catchAll`. `paramNames` lists them in order (`*` for the
- * catch-all).
+ * becomes `sources.catchAll`. `paramNames` lists them in order (`_splat` for
+ * the catch-all).
  */
 export function routePatternRegexSource(
   pattern: string,
@@ -188,11 +91,21 @@ export function routePatternRegexSource(
       while (i < pattern.length && pattern[i] !== "/") {
         i += 1;
       }
-      paramNames.push(pattern.slice(start, i));
-      source += sources.param;
+      const name = pattern.slice(start, i);
+      if (name.endsWith("?") && source.endsWith("/")) {
+        // `/:lang?` matches with or without its segment, slash included.
+        paramNames.push(name.slice(0, -1));
+        source = `${source.slice(0, -1)}(?:/${sources.param})?`;
+      } else {
+        paramNames.push(name);
+        source += sources.param;
+      }
     } else if (pattern[i] === "*") {
-      paramNames.push("*");
-      source += sources.catchAll;
+      paramNames.push(SPLAT_PARAM);
+      // Elysia serves `/docs` from `/docs/*` too, with an empty splat.
+      source = source.endsWith("/")
+        ? `${source.slice(0, -1)}(?:/${sources.catchAll})?`
+        : source + sources.catchAll;
       i += 1;
     } else {
       const ch = pattern[i];
@@ -235,6 +148,28 @@ interface CompiledRoutePattern<TRoute extends RoutePatternLike> {
   route: TRoute;
 }
 
+function decodeParam(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/** An empty catch-all is `""`; an optional segment that did not match stays unset. */
+function matchedParams(paramNames: string[], match: RegExpExecArray): Record<string, string> {
+  const params: Record<string, string> = {};
+  for (const [index, name] of paramNames.entries()) {
+    const value = match[index + 1];
+    if (value !== undefined) {
+      params[name] = decodeParam(value);
+    } else if (name === SPLAT_PARAM) {
+      params[name] = "";
+    }
+  }
+  return params;
+}
+
 export function buildRouteMatcher<TRoute extends RoutePatternLike>(
   routes: TRoute[]
 ): (pathname: string) => RouteMatch<TRoute> | null {
@@ -251,18 +186,7 @@ export function buildRouteMatcher<TRoute extends RoutePatternLike>(
       if (!match) {
         continue;
       }
-      const params: Record<string, string> = {};
-      for (let i = 0; i < candidate.paramNames.length; i += 1) {
-        const name = candidate.paramNames[i];
-        if (name !== undefined) {
-          try {
-            params[name] = decodeURIComponent(match[i + 1] ?? "");
-          } catch {
-            params[name] = match[i + 1] ?? "";
-          }
-        }
-      }
-      return { params, route: candidate.route };
+      return { params: matchedParams(candidate.paramNames, match), route: candidate.route };
     }
     return null;
   };

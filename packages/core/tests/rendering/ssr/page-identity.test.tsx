@@ -65,6 +65,7 @@ test.each(policies)(
       path: "/virtual/identity/[id]/[tab].tsx",
       pattern: "/identity/:id/:tab",
       routeChain: [rootLayout, page._route],
+      layouts: [],
       segmentBoundaries: [],
     };
     const negativeZero = name.startsWith("negative zero");

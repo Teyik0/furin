@@ -17,7 +17,10 @@ afterEach(() => {
 });
 
 test("production pages render documents for every rendering mode", async () => {
-  const { app } = await mountProductionPages(fixturesDir, "");
+  const { app } = await mountProductionPages(
+    { pagesDir: fixturesDir, prefix: "", style: "tanstack" },
+    ""
+  );
 
   await Promise.all(
     ["/ssg-page", "/ssr-page", "/isr-page"].map(async (path) => {
@@ -30,7 +33,10 @@ test("production pages render documents for every rendering mode", async () => {
 });
 
 test("production pages apply query schema defaults without redirecting", async () => {
-  const { app } = await mountProductionPages(fixturesDir, "");
+  const { app } = await mountProductionPages(
+    { pagesDir: fixturesDir, prefix: "", style: "tanstack" },
+    ""
+  );
 
   const defaulted = await app.handle(new Request("http://localhost/query-default"));
   expect(defaulted.status).toBe(200);

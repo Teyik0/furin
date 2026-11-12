@@ -44,7 +44,7 @@ describe.serial("dev root module identity", () => {
   let port: number;
   let server: ReturnType<typeof startProcess>;
 
-  writeAppFile(app.path, "src/pages/root.tsx", rootSource("root-v1"));
+  writeAppFile(app.path, "src/pages/__root.tsx", rootSource("root-v1"));
   writeAppFile(
     app.path,
     "src/pages/index.tsx",
@@ -86,7 +86,7 @@ describe.serial("dev root module identity", () => {
     expect(before.status).toBe(404);
     expect(await before.text()).toContain("root-v1");
 
-    writeAppFile(app.path, "src/pages/root.tsx", rootSource("root-v2"));
+    writeAppFile(app.path, "src/pages/__root.tsx", rootSource("root-v2"));
 
     let notFoundHtml = "";
     await pollUntil(

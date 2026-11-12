@@ -43,7 +43,7 @@ function createVercelApp(): TmpApp {
       '    revalidateTag("news,world");',
       '    return "tag invalidated";',
       "  })",
-      '  .use(await furin({ pagesDir: "./src/pages" }));',
+      '  .use(await furin({ style: "tanstack", pagesDir: "./src/pages" }));',
       "",
       "if (import.meta.main) {",
       "  app.listen(3000);",
@@ -84,12 +84,12 @@ function createVercelApp(): TmpApp {
   );
   writeAppFile(
     app.path,
-    "src/pages/events/[slug].tsx",
+    "src/pages/events/$slug.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { t } from "elysia";',
       "",
-      "export const route = defineRoute(\"/events/[slug]\")",
+      "export const route = defineRoute(\"/events/$slug\")",
       '  .config({ mode: "isr", params: t.Object({ slug: t.String() }), revalidate: 90 })',
       '  .staticParams(() => [{ slug: "launch" }])',
       '  .page(({ params }) => <main>Event: {params.slug}</main>);',
@@ -128,9 +128,19 @@ describe.serial("Vercel deployment adapter", () => {
       const app = createVercelApp();
       writeAppFile(
         app.path,
-        "src/pages/account/_route.tsx",
+        "src/pages/{-$lang}/promo.tsx",
         `import { defineRoute } from "@teyik0/furin";
-export const route = defineRoute("/account/_route")
+import { t } from "elysia";
+export const route = defineRoute("/{-$lang}/promo")
+  .config({ mode: "ssg", params: t.Object({ lang: t.Optional(t.String()) }) })
+  .staticParams(() => [{ lang: "fr" }])
+  .page(() => <main>Promo</main>);`
+      );
+      writeAppFile(
+        app.path,
+        "src/pages/account/route.tsx",
+        `import { defineRoute } from "@teyik0/furin";
+export const route = defineRoute("/account")
   .config({ mode: "ssr" })
   .loader(({ request }) => ({ session: request.headers.get("cookie") }))
   .layout(({ children, session }) => <section>{session}{children}</section>);`
@@ -139,16 +149,16 @@ export const route = defineRoute("/account/_route")
         app.path,
         "src/pages/account/index.tsx",
         `import { defineRoute } from "@teyik0/furin";
-export const route = defineRoute("/account")
+export const route = defineRoute("/account/")
   .config({ mode: "isr", revalidate: 90 })
   .loader(() => ({ catalog: "Coffee" }))
   .page(({ catalog }) => <main>{catalog}</main>);`
       );
       writeAppFile(
         app.path,
-        "src/pages/catalog/_route.tsx",
+        "src/pages/catalog/route.tsx",
         `import { defineRoute } from "@teyik0/furin";
-export const route = defineRoute("/catalog/_route")
+export const route = defineRoute("/catalog")
   .config({ mode: "isr", revalidate: 5 })
   .loader(() => ({ heading: "Catalog" }))
   .layout(({ children, heading }) => <section>{heading}{children}</section>);`
@@ -157,7 +167,7 @@ export const route = defineRoute("/catalog/_route")
         app.path,
         "src/pages/catalog/index.tsx",
         `import { defineRoute } from "@teyik0/furin";
-export const route = defineRoute("/catalog")
+export const route = defineRoute("/catalog/")
   .config({ mode: "ssg" })
   .loader(() => ({ product: "Coffee" }))
   .page(({ product }) => <main>{product}</main>);`
@@ -226,6 +236,12 @@ export const route = defineRoute("/catalog")
         dest: "/blog/[slug]-ssg?__furin_path=$__furin_path",
         src: "(?<__furin_path>/blog/[^/]+)",
       });
+      // `?` is not portable in function directory names: `:lang?` becomes `[[lang]]`.
+      expect(config.routes).toContainEqual({
+        dest: "/[[lang]]/promo-ssg?__furin_path=$__furin_path",
+        src: "(?<__furin_path>(?:/[^/]+)?/promo)",
+      });
+      expect(existsSync(join(functionsDir, "[[lang]]/promo-ssg.func"))).toBe(true);
       expect(config.routes.at(-1)).toEqual({ dest: "/__server", src: "/(.*)" });
 
       expect(functionConfig).toEqual({
@@ -327,7 +343,7 @@ export const route = defineRoute("/catalog")
       }
       expect(manifest.isrRoutes).toEqual(["/catalog", "/events/:slug", "/news", "/search"]);
       expect(manifest.outputDir).toBe(".vercel/output");
-      expect(manifest.ssgRoutes).toEqual(["/", "/blog/hello-world"]);
+      expect(manifest.ssgRoutes).toEqual(["/", "/blog/hello-world", "/fr/promo"]);
     }
 
     runScenario().then(() => done(), done);
@@ -369,7 +385,7 @@ export const route = defineRoute("/catalog")
         "  .use(guard)",
         '  .get("/api/health", () => "ok")',
         // biome-ignore lint/suspicious/noTemplateCurlyInString: generated source text
-        "  .use(await furin({ pagesDir: `${import.meta.dir}/pages` }));",
+        '  .use(await furin({ style: "tanstack", pagesDir: `${import.meta.dir}/pages` }));',
         "",
         "export default app;",
         "",
@@ -420,10 +436,10 @@ export const route = defineRoute("/catalog")
 
   test("treats a root requestLoader as PPR without running it during the build", async () => {
     const app = createVercelApp();
-    const rootPath = join(app.path, "src/pages/root.tsx");
+    const rootPath = join(app.path, "src/pages/__root.tsx");
     writeAppFile(
       app.path,
-      "src/pages/root.tsx",
+      "src/pages/__root.tsx",
       readFileSync(rootPath, "utf8").replace(
         ".layout(",
         '.requestLoader((): { user: string } => { throw new Error("private loader ran during build"); })\n  .layout('
@@ -457,8 +473,8 @@ export const route = defineRoute("/catalog")
       "src/server.ts",
       'import { createMemoryPageCache } from "@teyik0/furin/cache";\n' +
         readFileSync(serverPath, "utf8").replace(
-          'furin({ pagesDir: "./src/pages" })',
-          'furin({ pagesDir: "./src/pages", pageCache: createMemoryPageCache() })'
+          'furin({ style: "tanstack", pagesDir: "./src/pages" })',
+          'furin({ style: "tanstack", pagesDir: "./src/pages", pageCache: createMemoryPageCache() })'
         )
     );
     await expect(buildApp({ rootDir: app.path, target: "vercel" })).rejects.toThrow(
@@ -529,8 +545,8 @@ export const route = defineRoute("/blog/${name}").config({ mode: "${mode}" })
           'import { Elysia } from "elysia";',
           "",
           "const app = new Elysia()",
-          '  .use(await furin({ pagesDir: "./src/pages" }))',
-          '  .use(await furin({ pagesDir: "./src/admin", prefix: "/admin" }));',
+          '  .use(await furin({ style: "tanstack", pagesDir: "./src/pages" }))',
+          '  .use(await furin({ style: "tanstack", pagesDir: "./src/admin", prefix: "/admin" }));',
           "",
           "if (import.meta.main) {",
           "  app.listen(3000);",
@@ -543,8 +559,8 @@ export const route = defineRoute("/blog/${name}").config({ mode: "${mode}" })
 
       await buildApp({
         apps: [
-          { pagesDir: "src/pages", prefix: "" },
-          { pagesDir: "src/admin", prefix: "/admin" },
+          { pagesDir: "src/pages", prefix: "", style: "tanstack" },
+          { pagesDir: "src/admin", prefix: "/admin", style: "tanstack" },
         ],
         rootDir: app.path,
         target: "vercel",
@@ -589,8 +605,8 @@ export const route = defineRoute("/blog/${name}").config({ mode: "${mode}" })
 
   test("runs the generated Web Handler without opening a TCP listener", async () => {
     const app = createVercelApp();
-    writeAppFile(app.path, "src/pages/blog/[slug].tsx",
-      readFileSync(join(app.path, "src/pages/blog/[slug].tsx"), "utf8")
+    writeAppFile(app.path, "src/pages/blog/$slug.tsx",
+      readFileSync(join(app.path, "src/pages/blog/$slug.tsx"), "utf8")
         .replace('mode: "ssg",', 'mode: "ssg", tags: ["generic"],'));
     for (const name of ["tagged", "untagged"]) {
       writeAppFile(app.path, `src/pages/blog/${name}.tsx`,

@@ -1,4 +1,3 @@
-import { dirname, relative } from "node:path";
 import type { Context } from "elysia";
 import type {
   RuntimeData,
@@ -7,7 +6,6 @@ import type {
   RuntimeStaticParams,
 } from "../../client/internal/runtime-types.ts";
 import { mapWithConcurrency } from "../../shared/utils/index.ts";
-import { filePathToPattern } from "../router/patterns.ts";
 import type { ResolvedRoute } from "../router/types.ts";
 import { resolvePath } from "./assemble.ts";
 import { runPublicLoaders } from "./loaders.ts";
@@ -39,17 +37,11 @@ function collectStaticParamsStages(route: ResolvedRoute): StaticParamsStage[] {
 }
 
 function ancestorPattern(route: ResolvedRoute, ancestors: RuntimeRoute[]): string {
-  const rootSourcePath = route.routeChain[0]?.sourcePath;
   const ancestorSourcePath = ancestors.at(-1)?.sourcePath;
-  if (rootSourcePath === undefined || ancestorSourcePath === undefined) {
-    return route.pattern;
-  }
-  const pagesDir = dirname(rootSourcePath);
-  const ancestorDir = dirname(ancestorSourcePath);
-  if (ancestorDir === pagesDir) {
+  if (ancestors.length <= 1) {
     return "/";
   }
-  return filePathToPattern(`${relative(pagesDir, ancestorDir)}/index.tsx`);
+  return route.layouts.find(({ path }) => path === ancestorSourcePath)?.pattern ?? route.pattern;
 }
 
 function createBuildContext(pattern: string, params: RuntimeParams, origin: string): Context {

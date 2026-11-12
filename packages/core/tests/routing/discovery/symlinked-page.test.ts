@@ -16,7 +16,7 @@ beforeAll(() => {
   mkdirSync(TMP_ROOT, { recursive: true });
   pagesDir = mkdtempSync(join(TMP_ROOT, "symlinked-page-"));
   writeFileSync(
-    join(pagesDir, "root.tsx"),
+    join(pagesDir, "__root.tsx"),
     `import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
 export const route = defineRootRoute()
   .config({ mode: "ssr" })
@@ -24,15 +24,15 @@ export const route = defineRootRoute()
     <html lang="en"><head><HeadContent /></head><body>{children}<Scripts /></body></html>
   ));`
   );
-  mkdirSync(join(pagesDir, "_shared"));
+  mkdirSync(join(pagesDir, "-shared"));
   writeFileSync(
-    join(pagesDir, "_shared", "about.tsx"),
+    join(pagesDir, "-shared", "about.tsx"),
     `import { defineRoute } from "@teyik0/furin";
 export const route = defineRoute("/about")
   .config({ mode: "ssr" })
   .page(() => <p>shared about page</p>);`
   );
-  symlinkSync(join(pagesDir, "_shared", "about.tsx"), join(pagesDir, "about.tsx"));
+  symlinkSync(join(pagesDir, "-shared", "about.tsx"), join(pagesDir, "about.tsx"));
 });
 
 afterAll(() => {
@@ -42,7 +42,7 @@ afterAll(() => {
 });
 
 test("a symlinked page file is served at its route", async () => {
-  const { app } = await mountProductionPages(pagesDir, "");
+  const { app } = await mountProductionPages({ pagesDir, prefix: "", style: "tanstack" }, "");
 
   const response = await app.handle(new Request("http://localhost/about"));
 

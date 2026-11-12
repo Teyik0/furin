@@ -17,7 +17,7 @@ test("the landing keeps its server content and interactive slots without shippin
   expect(html).toContain('href="/docs"');
   expect(html.match(/<canvas\b/g)).toHaveLength(2);
   expect(html).toContain("sync-card--mover");
-  expect(html).toContain("pages/index.tsx");
+  expect(html).toContain("routes/index.tsx");
   expect(html.includes("<furin-rsc-slot")).toBe(false);
 
   const build = await Bun.build({

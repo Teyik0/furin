@@ -29,11 +29,13 @@ describe("furin/routes server plugin", () => {
       for (const [group, parameter] of [["(admin)", "id"], ["(marketing)", "slug"]] as const) {
         const directory = join(pagesDir, group, "users");
         mkdirSync(directory, { recursive: true });
-        writeFileSync(join(directory, `[${parameter}].ts`), "export const route = {};");
+        writeFileSync(join(directory, `$${parameter}.ts`), "export const route = {};");
       }
 
-      await expect(materializedRouteModuleSource({ pagesDir, prefix: "" })).rejects.toThrow(
-        '[furin] Duplicate route pattern "/users/:param" from "(admin)/users/[id].ts" and "(marketing)/users/[slug].ts".'
+      await expect(
+        materializedRouteModuleSource({ pagesDir, prefix: "", style: "tanstack" as const })
+      ).rejects.toThrow(
+        '[furin] Duplicate route pattern "/users/:param" from "(admin)/users/$id.ts" and "(marketing)/users/$slug.ts".'
       );
     } finally {
       rmSync(pagesDir, { force: true, recursive: true });
@@ -41,7 +43,11 @@ describe("furin/routes server plugin", () => {
   });
 
   test("serves grouped routes with isolated layouts and nested groups", async () => {
-    const instance = { pagesDir: join(FIXTURES, "../pages/route-groups"), prefix: "" };
+    const instance = {
+      pagesDir: join(FIXTURES, "../pages/route-groups"),
+      prefix: "",
+      style: "nextjs",
+    } satisfies RouteInstanceSpec;
     const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-groups-"));
 
     try {
@@ -104,7 +110,7 @@ describe("furin/routes server plugin", () => {
   });
 
   test("keeps generated route bindings unique for separator-like paths", async () => {
-    const instance = { pagesDir: join(FIXTURES, "colliding-paths"), prefix: "" };
+    const instance = { pagesDir: join(FIXTURES, "colliding-paths"), prefix: "", style: "tanstack" as const };
     const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-bindings-"));
     const entryPath = join(tempDir, "entry.ts");
 
@@ -142,7 +148,7 @@ describe("furin/routes server plugin", () => {
   });
 
   test("preserves catch-all pages as Elysia wildcards", async () => {
-    const instance = { pagesDir: join(FIXTURES, "catch-all"), prefix: "" };
+    const instance = { pagesDir: join(FIXTURES, "catch-all"), prefix: "", style: "tanstack" as const };
     const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-catch-all-"));
     const entryPath = join(tempDir, "entry.ts");
 
@@ -176,11 +182,11 @@ export { furinApp as composableApp } from ${JSON.stringify(composableRouteModule
       }
 
       expect(response.status).toBe(200);
-      expect(await response.json()).toMatchObject({ params: { "*": "guides/routing" } });
+      expect(await response.json()).toMatchObject({ params: { _splat: "guides/routing" } });
 
       const rootResponse = await app.handle(new Request("http://localhost/other/page"));
       expect(rootResponse.status).toBe(200);
-      expect(await rootResponse.json()).toMatchObject({ params: { "*": "other/page" } });
+      expect(await rootResponse.json()).toMatchObject({ params: { _splat: "other/page" } });
       expect(
         (await built.composableApp.handle(new Request("http://localhost/other/page"))).status
       ).toBe(404);
@@ -190,8 +196,8 @@ export { furinApp as composableApp } from ${JSON.stringify(composableRouteModule
   });
 
   test("resolves one isolated Elysia app per mounted instance", async () => {
-    const rootInstance = { pagesDir: join(FIXTURES, "root"), prefix: "" };
-    const adminInstance = { pagesDir: join(FIXTURES, "admin"), prefix: "/admin" };
+    const rootInstance = { pagesDir: join(FIXTURES, "root"), prefix: "", style: "tanstack" as const };
+    const adminInstance = { pagesDir: join(FIXTURES, "admin"), prefix: "/admin", style: "tanstack" as const };
     const instances = [rootInstance, adminInstance] satisfies RouteInstanceSpec[];
     const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-plugin-"));
     const entryPath = join(tempDir, "entry.ts");
@@ -234,7 +240,7 @@ export { adminApp, rootApp };
   });
 
   test("composes nested layouts above their dynamic children", async () => {
-    const instance = { pagesDir: join(FIXTURES, "root"), prefix: "" };
+    const instance = { pagesDir: join(FIXTURES, "root"), prefix: "", style: "tanstack" as const };
     const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-layout-"));
     const entryPath = join(tempDir, "entry.ts");
 
@@ -277,7 +283,7 @@ export { adminApp, rootApp };
   });
 
   test("rejects dynamic paths without a matching params schema", async () => {
-    const instance = { pagesDir: join(FIXTURES, "bad"), prefix: "" };
+    const instance = { pagesDir: join(FIXTURES, "bad"), prefix: "", style: "tanstack" as const };
     const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-drift-"));
     const entryPath = join(tempDir, "entry.ts");
 
@@ -299,8 +305,8 @@ export { adminApp, rootApp };
     }
   });
 
-  test("ignores underscore-prefixed files and directories", async () => {
-    const instance = { pagesDir: join(FIXTURES, "underscore"), prefix: "" };
+  test("ignores dash-prefixed files and directories", async () => {
+    const instance = { pagesDir: join(FIXTURES, "underscore"), prefix: "", style: "tanstack" as const };
     const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-underscore-"));
     const entryPath = join(tempDir, "entry.ts");
 
@@ -332,10 +338,10 @@ export { adminApp, rootApp };
       expect(index.status).toBe(200);
       expect(await index.json()).toMatchObject({ rendered: true });
       // Co-located private files and directories never become routes.
-      const components = await built.furinApp.handle(new Request("http://localhost/_components"));
+      const components = await built.furinApp.handle(new Request("http://localhost/-components"));
       expect(components.status).toBe(404);
       const libHelpers = await built.furinApp.handle(
-        new Request("http://localhost/_lib/helpers")
+        new Request("http://localhost/-lib/helpers")
       );
       expect(libHelpers.status).toBe(404);
     } finally {
@@ -347,8 +353,8 @@ export { adminApp, rootApp };
 describe("furin/routes client plugin", () => {
   test("emits the compact root manifest without Elysia", async () => {
     const instances = [
-      { pagesDir: join(FIXTURES, "root"), prefix: "" },
-      { pagesDir: join(FIXTURES, "admin"), prefix: "/admin" },
+      { pagesDir: join(FIXTURES, "root"), prefix: "", style: "tanstack" as const },
+      { pagesDir: join(FIXTURES, "admin"), prefix: "/admin", style: "tanstack" as const },
     ] satisfies RouteInstanceSpec[];
     const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-client-"));
     const entryPath = join(tempDir, "entry.ts");

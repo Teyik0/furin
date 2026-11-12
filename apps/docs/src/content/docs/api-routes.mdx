@@ -30,7 +30,7 @@ export type Api = typeof api;
 import { furin } from "@teyik0/furin";
 import { api } from "./api";
 
-export const app = api.use(await furin({ pagesDir: "./src/pages" }));
+export const app = api.use(await furin({ style: "tanstack" }));
 const port = Number(process.env.PORT ?? 3000);
 
 if (import.meta.main) app.listen(port);
@@ -52,10 +52,10 @@ const externalApi = new Elysia({ prefix: "/api" }).mount(externalHandler);
 
 export const app = new Elysia()
   .use(externalApi)
-  .use(await furin({ pagesDir: "./src/pages" }));
+  .use(await furin({ style: "tanstack" }));
 ```
 
-The root `[...rest]` page runs after Elysia has checked mounted API routes. An unprefixed `.mount(handler)` claims every URL, including page URLs. Elysia strips a mount prefix from the request URL passed to the handler, so configure the external handler's internal base path and callback URLs accordingly. Furin skips Elysia's build-time AOT step for applications with `.mount()` because that compiler does not support mounted handlers; the Bun server still compiles and serves them at runtime.
+A root catch-all page (`$.tsx`, or `[...rest]/page.tsx` in the Next.js style) runs after Elysia has checked mounted API routes. An unprefixed `.mount(handler)` claims every URL, including page URLs. Elysia strips a mount prefix from the request URL passed to the handler, so configure the external handler's internal base path and callback URLs accordingly. Furin skips Elysia's build-time AOT step for applications with `.mount()` because that compiler does not support mounted handlers; the Bun server still compiles and serves them at runtime.
 
 ## Middleware, Guards, And Scope
 
@@ -125,7 +125,7 @@ export const getPostsApi = createIsomorphicFn()
 Keep the factory in one fluent chain, using a named import or direct namespace access such as `Furin.createIsomorphicFn()`. Constant aliases of the factory are supported; aliasing or destructuring the Furin namespace, or selecting its exports with a runtime key, is rejected so unresolved server branches cannot reach the browser bundle.
 
 ```tsx
-// src/pages/posts.tsx
+// src/routes/posts.tsx
 export const route = defineRoute("/posts")
   .config({ mode: "ssr" })
   .loader(async ({ request }) => {

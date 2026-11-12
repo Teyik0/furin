@@ -47,7 +47,7 @@ test.each(["", "/api"])(
     try {
       const outer = new Elysia()
         .use(new Elysia({ prefix }).mount(async (request) => await inner.handle(request)))
-        .use(await furin({ pagesDir: join(fixture.path, "src/pages"), sync }));
+        .use(await furin({ pagesDir: join(fixture.path, "src/pages"), style: "tanstack", sync }));
       const read = () => outer.handle(new Request("http://localhost/api/counter"));
       const initial = await read();
       expect(initial.status).toBe(200);

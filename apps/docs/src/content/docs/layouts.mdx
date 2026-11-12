@@ -1,13 +1,13 @@
 # Nested Layouts
 
-Layouts share UI and loader data across a filesystem branch. `root.tsx` owns the document; each `_route.tsx` wraps the pages and deeper layouts in its directory.
+Layouts share UI and loader data across a branch of the pages tree. The root document (`layout.tsx` at the top of a Next.js-style app, `__root.tsx` in the TanStack style) owns the document; every other layout wraps the pages and deeper layouts below it.
 
 ## Root Document
 
-Every pages directory requires `root.tsx`:
+Every pages directory requires a root document:
 
 ```tsx
-// src/pages/root.tsx
+// src/routes/__root.tsx (tanstack) or src/app/layout.tsx (nextjs)
 import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
 import "./globals.css";
 
@@ -28,13 +28,15 @@ export const route = defineRootRoute()
 
 Furin does not add a second document shell. Omitting `<HeadContent />` or `<Scripts />` makes the root invalid because metadata, serialized data, framework clients, and the hydration entry need those insertion points.
 
-## Directory Layouts
+## Layouts
+
+A layout is `dashboard/layout.tsx` in the Next.js style, and `dashboard/route.tsx` or a `dashboard.tsx` file next to the `dashboard/` directory in the TanStack style. Both are keyed `"/dashboard"`:
 
 ```tsx
-// src/pages/dashboard/_route.tsx
+// src/routes/dashboard/route.tsx (tanstack) or src/app/dashboard/layout.tsx (nextjs)
 import { defineRoute } from "@teyik0/furin";
 
-export const route = defineRoute("/dashboard/_route")
+export const route = defineRoute("/dashboard")
   .config({ mode: "ssr" })
   .loader(async ({ request }) => ({ user: await getSession(request) }))
   .layout(({ children, user }) => (
@@ -45,10 +47,11 @@ export const route = defineRoute("/dashboard/_route")
   ));
 ```
 
-A page in that directory gets the layout's loader fields through its [route id](/docs/routing#route-ids):
+A page below it gets the layout's loader fields through its [route id](/docs/routing#route-ids):
 
 ```tsx
-// src/pages/dashboard/settings.tsx
+// src/routes/dashboard/settings.tsx (tanstack: "/dashboard/settings")
+// src/app/dashboard/settings/page.tsx (nextjs: "/dashboard/settings/")
 import { defineRoute } from "@teyik0/furin";
 
 export const route = defineRoute("/dashboard/settings")
@@ -67,18 +70,35 @@ A layout receives its own loader fields, its ancestors' fields, `params`, `path`
 ## Multiple Levels
 
 ```text
-src/pages/
-├── root.tsx
-└── dashboard/
-    ├── _route.tsx
-    └── account/
-        ├── _route.tsx
-        └── security.tsx
+src/app/                          src/routes/
+├── layout.tsx                    ├── __root.tsx
+└── dashboard/                    └── dashboard/
+    ├── layout.tsx                    ├── route.tsx
+    └── account/                      └── account/
+        ├── layout.tsx                    ├── route.tsx
+        └── security/page.tsx             └── security.tsx
 ```
 
-`security.tsx` is wrapped by `account/_route.tsx`, itself wrapped by `dashboard/_route.tsx` and `root.tsx`. The filesystem is the only source of that chain: a route never imports its layout, and its [id](/docs/routing#route-ids) gives TypeScript the same parent from the generated route types.
+The security page is wrapped by the account layout, itself wrapped by the dashboard layout and the root document. The pages tree is the only source of that chain: a route never imports its layout, and its [id](/docs/routing#route-ids) gives TypeScript the same parent from the generated route types.
 
-A layout can't be reused outside its directory. Extract ordinary React components for visual reuse and keep route layouts aligned with URL ownership.
+In the TanStack style the chain follows route ids, not only directories:
+
+```text
+src/routes/
+├── __root.tsx
+├── posts.tsx                  → layout of /posts
+├── posts.index.tsx            → /posts, wrapped by posts.tsx
+├── posts.$postId.tsx          → /posts/:postId, wrapped by posts.tsx
+├── posts_.$postId.print.tsx   → /posts/:postId/print, NOT wrapped by posts.tsx
+├── _auth.tsx                  → pathless layout
+└── _auth/
+    ├── login.tsx              → /login, wrapped by _auth.tsx
+    └── signup.tsx             → /signup, wrapped by _auth.tsx
+```
+
+A pathless layout such as `_auth.tsx` wraps its children without adding a URL segment, which is how the TanStack style shares a layout between unrelated URLs; the Next.js style uses a [route group](/docs/routing#layout-hierarchy) with its own `layout.tsx` for the same purpose. A trailing underscore (`posts_`) keeps the URL segment but leaves the layout of the same name.
+
+A layout can't be reused outside its branch. Extract ordinary React components for visual reuse and keep route layouts aligned with URL ownership.
 
 ## Rendering Modes Across A Chain
 
@@ -101,8 +121,8 @@ state for a later visit.
 Use `remountDeps` in `config()` to choose which values identify a page:
 
 ```tsx
-// src/pages/documents/[documentId]/[tab].tsx
-export const route = defineRoute("/documents/[documentId]/[tab]")
+// src/routes/documents/$documentId/$tab.tsx
+export const route = defineRoute("/documents/$documentId/$tab")
   .config({
     mode: "ssr",
     params: t.Object({ documentId: t.String(), tab: t.String() }),

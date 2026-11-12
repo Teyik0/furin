@@ -3,12 +3,21 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
+import { scanRouteManifest } from "../../../src/plugin/route-manifest.ts";
 import { scanRootLayout } from "../../../src/server/router/discovery.ts";
 import {
   collectRouteChainFromRoute,
   hasCycle,
   validateRouteChain,
 } from "../../../src/shared/utils/index.ts";
+
+function tanstackRoot(pagesDir: string) {
+  return scanRootLayout(
+    scanRouteManifest({ pagesDir, prefix: "", style: "tanstack" }),
+    pagesDir,
+    "tanstack"
+  );
+}
 
 const MUST_INHERIT_FROM_ROOT_RE = /must inherit from root/i;
 const CYCLE_RE = /cycle/i;
@@ -108,29 +117,29 @@ describe("scanRootLayout", () => {
     }
   });
 
-  test("throw error when root.tsx doesn't exist", () => {
+  test("throw error when __root.tsx doesn't exist", () => {
     const emptyDir = join(tempDir, "no-root");
     mkdirSync(emptyDir, { recursive: true });
 
-    expect(scanRootLayout(emptyDir)).rejects.toThrow();
+    expect(tanstackRoot(emptyDir)).rejects.toThrow();
   });
 
   test("throw error when export is not a valid Elyra route", () => {
     const invalidDir = join(tempDir, "invalid-root");
     mkdirSync(invalidDir, { recursive: true });
 
-    writeFileSync(join(invalidDir, "root.tsx"), "export const route = { notARoute: true };");
+    writeFileSync(join(invalidDir, "__root.tsx"), "export const route = { notARoute: true };");
 
-    expect(scanRootLayout(invalidDir)).rejects.toThrow();
+    expect(tanstackRoot(invalidDir)).rejects.toThrow();
   });
 
   test("throw error when default export is not a valid route", () => {
     const invalidDefaultDir = join(tempDir, "invalid-default");
     mkdirSync(invalidDefaultDir, { recursive: true });
 
-    writeFileSync(join(invalidDefaultDir, "root.tsx"), "export default { invalid: true };");
+    writeFileSync(join(invalidDefaultDir, "__root.tsx"), "export default { invalid: true };");
 
-    expect(scanRootLayout(invalidDefaultDir)).rejects.toThrow();
+    expect(tanstackRoot(invalidDefaultDir)).rejects.toThrow();
   });
 
   test("rejects a valid route terminal exported as default", () => {
@@ -139,12 +148,12 @@ describe("scanRootLayout", () => {
     const furinEntry = join(import.meta.dir, "../../../src/furin.ts");
 
     writeFileSync(
-      join(defaultRouteDir, "root.tsx"),
+      join(defaultRouteDir, "__root.tsx"),
       `import { defineRootRoute } from ${JSON.stringify(furinEntry)};
 export default defineRootRoute().config({ mode: "ssr" }).layout(({ children }) => children);`
     );
 
-    expect(scanRootLayout(defaultRouteDir)).rejects.toThrow();
+    expect(tanstackRoot(defaultRouteDir)).rejects.toThrow();
   });
 
   test("throw error when root has no layout", () => {
@@ -152,12 +161,12 @@ export default defineRootRoute().config({ mode: "ssr" }).layout(({ children }) =
     mkdirSync(noLayoutDir, { recursive: true });
 
     writeFileSync(
-      join(noLayoutDir, "root.tsx"),
+      join(noLayoutDir, "__root.tsx"),
       `const route = { __type: "FURIN_ROUTE" };
 export { route };`
     );
 
-    expect(scanRootLayout(noLayoutDir)).rejects.toThrow();
+    expect(tanstackRoot(noLayoutDir)).rejects.toThrow();
   });
 
   test("returns root layout when valid", async () => {
@@ -166,15 +175,15 @@ export { route };`
     const furinEntry = join(import.meta.dir, "../../../src/furin.ts");
 
     writeFileSync(
-      join(validDir, "root.tsx"),
+      join(validDir, "__root.tsx"),
       `import { defineRootRoute } from ${JSON.stringify(furinEntry)};
 export const route = defineRootRoute().config({ mode: "ssr" }).layout(({ children }) => children);`
     );
 
-    const result = await scanRootLayout(validDir);
+    const result = await tanstackRoot(validDir);
 
     expect(result).not.toBeNull();
-    expect(result.path).toContain("root.tsx");
+    expect(result.path).toContain("__root.tsx");
     expect(result.route).toBeDefined();
     expect(result.route.layout).toBeDefined();
   });

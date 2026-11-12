@@ -36,18 +36,42 @@ type SegmentMatches<
     ? true
     : false;
 
-/** Mirrors the router: `:param` matches one non-empty segment, `*` the rest. */
+/** An optional `:param?` segment followed by `Rest`: skip it, or let it take one segment. */
+type OptionalSegmentMatches<Rest extends string, Path extends string> =
+  PatternMatches<Rest, Path> extends true
+    ? true
+    : Path extends `${infer PathHead}/${infer PathRest}`
+      ? PathHead extends ""
+        ? false
+        : PatternMatches<Rest, PathRest>
+      : false;
+
+/**
+ * Mirrors the router: `:param` matches one non-empty segment, `:param?` one
+ * or none, `*` the rest. `Head` is always a single segment: `${infer Head}/`
+ * stops at the first slash.
+ */
 type PatternMatches<Pattern extends string, Path extends string> = Pattern extends "*"
   ? true
   : Pattern extends `${infer Head}/${infer Rest}`
-    ? Path extends `${infer PathHead}/${infer PathRest}`
-      ? SegmentMatches<Head, PathHead> extends true
-        ? PatternMatches<Rest, PathRest>
-        : false
-      : false
-    : Path extends `${string}/${string}`
-      ? false
-      : SegmentMatches<Pattern, Path>;
+    ? Head extends `:${string}?`
+      ? OptionalSegmentMatches<Rest, Path>
+      : Path extends `${infer PathHead}/${infer PathRest}`
+        ? SegmentMatches<Head, PathHead> extends true
+          ? PatternMatches<Rest, PathRest>
+          : false
+        : Rest extends `${string}/${string}`
+          ? false
+          : Rest extends `:${string}?`
+            ? SegmentMatches<Head, Path>
+            : false
+    : Pattern extends `:${string}?`
+      ? Path extends `${string}/${string}`
+        ? false
+        : true
+      : Path extends `${string}/${string}`
+        ? false
+        : SegmentMatches<Pattern, Path>;
 
 type MatchingPattern<Path extends string> = {
   [Pattern in RoutePattern]: PatternMatches<Pattern, Path> extends true ? Pattern : never;
@@ -177,11 +201,13 @@ export type PreloadStrategy = false | "intent" | "viewport" | "render";
 
 type LinkPathParamKeys<Path extends string> = Path extends `${infer Segment}/${infer Rest}`
   ? LinkPathParamKeys<Segment> | LinkPathParamKeys<Rest>
-  : Path extends `:${infer Key}`
-    ? Key
-    : Path extends "*"
-      ? "*"
-      : never;
+  : Path extends `:${string}?`
+    ? never
+    : Path extends `:${infer Key}`
+      ? Key
+      : Path extends "*"
+        ? "_splat"
+        : never;
 
 type LinkParams<To extends RouteTo> = [To] extends [RoutePattern]
   ? LinkPathParamKeys<To> extends never

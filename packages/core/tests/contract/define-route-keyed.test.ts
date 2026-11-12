@@ -20,7 +20,7 @@ const root = defineRootRoute()
   .layout(({ children }) => children);
 
 const createOrgLayout = () =>
-  defineRoute("/[org]/_route")
+  defineRoute("/$org")
     .config({ mode: "ssg", params: t.Object({ org: t.Number() }) })
     .loader(() => ({ plan: "pro" as const }))
     .layout(({ children, params, query }) => {
@@ -32,13 +32,13 @@ declare const orgLayout: ReturnType<typeof createOrgLayout>;
 
 declare module "@teyik0/furin/routes" {
   interface FileRoutes {
-    "/[org]/_route": {
+    "/$org": {
       kind: "layout";
       pattern: "/:org";
       parent: typeof root;
       pathParams: { org: string };
     };
-    "/[org]/projects/[projectId]": {
+    "/$org/projects/$projectId": {
       kind: "page";
       pattern: "/:org/projects/:projectId";
       parent: typeof orgLayout;
@@ -48,7 +48,7 @@ declare module "@teyik0/furin/routes" {
 }
 
 const assertInheritedFromTree = () => {
-  const project = defineRoute("/[org]/projects/[projectId]")
+  const project = defineRoute("/$org/projects/$projectId")
     .config({ mode: "ssr" })
     .loader(async ({ params, plan, query }) => {
       expectTypeOf(params).toEqualTypeOf<{ projectId: string; org: number }>();
@@ -67,7 +67,7 @@ const assertInheritedFromTree = () => {
     org: number;
   }>();
 
-  const refined = defineRoute("/[org]/projects/[projectId]")
+  const refined = defineRoute("/$org/projects/$projectId")
     .config({ mode: "ssg", params: t.Object({ projectId: t.Number() }) })
     .staticParams(({ params }) => {
       expectTypeOf(params).toEqualTypeOf<{ org?: number }>();
@@ -84,18 +84,18 @@ const assertRejectedWiring = () => {
   // @ts-expect-error every route names its file
   defineRoute();
 
-  defineRoute("/[org]/projects/[projectId]").config({
+  defineRoute("/$org/projects/$projectId").config({
     // @ts-expect-error the parent layout comes from the pages tree
     layout: orgLayout,
     mode: "ssr",
   });
 
-  defineRoute("/[org]/_route")
+  defineRoute("/$org")
     .config({ mode: "ssr" })
-    // @ts-expect-error a _route file is a layout
+    // @ts-expect-error a route.tsx file is a layout
     .page(() => null);
 
-  defineRoute("/[org]/projects/[projectId]")
+  defineRoute("/$org/projects/$projectId")
     .config({ mode: "ssr" })
     // @ts-expect-error a page file cannot end with layout()
     .layout(({ children }) => children);
@@ -117,13 +117,13 @@ function writeKeyedApp(files: { [path: string]: string }): string {
       exports: { "./env": { types: "./env.d.ts" } },
       name: "@teyik0/furin",
     }),
-    "src/admin/root.tsx": `import { defineRootRoute } from "@teyik0/furin";
+    "src/admin/__root.tsx": `import { defineRootRoute } from "@teyik0/furin";
 export const route = defineRootRoute()
   .config({ mode: "ssr" })
   .loader(() => ({ staff: true }))
   .layout(({ children }) => children);
 `,
-    "src/pages/root.tsx": `import { defineRootRoute } from "@teyik0/furin";
+    "src/pages/__root.tsx": `import { defineRootRoute } from "@teyik0/furin";
 import { t } from "elysia";
 export const route = defineRootRoute()
   .config({ mode: "ssr", query: t.Object({ lang: t.String() }) })
@@ -151,8 +151,8 @@ export const route = defineRootRoute()
         join(CORE_SOURCE, "react-dom-edge.d.ts"),
         join(CORE_SOURCE, "rsc/react-server-dom-webpack.d.ts"),
         "furin-env.d.ts",
-        "src/admin/root.tsx",
-        "src/pages/root.tsx",
+        "src/admin/__root.tsx",
+        "src/pages/__root.tsx",
         ...Object.keys(files),
       ],
     }),
@@ -163,8 +163,8 @@ export const route = defineRootRoute()
     writeFileSync(join(directory, path), contents);
   }
   writeRouteTypes([], directory, [
-    { pagesDir: join(directory, "src/pages"), prefix: "" },
-    { pagesDir: join(directory, "src/admin"), prefix: "/admin" },
+    { pagesDir: join(directory, "src/pages"), prefix: "", style: "tanstack" },
+    { pagesDir: join(directory, "src/admin"), prefix: "/admin", style: "tanstack" },
   ]);
   return directory;
 }
@@ -186,7 +186,7 @@ describe("keyed defineRoute(id)", () => {
   test("keeps the id type-only: the runtime route does not depend on it", () => {
     const params = t.Object({ org: t.String(), projectId: t.String() });
     const Page = () => null;
-    const project = defineRoute("/[org]/projects/[projectId]")
+    const project = defineRoute("/$org/projects/$projectId")
       .config({ mode: "ssr", params, tags: ["projects"] })
       .page(Page);
     const other = defineRoute("/other")
@@ -208,8 +208,8 @@ describe("keyed defineRoute(id)", () => {
 
   test("types every mounted app from its generated furin-env.d.ts", async () => {
     const directory = writeKeyedApp({
-      "src/admin/users/[id].tsx": `import { defineRoute } from "@teyik0/furin";
-export const route = defineRoute("/admin/users/[id]")
+      "src/admin/users/$id.tsx": `import { defineRoute } from "@teyik0/furin";
+export const route = defineRoute("/admin/users/$id")
   .config({ mode: "ssr" })
   .page(({ params, staff }) => {
     const id: string = params.id;
@@ -218,19 +218,19 @@ export const route = defineRoute("/admin/users/[id]")
   });
 `,
       "src/checks.ts": `import { defineRoute } from "@teyik0/furin";
-import { route as blogRoute } from "./pages/blog/_route";
+import { route as blogRoute } from "./pages/blog/route";
 
 // @ts-expect-error every route names its file
 defineRoute();
 // @ts-expect-error a stale id is not a key of the generated FileRoutes
-defineRoute("/blog");
+defineRoute("/blog/_route");
 // @ts-expect-error a prefixed app's ids start with its prefix
-defineRoute("/users/[id]");
+defineRoute("/users/$id");
 // @ts-expect-error the parent layout comes from the pages tree
-defineRoute("/blog/[slug]").config({ layout: blogRoute, mode: "ssr" });
+defineRoute("/blog/$slug").config({ layout: blogRoute, mode: "ssr" });
 `,
-      "src/pages/blog/[slug].tsx": `import { defineRoute } from "@teyik0/furin";
-export const route = defineRoute("/blog/[slug]")
+      "src/pages/blog/$slug.tsx": `import { defineRoute } from "@teyik0/furin";
+export const route = defineRoute("/blog/$slug")
   .config({ mode: "ssr" })
   .page(({ params, query, section, site }) => {
     const slug: string = params.slug;
@@ -239,8 +239,8 @@ export const route = defineRoute("/blog/[slug]")
     return [slug, lang, ...names].join();
   });
 `,
-      "src/pages/blog/_route.tsx": `import { defineRoute } from "@teyik0/furin";
-export const route = defineRoute("/blog/_route")
+      "src/pages/blog/route.tsx": `import { defineRoute } from "@teyik0/furin";
+export const route = defineRoute("/blog")
   .config({ mode: "ssr" })
   .loader(() => ({ section: "Blog" }))
   .layout(({ children }) => children);

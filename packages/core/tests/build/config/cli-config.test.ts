@@ -43,6 +43,7 @@ describe("CLI config resolution", () => {
         'import { defineConfig } from "@teyik0/furin/config";',
         "export default defineConfig({",
         '  pagesDir: "src/custom-pages",',
+        '  style: "nextjs",',
         "});",
       ].join("\n")
     );
@@ -51,6 +52,20 @@ describe("CLI config resolution", () => {
 
     expect(result.configPath).toBe(join(app.path, "furin.config.ts"));
     expect(result.pagesDir).toBe(join(app.path, "src/custom-pages"));
+    expect(result.style).toBe("nextjs");
+  });
+
+  test("loadCliConfig rejects a pagesDir without its routing style", async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    writeAppFile(
+      app.path,
+      "furin.config.ts",
+      'export default { pagesDir: "src/custom-pages" };\n'
+    );
+
+    await expect(loadCliConfig(app.path)).rejects.toThrow(
+      'pagesDir needs its file-routing style: add style: "nextjs" or "tanstack".'
+    );
   });
 
   test("loadCliConfig keeps adapter objects and built-in names in targets", async () => {

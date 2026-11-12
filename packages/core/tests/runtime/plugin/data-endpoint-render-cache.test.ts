@@ -78,7 +78,9 @@ async function mountProduction(
     ...(ssgCache === undefined ? {} : { ssgCache }),
   });
 
-  const app = new Elysia().use(await furin({ pagesDir: join(tmpApp.path, "src/pages") }));
+  const app = new Elysia().use(
+    await furin({ style: "tanstack", pagesDir: join(tmpApp.path, "src/pages") })
+  );
   return { app, loaderCalls: () => counters[counterKey] ?? 0 };
 }
 

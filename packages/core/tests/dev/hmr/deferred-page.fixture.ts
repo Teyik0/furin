@@ -115,7 +115,7 @@ try {
   `
   );
   process.chdir(fixture.path);
-  app = new Elysia().use(await furin({ pagesDir: "./src/pages" }));
+  app = new Elysia().use(await furin({ style: "tanstack", pagesDir: "./src/pages" }));
   expect(Reflect.get(globalThis, "furinHeavyLoads")).toBeUndefined();
   expect(contentLoads).toBe(0);
   expect(Reflect.get(globalThis, "furinSharedLoads")).toBe(1);

@@ -158,7 +158,8 @@ function functionNameForPath(
           return "[...splat]";
         }
         if (segment.startsWith(":")) {
-          return `[${segment.slice(1)}]`;
+          // `:lang?` → `[[lang]]`: `?` is not portable in function directory names.
+          return segment.endsWith("?") ? `[[${segment.slice(1, -1)}]]` : `[${segment.slice(1)}]`;
         }
         const sanitized = segment.replace(UNSAFE_FUNCTION_PATH_RE, "-");
         if (sanitized === segment && segment !== "." && segment !== "..") {

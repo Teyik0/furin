@@ -20,6 +20,7 @@ describe("stage5Generation", () => {
 
     const sourcePath = resolve(import.meta.dir, "../templates/simple/src/server.ts.ejs");
     const ctx = createContext({
+      routeStyle: "tanstack",
       fileTree: [
         {
           kind: "ejs",
@@ -50,6 +51,7 @@ describe("stage5Generation", () => {
 
     const sourcePath = resolve(import.meta.dir, "../templates/simple/src/server.ts.ejs");
     const ctx = createContext({
+      routeStyle: "tanstack",
       fileTree: [
         {
           kind: "ejs",
@@ -77,6 +79,7 @@ describe("stage5Generation", () => {
     symlinkSync(externalDir, targetDir, "dir");
     const sourcePath = resolve(import.meta.dir, "../templates/simple/src/server.ts.ejs");
     const ctx = createContext({
+      routeStyle: "tanstack",
       fileTree: [{ kind: "ejs", relativePath: "server.ts", sourcePath }],
       projectName: "my-app",
       projectNameKebab: "my-app",
@@ -94,6 +97,7 @@ describe("stage5Generation", () => {
 
     const sourcePath = resolve(import.meta.dir, "../templates/simple/src/server.ts.ejs");
     const ctx = createContext({
+      routeStyle: "tanstack",
       fileTree: [
         {
           kind: "ejs",
@@ -124,6 +128,7 @@ describe("stage5Generation", () => {
 
     const sourcePath = resolve(import.meta.dir, "../templates/simple/public/favicon.ico");
     const ctx = createContext({
+      routeStyle: "tanstack",
       fileTree: [
         {
           kind: "static",
@@ -160,6 +165,7 @@ describe("stage5Generation", () => {
       ultracite: "^7.6.0",
     };
     const ctx = createContext({
+      routeStyle: "tanstack",
       dependencies,
       devDependencies,
       fileTree: [

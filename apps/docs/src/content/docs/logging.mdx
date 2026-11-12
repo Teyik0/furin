@@ -16,7 +16,7 @@ initLogger({ env: { service: "my-app" } });
 new Elysia()
   .use(
     await furin({
-      pagesDir: "./src/pages",
+      style: "tanstack",
       logger: {
         exclude: ["/health", "/metrics"],
         redact: true,
@@ -37,11 +37,11 @@ Call `initLogger()` once in your server entry before creating Furin instances. T
 The loader context already contains `log`:
 
 ```tsx
-// src/pages/blog/[slug].tsx
+// src/routes/blog/$slug.tsx
 import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 
-export const route = defineRoute("/blog/[slug]")
+export const route = defineRoute("/blog/$slug")
   .config({
     mode: "ssr",
     params: t.Object({ slug: t.String() }),
@@ -73,6 +73,7 @@ initLogger({
 });
 
 await furin({
+  style: "tanstack",
   logger: {
     keep: (context) => {
       if (context.method !== "GET") context.shouldKeep = true;
@@ -87,6 +88,7 @@ This head-samples ordinary info events, then force-keeps errors, slow requests, 
 
 ```ts
 await furin({
+  style: "tanstack",
   logger: {
     redact: {
       paths: ["user.email", "**.password", "*_token"],
@@ -104,6 +106,7 @@ await furin({
 import { createAxiomDrain } from "evlog/axiom";
 
 await furin({
+  style: "tanstack",
   logger: {
     drain: createAxiomDrain({
       apiKey: process.env.AXIOM_API_KEY!,
@@ -121,6 +124,7 @@ For local NDJSON files:
 import { createFsDrain } from "evlog/fs";
 
 await furin({
+  style: "tanstack",
   logger: {
     drain: createFsDrain({ dir: ".evlog/logs" }),
   },

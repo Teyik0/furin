@@ -52,8 +52,8 @@ function redirectPage(id: string, location: string): string {
 
 async function scanApp(app: TmpApp): Promise<RuntimeTargetApp> {
   const pagesDir = join(app.path, "src/pages");
-  const { root, routes } = await scanPages(pagesDir);
-  return { pagesDir, prefix: "", root, routes };
+  const { root, routes } = await scanPages({ pagesDir: pagesDir, prefix: "", style: "tanstack" });
+  return { pagesDir, prefix: "", root, routes, style: "tanstack" };
 }
 
 async function exportApp(app: TmpApp, staticConfig: BuildAppOptions["staticConfig"]) {
@@ -91,6 +91,7 @@ describe("static export validation", () => {
     requestLoader: async () => ({ userId: "private" }),
   } satisfies RootLayout["route"];
   const requestRoute: ResolvedRoute = {
+    layouts: [],
     mode: "ssg",
     page: { __type: "FURIN_PAGE", _route: requestRouteEntry, component: () => null },
     path: "/index.tsx",
@@ -112,7 +113,7 @@ describe("static export validation", () => {
   function exportRoutes(routes: ResolvedRoute[], rootLayout: RootLayout): Promise<Error> {
     return rejectionError(
       buildStaticTarget(
-        { pagesDir: "/", prefix: "", root: rootLayout, routes },
+        { pagesDir: "/", prefix: "", root: rootLayout, routes, style: "tanstack" },
         "/tmp/furin-static-test",
         "/tmp/furin-static-test/.build",
         { target: "static" }
@@ -191,8 +192,8 @@ describe("static export output", () => {
       const app = makeApp("cli-app");
       writeAppFile(
         app.path,
-        "src/pages/blog/[slug].tsx",
-        ssgPage("/blog/[slug]", ".page(() => <article>Blog post page</article>)")
+        "src/pages/blog/$slug.tsx",
+        ssgPage("/blog/$slug", ".page(() => <article>Blog post page</article>)")
       );
       const error = await rejectionError(exportApp(app, {}));
       expect(error.message).toMatch(STATIC_EXPORT_RE);
@@ -255,9 +256,9 @@ describe("static export output", () => {
       );
       writeAppFile(
         app.path,
-        "src/pages/[slug].tsx",
+        "src/pages/$slug.tsx",
         ssgPage(
-          "/[slug]",
+          "/$slug",
           `.loader(async ({ params }) => ({ owner: \`slug-\${params.slug}\` }))
   .staticParams(() => [{ slug: "about" }, { slug: "other" }])
   .page(() => <main>slug</main>)`
@@ -369,9 +370,9 @@ describe("static export failures", () => {
       const app = makeApp("cli-app");
       writeAppFile(
         app.path,
-        "src/pages/blog/[slug].tsx",
+        "src/pages/blog/$slug.tsx",
         ssgPage(
-          "/blog/[slug]",
+          "/blog/$slug",
           `.staticParams(() => Promise.reject(new Error("staticParams-boom")))
   .page(() => <article>Blog post page</article>)`
         )

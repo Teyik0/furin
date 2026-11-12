@@ -39,7 +39,7 @@ test.serial.each(["", "/api"])(
             )
           )
         )
-        .use(await furin({ pagesDir: join(fixture.path, "src/pages"), sync }));
+        .use(await furin({ pagesDir: join(fixture.path, "src/pages"), style: "tanstack", sync }));
       const responses = await Promise.all(
         ["GET", "POST"].map((method) =>
           app.handle(new Request(`http://localhost${prefix}/auth/get-session`, { method }))
@@ -95,7 +95,7 @@ test.serial(
         );
       const app = new Elysia()
         .get("/counter", () => db.select().from(counter).all())
-        .use(await furin({ pagesDir: join(fixture.path, "src/pages"), sync }))
+        .use(await furin({ pagesDir: join(fixture.path, "src/pages"), style: "tanstack", sync }))
         .model("result", t.Object({ count: t.String({ pattern: "^valid$" }) }))
         .guard({ response: "result" })
         .use(child);
@@ -170,6 +170,7 @@ test.serial("independent Furin mounts select their transactional Sync runtime", 
         await furin({
           prefix: "/first",
           pagesDir: copyPagesForPrefix(fixture.path, "src/first", "/first"),
+          style: "tanstack",
           sync: first,
         })
       )
@@ -177,6 +178,7 @@ test.serial("independent Furin mounts select their transactional Sync runtime", 
         await furin({
           prefix: "/second",
           pagesDir: copyPagesForPrefix(fixture.path, "src/second", "/second"),
+          style: "tanstack",
           sync: second,
         })
       )

@@ -55,7 +55,7 @@ import { read as first } from "native-fixture";
 import { read as second } from "@fixture/native/asset";
 export default new Elysia().use(desktopApp())
   .get("/assets", () => [first(), second()])
-  .use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+  .use(await furin({ pagesDir: import.meta.dir + "/pages", style: "tanstack" }));`
     );
     await writeFile(
       join(fixture.path, "src/pages/index.tsx"),

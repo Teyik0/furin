@@ -1,7 +1,6 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { extname, join, relative, resolve } from "node:path";
-import { fileRouteId, type RouteInstanceSpec, routeSourcePaths } from "../plugin/route-tree.ts";
-import { filePathToPattern, parseDynamicRouteSegment } from "../server/router/patterns.ts";
+import { type RouteInstanceSpec, scanRouteManifest } from "../plugin/route-manifest.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import { compareCodeUnits, routeMapDeclaration, type RouteMapEntry } from "../shared/route-map.ts";
 
@@ -22,55 +21,31 @@ function importSpecifier(path: string, projectRoot: string): string {
 }
 
 /**
- * One `FileRoutes` entry per page and `_route` layout of an app, keyed by the
- * app's prefix and its path under `pagesDir` (brackets and groups kept,
- * `/index` dropped). Read from the tree alone, so the entries stay right while
- * a route module is broken.
+ * One `FileRoutes` entry per page and layout of an app, keyed by its
+ * TanStack Start id (the app's prefix included). Read from the route
+ * manifest alone, so the entries stay right while a route module is broken.
  */
 function fileRouteEntries(
-  { pagesDir, prefix }: RouteInstanceSpec,
+  instance: RouteInstanceSpec,
   projectRoot: string
 ): { id: string; lines: string }[] {
-  const pages = resolve(pagesDir);
-  const files = routeSourcePaths({ pagesDir: pages, prefix }).map((path) => {
-    const relativePath = relative(pages, path).replaceAll("\\", "/");
-    const segments = relativePath.split("/");
-    const base = (segments.pop() ?? "").slice(0, -extname(path).length);
-    return { base, path, relativePath, segments };
-  });
-  const layouts = new Map(
-    files.filter(({ base }) => base === "_route").map((file) => [file.segments.join("/"), file.path])
-  );
-  return files
-    .map(({ base, path, relativePath, segments }) => {
-      const isLayout = base === "_route";
-      // Nearest `_route` in an enclosing directory, as discovery resolves it.
-      let parent = join(pages, "root.tsx");
-      for (let depth = isLayout ? segments.length - 1 : segments.length; depth > 0; depth -= 1) {
-        const layout = layouts.get(segments.slice(0, depth).join("/"));
-        if (layout) {
-          parent = layout;
-          break;
-        }
-      }
-      const pathParams = [...segments, base].flatMap((segment) => {
-        const dynamic = parseDynamicRouteSegment(segment, path);
-        return dynamic ? [dynamic.catchAll ? '"*": string' : `${dynamic.name}: string`] : [];
-      });
-      const id = fileRouteId({ pagesDir: pages, prefix }, path);
-      const pattern = filePathToPattern(
-        isLayout ? segments.concat("index").join("/") : relativePath
-      );
-      return {
-        id,
-        lines: `    ${JSON.stringify(id)}: {
-      kind: "${isLayout ? "layout" : "page"}";
+  const { prefix } = instance;
+  const manifest = scanRouteManifest({ ...instance, pagesDir: resolve(instance.pagesDir) });
+  return manifest.routes.map(({ id, kind, params, parentPath, pattern }) => {
+    const parent = parentPath ?? manifest.rootPath;
+    const pathParams = params.map(
+      ({ name, optional }) => `${name}${optional ? "?" : ""}: string`
+    );
+    return {
+      id,
+      lines: `    ${JSON.stringify(id)}: {
+      kind: "${kind}";
       pattern: ${JSON.stringify(`${prefix}${pattern === "/" ? "" : pattern}` || "/")};
       parent: typeof import(${JSON.stringify(importSpecifier(parent, projectRoot))}).route;
       pathParams: {${pathParams.length > 0 ? ` ${pathParams.join("; ")} ` : ""}};
     };`,
-      };
-    });
+    };
+  });
 }
 
 function fileRoutesDeclaration(apps: readonly RouteInstanceSpec[], projectRoot: string): string {

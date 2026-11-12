@@ -58,10 +58,10 @@ export function handleWSResponse(){return e()}
 `;
 }
 
-function mountLabel(rootDir: string, { pagesDir, prefix }: RouteInstanceSpec): string {
+function mountLabel(rootDir: string, { pagesDir, prefix, style }: RouteInstanceSpec): string {
   const absolute = resolve(rootDir, pagesDir);
   const path = existsSync(absolute) ? realpathSync(absolute) : absolute;
-  return `prefix ${JSON.stringify(prefix || "/")} (pagesDir ${relative(rootDir, path) || "."})`;
+  return `prefix ${JSON.stringify(prefix || "/")} (pagesDir ${relative(rootDir, path) || "."}, style ${style})`;
 }
 
 /**

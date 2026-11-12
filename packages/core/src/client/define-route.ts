@@ -1,3 +1,5 @@
+import type { ErrorComponent } from "../shared/error.ts";
+import type { NotFoundComponent } from "../shared/not-found.ts";
 import type { RemountDeps } from "../shared/page-key.ts";
 
 type ClientComponent = (props: never) => React.ReactNode;
@@ -12,24 +14,41 @@ interface ClientRuntimeProps {
 
 type ClientRuntimeComponent = (props: ClientRuntimeProps) => React.ReactNode;
 
-function createRouteBuilder(remountDeps: RemountDeps<never, never> | undefined) {
+interface ClientBuilderState {
+  errorComponent: ErrorComponent | undefined;
+  notFoundComponent: NotFoundComponent | undefined;
+  remountDeps: RemountDeps<never, never> | undefined;
+}
+
+function createRouteBuilder(state: ClientBuilderState) {
+  const { errorComponent, notFoundComponent, remountDeps } = state;
   return {
     config(options: { remountDeps?: RemountDeps<never, never> }) {
-      return createRouteBuilder(options.remountDeps);
+      return createRouteBuilder({ ...state, remountDeps: options.remountDeps });
+    },
+    error(component: ErrorComponent) {
+      return createRouteBuilder({ ...state, errorComponent: component });
     },
     layout<Component extends ClientComponent>(component: Component) {
       const runtimeComponent = component as unknown as ClientRuntimeComponent;
       return {
         __type: "FURIN_ROUTE" as const,
         component: runtimeComponent,
+        errorComponent,
         layout: runtimeComponent,
+        notFoundComponent,
       };
+    },
+    notFound(component: NotFoundComponent) {
+      return createRouteBuilder({ ...state, notFoundComponent: component });
     },
     page<Component extends ClientComponent>(component: Component) {
       const runtimeComponent = component as unknown as ClientRuntimeComponent;
       return {
         __type: "FURIN_ROUTE" as const,
         component: runtimeComponent,
+        errorComponent,
+        notFoundComponent,
         page: runtimeComponent,
         remountDeps,
       };
@@ -37,12 +56,18 @@ function createRouteBuilder(remountDeps: RemountDeps<never, never> | undefined) 
   };
 }
 
+const EMPTY_BUILDER: ClientBuilderState = {
+  errorComponent: undefined,
+  notFoundComponent: undefined,
+  remountDeps: undefined,
+};
+
 /** The file id of `defineRoute(id)` is type-only: the client ignores it. */
 export function defineRoute(_id: string) {
-  return createRouteBuilder(undefined);
+  return createRouteBuilder(EMPTY_BUILDER);
 }
 
 /** Client stub for the root-layout builder — identical surface. */
 export function defineRootRoute() {
-  return createRouteBuilder(undefined);
+  return createRouteBuilder(EMPTY_BUILDER);
 }

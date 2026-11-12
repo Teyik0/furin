@@ -341,14 +341,14 @@ throw new Error("recovery exploded");`
   }, 20_000);
 
   test("normalizes client diagnostic paths to dynamic route patterns", async () => {
-    const pagePath = join(app.path, "src/pages/blog/[slug].tsx");
+    const pagePath = join(app.path, "src/pages/blog/$slug.tsx");
     writeAppFile(
       app.path,
-      "src/pages/blog/[slug].tsx",
+      "src/pages/blog/$slug.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
-        'export const route = defineRoute("/blog/[slug]")',
+        'export const route = defineRoute("/blog/$slug")',
         '  .config({ mode: "ssr", params: t.Object({ slug: t.String() }) })',
         "  .page(() => <main>Dynamic client page</main>);",
       ].join("\n")
@@ -693,18 +693,18 @@ throw new Error("recovery exploded");`
     events.close();
   }, 20_000);
 
-  test("an invalid _route.tsx export is routed through the diagnostic overlay, then cleared", async () => {
+  test("an invalid route.tsx layout export is routed through the diagnostic overlay, then cleared", async () => {
     const layoutSource = (terminal: string): string =>
       [
         'import { defineRoute } from "@teyik0/furin";',
         "",
-        'export const route = defineRoute("/section/_route")',
+        'export const route = defineRoute("/section")',
         '  .config({ mode: "ssr" })',
         `  ${terminal};`,
       ].join("\n");
     writeAppFile(
       app.path,
-      "src/pages/section/_route.tsx",
+      "src/pages/section/route.tsx",
       layoutSource("  .layout(({ children }) => <section>Section layout{children}</section>)")
     );
     writeAppFile(
@@ -726,7 +726,7 @@ throw new Error("recovery exploded");`
       await Bun.sleep(250);
     }
 
-    writeAppFile(app.path, "src/pages/section/_route.tsx", layoutSource(".loader(() => ({}))"));
+    writeAppFile(app.path, "src/pages/section/route.tsx", layoutSource(".loader(() => ({}))"));
     let response: Response | undefined;
     let state: EmbeddedDiagnosticState | undefined;
     for (let attempt = 0; attempt < 40; attempt += 1) {
@@ -743,14 +743,14 @@ throw new Error("recovery exploded");`
     expect(response?.status).toBe(500);
     expect(state?.event.diagnostic.phase).toBe("transform");
     expect(state?.event.diagnostic.route).toBe("/section");
-    expect(state?.event.diagnostic.message).toContain("_route.tsx must export");
-    expect(state?.event.diagnostic.location?.file).toContain("src/pages/section/_route.tsx");
+    expect(state?.event.diagnostic.message).toContain("a layout file must export");
+    expect(state?.event.diagnostic.location?.file).toContain("src/pages/section/route.tsx");
 
     const events = await openDiagnosticSocket(port);
     const readyEvent = events.next("ready");
     writeAppFile(
       app.path,
-      "src/pages/section/_route.tsx",
+      "src/pages/section/route.tsx",
       layoutSource("  .layout(({ children }) => <section>Section fixed{children}</section>)")
     );
     let html = "";

@@ -1,9 +1,15 @@
 import { ScaffolderError } from "./errors.ts";
-import { TEMPLATE_IDS, type TemplateId } from "./pipeline/context.ts";
+import {
+  ROUTE_STYLES,
+  type RouteStyle,
+  TEMPLATE_IDS,
+  type TemplateId,
+} from "./pipeline/context.ts";
 
 export interface ParsedArgs {
   help: boolean;
   install: boolean;
+  style: RouteStyle | null;
   targetDir: string | null;
   template: TemplateId | null;
   version: boolean;
@@ -25,6 +31,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   const result: ParsedArgs = {
     help: false,
     install: true,
+    style: null,
     targetDir: null,
     template: null,
     version: false,
@@ -50,14 +57,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
       continue;
     }
 
-    if (arg === "--template" || arg === "-t") {
-      result.template = parseTemplateFlagValue(arg, argv[index + 1]);
-      skipNext = true;
-      continue;
-    }
-
-    if (arg.startsWith("--template=")) {
-      result.template = parseTemplate(arg.slice("--template=".length));
+    const valueFlag = parseValueFlag(result, arg, argv[index + 1]);
+    if (valueFlag !== "none") {
+      skipNext = valueFlag === "next";
       continue;
     }
 
@@ -76,7 +78,42 @@ export function parseArgs(argv: string[]): ParsedArgs {
     throw new ScaffolderError("Target directory is required when using --yes");
   }
 
+  if (result.yes && result.style === null) {
+    throw new ScaffolderError("--style <tanstack|nextjs> is required when using --yes");
+  }
+
   return result;
+}
+
+/**
+ * Applies `--template`/`-t`/`--style` (next token) or `--template=`/`--style=`
+ * (inline value). Returns whether the flag consumed the next token.
+ */
+function parseValueFlag(
+  result: ParsedArgs,
+  arg: string,
+  next: string | undefined
+): "inline" | "next" | "none" {
+  if (arg === "--template" || arg === "-t") {
+    result.template = parseTemplateFlagValue(arg, next);
+    return "next";
+  }
+  if (arg.startsWith("--template=")) {
+    result.template = parseTemplate(arg.slice("--template=".length));
+    return "inline";
+  }
+  if (arg === "--style") {
+    if (next === undefined || next.startsWith("-")) {
+      throw new ScaffolderError("Missing value for --style");
+    }
+    result.style = parseStyle(next);
+    return "next";
+  }
+  if (arg.startsWith("--style=")) {
+    result.style = parseStyle(arg.slice("--style=".length));
+    return "inline";
+  }
+  return "none";
 }
 
 function parseTemplate(value: string | undefined): TemplateId {
@@ -97,4 +134,11 @@ function parseTemplateFlagValue(flag: "--template" | "-t", value: string | undef
   }
 
   return parseTemplate(value);
+}
+
+function parseStyle(value: string): RouteStyle {
+  if (ROUTE_STYLES.includes(value as RouteStyle)) {
+    return value as RouteStyle;
+  }
+  throw new ScaffolderError(`Invalid style "${value}". Valid options: ${ROUTE_STYLES.join(", ")}`);
 }

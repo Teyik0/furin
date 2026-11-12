@@ -21,14 +21,14 @@ function createOriginApp(): TmpApp {
   // A bundled page module lives under .furin/build; its source lives under src/.
   writeAppFile(
     app.path,
-    "src/pages/blog/[slug].tsx",
+    "src/pages/blog/$slug.tsx",
     `import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
 
 const origin = import.meta.url.includes("/.furin/build/") ? "bundle" : "source";
 const phase = process.env.FURIN_TEST_PHASE ?? "unset";
 
-export const route = defineRoute("/blog/[slug]")
+export const route = defineRoute("/blog/$slug")
   .config({ mode: "ssg", params: t.Object({ slug: t.String() }) })
   .staticParams(() => [{ slug: "hello-world" }])
   .page(() => <article>rendered-from-{origin} during-{phase}</article>);
@@ -40,7 +40,7 @@ export const route = defineRoute("/blog/[slug]")
 test("package builds prerender SSG pages with the built package", async () => {
   const app = createOriginApp();
 
-  await buildApp({ pagesDir: "src/pages", rootDir: app.path, target: "package" });
+  await buildApp({ apps: [{ pagesDir: "src/pages", style: "tanstack" }], rootDir: app.path, target: "package" });
 
   const snapshot = await Bun.file(
     join(app.path, ".furin/build/package/furin-prerender.json")

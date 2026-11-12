@@ -6,8 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.9.0-alpha.2] — 2026-11-12
+
 ### Breaking
+- **Two file-routing styles: Next.js and TanStack Start** — `furin({ style })` is required and picks the convention of `pagesDir`: `"nextjs"` (App Router: top-level `layout.tsx`, `page.tsx`, nested `layout.tsx`, `[id]`, `[...slug]`/`[[...slug]]`, `(group)`, `_private/`, `error.tsx`, `not-found.tsx`; `route.ts` is rejected, declare API routes on Elysia) or `"tanstack"` (TanStack Start: `__root.tsx`, `index.tsx`, `route.tsx`, `$id`, `$`, `{-$lang}`, `(group)`, `-private`, flat `posts.$id.tsx`, pathless `_auth.tsx`, un-nested `posts_.$id.tsx`, and `.error()`/`.notFound()` on the route). The Furin convention (`root.tsx`, `_route.tsx`) is removed: rename `root.tsx` to `__root.tsx` and `_route.tsx` to `route.tsx` for the TanStack style. `pagesDir` defaults to `src/app` (`nextjs`) or `src/routes` (`tanstack`) instead of `src/pages`.
+- **TanStack Start route ids in both styles** — `defineRoute(id)` takes the TanStack Start id: a layout is `"/board"` (was `"/board/_route"`), an index page ends with a slash (`"/board/$boardId/"`, was `"/board/[boardId]"`), dynamic segments are `$id` and catch-alls `$`. Moving between styles only renames files. The route config checks print the id to write for every file.
+- **Catch-all params are `_splat`** — a catch-all segment is read as `params._splat` instead of `params["*"]`, in schemas, loaders, `staticParams()` results and `<Link params>`. `[...slug]` and `[[...slug]]` both map to the same `$` catch-all.
+- **Builds need a routing style** — `furin.config.ts` `apps` entries require `style`, a top-level `pagesDir` requires the new top-level `style`, and `furin build`/`furin typegen` take `--style` with `--pagesDir`. A build with no app configured and no `furin()` mount fails instead of falling back to `src/pages`.
 - **Drizzle ORM 1.x** — `@teyik0/furin/sync/drizzle` now requires `drizzle-orm ^1.0.0-rc.4`; 0.45 is no longer supported. Drizzle 1.0 renames the database types the adapter accepts (`BunSQLiteDatabase` is `SQLiteBunDatabase`, and `BunSQLDatabase` moves to `drizzle-orm/bun-sql/postgres`). Create the database with `drizzle({ client })`: in 1.0, `drizzle(sqlite)` reads the `Database` as a config object and silently opens a new in-memory database, so the adapter would journal into a database your queries never see. See the [Drizzle v1 upgrade guide](https://orm.drizzle.team/docs/upgrade-v1).
+
+### Added
+- **Optional path segments** — `{-$lang}/about.tsx` serves `/about` and `/fr/about` (pattern `/:lang?/about`); `<Link>` drops the segment when the param is omitted.
+- **Route-defined boundaries** — in the TanStack style, `.error(Component)` and `.notFound(Component)` render in place of the route inside its parent layout, catching its own failures and those of the routes below it; on `__root.tsx` they are the app-wide boundaries.
 
 ### Changed
 - **Electrobun is a peer range** — `@teyik0/furin-electrobun` declares `electrobun ~2.0.2` as a peer dependency instead of pinning `2.0.2` as an optional dependency, so projects choose their 2.0.x release. The installed launcher is the single source of the SDK version: `prepare`, `dev` and `build` write it to the generated Hutch config instead of `2.0.2`, so the launcher and the paired runtime always come from the same release. They also reject a release outside the range (`electrobun 2.1.0 is installed; Furin supports ~2.0.2`) and a devkit whose `electrobun/main` is no longer the module the generated bootstrap imports. CI packages a real macOS SDK archive and the example desktop app on the range's floor and on the locked release (2.0.6), and a weekly workflow repeats it on `electrobun@latest`.
@@ -623,7 +633,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `writeRouteTypes()` generating `furin-env.d.ts` for per-route type inference
 - Bun-native HMR with React Fast Refresh — single process, no Vite
 
-[Unreleased]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.0...HEAD
+[Unreleased]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.2...HEAD
+[0.9.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.1...v0.9.0-alpha.2
+[0.9.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.0...v0.9.0-alpha.1
 [0.9.0-alpha.0]: https://github.com/teyik0/furin/compare/v0.8.0-alpha.0...v0.9.0-alpha.0
 [0.8.0-alpha.0]: https://github.com/teyik0/furin/compare/v0.7.0-alpha.3...v0.8.0-alpha.0
 [0.7.0-alpha.3]: https://github.com/teyik0/furin/compare/v0.7.0-alpha.2...v0.7.0-alpha.3

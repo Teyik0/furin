@@ -41,6 +41,7 @@ test("nested Elysia containers serve a declared full prefix", async () => {
   const proc = await runFixtureScript(
     `
 import { expect } from "bun:test";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin, isFurinPageRequest } from "./src/furin.ts";
@@ -53,13 +54,17 @@ try {
   process.chdir(fixture.path);
   __setDevMode(true);
   keyPagesForPrefix(fixture.path, "src/pages", "/outer/inner/admin");
-  writeAppFile(fixture.path, "src/pages/not-found.tsx", 'export default () => <main>Nested missing</main>;');
+  const rootPath = join(fixture.path, "src/pages/__root.tsx");
+  writeAppFile(fixture.path, "src/pages/__root.tsx", readFileSync(rootPath, "utf8").replace(
+    '.config({ mode: "ssr" })',
+    '.config({ mode: "ssr" })\\n  .notFound(() => <main>Nested missing</main>)'
+  ));
   const app = new Elysia().onRequest(({ request }) =>
     request.headers.has("x-deny") && isFurinPageRequest(request, "/outer/inner/admin")
       ? new Response("Blocked", { status: 403 }) : undefined
   ).use(
     new Elysia().use(
-      await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/outer/inner/admin" })
+      await furin({ style: "tanstack", pagesDir: join(fixture.path, "src/pages"), prefix: "/outer/inner/admin" })
     )
   );
   const response = await app.handle("/outer/inner/admin");
@@ -109,7 +114,7 @@ const symbols = Object.getOwnPropertySymbols(Elysia.prototype);
 try {
   process.chdir(fixture.path);
   __setDevMode(true);
-  const app = new Elysia().use(await furin({ pagesDir: join(fixture.path, "src/pages") }));
+  const app = new Elysia().use(await furin({ style: "tanstack", pagesDir: join(fixture.path, "src/pages") }));
   expect((await app.handle("/")).status).toBe(200);
   expect((await app.fetch(new Request("http://localhost/"))).status).toBe(200);
   expect(descriptors()).toEqual(before);
@@ -145,7 +150,7 @@ try {
   keyPagesForPrefix(fixture.path, "src/pages", "/admin");
   const app = new Elysia({ prefix: "/outer" }).use(
     new Elysia({ prefix: "/inner" }).use(
-      await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/admin" })
+      await furin({ style: "tanstack", pagesDir: join(fixture.path, "src/pages"), prefix: "/admin" })
     )
   );
   app.listen({ hostname: "127.0.0.1", port: 0 });
@@ -190,8 +195,8 @@ try {
   __setDevMode(true);
   const pagesDir = join(fixture.path, "src/pages");
   const app = new Elysia()
-    .use(new Elysia().use(await furin({ pagesDir, prefix: "/one" })))
-    .use(new Elysia().use(await furin({ pagesDir, prefix: "/two" })));
+    .use(new Elysia().use(await furin({ style: "tanstack", pagesDir, prefix: "/one" })))
+    .use(new Elysia().use(await furin({ style: "tanstack", pagesDir, prefix: "/two" })));
   app.listen({ hostname: "127.0.0.1", port: 0 });
   const expected = 'pagesDir "' + pagesDir.replaceAll("\\\\", "/") + '" is mounted under both prefix "/one" and prefix "/two"';
   const deadline = Date.now() + 3000;
@@ -234,7 +239,7 @@ try {
   process.chdir(fixture.path);
   __setDevMode(true);
   keyPagesForPrefix(fixture.path, "src/pages", "/admin");
-  const plugin = await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/admin" });
+  const plugin = await furin({ style: "tanstack", pagesDir: join(fixture.path, "src/pages"), prefix: "/admin" });
   new Elysia().use(plugin);
   expect(() => new Elysia().use(plugin)).toThrow("call furin() again");
 
@@ -242,7 +247,7 @@ try {
   cpSync(join(fixture.path, "src/pages"), join(fixture.path, "src/shared"), { recursive: true });
   keyPagesForPrefix(fixture.path, "src/shared", "/shared");
   const container = new Elysia().use(
-    await furin({ pagesDir: join(fixture.path, "src/shared"), prefix: "/shared" })
+    await furin({ style: "tanstack", pagesDir: join(fixture.path, "src/shared"), prefix: "/shared" })
   );
   for (const _ of [0, 1]) {
     apps.push(new Elysia().use(container).listen({ hostname: "127.0.0.1", port: 0 }));
@@ -280,7 +285,7 @@ try {
   process.chdir(fixture.path);
   __setDevMode(true);
   let resolvePlugin;
-  const app = new Elysia().use(await furin({ pagesDir: join(fixture.path, "src/pages"), logger: { drain: () => undefined } }))
+  const app = new Elysia().use(await furin({ style: "tanstack", pagesDir: join(fixture.path, "src/pages"), logger: { drain: () => undefined } }))
     .use(new Promise(resolve => { resolvePlugin = resolve; }));
   const fetch = app.fetch;
   let served = false;
@@ -324,9 +329,9 @@ try {
   const second = [];
   const emissions = [];
   const app = new Elysia()
-    .use(await furin({ pagesDir: copyPagesForPrefix(fixture.path, "src/one", "/one"), prefix: "/one",
+    .use(await furin({ style: "tanstack", pagesDir: copyPagesForPrefix(fixture.path, "src/one", "/one"), prefix: "/one",
       logger: { drain: ({ event }) => first.push(event), waitUntil: task => emissions.push(task) } }))
-    .use(await furin({ pagesDir: copyPagesForPrefix(fixture.path, "src/two", "/two"), prefix: "/two",
+    .use(await furin({ style: "tanstack", pagesDir: copyPagesForPrefix(fixture.path, "src/two", "/two"), prefix: "/two",
       logger: { drain: ({ event }) => second.push(event), waitUntil: task => emissions.push(task) } }))
     .get("/api", ({ log }) => { log.set({ parent: true }); return "parent"; });
   for (const prefix of ["/one", "/two"]) {
@@ -385,7 +390,7 @@ try {
   expect(await collected([new WeakRef(held)], 50)).toBe(false);
   expect(held).toBeDefined();
   async function releaseApp() {
-    const app = new Elysia().use(await furin({ pagesDir }));
+    const app = new Elysia().use(await furin({ style: "tanstack", pagesDir }));
     await app.modules;
     const instance = allInstances().find(instance => instance.pagesDir === pagesDir);
     expect(instance).toBeDefined();
@@ -429,7 +434,7 @@ try {
   const messages = [[], []];
   for (const prefix of ["/one", "/two"]) {
     const pagesDir = copyPagesForPrefix(fixture.path, "src" + prefix, prefix + "/admin");
-    const plugin = await furin({ pagesDir, prefix: prefix + "/admin" });
+    const plugin = await furin({ style: "tanstack", pagesDir, prefix: prefix + "/admin" });
     const app = new Elysia().use(new Elysia().use(plugin)).listen({ hostname: "127.0.0.1", port: 0 });
     apps.push(app);
     const initial = await fetch(new URL(prefix + "/admin?_furin=data", app.server.url));

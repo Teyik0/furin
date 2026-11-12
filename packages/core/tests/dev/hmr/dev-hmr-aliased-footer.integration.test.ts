@@ -12,7 +12,7 @@ test.each(["@/components/public-footer", "../components/public-footer"])(
   async (specifier) => {
     const app = createTmpApp("hmr-aliased-footer");
     const port = await getFreePort();
-    const rootPath = "src/pages/root.tsx";
+    const rootPath = "src/pages/__root.tsx";
     const rootSource = readFileSync(join(app.path, rootPath), "utf8");
     writeAppFile(app.path, rootPath, rootSource.replace("@/components/public-footer", specifier));
     const server = startProcess(["bun", "--hot", join(app.path, "src/server.ts")], {

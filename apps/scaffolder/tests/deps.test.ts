@@ -14,7 +14,7 @@ describe("stage4Deps", () => {
   it("falls back to the Furin version this scaffolder ships with when npm is unreachable", async () => {
     spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
     const { version }: { version: string } = await Bun.file(corePackagePath).json();
-    const ctx = createContext({ templateId: "simple" });
+    const ctx = createContext({ routeStyle: "tanstack", templateId: "simple" });
     await stage2Selection(ctx);
 
     await stage4Deps(ctx);

@@ -21,7 +21,7 @@ const app = new Elysia({ name: "task-manager" }).use(api).use(
         }
       },
     },
-    pagesDir: "./src/pages",
+    style: "tanstack",
     sync: taskManagerSync,
   })
 );

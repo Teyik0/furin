@@ -3,6 +3,12 @@ import type { RuntimeRoute } from "../../../src/client/internal/runtime-types.ts
 import { defineRootRoute } from "../../../src/furin.ts";
 import { refreshLayoutChain } from "../../../src/server/router/hmr.ts";
 
+const BOARD_LAYOUT = "/pages/board/route.tsx";
+
+function layoutModule(layout: () => string) {
+  return { route: defineRootRoute().config({ mode: "ssr" }).layout(layout) };
+}
+
 describe("refreshLayoutChain", () => {
   test("patches layout on intermediate route chain objects after re-import", async () => {
     const originalLayout = () => "old";
@@ -14,16 +20,10 @@ describe("refreshLayoutChain", () => {
       { __type: "FURIN_ROUTE", layout: () => "page" },
     ];
 
-    const importFn = (specifier: string) => {
-      if (specifier.includes("board/_route.tsx")) {
-        return Promise.resolve({
-          route: defineRootRoute().config({ mode: "ssr" }).layout(newLayout),
-        });
-      }
-      return Promise.resolve({});
-    };
+    const importFn = (specifier: string) =>
+      Promise.resolve(specifier.includes(BOARD_LAYOUT) ? layoutModule(newLayout) : {});
 
-    await refreshLayoutChain(chain, "/pages/board/page.tsx", "/pages/root.tsx", importFn);
+    await refreshLayoutChain(chain, [BOARD_LAYOUT], importFn);
 
     expect((chain[1] as Required<RuntimeRoute>).layout({} as never)).toBe("new");
     expect((chain[0] as Required<RuntimeRoute>).layout({} as never)).toBe("root");
@@ -39,81 +39,93 @@ describe("refreshLayoutChain", () => {
       { __type: "FURIN_ROUTE", loader: originalLoader },
     ];
 
-    const importFn = (specifier: string) => {
-      if (specifier.includes("board/_route.tsx")) {
-        return Promise.resolve({
-          route: defineRootRoute()
-            .config({ mode: "ssr" })
-            .loader(newLoader)
-            .layout(({ children }) => children),
-        });
-      }
-      return Promise.resolve({});
-    };
+    const importFn = (specifier: string) =>
+      Promise.resolve(
+        specifier.includes(BOARD_LAYOUT)
+          ? {
+              route: defineRootRoute()
+                .config({ mode: "ssr" })
+                .loader(newLoader)
+                .layout(({ children }) => children),
+            }
+          : {}
+      );
 
-    await refreshLayoutChain(chain, "/pages/board/page.tsx", "/pages/root.tsx", importFn);
+    await refreshLayoutChain(chain, [BOARD_LAYOUT], importFn);
 
     expect((chain[1] as Required<RuntimeRoute>).loader).toBe(newLoader);
   });
 
-  test("rejects with the layout export contract while _route.tsx has no layout terminal", async () => {
+  test("patches TanStack-style boundaries on the layout entry", async () => {
+    const BoardError = () => null;
+    const BoardNotFound = () => null;
     const chain: RuntimeRoute[] = [
       { __type: "FURIN_ROUTE", layout: () => "root" },
       { __type: "FURIN_ROUTE", layout: () => "board" },
     ];
 
-    const importFn = (specifier: string) => {
-      if (specifier.includes("board/_route.tsx")) {
-        return Promise.resolve({
-          route: defineRootRoute()
-            .config({ mode: "ssr" })
-            .page(() => null),
-        });
-      }
-      return Promise.resolve({});
-    };
+    const importFn = () =>
+      Promise.resolve({
+        route: defineRootRoute()
+          .config({ mode: "ssr" })
+          .error(BoardError)
+          .notFound(BoardNotFound)
+          .layout(({ children }) => children),
+      });
 
-    const failure = await refreshLayoutChain(
-      chain,
-      "/pages/board/page.tsx",
-      "/pages/root.tsx",
-      importFn
-    ).catch((error: unknown) => error);
+    await refreshLayoutChain(chain, [BOARD_LAYOUT], importFn);
+
+    expect(chain[1]?.errorComponent).toBe(BoardError);
+    expect(chain[1]?.notFoundComponent).toBe(BoardNotFound);
+  });
+
+  test("rejects with the layout export contract while the layout has no layout terminal", async () => {
+    const chain: RuntimeRoute[] = [
+      { __type: "FURIN_ROUTE", layout: () => "root" },
+      { __type: "FURIN_ROUTE", layout: () => "board" },
+    ];
+
+    const importFn = () =>
+      Promise.resolve({
+        route: defineRootRoute()
+          .config({ mode: "ssr" })
+          .page(() => null),
+      });
+
+    const failure = await refreshLayoutChain(chain, [BOARD_LAYOUT], importFn).catch(
+      (error: unknown) => error
+    );
 
     expect(String((failure as Error).cause)).toContain(
-      "/pages/board/_route.tsx: _route.tsx must export `route = defineRoute(id)"
+      `${BOARD_LAYOUT}: a layout file must export \`route = defineRoute(id)`
     );
     expect(Reflect.get((failure as Error).cause as Error, "furinPosition")).toEqual({
       column: 1,
-      file: "/pages/board/_route.tsx",
+      file: BOARD_LAYOUT,
       line: 1,
     });
   });
 
-  test("removes stale loader when _route.tsx no longer exports one", async () => {
+  test("removes stale loader when the layout no longer exports one", async () => {
     const chain: RuntimeRoute[] = [
       { __type: "FURIN_ROUTE", loader: () => ({ root: true }) },
       { __type: "FURIN_ROUTE", loader: () => ({ board: true }) },
     ];
 
-    const importFn = (specifier: string) => {
-      if (specifier.includes("board/_route.tsx")) {
-        return Promise.resolve({
-          route: defineRootRoute()
-            .config({ mode: "ssr" })
-            .layout(({ children }) => children),
-        });
-      }
-      return Promise.resolve({});
-    };
+    const importFn = () =>
+      Promise.resolve({
+        route: defineRootRoute()
+          .config({ mode: "ssr" })
+          .layout(({ children }) => children),
+      });
 
-    await refreshLayoutChain(chain, "/pages/board/page.tsx", "/pages/root.tsx", importFn);
+    await refreshLayoutChain(chain, [BOARD_LAYOUT], importFn);
 
     expect((chain[1] as RuntimeRoute | undefined)?.loader).toBeUndefined();
     expect((chain[0] as RuntimeRoute | undefined)?.loader).toBeDefined();
   });
 
-  test("ignores missing layout files silently", async () => {
+  test("keeps a layout deleted since the scan until the topology rescan", async () => {
     const chain: RuntimeRoute[] = [
       { __type: "FURIN_ROUTE", layout: () => "root" },
       { __type: "FURIN_ROUTE", layout: () => "board" },
@@ -121,11 +133,9 @@ describe("refreshLayoutChain", () => {
 
     const importFn = () => Promise.reject(new Error("Module not found"));
 
-    await expect(
-      refreshLayoutChain(chain, "/pages/board/page.tsx", "/pages/root.tsx", importFn)
-    ).resolves.toBeUndefined();
+    await expect(refreshLayoutChain(chain, [BOARD_LAYOUT], importFn)).resolves.toBeUndefined();
 
-    expect(typeof (chain[1] as Required<RuntimeRoute>).layout).toBe("function");
+    expect((chain[1] as Required<RuntimeRoute>).layout({} as never)).toBe("board");
   });
 
   test("re-throws non-not-found import errors", async () => {
@@ -136,138 +146,37 @@ describe("refreshLayoutChain", () => {
 
     const importFn = () => Promise.reject(new Error("Unexpected syntax error"));
 
-    await expect(
-      refreshLayoutChain(chain, "/pages/board/page.tsx", "/pages/root.tsx", importFn)
-    ).rejects.toThrow("Unexpected syntax error");
+    await expect(refreshLayoutChain(chain, [BOARD_LAYOUT], importFn)).rejects.toThrow(
+      "Unexpected syntax error"
+    );
   });
 
-  test("correctly updates chain when intermediate directory has no _route.tsx (gap dir)", async () => {
-    // Scenario: /pages/board/thread/page.tsx
-    // /pages/board/ has NO _route.tsx (gap directory)
-    // /pages/board/thread/ has a _route.tsx
-    // Chain has [root, threadRoute] — skipping the board directory.
-    // The old code mapped layoutPaths[i] -> chain[i+1], which would incorrectly
-    // patch chain[1] (threadRoute) with the board _route.tsx result (which
-    // doesn't exist), then miss chain[1] when processing the thread _route.tsx.
-    const newThreadLayout = () => "new-thread";
-
+  test("layout i patches chain[i + 1], whatever the files' directories", async () => {
+    // TanStack: a pathless `_auth.tsx` and a flat `posts.tsx` wrap pages
+    // outside their own directory, so position in layoutPaths is the only link.
     const chain: RuntimeRoute[] = [
       { __type: "FURIN_ROUTE", layout: () => "root" },
-      { __type: "FURIN_ROUTE", layout: () => "thread" },
+      { __type: "FURIN_ROUTE", layout: () => "auth" },
+      { __type: "FURIN_ROUTE", layout: () => "posts" },
+      { __type: "FURIN_ROUTE", layout: () => "page" },
     ];
-
-    const importFn = (specifier: string) => {
-      // board/_route.tsx does not exist → module not found error (ENOENT)
-      if (specifier.includes("board/_route.tsx") && !specifier.includes("thread")) {
-        const err = new Error("Cannot find module board/_route.tsx");
-        (err as { code?: string }).code = "ERR_MODULE_NOT_FOUND";
-        return Promise.reject(err);
-      }
-      if (specifier.includes("thread/_route.tsx")) {
-        return Promise.resolve({
-          route: defineRootRoute().config({ mode: "ssr" }).layout(newThreadLayout),
-        });
-      }
-      return Promise.resolve({});
+    const layouts: { [path: string]: () => string } = {
+      "/pages/_auth.tsx": () => "new-auth",
+      "/pages/_auth/posts.tsx": () => "new-posts",
     };
 
-    await refreshLayoutChain(chain, "/pages/board/thread/page.tsx", "/pages/root.tsx", importFn);
-
-    // chain[1] (threadRoute) should be patched with thread's new layout,
-    // NOT left untouched because the old code mapped board's missing _route.tsx
-    // to chain index 1 and skipped thread's _route.tsx entirely.
-    expect((chain[1] as Required<RuntimeRoute>).layout({} as never)).toBe("new-thread");
-    expect((chain[0] as Required<RuntimeRoute>).layout({} as never)).toBe("root");
-  });
-
-  test("handles multiple gap directories correctly", async () => {
-    // Scenario: /pages/a/b/c/page.tsx
-    // /pages/a/ and /pages/a/b/ have NO _route.tsx (gap directories)
-    // /pages/a/b/c/ has a _route.tsx
-    // Chain has [root, cRoute].
-    const newCLayout = () => "new-c";
-
-    const chain: RuntimeRoute[] = [
-      { __type: "FURIN_ROUTE", layout: () => "root" },
-      { __type: "FURIN_ROUTE", layout: () => "c" },
-    ];
-
     const importFn = (specifier: string) => {
-      if (specifier.includes("/a/_route.tsx") || specifier.includes("/a/b/_route.tsx")) {
-        const err = new Error("Cannot find module");
-        (err as { code?: string }).code = "ERR_MODULE_NOT_FOUND";
-        return Promise.reject(err);
-      }
-      if (specifier.includes("/a/b/c/_route.tsx")) {
-        return Promise.resolve({
-          route: defineRootRoute().config({ mode: "ssr" }).layout(newCLayout),
-        });
-      }
-      return Promise.resolve({});
+      const path = Object.keys(layouts).find((candidate) => specifier.startsWith(candidate));
+      return Promise.resolve(path ? layoutModule(layouts[path] as () => string) : {});
     };
 
-    await refreshLayoutChain(chain, "/pages/a/b/c/page.tsx", "/pages/root.tsx", importFn);
+    await refreshLayoutChain(chain, Object.keys(layouts), importFn);
 
-    expect((chain[1] as Required<RuntimeRoute>).layout({} as never)).toBe("new-c");
-  });
-
-  test("skips gap dirs and patches all present _route.tsx files", async () => {
-    // Scenario: /pages/a/b/page.tsx
-    // /pages/a/ has a _route.tsx
-    // /pages/a/b/ has a _route.tsx
-    // Chain has [root, aRoute, bRoute].
-    const newALayout = () => "new-a";
-    const newBLayout = () => "new-b";
-
-    const chain: RuntimeRoute[] = [
-      { __type: "FURIN_ROUTE", layout: () => "root" },
-      { __type: "FURIN_ROUTE", layout: () => "a" },
-      { __type: "FURIN_ROUTE", layout: () => "b" },
-    ];
-
-    const importFn = (specifier: string) => {
-      if (specifier.includes("/a/_route.tsx") && !specifier.includes("/a/b/")) {
-        return Promise.resolve({
-          route: defineRootRoute().config({ mode: "ssr" }).layout(newALayout),
-        });
-      }
-      if (specifier.includes("/a/b/_route.tsx")) {
-        return Promise.resolve({
-          route: defineRootRoute().config({ mode: "ssr" }).layout(newBLayout),
-        });
-      }
-      return Promise.resolve({});
-    };
-
-    await refreshLayoutChain(chain, "/pages/a/b/page.tsx", "/pages/root.tsx", importFn);
-
-    expect((chain[1] as Required<RuntimeRoute>).layout({} as never)).toBe("new-a");
-    expect((chain[2] as Required<RuntimeRoute>).layout({} as never)).toBe("new-b");
-  });
-
-  test("refreshes intermediate layouts declared in _route.ts", async () => {
-    const originalLayout = () => "old";
-    const newLayout = () => "new";
-
-    const chain: RuntimeRoute[] = [
-      { __type: "FURIN_ROUTE", layout: () => "root" },
-      { __type: "FURIN_ROUTE", layout: originalLayout },
-    ];
-
-    const importFn = (specifier: string) => {
-      if (specifier.includes("board/_route.ts?")) {
-        return Promise.resolve({
-          route: defineRootRoute().config({ mode: "ssr" }).layout(newLayout),
-        });
-      }
-
-      const err = new Error(`Cannot find module ${specifier}`);
-      (err as { code?: string }).code = "ERR_MODULE_NOT_FOUND";
-      return Promise.reject(err);
-    };
-
-    await refreshLayoutChain(chain, "/pages/board/page.tsx", "/pages/root.tsx", importFn);
-
-    expect((chain[1] as Required<RuntimeRoute>).layout({} as never)).toBe("new");
+    expect(chain.map((entry) => (entry as Required<RuntimeRoute>).layout({} as never))).toEqual([
+      "root",
+      "new-auth",
+      "new-posts",
+      "page",
+    ]);
   });
 });

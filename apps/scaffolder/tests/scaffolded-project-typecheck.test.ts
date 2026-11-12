@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
-import { createContext, type TemplateId } from "../src/pipeline/context.ts";
+import { createContext, type RouteStyle, type TemplateId } from "../src/pipeline/context.ts";
 import { stage2Selection } from "../src/pipeline/stages/2-selection.ts";
 import { stage3Design } from "../src/pipeline/stages/3-design.ts";
 import { stage5Generation } from "../src/pipeline/stages/5-generation.ts";
@@ -50,8 +50,10 @@ function findInstalledPackage(name: string): string {
   return resolve(BUN_STORE, storeEntry, "node_modules", name);
 }
 
-async function generateProject(templateId: TemplateId): Promise<string> {
-  const parentDir = mkdtempSync(resolve(tmpdir(), `create-furin-typecheck-${templateId}-`));
+async function generateProject(templateId: TemplateId, routeStyle: RouteStyle): Promise<string> {
+  const parentDir = mkdtempSync(
+    resolve(tmpdir(), `create-furin-typecheck-${templateId}-${routeStyle}-`)
+  );
   tempDirs.push(parentDir);
   const targetDir = resolve(parentDir, "app");
   const ctx = createContext({
@@ -59,6 +61,7 @@ async function generateProject(templateId: TemplateId): Promise<string> {
     projectName: "app",
     projectNameKebab: "app",
     projectNamePascal: "App",
+    routeStyle,
     targetDir,
     templateId,
     yes: true,
@@ -94,9 +97,14 @@ describe("generated projects", () => {
     );
   }
 
-  for (const templateId of ["simple", "full"] as const) {
-    it(`type-checks the untouched ${templateId} template`, async () => {
-      const targetDir = await generateProject(templateId);
+  for (const [templateId, routeStyle] of [
+    ["simple", "tanstack"],
+    ["simple", "nextjs"],
+    ["full", "tanstack"],
+    ["full", "nextjs"],
+  ] as const) {
+    it(`type-checks the untouched ${templateId} template in the ${routeStyle} style`, async () => {
+      const targetDir = await generateProject(templateId, routeStyle);
       const child = Bun.spawn([TSC, "--noEmit", "-p", targetDir], {
         cwd: targetDir,
         stderr: "pipe",

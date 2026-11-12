@@ -38,7 +38,7 @@ function createSharedSchemaApp(schemaModule: string): TmpApp {
 }
 
 async function productionClientInputs(app: TmpApp): Promise<string[]> {
-  const { root, routes } = await scanPages(join(app.path, "src/pages"));
+  const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
   const metafilePath = join(app.path, "client.json");
   await buildClient(routes, {
     basePath: "",
@@ -54,7 +54,7 @@ async function productionClientInputs(app: TmpApp): Promise<string[]> {
 
 /** Bundles the dev hydration entry the way Bun's dev server does with `[serve.static] plugins`. */
 async function developmentClientInputs(app: TmpApp): Promise<string[]> {
-  const { root, routes } = await scanPages(join(app.path, "src/pages"));
+  const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
   const hydratePath = join(app.path, ".furin/_hydrate.tsx");
   mkdirSync(join(app.path, ".furin"), { recursive: true });
   writeFileSync(hydratePath, generateHydrateEntry(routes, root.path, "", false));

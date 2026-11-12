@@ -52,7 +52,7 @@ describe("generateHydrateEntry", () => {
   test("hydrates a catch-all route whose tail is empty without changing its pathname", () => {
     const code = generateHydrateEntry([makeRoute("/docs/*", "/app/pages/docs/[...rest].tsx")], ROOT, "", false);
     const path = hydratePathname(code, "/docs/");
-    expect(buildRouteMatcher([{ pattern: "/docs/*" }])(path)?.params).toEqual({ "*": "" });
+    expect(buildRouteMatcher([{ pattern: "/docs/*" }])(path)?.params).toEqual({ _splat: "" });
   });
   test("generates valid source for quoted route filenames and patterns", () => {
     const code = generateHydrateEntry([
@@ -398,7 +398,7 @@ describe("generateHydrateEntry — boundary chain emission", () => {
   test("route with notFound boundary at middle depth → lazy import + field", () => {
     const notFoundPath = "/app/src/pages/blog/not-found.tsx";
     const routes = [
-      makeRouteWithBoundaries("/blog/:slug", "/app/src/pages/blog/[slug].tsx", [
+      makeRouteWithBoundaries("/blog/:slug", "/app/src/pages/blog/$slug.tsx", [
         { depth: 1, notFoundPath },
       ]),
     ];
@@ -550,7 +550,7 @@ describe("production hydrate entry", () => {
   test("ships no absolute project paths in the client bundle", async () => {
     const app = createTmpApp("cli-app");
     try {
-      const { root, routes } = await scanPages(join(app.path, "src/pages"));
+      const { root, routes } = await scanPages({ pagesDir: join(app.path, "src/pages"), prefix: "", style: "tanstack" });
       const outDir = join(app.path, "production-build");
       await buildClient(routes, {
         basePath: "",

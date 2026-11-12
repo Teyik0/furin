@@ -44,12 +44,14 @@ async function createDocumentApp(options: DocumentSourceOptions): Promise<AnyEly
   const fixture = createTmpApp("cli-app");
   tmpApps.push(fixture);
   process.chdir(fixture.path);
-  writeAppFile(fixture.path, "src/pages/root.tsx", options.rootSource);
+  writeAppFile(fixture.path, "src/pages/__root.tsx", options.rootSource);
   writeAppFile(fixture.path, "src/pages/index.tsx", options.pageSource);
   if (options.errorSource !== undefined) {
     writeAppFile(fixture.path, "src/pages/error.tsx", options.errorSource);
   }
-  return new Elysia().use(await furin({ pagesDir: join(fixture.path, "src/pages") }));
+  return new Elysia().use(
+    await furin({ pagesDir: join(fixture.path, "src/pages"), style: "tanstack" })
+  );
 }
 
 function resetState(): void {

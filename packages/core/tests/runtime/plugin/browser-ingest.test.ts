@@ -10,7 +10,7 @@ const { __setDevMode } = await import("../../../src/server/runtime-env");
 const fixturesDir = join(import.meta.dir, "../../fixtures/pages/default");
 
 async function createTestApp(clientLogging: boolean): Promise<AnyElysia> {
-  return new Elysia().use(await furin({ clientLogging, pagesDir: fixturesDir }));
+  return new Elysia().use(await furin({ style: "tanstack", clientLogging, pagesDir: fixturesDir }));
 }
 
 afterEach(() => {
@@ -178,7 +178,12 @@ test.serial("browser log ingest accepts browser events when enabled", async () =
 
   const capture = captureEvlogEvents();
   const app = new Elysia().use(
-    await furin({ clientLogging: true, logger: { drain: capture.drain }, pagesDir: fixturesDir })
+    await furin({
+      style: "tanstack",
+      clientLogging: true,
+      logger: { drain: capture.drain },
+      pagesDir: fixturesDir,
+    })
   );
   const event = capture.next();
   const res = await app.handle(

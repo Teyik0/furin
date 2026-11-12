@@ -23,7 +23,7 @@ const app = new Elysia({ name: "relay" })
   )
   .onStop(() => sqlite.close())
   .use(api)
-  .use(await furin({ pagesDir: `${import.meta.dir}/pages`, sync }))
+  .use(await furin({ pagesDir: `${import.meta.dir}/pages`, style: "tanstack", sync }))
   .listen({ hostname: "127.0.0.1", port: Number(process.env.PORT ?? 3004) });
 
 if (import.meta.main) {

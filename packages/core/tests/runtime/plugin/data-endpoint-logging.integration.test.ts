@@ -17,7 +17,10 @@ afterEach(() => {
 
 test("navigation data requests enrich matching route events", async () => {
   __setDevMode(false);
-  const { app, instance } = await mountProductionPages(fixturesDir, "");
+  const { app, instance } = await mountProductionPages(
+    { pagesDir: fixturesDir, prefix: "", style: "tanstack" },
+    ""
+  );
   const capture = captureEvlogEvents();
   setFurinEvlogOptions(instance, { drain: capture.drain });
   const event = capture.next();
@@ -30,7 +33,10 @@ test("navigation data requests enrich matching route events", async () => {
 
 test("navigation data requests for unknown paths get an uncached 404 without a route", async () => {
   __setDevMode(false);
-  const { app, instance } = await mountProductionPages(fixturesDir, "");
+  const { app, instance } = await mountProductionPages(
+    { pagesDir: fixturesDir, prefix: "", style: "tanstack" },
+    ""
+  );
   const capture = captureEvlogEvents();
   setFurinEvlogOptions(instance, { drain: capture.drain });
   const event = capture.next();

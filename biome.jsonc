@@ -42,6 +42,17 @@
   },
   "overrides": [
     {
+      // TanStack-style route files: `$.tsx` splats and `-private` modules.
+      "includes": ["**/fixtures/routes-v2/**/*.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useFilenamingConvention": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["packages/core/src/**/*.{ts,tsx}"],
       "linter": {
         "rules": {

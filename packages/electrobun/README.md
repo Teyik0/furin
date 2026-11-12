@@ -45,7 +45,7 @@ const app = new Elysia()
   .onStart(async () => { await database.open(); })
   .onStop(async () => { await database.close(); })
   .use(api)
-  .use(await furin({ pagesDir: "src/pages" }))
+  .use(await furin({ style: "tanstack" }))
   .listen({ hostname: "127.0.0.1", port: 4242 });
 
 export default app;

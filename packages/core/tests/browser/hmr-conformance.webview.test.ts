@@ -356,8 +356,8 @@ function multiInstanceServerSource(): string {
     "",
     "const port = Number(process.env.PORT);",
     "const app = new Elysia()",
-    '  .use(await furin({ pagesDir: import.meta.dir + "/pages" }))',
-    '  .use(await furin({ pagesDir: import.meta.dir + "/admin-pages", prefix: "/admin" }))',
+    '  .use(await furin({ pagesDir: import.meta.dir + "/pages", style: "tanstack" }))',
+    '  .use(await furin({ pagesDir: import.meta.dir + "/admin-pages", prefix: "/admin", style: "tanstack" }))',
     "  .listen(port);",
     "",
     'console.log("[test-app] listening on " + app.server?.port);',
@@ -383,7 +383,7 @@ function sectionLayoutSource(version: string): string {
     "  );",
     "}",
     "",
-    'export const route = defineRoute("/section/_route")',
+    'export const route = defineRoute("/section")',
     '  .config({ mode: "ssr" })',
     "  .layout(SectionLayout);",
   ].join("\n");
@@ -404,7 +404,7 @@ function sectionLayoutLoaderSource(value: string): string {
     "  </section>;",
     "}",
     "",
-    'export const route = defineRoute("/section/_route")',
+    'export const route = defineRoute("/section")',
     '  .config({ mode: "ssr" })',
     `  .loader(() => ({ label: "loader-${value}" }))`,
     "  .layout(SectionLayout);",
@@ -427,7 +427,7 @@ function sectionLayoutRequestLoaderSource(value: string): string {
     "  </section>;",
     "}",
     "",
-    'export const route = defineRoute("/section/_route")',
+    'export const route = defineRoute("/section")',
     '  .config({ mode: "ssr" })',
     `  .requestLoader(() => ({ label: "private-${value}" }))`,
     "  .layout(SectionLayout);",
@@ -468,7 +468,7 @@ function sectionPageSource(version: string): string {
     "  );",
     "}",
     "",
-    'export const route = defineRoute("/section")',
+    'export const route = defineRoute("/section/")',
     '  .config({ mode: "ssr" })',
     "  .page(SectionPage);",
   ].join("\n");
@@ -531,7 +531,7 @@ function routeContractPageSource(version: "after" | "before"): string {
     "  );",
     "}",
     "",
-    'export const route = defineRoute("/items/[id]")',
+    'export const route = defineRoute("/items/$id")',
     `  ${config}`,
     `    params: t.Object({ id: ${schema} }),`,
     `    query: t.Object({ page: ${schema} }),`,
@@ -665,7 +665,7 @@ async function createBrowserHarness(
   proxyHmrTransport: boolean
 ): Promise<BrowserHarness> {
   const app = createTmpApp("cli-app");
-  writeAppFile(app.path, "src/pages/root.tsx", rootSource("root-v1"));
+  writeAppFile(app.path, "src/pages/__root.tsx", rootSource("root-v1"));
   writeAppFile(app.path, "src/pages/index.tsx", initialPageSource);
   for (const file of initialFiles) {
     writeAppFile(app.path, file.relativePath, file.contents);
@@ -1586,7 +1586,7 @@ browserTest(
     )) as string;
     await harness.view.click('[data-testid="increment"]');
 
-    writeAppFile(harness.app.path, "src/pages/root.tsx", rootSource("root-v2"));
+    writeAppFile(harness.app.path, "src/pages/__root.tsx", rootSource("root-v2"));
 
     await waitForElementText(harness.view, '[data-testid="root-version"]', "root-v2");
     const after = await readSnapshot(harness.view);
@@ -1604,7 +1604,7 @@ browserTest(
       [
         {
           contents: sectionLayoutSource("layout-v1"),
-          relativePath: "src/pages/section/_route.tsx",
+          relativePath: "src/pages/section/route.tsx",
         },
         {
           contents: sectionPageSource("section-v1"),
@@ -1622,11 +1622,7 @@ browserTest(
     await harness.view.click('[data-testid="layout-increment"]');
     await harness.view.click('[data-testid="increment"]');
 
-    writeAppFile(
-      harness.app.path,
-      "src/pages/section/_route.tsx",
-      sectionLayoutSource("layout-v2")
-    );
+    writeAppFile(harness.app.path, "src/pages/section/route.tsx", sectionLayoutSource("layout-v2"));
 
     await waitForElementText(harness.view, '[data-testid="layout-version"]', "layout-v2");
     expect(
@@ -1649,7 +1645,7 @@ browserTest(
       [
         {
           contents: sectionLayoutLoaderSource("v1"),
-          relativePath: "src/pages/section/_route.tsx",
+          relativePath: "src/pages/section/route.tsx",
         },
         {
           contents: sectionPageSource("section-v1"),
@@ -1666,7 +1662,7 @@ browserTest(
     )) as string;
     await harness.view.click('[data-testid="layout-increment"]');
 
-    writeAppFile(harness.app.path, "src/pages/section/_route.tsx", sectionLayoutLoaderSource("v2"));
+    writeAppFile(harness.app.path, "src/pages/section/route.tsx", sectionLayoutLoaderSource("v2"));
 
     let serverHtml = "";
     for (let attempt = 0; attempt < 40; attempt += 1) {
@@ -1698,7 +1694,7 @@ browserTest(
       [
         {
           contents: sectionLayoutRequestLoaderSource("v1"),
-          relativePath: "src/pages/section/_route.tsx",
+          relativePath: "src/pages/section/route.tsx",
         },
         {
           contents: sectionPageSource("section-v1"),
@@ -1717,7 +1713,7 @@ browserTest(
 
     writeAppFile(
       harness.app.path,
-      "src/pages/section/_route.tsx",
+      "src/pages/section/route.tsx",
       sectionLayoutRequestLoaderSource("v2")
     );
 
@@ -1742,7 +1738,7 @@ browserTest(
       [
         {
           contents: sectionLayoutConfigSource("number"),
-          relativePath: "src/pages/section/_route.tsx",
+          relativePath: "src/pages/section/route.tsx",
         },
         {
           contents: sectionPageSource("section-v1"),
@@ -1762,7 +1758,7 @@ browserTest(
 
     writeAppFile(
       harness.app.path,
-      "src/pages/section/_route.tsx",
+      "src/pages/section/route.tsx",
       sectionLayoutConfigSource("string")
     );
 
@@ -1865,7 +1861,7 @@ browserTest.each(["page", "root layout"])(
             "<ChildCounter />{children}<Scripts />"
           ),
         ].join("\n"),
-        relativePath: "src/pages/root.tsx",
+        relativePath: "src/pages/__root.tsx",
       });
     }
     const harness = await createBrowserHarness(
@@ -2144,7 +2140,7 @@ browserTest(
             ".layout(SectionLayout);",
             ".loader(() => ({}));"
           ),
-          relativePath: "src/pages/section/_route.tsx",
+          relativePath: "src/pages/section/route.tsx",
         },
         {
           contents: sectionPageSource("section-v1"),
@@ -2155,11 +2151,11 @@ browserTest(
     );
     activeHarness = harness;
     await harness.view.navigate(`${harness.url}/section`);
-    await waitForDevErrorOverlayText(harness.view, "_route.tsx must export");
+    await waitForDevErrorOverlayText(harness.view, "a layout file must export");
 
     writeAppFile(
       harness.app.path,
-      "src/pages/section/_route.tsx",
+      "src/pages/section/route.tsx",
       sectionLayoutSource("layout-fixed")
     );
 
@@ -2210,7 +2206,7 @@ browserTest.each(["styles.css", "styles.module.css"])(
       [
         {
           contents: `import "../${stylesheet}";\n${rootSource("root-v1")}`,
-          relativePath: "src/pages/root.tsx",
+          relativePath: "src/pages/__root.tsx",
         },
         { contents: `${selector} { color: rgb(255, 0, 0); }`, relativePath: `src/${stylesheet}` },
       ],
@@ -2469,7 +2465,7 @@ export const route = defineRootRoute()
     const harness = await createBrowserHarness(
       pageSource("root-page", false),
       [
-        { contents: root("root-v1"), relativePath: "src/pages/root.tsx" },
+        { contents: root("root-v1"), relativePath: "src/pages/__root.tsx" },
         {
           contents: 'export const loadData = () => ({ message: "loader-stable" });',
           relativePath: "src/lib/loader.ts",
@@ -2482,7 +2478,7 @@ export const route = defineRootRoute()
     await harness.view.click('[data-testid="increment"]');
     await harness.view.evaluate("performance.clearResourceTimings()");
 
-    writeAppFile(harness.app.path, "src/pages/root.tsx", root("root-v2"));
+    writeAppFile(harness.app.path, "src/pages/__root.tsx", root("root-v2"));
 
     await waitForElementText(harness.view, '[data-testid="root-version"]', "root-v2");
     await Bun.sleep(300);
@@ -2498,7 +2494,7 @@ export const route = defineRootRoute()
       "src/lib/loader.ts",
       'export const loadData = () => ({ message: "loader-updated" });'
     );
-    writeAppFile(harness.app.path, "src/pages/root.tsx", root("root-v3"));
+    writeAppFile(harness.app.path, "src/pages/__root.tsx", root("root-v3"));
     await waitForElementText(harness.view, '[data-testid="root-version"]', "root-v3");
     await waitForElementText(harness.view, '[data-testid="root-data"]', "loader-updated");
   },
@@ -2541,7 +2537,7 @@ browserTest(
       [
         {
           contents: routeContractPageSource("before"),
-          relativePath: "src/pages/items/[id].tsx",
+          relativePath: "src/pages/items/$id.tsx",
         },
       ],
       false
@@ -2558,7 +2554,7 @@ browserTest(
     const serverPid = harness.server.pid;
     await harness.view.click('[data-testid="increment"]');
 
-    writeAppFile(harness.app.path, "src/pages/items/[id].tsx", routeContractPageSource("after"));
+    writeAppFile(harness.app.path, "src/pages/items/$id.tsx", routeContractPageSource("after"));
 
     const after = await waitForVersion(harness.view, "after");
     await waitForElementText(harness.view, '[data-testid="loader"]', "after:string:string");
@@ -2811,16 +2807,16 @@ browserTest(
             'import { defineRoute } from "@teyik0/furin";',
             'import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";',
             'import { ServerCard } from "../../components/server-card";',
-            'export const route = defineRoute("/nested/_route")',
+            'export const route = defineRoute("/nested")',
             '  .config({ mode: "ssg" })',
             "  .loader(async () => ({ card: await createCompositeComponent(() => <ServerCard />) }))",
             "  .layout(({ children, card }) => <section>{children}<CompositeComponent src={card} /></section>);",
           ].join("\n"),
-          relativePath: "src/pages/nested/_route.tsx",
+          relativePath: "src/pages/nested/route.tsx",
         },
         {
           contents: pageSource("nested-helper", false)
-            .replace('defineRoute("/")', 'defineRoute("/nested")')
+            .replace('defineRoute("/")', 'defineRoute("/nested/")')
             .replace('mode: "ssr"', 'mode: "ssg"'),
           relativePath: "src/pages/nested/index.tsx",
         },
@@ -2900,12 +2896,12 @@ browserTest(
       [
         {
           contents: rootSource("admin-root"),
-          relativePath: "src/admin-pages/root.tsx",
+          relativePath: "src/admin-pages/__root.tsx",
         },
         {
           contents: pageSource("admin-v1", false).replace(
             'defineRoute("/")',
-            'defineRoute("/admin")'
+            'defineRoute("/admin/")'
           ),
           relativePath: "src/admin-pages/index.tsx",
         },
@@ -2938,7 +2934,7 @@ browserTest(
     writeAppFile(
       harness.app.path,
       "src/admin-pages/index.tsx",
-      pageSource("admin-v2", false).replace('defineRoute("/")', 'defineRoute("/admin")')
+      pageSource("admin-v2", false).replace('defineRoute("/")', 'defineRoute("/admin/")')
     );
 
     const adminAfter = await waitForVersion(adminView, "admin-v2");

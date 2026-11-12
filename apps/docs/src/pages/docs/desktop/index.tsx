@@ -5,7 +5,7 @@ import { renderDocContent } from "@/lib/doc-content";
 import { DOCS_BY_PATH } from "@/lib/docs";
 import { getDocSourceText } from "@/lib/docs-server";
 
-export const route = defineRoute("/docs/desktop")
+export const route = defineRoute("/docs/desktop/")
   .config({ mode: "ssg" })
   .loader(async () => {
     const { default: DesktopContent } = await import("@/content/desktop/overview.mdx");

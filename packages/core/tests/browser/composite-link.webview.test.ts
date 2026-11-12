@@ -93,22 +93,25 @@ async function createConsumerApp(): Promise<string> {
     "furin.config.ts": `import { defineConfig } from "@teyik0/furin/config";
 export default defineConfig({
   serverEntry: "src/server.ts",
-  apps: [{ pagesDir: "src/pages" }, { pagesDir: "src/admin", prefix: "/admin" }],
+  apps: [
+    { pagesDir: "src/pages", style: "tanstack" },
+    { pagesDir: "src/admin", prefix: "/admin", style: "tanstack" },
+  ],
 });`,
     "src/header.tsx": headerSource,
     "src/server.ts": `import { Elysia } from "elysia";
 import { furin } from "@teyik0/furin";
 const app = new Elysia()
-  .use(await furin({ pagesDir: import.meta.dir + "/pages" }))
-  .use(await furin({ pagesDir: import.meta.dir + "/admin", prefix: "/admin" }));
+  .use(await furin({ pagesDir: import.meta.dir + "/pages", style: "tanstack" }))
+  .use(await furin({ pagesDir: import.meta.dir + "/admin", prefix: "/admin", style: "tanstack" }));
 if (import.meta.main) app.listen(Number(process.env.PORT));
 export default app;`,
   };
   for (const section of ["pages", "admin"]) {
-    files[`src/${section}/root.tsx`] = rootSource;
+    files[`src/${section}/__root.tsx`] = rootSource;
     for (const page of ["index", "other"]) {
       const prefix = section === "admin" ? "/admin" : "";
-      const id = page === "index" ? prefix || "/" : `${prefix}/${page}`;
+      const id = page === "index" ? `${prefix}/` : `${prefix}/${page}`;
       files[`src/${section}/${page}.tsx`] = `import { defineRoute } from "@teyik0/furin";
 export const route = defineRoute("${id}").config({ mode: "ssr" })
   .page(() => <main data-page="${page === "index" ? "home" : "other"}">${page}</main>);`;
@@ -252,7 +255,7 @@ browserTest.each([
         await navigate("classic", "other");
         await navigate("composite", "home");
         await Bun.write(
-          join(directory, `src/${prefix ? "admin" : "pages"}/root.tsx`),
+          join(directory, `src/${prefix ? "admin" : "pages"}/__root.tsx`),
           rootSource.replace("composite-v1", "composite-v2")
         );
         await waitFor(

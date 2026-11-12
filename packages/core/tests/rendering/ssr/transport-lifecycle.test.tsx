@@ -85,6 +85,7 @@ test.each(["deferred", "request"] as const)(
       path: "/missing.tsx",
       pattern: "/missing",
       routeChain: collectRouteChainFromRoute(page._route),
+      layouts: [],
       segmentBoundaries: [],
       ...(kind === "request"
         ? { requestKeys: ["greeting"], requestKeysByLoader: [["greeting"], []] }
@@ -126,7 +127,7 @@ const dashboardRoot = defineRootRoute()
       </body>
     </html>
   ));
-const libraryLayout = defineRoute("/transport/library/_route")
+const libraryLayout = defineRoute("/transport/library")
   .config({ mode: "ssr" })
   .loader(async ({ dashboard }) => ({
     dashboard: { ...(await dashboard), settings: { theme: "ocean" } },
@@ -141,7 +142,7 @@ const libraryLayout = defineRoute("/transport/library/_route")
 
 declare module "@teyik0/furin/routes" {
   interface FileRoutes {
-    "/transport/library/_route": {
+    "/transport/library": {
       kind: "layout";
       parent: typeof dashboardRoot;
       pathParams: NonNullable<unknown>;
@@ -228,6 +229,7 @@ test("buffered not-found documents carry the same status and payload as navigati
     path: "/missing.tsx",
     pattern: "/missing",
     routeChain: collectRouteChainFromRoute(page._route),
+    layouts: [],
     segmentBoundaries: [],
   };
   let result: RenderResult | undefined;

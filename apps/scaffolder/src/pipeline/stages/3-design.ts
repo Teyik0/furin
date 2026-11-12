@@ -9,7 +9,11 @@ export function stage3Design(ctx: PipelineContext): void {
   }
 
   // ── Build ordered GeneratedFile list from manifest ─────────────────────
-  ctx.fileTree = ctx.manifest.files.map((f): GeneratedFile => {
+  const { routeStyle } = ctx;
+  const files = ctx.manifest.files.filter(
+    (f) => f.kind === "package-json" || f.style === undefined || f.style === routeStyle
+  );
+  ctx.fileTree = files.map((f): GeneratedFile => {
     if (f.kind === "package-json") {
       return {
         kind: f.kind,

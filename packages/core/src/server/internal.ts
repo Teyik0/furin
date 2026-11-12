@@ -93,12 +93,15 @@ export interface CompileContext {
   routeMetadata?: Record<
     string,
     {
+      /** Layouts wrapping the page, shallow → deep, from the route manifest. */
+      layouts: Array<{ path: string; pattern: string }>;
       requestKeys?: string[];
       requestKeysByLoader?: string[][];
       segmentBoundaries: Array<{
         depth: number;
         path: string;
         errorPath?: string;
+        fromRoute?: true;
         notFoundPath?: string;
       }>;
     }
@@ -139,7 +142,7 @@ export function collectPrerenders(render: boolean): Promise<AppPrerender[]> {
 }
 
 // Contexts are keyed by (pagesDir, prefix) — pagesDir being the directory
-// containing root.tsx, normalized to posix separators. The SAME pagesDir may
+// containing the root layout, normalized to posix separators. The SAME pagesDir may
 // legally be mounted under two different prefixes (assertPrefixAvailable only
 // rejects same-prefix collisions), so pagesDir alone would let the second
 // registration overwrite the first. Several packaged furin apps can each ship

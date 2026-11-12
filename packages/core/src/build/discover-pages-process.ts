@@ -134,7 +134,7 @@ Bun.plugin(isomorphicTransformPlugin("server"));
 const discovered: DiscoveredApp[] = [];
 process.env.ELYSIA_AOT_BUILD = "1";
 for (const spec of apps) {
-  const { root, routes } = await scanPages(spec.pagesDir);
+  const { root, routes } = await scanPages(spec);
   discovered.push({
     ...spec,
     routeRegistry: await snapshotRouteRegistry(spec),

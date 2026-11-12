@@ -7,7 +7,7 @@ declare module "@teyik0/furin/routes" {
     "/": {
       kind: "page";
       pattern: "/";
-      parent: typeof import("./src/pages/root").route;
+      parent: typeof import("./src/pages/__root").route;
       pathParams: {};
     };
   }

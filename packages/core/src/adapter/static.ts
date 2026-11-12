@@ -498,7 +498,7 @@ export async function buildStaticTarget(
       metafilePath: options.analyze ? join(buildRoot, "analysis", "static-client.json") : undefined,
       optimizeImports: options.optimizeImports,
       outDir: targetDir,
-      pagesDir: dirname(root.path),
+      pages: { pagesDir: app.pagesDir, style: app.style },
       routeRegistry: app.routeRegistry,
       plugins: options.plugins,
       preloadRouteChunks: options.preload?.routeChunks,

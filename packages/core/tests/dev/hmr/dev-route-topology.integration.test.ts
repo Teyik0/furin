@@ -31,7 +31,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
   // Root layout — minimal marker wrapper.
   writeAppFile(
     app.path,
-    "src/pages/root.tsx",
+    "src/pages/__root.tsx",
     [
       'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
       "",
@@ -227,12 +227,12 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
   test("hot-added routes retain schema normalization", async () => {
     writeAppFile(
       app.path,
-      "src/pages/items/[id].tsx",
+      "src/pages/items/$id.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
         "",
-        'export const route = defineRoute("/items/[id]")',
+        'export const route = defineRoute("/items/$id")',
         "  .config({",
         '    mode: "ssr",',
         "    params: t.Object({ id: t.Number() }),",
@@ -266,7 +266,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       expect(html).toContain("number:42:7");
       expect((await fetch(`http://localhost:${port}/items/nope`)).status).toBe(422);
     } finally {
-      removeAppPath(app.path, "src/pages/items/[id].tsx");
+      removeAppPath(app.path, "src/pages/items/$id.tsx");
     }
     const removed = await pollUntil(
       async () => {
@@ -318,14 +318,19 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     20_000
   );
 
-  test("hot-adding and removing not-found.tsx refreshes the rendered convention", async () => {
+  test("adding and removing the root .notFound() refreshes the rendered not-found", async () => {
     const missingUrl = `http://localhost:${port}/missing-convention`;
     expect(await (await fetch(missingUrl)).text()).not.toContain("Hot convention");
+    const rootPath = "src/pages/__root.tsx";
+    const rootSource = readFileSync(join(app.path, rootPath), "utf8");
 
     writeAppFile(
       app.path,
-      "src/pages/not-found.tsx",
-      "export default function NotFound() { return <main>Hot convention</main>; }\n"
+      rootPath,
+      rootSource.replace(
+        '.config({ mode: "ssr" })',
+        '.config({ mode: "ssr" })\n  .notFound(() => <main>Hot convention</main>)'
+      )
     );
 
     const added = await pollUntil(
@@ -338,7 +343,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     );
     expect(added).toBe(true);
 
-    removeAppPath(app.path, "src/pages/not-found.tsx");
+    writeAppFile(app.path, rootPath, rootSource);
     const removed = await pollUntil(
       async () => {
         const response = await fetch(missingUrl);
@@ -363,7 +368,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
         `  .requestLoader(({ headers }) => ({ ${field}: headers.get("x-session") ?? "anonymous" }))`,
         `  .layout(({ children, ${field} }) => <html lang="en"><head><HeadContent /></head><body><span>field: ${field}</span><Suspense fallback="loading"><Private value={${field}} /></Suspense>{children}<Scripts /></body></html>);`,
       ].join("\n");
-    writeAppFile(app.path, "src/pages/root.tsx", rootSource("user"));
+    writeAppFile(app.path, "src/pages/__root.tsx", rootSource("user"));
     writeAppFile(
       app.path,
       "src/pages/private-isr.tsx",
@@ -390,7 +395,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
         expect(await htmlFor(path, "Bob")).toContain("<strong>Bob</strong>");
       }
 
-      writeAppFile(app.path, "src/pages/root.tsx", rootSource("sessionUser"));
+      writeAppFile(app.path, "src/pages/__root.tsx", rootSource("sessionUser"));
       const updated = await pollUntil(
         async () => {
           const html = await htmlFor("/", "Charlie");
@@ -455,7 +460,7 @@ describe.serial("dev route topology — hot-added routes under a hooked parent",
       '  .onBeforeHandle("global", ({ set }) => {',
       '    set.headers["x-parent-hook"] = "ran";',
       "  })",
-      '  .use(await furin({ pagesDir: import.meta.dir + "/pages" }))',
+      '  .use(await furin({ style: "tanstack", pagesDir: import.meta.dir + "/pages" }))',
       "  .listen(Number(process.env.PORT));",
     ].join("\n")
   );

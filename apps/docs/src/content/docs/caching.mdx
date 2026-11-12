@@ -40,7 +40,7 @@ SSG and ISR responses also expose `Cache-Tag` with the concrete resolved path. T
 For `mode: "isr"`, `revalidate` is seconds:
 
 ```tsx
-// src/pages/blog/index.tsx
+// src/routes/blog.tsx
 export const route = defineRoute("/blog")
   .config({
     mode: "isr",
@@ -111,7 +111,7 @@ const pageCache = redisPageCache({
 });
 
 new Elysia()
-  .use(await furin({ pagesDir: "./src/pages", pageCache }))
+  .use(await furin({ style: "tanstack", pageCache }))
   .listen(3000);
 ```
 
@@ -123,8 +123,8 @@ Every replica of one environment must use the same namespace. Keep it stable acr
 
 ```ts
 new Elysia()
-  .use(await furin({ pagesDir: "./src/pages", pageCache }))
-  .use(await furin({ pagesDir: "./src/admin", prefix: "/admin", pageCache }))
+  .use(await furin({ style: "tanstack", pageCache }))
+  .use(await furin({ pagesDir: "./src/admin", prefix: "/admin", style: "tanstack", pageCache }))
   .listen(3000);
 ```
 
@@ -226,7 +226,7 @@ Pass a purge callback to each `furin()` mount whose pages sit behind a CDN that 
 
 ```ts
 await furin({
-  pagesDir: "./src/pages",
+  style: "tanstack",
   cachePurger: async (paths) => {
     await cdn.purge(paths);
   },
@@ -239,7 +239,7 @@ CDNs with surrogate-key purging can also receive the semantic tags passed to `re
 
 ```ts
 await furin({
-  pagesDir: "./src/pages",
+  style: "tanstack",
   cacheTagPurger: async (tags) => {
     await cdn.purgeTags(tags);
   },

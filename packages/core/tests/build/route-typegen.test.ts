@@ -4,11 +4,11 @@ import { join } from "node:path";
 import { createTmpApp } from "../support/app-fixtures.ts";
 import { runCli } from "../support/process.ts";
 
-const ROUTE_MAP_ENTRY = '"/blog/:slug": typeof import("./src/pages/blog/[slug]").route;';
-const FILE_ROUTES_ENTRY = `    "/blog/[slug]": {
+const ROUTE_MAP_ENTRY = '"/blog/:slug": typeof import("./src/pages/blog/$slug").route;';
+const FILE_ROUTES_ENTRY = `    "/blog/$slug": {
       kind: "page";
       pattern: "/blog/:slug";
-      parent: typeof import("./src/pages/root").route;
+      parent: typeof import("./src/pages/__root").route;
       pathParams: { slug: string };
     };`;
 

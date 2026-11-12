@@ -51,11 +51,11 @@ Furin's real-browser suite covers pages, layouts, re-exports, cycles, rapid edit
 
 | Dimension | Next.js | TanStack Start | Furin |
 |---|---|---|---|
-| Route definition | Files and special App Router conventions | Generated or code-based route tree | Files plus an explicit `defineRoute(id)` chain, keyed by the file |
+| Route definition | Files and special App Router conventions | Generated or code-based route tree | Files in a Next.js- or TanStack-style tree, plus an explicit `defineRoute(id)` chain keyed by a TanStack Start id |
 | Typed destinations | Optional generated typed routes | Strong typed `to`, params, and search | Generated autocomplete; known paths infer params/search, with a string escape hatch |
 | Search state | Application-defined parsing | First-class validated search state | TypeBox runtime schemas plus `useSearch()` |
 | Loader inference | Generated route props and component conventions | Route tree and loader APIs | Parent loader promises flow through the route builder |
-| Advanced routing | Groups, parallel routes, intercepting routes | Rich router composition | Nested layouts and catch-alls; no parallel/intercepting route conventions |
+| Advanced routing | Groups, parallel routes, intercepting routes | Rich router composition | Nested, pathless and flat layouts, groups, optional segments and catch-alls; no parallel/intercepting route conventions |
 
 TanStack Start is the strongest fit when typed search state and router composition are the center of the application. Furin is strongest when the same TypeBox/Elysia model should validate both page inputs and HTTP APIs. Next.js provides more routing conventions and generated route-aware types than a simple “string routes” description suggests.
 

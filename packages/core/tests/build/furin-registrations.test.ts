@@ -36,8 +36,8 @@ export default app;
 
 test("the build fails when furin() mounts a prefix config.apps does not build", async () => {
   const app = createApp(
-    '.use(await furin({ pagesDir: "./src/pages", prefix: "/shop" }))',
-    '[{ pagesDir: "src/pages" }]'
+    '.use(await furin({ pagesDir: "./src/pages", prefix: "/shop", style: "tanstack" }))',
+    '[{ pagesDir: "src/pages", style: "tanstack" }]'
   );
 
   const result = await runCli(["build", "--target", "bun"], { cwd: app.path });
@@ -50,12 +50,12 @@ test("the build fails when furin() mounts a prefix config.apps does not build", 
 
 test("the build fails when a prefix is mounted from another pagesDir", async () => {
   const app = createApp(
-    '.use(await furin({ pagesDir: "./src/pages" }))',
-    '[{ pagesDir: "src/other-pages" }]'
+    '.use(await furin({ pagesDir: "./src/pages", style: "tanstack" }))',
+    '[{ pagesDir: "src/other-pages", style: "tanstack" }]'
   );
   writeAppFile(
     app.path,
-    "src/other-pages/root.tsx",
+    "src/other-pages/__root.tsx",
     `import { defineRootRoute } from "@teyik0/furin";
 export const route = defineRootRoute().config({ mode: "ssr" }).layout(({ children }) => <html lang="en"><body>{children}</body></html>);
 `
@@ -70,8 +70,8 @@ export const route = defineRootRoute().config({ mode: "ssr" }).layout(({ childre
 
 test("the build accepts furin() mounts that match config.apps", async () => {
   const app = createApp(
-    '.use(await furin({ pagesDir: "./src/pages", prefix: "/shop/" }))',
-    '[{ pagesDir: "src/pages", prefix: "/shop" }]'
+    '.use(await furin({ pagesDir: "./src/pages", prefix: "/shop/", style: "tanstack" }))',
+    '[{ pagesDir: "src/pages", prefix: "/shop", style: "tanstack" }]'
   );
   keyPagesForPrefix(app.path, "src/pages", "/shop");
 
@@ -90,7 +90,7 @@ test("without config.apps, the build mounts what evaluating the server entry reg
 import { Elysia } from "elysia";
 
 const pagesDir = ["src", "pages"].join("/");
-const app = new Elysia().use(await mountPages({ pagesDir, prefix: "/shop" }));
+const app = new Elysia().use(await mountPages({ pagesDir, prefix: "/shop", style: "tanstack" }));
 
 export default app;
 `
@@ -131,8 +131,8 @@ test("the build fails when one pagesDir is mounted under two prefixes", async ()
 import { Elysia } from "elysia";
 
 export default new Elysia()
-  .use(await furin({ pagesDir: "./src/pages" }))
-  .use(await furin({ pagesDir: "./src/pages", prefix: "/admin" }));
+  .use(await furin({ pagesDir: "./src/pages", style: "tanstack" }))
+  .use(await furin({ pagesDir: "./src/pages", prefix: "/admin", style: "tanstack" }));
 `
   );
 

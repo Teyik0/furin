@@ -4,10 +4,10 @@ import "@teyik0/furin/routes";
 
 declare module "@teyik0/furin/routes" {
   interface FileRoutes {
-    "/forecast": {
+    "/forecast/": {
       kind: "page";
       pattern: "/forecast";
-      parent: typeof import("./pages/root").route;
+      parent: typeof import("./pages/layout").route;
       pathParams: {};
     };
   }

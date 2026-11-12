@@ -95,7 +95,7 @@ try {
   writeRevalidatePages(app.path, false);
   setProductionTemplateContent("<html><body><!--ssr-outlet--></body></html>");
 
-  let plugin = await furin({ pagesDir: join(app.path, "src/pages") });
+  let plugin = await furin({ style: "tanstack", pagesDir: join(app.path, "src/pages") });
   let parent = new Elysia().use(plugin);
 
   revalidatePath("/global-leak", "page");
@@ -112,7 +112,7 @@ try {
   writeRevalidatePages(app.path, true);
   setProductionTemplateContent("<html><body><!--ssr-outlet--></body></html>");
 
-  plugin = await furin({ pagesDir: join(app.path, "src/pages") });
+  plugin = await furin({ style: "tanstack", pagesDir: join(app.path, "src/pages") });
   parent = new Elysia().use(plugin);
 
   const [resA, resB] = await Promise.all([

@@ -31,7 +31,7 @@ const app = new Elysia().use(desktopApp()).onStop(() => { lifecycle.shutdown += 
   .get("/api/host", () => ({ host: true }))
   .onStart(() => { lifecycle.setup += 1; })
   .onStop(() => { lifecycle.cleanup += 1; })
-  .use(await furin({ pagesDir: import.meta.dir + "/pages" }));
+  .use(await furin({ pagesDir: import.meta.dir + "/pages", style: "tanstack" }));
 
 export default Object.assign(app, {
   getObserved: () => observed,

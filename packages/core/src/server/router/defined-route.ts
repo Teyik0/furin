@@ -1,15 +1,19 @@
 import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
 import type { HeadOptions, RenderingMode } from "../../client.ts";
+import type { ErrorComponent } from "../../shared/error.ts";
+import type { NotFoundComponent } from "../../shared/not-found.ts";
 import type { RemountDependency } from "../../shared/page-key.ts";
 
 interface DefinedRouteTerminal {
   __type: "FURIN_ROUTE";
   component: (...args: never[]) => React.ReactNode;
   elysia: object;
+  errorComponent?: ErrorComponent;
   head?: (...args: never[]) => HeadOptions;
   layout?: (...args: never[]) => React.ReactNode;
   loader?: (...args: never[]) => unknown;
   mode?: RenderingMode;
+  notFoundComponent?: NotFoundComponent;
   page?: (...args: never[]) => React.ReactNode;
   remountDeps?: (context: never) => readonly RemountDependency[];
   requestLoader?: (...args: never[]) => unknown;
@@ -44,9 +48,11 @@ export function adaptDefinedLayout(
   const component = route.component as RuntimeRoute["layout"];
   return {
     __type: "FURIN_ROUTE",
+    errorComponent: route.errorComponent,
     layout: component,
     loader: route.loader as RuntimeRoute["loader"],
     mode: route.mode,
+    notFoundComponent: route.notFoundComponent,
     params: route.schemas?.params,
     ...(parent ? { parent } : {}),
     query: route.schemas?.query,
@@ -72,9 +78,11 @@ export function adaptDefinedPage(route: DefinedRouteTerminal, parent: RuntimeRou
       requestLoader: route.requestLoader as RuntimeRoute["requestLoader"],
     },
     component,
+    errorComponent: route.errorComponent,
     head,
     loader: route.loader as RuntimePage["loader"],
     mode: route.mode,
+    notFoundComponent: route.notFoundComponent,
     revalidate: route.revalidate,
     staticParams: route.staticParams as RuntimePage["staticParams"],
     tags: copyTags(route.tags),
