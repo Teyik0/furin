@@ -342,12 +342,13 @@ function checkRoute(
 
 /** The root layout (`undefined` route) and every route file, sorted. */
 function routeFiles(manifest: RouteManifest): [string, ManifestRoute | undefined][] {
+  // Issues and scaffolded files report native paths, as the editor opens them.
   const files: [string, ManifestRoute | undefined][] = manifest.routes.map((route) => [
-    route.sourcePath,
+    resolve(route.sourcePath),
     route,
   ]);
   if (existsSync(manifest.rootPath)) {
-    files.push([manifest.rootPath, undefined]);
+    files.push([resolve(manifest.rootPath), undefined]);
   }
   return files.toSorted(([left], [right]) => left.localeCompare(right));
 }
