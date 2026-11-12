@@ -1,0 +1,28 @@
+packages/electrobun/src/desktop-dev.ts
+  s_2d3b48c2109c35::t_f348fae25e9a8f 29,43,125-135,137-140,176-180,182,185-194,203-213,215-219,224,241
+  s_2d3b48c2109c35::t_5bbe0db69d4738 63
+  s_2d3b48c2109c35::t_8b3194efb3c034 136
+packages/electrobun/tests/desktop-dev.test.ts
+  s_2d3b48c2109c35::t_d7bfe13f23ad6b 201-217,219-242,244-252,260-290,292-294,296-304,308-312,315-337,339-341
+  s_2d3b48c2109c35::t_f8d9c5e97a272d 243,253-259,291
+  s_2d3b48c2109c35::t_0cce0cc4ac2c4d 157-158
+  s_2d3b48c2109c35::t_22a7eb7c73e02e 36
+  s_2d3b48c2109c35::t_3060e387d4de66 295,305-307,313-314,338
+  s_2d3b48c2109c35::t_334e3f9db12e74 115-117,123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e46510f0aa411e3d9c021aa3f78d2d4a9f101a33",
+  "prompts": {},
+  "sessions": {
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
