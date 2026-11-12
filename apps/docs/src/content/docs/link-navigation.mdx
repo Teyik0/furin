@@ -69,7 +69,7 @@ The active comparison uses the logical pathname and search string, excluding the
 
 ## Preloading
 
-The default `intent` strategy starts preloading after a short hover delay or immediately on focus. `viewport` uses an intersection observer, and `render` starts when the link mounts. Prefetch entries use an LRU cache with a generated default capacity of 50.
+The default `intent` strategy starts preloading after a short hover delay or immediately on focus. `viewport` uses an intersection observer, and `render` starts when the link mounts. The prefetch cache holds up to 50 entries.
 
 Prefetching loads the destination route module and route data ahead of navigation. Duplicate in-flight work is shared, stale entries are refreshed according to `preloadStaleTime`, and server invalidation headers evict affected entries.
 
@@ -105,7 +105,7 @@ export function ChimeCanvas() {
 }
 ```
 
-The build strips the `import()` from the server bundle, so the module never runs or ships server-side. The argument must be an inline `() => import("…")`. In development `hrefs` is empty and preloading is a no-op: Bun's dev server serves unhashed modules on demand.
+The build strips the `import()` from the server bundle, so the module never runs or ships server-side. The argument must be an inline `() => import("…")`. In development the module's `hrefs` list is empty, so `preloadClientModule()` is a no-op: Bun's dev server serves unhashed modules on demand.
 
 ## Programmatic Navigation
 
@@ -180,7 +180,7 @@ function Pagination() {
 }
 ```
 
-Updates merge with the current search object. Pass `{ replace: true }` to avoid a new history entry or `{ resetScroll: false }` to preserve the current position. Setting a field back to its schema default removes it from the URL.
+Updates merge with the current search object; the setter also accepts an updater function `(prev) => patch`. Pass `{ replace: true }` to avoid a new history entry or `{ resetScroll: false }` to preserve the current position. Setting a field back to its schema default removes it from the URL.
 
 The route argument autocompletes generated patterns (for example, `/products/:productId`). It must be a known route pattern or a path matching one, and it must identify the currently rendered route. A mismatch throws instead of reading or updating search state under the wrong route type.
 

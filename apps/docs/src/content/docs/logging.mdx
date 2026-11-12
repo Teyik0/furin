@@ -26,13 +26,11 @@ new Elysia()
   .listen(3000);
 ```
 
-Furin excludes its content-hashed assets and development diagnostics from normal request noise. SPA route-data requests are logged under the logical destination path rather than only as the internal transport URL.
+Furin excludes its client and public assets, the Bun HMR entry, and its development diagnostics, DevTools, browser-event and Sync endpoints from request logs. SPA route-data requests are logged under the logical page path rather than the internal transport URL. `exclude` patterns match the physical (prefixed) request path.
 
-Call `initLogger()` once in your server entry before creating Furin instances. The application owns the process-wide configuration: service identity, output, global drain, redaction, and sampling. Furin never initializes or replaces it. Generated projects include this call.
+Call `initLogger()` once in your server entry before creating Furin instances. The application owns the process-wide configuration: service identity, output, global drain, redaction, and sampling; Furin never initializes or replaces it. Generated projects include this call. Without it, Furin still emits console logs with evlog's defaults, but no global drain or redaction is configured and evlog warns once in production.
 
-Without `initLogger()`, Furin still serves requests and emits console logs using evlog's defaults. No global drain or redaction is configured, and evlog warns once in production. Request-level options still apply.
-
-`logger` accepts evlog's middleware options: `include`, `exclude`, route overrides, `enrich`, `keep`, `redact`, `plugins`, `drain`, and `waitUntil`. Each Furin instance owns these request options; all instances share the application's global evlog configuration.
+`logger` accepts evlog's middleware options: `include`, `exclude`, route overrides, `enrich`, `keep`, `redact`, `plugins`, `drain`, and `waitUntil`. Each Furin instance owns these request options; all instances share the global evlog configuration.
 
 ## Add Request Context
 
@@ -131,7 +129,7 @@ await furin({
 
 ## Browser Logging
 
-Enable the browser HTTP drain in the build configuration:
+Enable the browser HTTP drain in the build configuration for production bundles:
 
 ```ts
 // furin.config.ts
@@ -140,7 +138,7 @@ import { defineConfig } from "@teyik0/furin/config";
 export default defineConfig({ clientLogging: true });
 ```
 
-Or pass `clientLogging: true` to `furin()` when development/runtime configuration owns the choice. The generated browser entry initializes `evlog/http`, batches events to the instance's `/_furin/ingest` endpoint, and re-emits them nested under a `browser` field with `service: "furin:browser"`, so browser input cannot overwrite server fields such as `status`, `path` or `user`.
+In development, passing `clientLogging: true` to `furin()` is enough; in production, that option enables the ingest endpoint but the browser bundle includes the drain only when the build configuration sets it. The generated browser entry initializes `evlog/http`, batches events to the instance's `/_furin/ingest` endpoint, and re-emits them nested under a `browser` field with `service: "furin:browser"`, so browser input cannot overwrite server fields such as `status`, `path` or `user`.
 
 Furin automatically records navigation and refresh failures. Application browser code can use evlog's client-safe logger:
 

@@ -60,7 +60,7 @@ if (error) throw error;
 return { content };
 ```
 
-The nearest `error.tsx` handles this failure, including a 404 API response. Use `notFound()` when the page itself should render `not-found.tsx`. Failed ISR renders are not cached.
+The nearest `error.tsx` handles this failure, including a 404 API response. Use `notFound()` when the page itself should render `not-found.tsx`. Failed renders are never cached; see [SPA And Cached Routes](#spa-and-cached-routes).
 
 Without an authored boundary, Furin renders its built-in safe error screen inside the root layout. If the root document itself cannot render, a framework-owned minimal document is the last resort.
 

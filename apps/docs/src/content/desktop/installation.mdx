@@ -1,23 +1,16 @@
 # Desktop installation
 
-Start with a working Furin application and Bun 1.4 or later. The integration currently lives on the [`feat/electrobun-desktop` branch](https://github.com/teyik0/furin/tree/feat/electrobun-desktop); use that checkout when working from this repository.
+Start with a working Furin application and Bun 1.4 or later.
 
-## Install and initialize
-
-For a project using the published package:
+## Install the package
 
 ```sh
 bun add -d @teyik0/furin-electrobun
-bunx --bun @teyik0/furin-electrobun init
 ```
 
-`init` preserves existing development commands and configuration, adds `build:desktop`, and registers the desktop preload in `bunfig.toml`:
+The pinned Electrobun SDK is an optional dependency of the package. If optional dependencies were omitted, install it explicitly with `bun add -d electrobun@2.0.2`.
 
-```toml
-preload = ["@teyik0/furin-electrobun/preload"]
-```
-
-In a workspace checkout, install the repository dependencies with `bun install` and use the existing `examples/electrobun-todo` application as the starting point.
+In this repository, run `bun install` and start from the `examples/electrobun-todo` application instead.
 
 ## Configure packaging
 
@@ -36,7 +29,21 @@ export default defineConfig({
 });
 ```
 
-The identifier uses reverse-domain notation. `app.version` uses the consuming package version when omitted. The main process must be Bun because it runs your Elysia application in process.
+`app.identifier` uses reverse-domain notation. `app.version` defaults to the version in your `package.json`. The main process is always Bun because it runs your Elysia application in process: `build.mainProcess` may be omitted, and any other value is rejected.
+
+## Initialize
+
+```sh
+bunx --bun @teyik0/furin-electrobun init
+```
+
+`init` adds a `build:desktop` script, adds `dev` (`bun --hot <server entry>`) only when it is missing, and registers the desktop preload in `bunfig.toml`:
+
+```toml
+preload = ["@teyik0/furin-electrobun/preload"]
+```
+
+Without a `furin.config.ts`, `init` creates one with a `desktop` section derived from the package name. It never overwrites existing setup: it stops if `furin.config.ts` exists without a `desktop` section, if `bunfig.toml` already declares a different `preload` array (add the entry yourself), or if a `build:desktop` or `dev:desktop` script exists.
 
 ## Prepare native types
 
@@ -54,8 +61,6 @@ Extend its generated paths alongside your existing TypeScript configuration:
 }
 ```
 
-Use the path to your own base config rather than creating one just for this example. Keep existing compiler options. Preparation needs network access the first time and reuses the SDK cache afterward; rerun it after relocating a checkout. It does not open a GUI.
-
-If optional dependencies were omitted during installation, install the pinned SDK explicitly with `bun add -d electrobun@2.0.5`.
+Replace `./tsconfig.base.json` with your own base config and keep your compiler options. The first preparation needs network access; later runs reuse the SDK cache. Rerun it after moving the checkout. It does not open a GUI.
 
 Continue with [your first window](/docs/desktop/first-window).

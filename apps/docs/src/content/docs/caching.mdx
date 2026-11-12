@@ -1,6 +1,6 @@
 # Caching
 
-Furin caches complete public route results according to the route's explicit rendering mode. By default, route caches are in-process and scoped to each mounted Furin instance. Configure a page-cache adapter to share ISR, runtime SSG, and PPR public artifacts across replicas. CDN caching remains a separate layer controlled by response headers and an optional purge callback.
+Furin caches complete public route results according to the route's explicit rendering mode. By default, route caches are in-process and scoped to each mounted Furin instance. Configure a page-cache adapter to share ISR, runtime SSG, and PPR public artifacts across replicas. [PPR](/docs/rendering#cached-public-data-with-personalization) is an SSG or ISR route with a `requestLoader()`: its public part is cached and its request part renders per request. CDN caching remains a separate layer controlled by response headers and an optional purge callback.
 
 ## Choose A Cache Setup
 
@@ -25,7 +25,7 @@ Vercel deployments reject an explicit `pageCache` during application initializat
 | SSG | `public, max-age=0, must-revalidate, s-maxage=31536000` | Build ID plus cache timestamp |
 | Fresh ISR | `public, max-age=0, s-maxage=N, stale-while-revalidate=N` | Build ID plus generation timestamp |
 | Stale ISR | Same, with `s-maxage=0` | Existing ISR ETag |
-| Cached route with `requestLoader()` | `private, no-store` | None |
+| SSG/ISR route with `requestLoader()` (PPR) | `private, no-store` | None |
 | `/_client/*` assets | `public, max-age=31536000, immutable` | Not required; filenames are content-hashed |
 
 Browsers revalidate cached HTML, while a shared cache may use `s-maxage`. When `If-None-Match` matches a current SSG or ISR entry, Furin returns `304` without the body.
@@ -150,21 +150,7 @@ The adapter is the source of truth; Redis Pub/Sub is not required. Notifications
 
 ### Route Authoring Stays The Same
 
-Routes continue to declare their mode, revalidation window, and tags:
-
-```tsx
-// src/pages/blog/index.tsx
-export const route = defineRoute("/blog")
-  .config({
-    mode: "isr",
-    revalidate: 60,
-    tags: ["posts"],
-  })
-  .loader(async () => ({ posts: await db.posts.findMany() }))
-  .page(({ posts }) => <PostList posts={posts} />);
-```
-
-No Redis key construction belongs in route code. Furin derives keys from the mounted prefix, build ID, render mode, concrete pathname, and, where the mode supports it, query string.
+Routes keep declaring their mode, revalidation window, and tags as in the [ISR example](#isr-lifecycle); no Redis key construction belongs in route code. Furin derives keys from the mounted prefix, build ID, render mode, concrete pathname, and, where the mode supports it, query string.
 
 ## Invalidate A Path
 

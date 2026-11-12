@@ -7,8 +7,7 @@
 
 ```tsx
 // src/pages/dashboard/index.tsx
-import { defineRoute } from "@teyik0/furin";
-import { Await, defer } from "@teyik0/furin/client";
+import { Await, defer, defineRoute } from "@teyik0/furin";
 import { Suspense } from "react";
 
 export const route = defineRoute("/dashboard")
@@ -31,14 +30,14 @@ export const route = defineRoute("/dashboard")
   ));
 ```
 
-`<Await>` reads the promise with React `use()`, so it must be inside `<Suspense>`. During SPA navigation, the page URL with `?_furin=data` streams the same fields as NDJSON and reconstructs the promise-valued contract before React renders the destination.
+`<Await>` reads the promise with React `use()`, so it must be inside `<Suspense>`. During SPA navigation, the route-data request (the page URL with `?_furin=data`) streams the same fields as NDJSON, so the page receives the same promises as on the first load.
 
-Only synchronous loader fields are available to `head()`. Keep titles and other metadata inputs outside deferred promises.
+Only synchronous loader fields are available to [`head()`](/docs/head-seo). Keep titles and other metadata inputs outside deferred promises.
 
 ## Local Error UI
 
 ```tsx
-import { Await, useAsyncError } from "@teyik0/furin/client";
+import { Await, useAsyncError } from "@teyik0/furin";
 
 function AnalyticsError() {
   const error = useAsyncError();

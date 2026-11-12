@@ -4,13 +4,13 @@ The controller is available as `desktop` in Elysia handlers with `desktopContext
 
 ## The primary window
 
-`desktop.window` is a readonly getter for the current original Electrobun `BrowserWindow`. It becomes `undefined` after that window closes. Native methods and the original `webview` types remain available.
+`desktop.window` is a readonly getter for the current Electrobun `BrowserWindow`, with all its native methods and the original `webview` types. It becomes `undefined` after that window closes.
 
-`desktop.open()` activates the primary window, or creates it again after it closes. It returns the real SDK instance. Call it only after native readiness: it throws before that point, so do not call it at native module top level or await it during application startup.
+`desktop.open()` shows and focuses the primary window, or creates it again after it closes, and returns the SDK instance. It throws before native readiness, so do not call it at native module top level or await it during application startup.
 
 ## Additional windows
 
-Create named windows from a ready desktop context:
+Create named windows from a ready desktop context (for example inside a route handler that uses `desktopContext`):
 
 ```ts
 const settings = desktop.windows.create("settings", {
@@ -22,15 +22,18 @@ const settings = desktop.windows.create("settings", {
 desktop.windows.get("settings");
 ```
 
-`path` refers to a route in your Furin app. Each managed window receives its own one-use authenticated bootstrap URL. Furin owns its URL, HTML, views root and navigation restrictions; other compatible SDK options pass through.
+`path` is a route in your Furin app. Each managed window receives its own one-use authenticated bootstrap URL. Furin owns the window's URL, HTML, views root and navigation rules; other SDK window options pass through. The name `"main"` is reserved for the primary window.
 
-Window names are runtime strings. `get(name)` returns `BrowserWindow | undefined`; a lookup cannot infer an RPC schema from an unrelated declaration. Keep the return value of `create(name, { rpc, ... })` when exact RPC inference matters.
+`get(name)` returns `BrowserWindow | undefined` with the SDK's default RPC type, because a runtime name carries no RPC declaration. Keep the return value of `create(name, { rpc, ... })` when exact RPC inference matters.
 
 ## Background mode
 
 A `background` callback controls whether the application can stay alive after its last managed window closes:
 
 ```ts
+import { desktopApp } from "@teyik0/furin-electrobun/server";
+import { Elysia } from "elysia";
+
 new Elysia()
   .use(desktopApp({
     window: { title: "Relay" },
@@ -38,10 +41,10 @@ new Elysia()
   }));
 ```
 
-Import `Elysia` and `desktopApp` as shown in [Furin Integration](/docs/desktop/integration). Background mode does not create a tray or menu; those remain application-owned native SDK integrations.
+Background mode does not create a tray or menu; add those with the [native SDK](/docs/desktop/native-apis).
 
 ## Shutdown and restart
 
-Use `desktop.quit()` and `desktop.restart()` for coordinated shutdown. The host guards managed windows and runs backend cleanup once. Application resources use Elysia `.onStart()` and `.onStop()` hooks.
+Use `desktop.quit()` and `desktop.restart()` for coordinated shutdown: the host closes managed windows and runs backend cleanup once. Release application resources in Elysia `.onStop()`.
 
-A raw SDK window or view is outside Furin's managed ownership and authentication. Prefer managed windows for routes that need the shared application session.
+Raw SDK windows and views are outside Furin's managed ownership and authentication. Use managed windows for routes that need the application session.

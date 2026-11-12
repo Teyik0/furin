@@ -37,19 +37,23 @@ my-app/
 │   │   ├── index.tsx
 │   │   └── root.tsx
 │   └── server.ts
+├── biome.jsonc
 ├── bunfig.toml
 ├── furin.config.ts
 ├── furin-env.d.ts
+├── package.json
 ├── README.md
 └── tsconfig.json
 ```
+
+`full` also adds `components.json`, `src/components/ui/` and `src/lib/utils.ts` for shadcn/ui.
 
 - `src/server.ts` composes the Elysia application.
 - `src/pages/root.tsx` owns the HTML document shared by every page.
 - `src/pages/index.tsx` maps to `/`.
 - `furin.config.ts` controls production builds.
 - `bunfig.toml` registers the client-side Bun plugins used by development.
-- `furin-env.d.ts` is generated from the route tree and should not be edited manually. Despite its name, it does not type environment variables: it registers every page's `route` export so `<Link to>`, `navigate()`, route params, and `getRouteApi()` are type-checked, and references Furin's ambient types for CSS and image imports. The dev server rewrites it when it starts and when pages change; `furin build` and `furin typegen` write it too.
+- `furin-env.d.ts` holds the [generated route types](/docs/routing#generated-route-types); do not edit it. Despite its name, it does not type environment variables: it types `<Link to>`, `navigate()`, route params and `getRouteApi()` from your pages, and references Furin's ambient types for CSS and image imports. The dev server, `furin build` and `furin typegen` rewrite it.
 
 ## The Server
 
@@ -57,25 +61,28 @@ Furin is an Elysia plugin, so pages and APIs compose through `.use()`:
 
 ```ts
 // src/server.ts
-import { Elysia } from "elysia";
 import { furin } from "@teyik0/furin";
-import { api } from "./api/hello";
+import { Elysia } from "elysia";
+import { initLogger } from "evlog";
+import { getHelloPayload } from "./api/hello";
+
+initLogger({ env: { service: "my-app" } });
+
+const app = new Elysia()
+  .get("/api/hello", () => getHelloPayload())
+  .use(await furin({ pagesDir: "./src/pages" }));
 
 export const port = Number(process.env.PORT ?? 3000);
 
-const app = new Elysia()
-  .use(await furin({ pagesDir: "./src/pages" }))
-  .use(api);
-
 if (import.meta.main) {
   app.listen(port);
-  console.log(`Furin app running at http://localhost:${app.server?.port}`);
+  console.log(`my-app running at http://localhost:${app.server?.port}`);
 }
 
 export default app;
 ```
 
-Keep chaining the returned Elysia instance. Plugin order and lifecycle scope remain Elysia concerns; see [API Routes](/docs/api-routes).
+Keep chaining the returned Elysia instance. Plugin order and lifecycle scope remain Elysia concerns; see [API Routes](/docs/api-routes). `initLogger()` configures [evlog](/docs/logging), which backs the `log` available in loaders.
 
 ## The Root Document
 
@@ -125,16 +132,16 @@ Create a route file empty and the development server writes a starter route with
 # Bun dev server with React Fast Refresh
 bun run dev
 
-# Check formatting and types, then build
+# Fix lint and formatting, check types, then build
 bun run fix
 bun run tscheck
 bun run build
 
-# Run the built Bun server
+# Run the compiled server executable
 bun run start
 ```
 
-The scaffold's `dev` script starts `src/server.ts` with Bun hot reloading. If you add, remove, or move a page, the route manifest and `furin-env.d.ts` are refreshed automatically.
+The scaffold's `dev` script runs `bun --hot src/server.ts`. Adding, removing or moving a page refreshes the route manifest and `furin-env.d.ts` automatically. `build` runs `furin build --target bun --compile embed`, which writes a single executable to `.furin/build/bun/server`; see [Deployment](/docs/deployment).
 
 > [!TIP]
 > `bunx --bun furin dev` is the CLI companion of that script. It resolves the configured entry, honors its listener, and can start the [native desktop app](/docs/desktop) in desktop projects. See the [CLI Reference](/docs/cli#furin-dev).

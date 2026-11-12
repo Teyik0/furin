@@ -1,6 +1,6 @@
 # Sign your desktop app
 
-Signing and notarization use Electrobun's platform build configuration. `defineDesktopConfig` retains compatible SDK settings under `desktop` in `furin.config.ts`.
+Signing and notarization use Electrobun's platform build settings, which `defineDesktopConfig` passes through from `desktop` in `furin.config.ts`.
 
 ## Configure the macOS build
 
@@ -24,6 +24,6 @@ Prepare the signing identity, credentials and target build environment using [El
 
 ## Verify the release artifact
 
-Development builds do not exercise the complete release-signing pipeline. Test a signed release, including installation, launch and access to the application's persistent data.
+Development builds do not exercise the release-signing pipeline. Test a signed release end to end: installation, launch and access to the application's persistent data.
 
-Platform requirements and signing support belong to the pinned Electrobun SDK. Furin does not provide a separate signing service or bypass these requirements. Use the SDK's documented release environment and permissions for your target platform.
+Platform requirements and signing support come from the pinned Electrobun SDK; Furin adds no signing service of its own.

@@ -41,7 +41,7 @@ export default app;
 
 Continue chaining Elysia instances so route types remain intact. Elysia plugins are isolated by default: an API plugin must explicitly `.use()` the auth, database, logging, macro, or model dependencies required by its own routes.
 
-The exported `api` is also the root application extended by Furin. Elysia's AOT manifest owns one Elysia application per process, so an in-process Eden client must call this same instance instead of a second standalone app.
+Here the exported `api` is also the root application extended by Furin, so an in-process Eden client (`treaty(api)`) calls the served application. An in-process client may also call a separate Elysia instance, but that instance must be named (`new Elysia({ name: "api" })`) so Elysia AOT can compile it; the build fails otherwise. See [Elysia AOT](/docs/deployment#elysia-aot).
 
 ## Mounted Request Handlers
 
@@ -111,8 +111,6 @@ export const api = treaty<Api>(window.location.origin);
 
 For a module imported by both server loaders and browser components, use `createIsomorphicFn()` so loaders call Elysia in-process and the browser uses HTTP:
 
-Keep the factory in one fluent chain, using a named import or direct namespace access such as `Furin.createIsomorphicFn()`. Constant aliases of the factory are supported; aliasing or destructuring the Furin namespace, or selecting its exports with a runtime key, is rejected so unresolved server branches cannot reach the browser bundle.
-
 ```ts
 // src/lib/posts-api.ts
 import { treaty } from "@elysia/eden";
@@ -123,6 +121,8 @@ export const getPostsApi = createIsomorphicFn()
   .server(() => treaty(api))
   .client(() => treaty<Api>(window.location.origin));
 ```
+
+Keep the factory in one fluent chain, using a named import or direct namespace access such as `Furin.createIsomorphicFn()`. Constant aliases of the factory are supported; aliasing or destructuring the Furin namespace, or selecting its exports with a runtime key, is rejected so unresolved server branches cannot reach the browser bundle.
 
 ```tsx
 // src/pages/posts.tsx
@@ -186,7 +186,7 @@ export const postsApi = new Elysia({ prefix: "/api/posts" })
   });
 ```
 
-`invalidate()` accepts the same targets as in [Furin Sync](/docs/sync#identify-reads-by-url): a GET pattern and its params, `{ tags }` or `{ path, type }`. The mutation's own URL is always invalidated. Successful responses invalidate the origin cache and carry `X-Furin-Revalidate`, allowing the initiating tab to evict prefetched data and refresh an affected page.
+`invalidate()` accepts the same targets as in [Furin Sync](/docs/sync#identify-reads-by-url): a GET pattern and its params, `{ tags }` or `{ path, type }`. The mutation's own URL is always invalidated. Successful responses invalidate the origin cache and carry `X-Furin-Revalidate` (and `x-furin-queries` for live queries), allowing only the initiating tab to evict prefetched data and refresh an affected page.
 
 If mutations can be retried, or other tabs and replicas must learn about invalidations, use the stronger [Sync & Invalidations](/docs/sync) contract instead.
 

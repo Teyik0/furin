@@ -104,7 +104,7 @@ Use separate namespaces only for deployments that must never invalidate each oth
 
 ## Build Discovery
 
-Furin can statically detect literal mounts in `server.ts`. Declare dynamic mounts explicitly when values come from variables or factories:
+`furin build` finds the mounts by evaluating the server entry in a child process and recording every `furin({ pagesDir, prefix })` call. Declare the apps explicitly when the server entry cannot be evaluated at build time:
 
 ```ts
 // furin.config.ts
@@ -133,6 +133,7 @@ furin build --target package --pagesDir ./src/pages --prefix /admin
 - `client/`: content-hashed browser assets and the document template;
 - `public/`: copied public assets when present;
 - `register.js`: bundled page modules and compile-context registration;
+- `furin-prerender.json`: SSG documents rendered during the build;
 - `index.js` and `index.d.ts`: the `createFurinApp()` factory.
 
 Dependencies stay external so the host and packaged app share one Furin runtime.
@@ -148,6 +149,6 @@ new Elysia()
   .listen(3000);
 ```
 
-The factory bakes in `pagesDir`, `prefix`, and `clientDir`; the host may still pass logger or sync options. In a monorepo with sources present it supports live development. A published artifact without page sources is production-only.
+The factory bakes in `pagesDir`, `prefix`, and `clientDir`; the host may pass any other `furin()` option, such as `logger` or `sync`. In a monorepo with sources present it supports live development. A published artifact without page sources is production-only.
 
 `--compile embed` on the host does not currently re-embed a packaged app's client directory. Prefer a disk-mode host when composing packaged apps into one process.

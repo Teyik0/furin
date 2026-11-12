@@ -1,18 +1,18 @@
 # Integrate Furin and Elysia
 
-Desktop packaging keeps the original Elysia root, route types, decorators, prefixes and Eden inference. Your Furin routes, APIs and sync runtime remain the application; the desktop plugin adds native ownership around them.
+Desktop packaging keeps the original Elysia root, route types, decorators, prefixes and Eden inference. Your Furin routes, APIs and sync runtime remain the application; `desktopApp()` adds window, session and lifecycle ownership around them.
 
 ## One listener
 
-Use `.listen(...)` as the source of truth for the backend. Web and desktop clients share its hostname, scheme and port. The primary window should not configure a second server address.
+`.listen(...)` is the source of truth for the backend: Web and desktop clients share its hostname, scheme and port, and windows never configure a second server address.
 
-Builds capture the listener configuration without opening a socket or running startup hooks. The generated host starts the built application with those options. Shared initialization belongs in `.onStart()`, not native module top-level code.
+Builds capture the listener options without opening a socket or running startup hooks; the generated host then starts the built application with them. Shared initialization belongs in `.onStart()`, not in native module top-level code.
 
-If an entry only default-exports its application and has no configured listener address, the desktop host uses `127.0.0.1` and a free port. Wildcard listeners use a local destination for managed windows; explicit hostnames and HTTPS are preserved. Unix sockets cannot provide the window's HTTP(S) address.
+If an entry only default-exports its application without a listener address, the desktop host uses `127.0.0.1` and a free port. Managed windows reach wildcard listeners through loopback (`0.0.0.0` becomes `127.0.0.1`, `::` becomes `[::1]`); explicit hostnames and HTTPS are preserved. Unix sockets are rejected because the WebView needs an HTTP(S) address.
 
 ## Use existing services
 
-`desktopApp()` accepts static options, a factory that receives the decorators registered before it plus `store` (`desktopApp(({ service, store }) => options)`), or an explicit application and factory (`desktopApp(app, configure)`). A factory can read existing services:
+`desktopApp()` accepts static options, or a factory that receives the decorators registered before it plus `store`. A factory can read existing services:
 
 ```ts
 import { desktopApp } from "@teyik0/furin-electrobun/server";
@@ -27,9 +27,9 @@ new Elysia()
   })));
 ```
 
-The factory runs synchronously once during plugin installation. Register its services first; it does not wait for pending startup work. The context contains decorators and `store`, not HTTP request fields or per-request `.derive()` values.
+The factory runs synchronously once, when the plugin is installed. Register its services first; it does not wait for `.onStart()` or pending async plugins. The context holds decorators and `store` only, not request fields or per-request `.derive()` values.
 
-Values such as the title are read during installation. Callback policies such as `background` read their dependencies when invoked.
+Plain values such as the title are read at installation; callbacks such as `background` and `admission` read their dependencies each time they run. The explicit form `.use((app) => desktopApp(app, configure))` provides the same context.
 
 ## Independent API plugins
 
@@ -48,7 +48,7 @@ export const desktopApi = new Elysia({ prefix: "/api/desktop" })
   });
 ```
 
-`desktopContext` is named and deduplicated. It injects the live controller without registering another root, listener or window. Web mode receives `null` without loading native SDK code. The root `desktopApp()` plugin installs this provider automatically.
+`desktopContext` is named and deduplicated. It injects the live controller (`null` in Web mode, without loading native SDK code) and registers no root, listener or window. The root `desktopApp()` plugin installs it automatically; independent plugins `.use()` it to get their own types.
 
 The controller exposes:
 
@@ -56,19 +56,19 @@ The controller exposes:
 |---|---|
 | `desktop.window` | Current main SDK `BrowserWindow`, `undefined` after it closes |
 | `desktop.open()` | Reactivate or recreate the main window |
-| `desktop.windows.create(name, options)` | Open an authenticated managed window at `options.path`, keeping the exact RPC typing of the supplied `rpc` |
+| `desktop.windows.create(name, options)` | Open an authenticated managed window at `options.path`, keeping the exact RPC typing of the supplied `rpc`; `"main"` is reserved |
 | `desktop.windows.get(name)` | Look up a managed window, with default SDK typing |
 | `desktop.quit()` / `desktop.restart()` | Coordinated shutdown with window fencing and one-time backend cleanup |
 | `desktop.updates.install()` | Install a downloaded update after draining the backend |
-| `desktop.browser.open(path)` | Open a URL in the system browser from the application side |
+| `desktop.browser.open(path?)` | Open an app path (default `/`) in the system browser with a fresh one-use session; returns `false` on TLS listeners |
 | `desktop.associations.read(target)` / `requestDefault(target)` | Read or request file-association and URL-scheme defaults |
 | `desktop.snapshot()` | `{ background, phase, trayVisible, webviews, windows }` |
 
 > [!CAUTION]
-> `desktop.open()` throws before native readiness: do not call it at native-module top level, and never await it during startup.
+> `desktop.open()` throws before native readiness: do not call it at native-module top level or await it during startup.
 
 ## Authentication and storage
 
-Managed desktop windows use authenticated bootstrap URLs. A regular browser does not automatically share a window's session. If network clients are allowed, authenticate them through `desktopApp.admission`; do not remove the desktop session boundary.
+Managed desktop windows use authenticated bootstrap URLs, and a regular browser does not share a window's session. To accept network clients, authenticate them with the `admission` option of `desktopApp()` rather than removing the desktop session boundary.
 
-The host resolves runtime storage before importing the application. Use `FURIN_APP_DATA_DIR` for desktop data paths when your application needs user-specific persistent storage. Development and packaged installations should not share accidental working-directory database paths.
+The host resolves the data directory (`desktop.dataDir`, or a per-identifier app-data folder by default) and sets `FURIN_APP_DATA_DIR` before importing the application. Build persistent paths from it instead of the working directory, with a fallback for Web-only runs where it is unset.

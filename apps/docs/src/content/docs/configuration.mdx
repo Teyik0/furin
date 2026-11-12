@@ -1,6 +1,6 @@
 # Configuration Reference
 
-Production builds read the first `furin.config.ts`, `furin.config.js`, or `furin.config.mjs` in the working directory. `defineConfig()` provides inference; Furin validates serializable fields when the CLI loads the file. Unknown keys fail with their path and the closest valid key (for example, `reactCompilor` suggests `reactCompiler`), every plugin must be an object with a `name` string and a `setup` function, and every target must be a built-in name or a deployment adapter.
+The `furin` CLI reads the first `furin.config.ts`, `furin.config.js`, or `furin.config.mjs` in the working directory (or the file passed to `--config`). `defineConfig()` provides inference; Furin validates the file when the CLI loads it. Unknown keys fail with their path and the closest valid key (for example, `reactCompilor` suggests `reactCompiler`), every plugin must be an object with a `name` string and a `setup` function, and every target must be a built-in name or a deployment adapter.
 
 ```ts
 // furin.config.ts
@@ -27,7 +27,7 @@ CLI flags override the corresponding file settings. Paths are resolved from the 
 | Field | Type | Default | Purpose |
 |---|---|---|---|
 | `rootDir` | `string` | Current directory | Project root for build paths |
-| `pagesDir` | `string` | `src/pages` | Pages directory for one root-mounted app |
+| `pagesDir` | `string` | Detected mounts, then `src/pages` | Pages directory for one root-mounted app |
 | `serverEntry` | `string` | `src/server.ts` | Elysia entry for server builds |
 | `apps` | `{ pagesDir; prefix? }[]` | Auto-detected | Explicit multi-instance build inputs |
 | `clientLogging` | `boolean` | `false` | Include the browser evlog HTTP drain |
@@ -36,12 +36,15 @@ CLI flags override the corresponding file settings. Paths are resolved from the 
 | `plugins` | `FurinPlugin[]` | None | Bun build and route-import plugins |
 | `preload.routeChunks` | `boolean` | `true` | Emit `<link rel="modulepreload">` for the current route's chunks |
 | `bun.compile` | `"server" \| "embed"` | No executable | Compile the Bun server |
+| `bun.output` | `"app" \| "server"` | `server` | Emit a bootable `server.js` or an inert, importable `app.js` (same as `--output`) |
+| `serverSourceMaps` | `boolean` | `false` | Emit private server source maps (see [Deployment](/docs/deployment#private-server-source-maps-and-error-tools)) |
+| `desktop` | Object | None | Native desktop integration, validated by `@teyik0/furin-electrobun` (see [Desktop](/docs/desktop)) |
 | `static` | `StaticExportConfig` | See below | Configure pure static output |
 | `targets` | `(BuildTarget \| FurinAdapter)[]` | `["bun"]` | What `furin build` builds without `--target`; also where adapters receive their options |
 
-`apps` takes precedence over `pagesDir` and the server entry. When neither is configured, a server build evaluates the server entry in a child process, with `furin()` only recording its `{ pagesDir, prefix }`, and builds those apps, then falls back to `src/pages`. Any `furin()` call counts, whatever its import name or how its options are computed. If the server entry cannot be evaluated at build time, list the apps in `apps`.
+`apps` takes precedence over `pagesDir`, which takes precedence over the server entry. When neither is configured, the build evaluates the server entry in a child process, where `furin()` only records its `{ pagesDir, prefix }`, and builds those apps; without any recorded mount it falls back to `src/pages`. Any `furin()` call counts, whatever its import name or how its options are computed. Relative `pagesDir` values resolve against `rootDir`.
 
-Server builds then check the result against the application itself: Elysia AOT already evaluates the server entry, and Furin records every `furin({ pagesDir, prefix })` call it makes. A mounted app the build did not produce, or a built app the server never mounts, fails the build and lists both sides. Relative `pagesDir` values resolve against `rootDir`. Applications using `.mount()` skip AOT and therefore this check.
+Server builds then check the result against the application: Elysia AOT evaluates the server entry again, and a mounted app the build did not produce, or a built app the server never mounts, fails the build and lists both sides. Applications using `.mount()` skip AOT and therefore this check.
 
 ```ts
 export default defineConfig({
@@ -52,7 +55,7 @@ export default defineConfig({
 });
 ```
 
-Use `apps` when mount values come from variables or factories that static scanning cannot resolve.
+List the apps in `apps` when the server entry cannot be evaluated at build time.
 
 ## Client Logging
 
@@ -60,7 +63,7 @@ Use `apps` when mount values come from variables or factories that static scanni
 export default defineConfig({ clientLogging: true });
 ```
 
-This includes `evlog/http` in the generated browser entry and sends browser events to the prefixed `/_furin/ingest` endpoint. Server request logging is configured separately through `furin({ logger })`. See [Logging](/docs/logging).
+This includes `evlog/http` in the production browser entry and sends browser events to the prefixed `/_furin/ingest` endpoint. In development, `furin({ clientLogging: true })` is enough. Server request logging is configured separately through `furin({ logger })`. See [Logging](/docs/logging).
 
 ## React Compiler And Import Optimization
 
@@ -158,13 +161,13 @@ await furin({
 | `pagesDir` | Runtime pages identity; defaults to `src/pages` |
 | `prefix` | Full physical path of pages, framework endpoints, public assets, and client assets; the client bundle is built for it |
 | `clientDir` | Override production client assets; build artifacts normally resolve this automatically |
-| `clientLogging` | Enable browser logging for this runtime/build context |
+| `clientLogging` | Enable the browser log drain in development and the `/_furin/ingest` endpoint; production browser bundles also need `clientLogging` in `furin.config.ts` |
 | `logger` | Per-instance evlog middleware options; configure process-wide settings such as sampling with `initLogger()` in the server entry |
 | `cachePurger` | CDN purge hook for this instance; receives its physical paths and takes precedence over `setCachePurger()` |
 | `cacheTagPurger` | CDN purge hook for this instance's semantic cache tags; receives the tags passed to `revalidateTag()` and takes precedence over the deployment adapter's tag purger |
-| `pageCache` | Optional shared store for SSG, ISR, and PPR public artifacts; when omitted, the existing process-local render caches remain active |
+| `pageCache` | Optional shared store for SSG, ISR, and PPR public artifacts; when omitted, the process-local render caches are used |
 | `sync` | Sync adapter, principal resolver, optional notifier, optional principal hash `secret`, and optional durable endpoint `path` |
 
-Keep the same `pagesDir` and `prefix` between the build and runtime mount. `prefix` is the full physical path: mount Furin on an Elysia instance without its own prefix. Each `furin()` call serves one application. See [Caching](/docs/caching), [Multi-Instance](/docs/multi-instance), and [Sync & Invalidations](/docs/sync).
+Keep the same `pagesDir` and `prefix` between the build and runtime mount. `prefix` is the full physical path: mount Furin on an Elysia instance without its own prefix. Each `furin()` call serves one application. See [Multi-Instance](/docs/multi-instance) and [Sync & Invalidations](/docs/sync).
 
-For a single Bun process, omit `pageCache`. For multiple Bun replicas, create one `redisPageCache()` adapter at module scope and pass it to each `furin()` mount. On Vercel Build Output, omit it and use the cache integration installed by the deployment adapter. Vercel deployments reject a custom `pageCache` during application initialization so native and Redis caches cannot become competing sources of truth.
+Omit `pageCache` for a single Bun process and on Vercel, whose adapter rejects it at initialization. For multiple Bun replicas, see [Caches And Replicas](/docs/deployment#caches-and-replicas) and [Caching](/docs/caching#shared-page-cache).

@@ -1,10 +1,10 @@
-# Migrating To Furin Desktop
+# Migrating to Furin Desktop
 
-This page maps an existing standalone Electrobun (tofu-style) application onto Furin's desktop integration. The reference application for these notes kept its business API, pages, and data in one Elysia app and drove window lifecycle through ad-hoc HTTP endpoints and native callbacks. Nothing in that checkout is modified by this integration; these are the replacement moves.
+This page maps a standalone Electrobun application onto Furin's desktop integration. It assumes an app that already keeps its API, pages and data in one Elysia app, but builds windows in native code and drives their lifecycle through ad-hoc HTTP endpoints and native callbacks.
 
-## Declare Windows On The Elysia Root
+## Declare windows on the Elysia root
 
-Replace window construction wherever it scattered — native entrypoints, launch scripts, controller bootstraps — with one plugin install on the root application:
+Replace window construction in native entrypoints, launch scripts and controller bootstraps with one plugin on the root application:
 
 ```ts
 const app = new Elysia({ name: "relay" })
@@ -24,11 +24,11 @@ const app = new Elysia({ name: "relay" })
   .listen({ hostname: "127.0.0.1", port: 4242 });
 ```
 
-Independent API plugins keep typed access through `desktopContext` without re-declaring a root. Native code reaches the same controller through `getDesktopHost()`.
+`restrictWebToLoopback: true` limits ordinary Web traffic to loopback hosts. Independent API plugins get typed access through `desktopContext` without re-declaring a root, and native code reaches the same controller through `getDesktopHost()`.
 
-## Move Application Lifecycle Into Elysia Hooks
+## Move application lifecycle into Elysia hooks
 
-Application data/profile initialization and disposal belong to `.onStart()` and `.onStop()`, not to native boot code. Keep dependent startup steps in one async hook so Elysia owns cleanup:
+Data and profile initialization and disposal belong in `.onStart()` and `.onStop()`, not in native boot code. Keep dependent startup steps in one async hook so Elysia owns cleanup:
 
 ```ts
 .onStart(async () => {
@@ -39,25 +39,25 @@ Application data/profile initialization and disposal belong to `.onStart()` and 
 })
 ```
 
-Native events must handle their own errors. Request errors stay in `.onError()`.
+Request errors stay in `.onError()`; native event handlers must catch their own errors.
 
-## Replace `onOpen` Callbacks With SDK Events
+## Replace `onOpen` callbacks with SDK events
 
-There is no Furin `onOpen` option or native-module export contract. Subscribe to the original SDK event inside `desktop.build.bun.entrypoint`:
+There is no Furin `onOpen` option. Subscribe to the SDK event in the module configured as `desktop.build.bun.entrypoint`:
 
 ```ts
-import { Electrobun } from "electrobun/main";
+import Electrobun from "electrobun/main";
 
 Electrobun.events.on("open-url", (event) => {
   // event.data.url is a URL; associated files arrive as file: URLs
 });
 ```
 
-Declare schemes and file associations in `desktop.app.urlSchemes` / `desktop.app.fileAssociations`. Furin forwards launch inputs and secondary-instance inputs to this event after host readiness; direct OS events follow the SDK lifecycle. Coordinate any application startup dependency inside the handler when needed.
+Declare schemes and file associations in `desktop.app.urlSchemes` and `desktop.app.fileAssociations`. Furin forwards launch and secondary-instance inputs to this event after host readiness; direct OS events follow the SDK lifecycle. See [Native APIs](/docs/desktop/native-apis#deep-links-and-files).
 
-## Keep Existing Data Directories Working
+## Keep existing data directories working
 
-Declare a runtime `dataDir` policy instead of packaging a path: resolve the user environment at launch, not during packaging. Existing profile markers, business input handling, and data migrations remain application-owned — the host only resolves and shares the directory.
+Declare a runtime `dataDir` policy instead of packaging a path, so the directory resolves for the user at launch. Profile markers, input handling and data migrations stay in your application; the host only resolves the directory and exposes it as `FURIN_APP_DATA_DIR`.
 
 ```ts
 // furin.config.ts
@@ -67,13 +67,13 @@ desktop: defineDesktopConfig({
 }),
 ```
 
-## Convert UI Native Actions To `useDesktop()`
+## Convert UI native actions to `useDesktop()`
 
-For React UI actions, use `useDesktop()` from `@teyik0/furin-electrobun/client` instead of checking the backend runtime or calling a native action over HTTP. The typical replacement:
+For React UI actions, use `useDesktop()` from `@teyik0/furin-electrobun/client` instead of checking the backend runtime or calling a native action over HTTP. For example, an endpoint that opens an update download natively becomes:
 
-- Delete `POST /api/updates/open-download` and callers of it.
-- Render a normal anchor in web/SSR; when `desktop.status === "desktop"`, intercept the click and call `desktop.browser.open(downloadUrl)`.
-- Keep `GET /api/updates/download` solely to serve the file.
+- Delete the action endpoint (such as `POST /api/updates/open-download`) and its callers.
+- Render a normal anchor in Web and SSR; when `desktop.status === "desktop"`, intercept the click and call `desktop.browser.open(downloadUrl)`.
+- Keep the endpoint that serves the file (such as `GET /api/updates/download`).
 
 ```tsx
 onClick={(event) => {
@@ -87,11 +87,11 @@ onClick={(event) => {
 }}
 ```
 
-Remember the authentication limits from [React & Typed Bridge](/docs/desktop/bridge#url-and-session-boundaries): opening a URL never transfers the webview session to the system browser, so a private loopback download URL may need its own application-owned delivery flow.
+Remember the [session boundaries](/docs/desktop/bridge#url-and-session-boundaries): opening a URL never transfers the WebView session to the system browser, so a protected loopback download URL needs a browser-accessible session or a scoped download URL.
 
-## Map Remaining Native Surfaces
+## Map remaining native surfaces
 
-| Tofu-era surface | Furin replacement |
+| Standalone Electrobun | Furin replacement |
 |---|---|
 | Manual window construction in native code | `desktopApp({ window: {...} })` on the root |
 | Secondary windows built by hand | `desktop.windows.create(name, { path, ... })` with managed authentication |
@@ -100,4 +100,4 @@ Remember the authentication limits from [React & Typed Bridge](/docs/desktop/bri
 | Background/keep-alive flags | `background` policy on `desktopApp` |
 | Update install flows | `desktop.updates.install()` with backend drain before SDK handoff |
 
-SDK menus, tray, dialogs, notifications, shortcuts, screens, sessions, views, RPC, and GPU capabilities remain available through `electrobun/main` and its original public subpaths — nothing stops you from keeping those pieces as-is.
+SDK menus, tray, dialogs, notifications, shortcuts, screens, sessions, views, RPC and GPU capabilities remain available through `electrobun/main` and its public subpaths; keep those pieces as they are.

@@ -1,6 +1,6 @@
 # Deployment
 
-Furin ships a native Vercel Build Output target plus four Bun-native production shapes: a bundled server, a compiled server with assets on disk, a self-contained executable, and a pure static export. The `package` output composes a page tree into another Elysia application.
+Furin builds a Vercel Build Output, three Bun production shapes (a bundled server, a compiled server with assets on disk, a self-contained executable), and a pure static export. The `package` target instead publishes a page tree for another Elysia application.
 
 ## Choose An Output
 
@@ -17,14 +17,14 @@ Furin intentionally exposes only adapters it can build and verify today. Node.js
 
 ## Elysia 2 Migration
 
-Furin pins the Elysia 2 release-candidate line and its matching official packages. Existing applications should run the official codemod first, then let TypeScript expose the Furin-specific integration points:
+Furin targets the Elysia 2 release candidate and its matching official packages. Existing applications should run the official codemod first, then let TypeScript expose the Furin-specific integration points:
 
 ```sh
 bunx @elysia/codemod@latest
 bun add elysia@2.0.0-rc.1 @elysia/eden@2.0.0-rc.1 @elysia/static@2.0.0-rc.0 typebox@1.3.34 exact-mirror@1.2.6
 ```
 
-`typebox` and `exact-mirror` are direct application dependencies because Elysia declares them as peers rather than embedding private copies. This keeps one compatible validator/normalizer graph for Elysia, its plugins, Eden, and Furin; `typebox` is also part of Furin's public schema contract. Exact Mirror itself contributes only a small runtime module—the larger compiled-binary increase comes primarily from the TypeBox 1 runtime and Bun bytecode amplification.
+`typebox` and `exact-mirror` are direct application dependencies because Elysia declares them as peers rather than embedding private copies. This keeps one validator/normalizer graph for Elysia, its plugins, Eden, and Furin; `typebox` is also part of Furin's public schema contract.
 
 The important manual checks are:
 
@@ -39,9 +39,17 @@ The important manual checks are:
 
 Elysia 2 keeps the DayDream name; the RC itself ships as またおいで. Read the [Elysia 2 RC release note](https://next.elysiajs.com/blog/elysia-20-rc/) after the [DayDream beta note](https://elysiajs.com/blog/elysia-20) for the complete breaking-change list.
 
-Furin automatically enables `elysia/plugin/aot/bun` for Bun server bundles, compiled executables, and Vercel Bun Functions. Applications using `.mount()` skip AOT because Elysia's AOT plugin cannot compile mounted handlers; the compiler bundles its runtime TypeBox dependencies, so Furin's former setup shim is gone. It generates a real, listener-free application entry for Elysia's dry run and keeps the boot entry separate. An Elysia instance called in memory through `treaty(app)` (with or without `.use(furinSync)`) compiles its own router. While the application evaluates for the AOT build, Furin records every instance passed to `treaty()` from `@elysia/eden` or `@elysia/eden/treaty2`, exports it from that entry, and Elysia compiles its manifest too; such an instance must be named (`new Elysia({ name: "api" })`), and the build fails otherwise. Runtime compiler stripping stays on `auto`: Furin completes the export surface of Elysia's no-WebSocket compiler stub while preserving its throwing behavior, so applications without Sync can still remove unused WebSocket code. Applications whose dynamic handlers require the JIT fallback keep it automatically. Compiled applications with and without Sync are exercised end-to-end to cover both paths.
+## Elysia AOT
 
-No custom Elysia runtime adapter is necessary for the supported targets. Bun uses Elysia's native Bun adapter, Vercel runs the same Bun-targeted bundle through `app.handle(Request)`, static exports have no server runtime, and package builds let the host application own its adapter. A future non-Bun target should be added only with a dedicated Furin deployment adapter and Elysia Adapter v2 integration, not as an unimplemented CLI option.
+Furin automatically enables `elysia/plugin/aot/bun` for Bun server bundles, compiled executables, and Vercel Bun Functions. It generates a listener-free application entry for Elysia's dry run and keeps the boot entry separate.
+
+- Applications using `.mount()` skip AOT, because Elysia's AOT plugin cannot compile mounted handlers.
+- An Elysia instance called in memory through `treaty(app)` (with or without `.use(furinSync)`) compiles its own router. During the AOT build, Furin records every instance other than the served application passed to `treaty()` from `@elysia/eden` or `@elysia/eden/treaty2`, and Elysia compiles its manifest too. Such an instance must be named (`new Elysia({ name: "api" })`); the build fails otherwise.
+- Applications without Sync still drop Elysia's unused WebSocket code, and handlers that require the JIT fallback keep it automatically.
+
+No custom Elysia runtime adapter is necessary for the supported targets. Bun uses Elysia's native Bun adapter, Vercel runs the same Bun-targeted bundle through `app.handle(Request)`, static exports have no server runtime, and package builds let the host application own its adapter.
+
+## Asynchronous Plugins
 
 Both Furin-owned entry points fail closed when the application uses asynchronous plugins, such as `.use(import("./auth"))`. The Bun server serves no request until Elysia's `app.modules` settles, and it stops if `app.modules` rejects. The Vercel handler awaits `app.modules` during cold start, so a rejected plugin fails the Function's initialization. Elysia's `app.handle()` and `app.fetch` don't do this on their own. A request can run before a pending plugin is applied, and after a plugin rejects they keep serving the app without it. If you host the application in your own `fetch` handler, await `app.modules` before you serve requests:
 
@@ -108,7 +116,7 @@ Use `embed` for the simplest single-artifact rollout. Use disk mode when a CDN, 
 
 ## Vercel
 
-The Vercel adapter emits the [Build Output API v3](https://vercel.com/docs/build-output-api) directly. It uses the Vercel Bun runtime, serves browser and `public/` assets from the CDN, and keeps SSR, SSG, ISR, API routes, streaming, and SPA navigation in one Furin application.
+The Vercel adapter emits the [Build Output API v3](https://vercel.com/docs/build-output-api) directly. It uses the [Vercel Bun runtime](https://vercel.com/docs/functions/runtimes/bun) (in Beta on Vercel), serves browser and `public/` assets from the CDN, and keeps SSR, SSG, ISR, API routes, streaming, and SPA navigation in one Furin application.
 
 Application `@elysia/static` mounts are not supported by this target and fail the build rather than deploying a missing runtime directory. Place files under `public/` to serve them through the CDN.
 
@@ -301,7 +309,7 @@ Like the server targets, the export renders built code. Furin bundles the app in
 
 Static export supports only SSG routes and rejects `requestLoader()`. Dynamic SSG routes require `staticParams()`. Keep `onSSR: "error"` unless another deployment deliberately owns the skipped SSR/ISR URLs.
 
-Set `basePath` only when the host serves the site below a subpath. It updates asset URLs and client navigation; it is not the same setting as the runtime `furin({ prefix })` used by a Bun server.
+Set `basePath` only when the host serves the site below a subpath. It updates asset URLs and client navigation. It applies to static exports only: live SSR, SSG and ISR servers do not support it, and it is not the same setting as the runtime `furin({ prefix })`.
 
 ## Packaged Apps
 
@@ -369,11 +377,24 @@ server {
 }
 ```
 
-Verify your actual proxy build supports Brotli before enabling it. Test both `Accept-Encoding: br` and `Accept-Encoding: gzip`; with a gzip-only proxy, gzip is a valid production contract. Keep streaming responses unbuffered and set idle/read timeouts above the longest expected interval between chunks. Bun also has its own default 10-second `idleTimeout`: it counts silence while a loader is still running, so the 120-second proxy timeout above cannot prevent Bun from resetting a slow request. Export `idleTimeout` (seconds) from `src/server.ts` for the generated Bun boot, or pass it to `startProductionServer()` in a custom boot; choose it for your workload and test a response with a delayed first byte through the public endpoint. Restrict direct Bun access to trusted networks and never expose `.furin/build/private` as static content. See [Bun server timeouts](https://bun.sh/docs/runtime/http/server#idletimeout).
+Verify your actual proxy build supports Brotli before enabling it, and test both `Accept-Encoding: br` and `Accept-Encoding: gzip`; with a gzip-only proxy, gzip is a valid production contract. Keep streaming responses unbuffered and set idle/read timeouts above the longest expected interval between chunks.
+
+Bun has its own default 10-second `idleTimeout`. It counts silence while a loader is still running, so the 120-second proxy timeout above cannot prevent Bun from resetting a slow request. Export `idleTimeout` (seconds) from `src/server.ts` for the generated Bun boot, or pass it to `startProductionServer()` in a custom boot, then test a response with a delayed first byte through the public endpoint. See [Bun server timeouts](https://bun.sh/docs/runtime/http/server#idletimeout).
+
+Restrict direct Bun access to trusted networks and never expose `.furin/build/private` as static content.
 
 ### Health and graceful shutdown
 
-The generated Bun server exposes `/_furin/health/live` and `/_furin/health/ready`. Both return `Cache-Control: no-store`. Liveness means the process is running; readiness means it should receive application traffic. On `SIGTERM` or `SIGINT`, readiness becomes 503 immediately, while application requests continue to be served during the five-second load-balancer propagation window. Liveness remains 200 during the drain. After that window, Furin rejects new application requests, closes its browser-event WebSockets, stops accepting connections, waits for in-flight HTTP requests, ISR regeneration, deferred request-log emissions, and Sync cursor unsubscriptions, then calls an optional application `onShutdown` export. The 30-second deadline covers this entire drain; when it expires, Bun force-closes remaining sockets and Furin stops waiting for unfinished drains. Signal-triggered shutdown then exits the process with its existing exit code (or 0), or with 1 if cleanup throws. Calling `shutdown()` programmatically does not exit the process. Configure your orchestrator's termination grace period above 35 seconds with an operational margin. The proxy must remove a replica when readiness fails; use liveness only to detect a stuck process, not to decide traffic routing.
+The generated Bun server exposes `/_furin/health/live` and `/_furin/health/ready`, both with `Cache-Control: no-store`. Liveness means the process is running; readiness means it should receive application traffic. Route traffic on readiness and use liveness only to detect a stuck process.
+
+On `SIGTERM` or `SIGINT`:
+
+1. Readiness becomes 503 immediately. Application requests are still served during a five-second load-balancer propagation window, and liveness stays 200 for the whole drain.
+2. After that window, Furin rejects new application requests, closes its browser-event WebSockets, and stops accepting connections.
+3. It waits for in-flight HTTP requests, ISR regeneration, deferred request-log emissions, and Sync cursor unsubscriptions, then calls the optional application `onShutdown` export.
+4. The process exits with its existing exit code (or 0), or with 1 if cleanup throws.
+
+A 30-second deadline covers steps 2 and 3; when it expires, Bun force-closes remaining sockets and Furin stops waiting. Set your orchestrator's termination grace period above 35 seconds with an operational margin. Calling `shutdown()` programmatically runs the same drain without exiting the process.
 
 ```ts
 // src/server.ts — optional, for clients owned by the application
@@ -399,13 +420,15 @@ Furin uses Bun's `external` mode, which does not add a public `sourceMappingURL`
 
 ### Rolling deploys, state, and recovery
 
-Deploy code and its matching client assets as one immutable release. Build and upload source maps, run compatible database migrations, and ensure shared Redis/PostgreSQL dependencies are reachable before adding the new replica to the load balancer. Wait for readiness, gradually shift traffic, then send `SIGTERM` to old replicas and leave the full drain window before `SIGKILL`. Roll back the code and matching assets together. Keep the page-cache namespace stable across replicas and releases; invalidate incompatible entries explicitly rather than encoding a replica ID in the namespace. CDN caches need their own purge/TTL policy for on-demand invalidation.
+Deploy code and its matching client assets as one immutable release. Build and upload source maps, run compatible database migrations, and ensure shared Redis/PostgreSQL dependencies are reachable before adding the new replica to the load balancer. Wait for readiness, gradually shift traffic, then send `SIGTERM` to old replicas and leave the full drain window before `SIGKILL`. Roll back the code and matching assets together. Invalidate incompatible page-cache entries explicitly rather than changing the namespace (see [Caches And Replicas](#caches-and-replicas)).
 
 At the CDN, honor Furin's `Cache-Control` and include the full URL, including query string, and content encoding in the cache key. Do not cache personalized SSR, `requestLoader` results, errors, or Sync responses. Public SSG/ISR HTML and cacheable navigation data responses (`?_furin=data` on the page URL) may follow their headers; the query string keeps them in separate cache entries. On self-hosted Bun, `revalidatePath()` and `revalidateTag()` invalidate the origin cache, not an arbitrary external CDN; configure a separate CDN purge or bypass its HTML/data cache when immediate invalidation is required. Keep versioned client assets available while pages from the previous release can still reference them. Vercel's adapter handles its own CDN invalidation.
 
 Keep secrets in the deployment secret store; never put them in `FURIN_PUBLIC_*`, client build flags, source maps, or logs. Back up the authoritative PostgreSQL/Redis data, including Sync journals and any durable page-cache state you require, with point-in-time or AOF/snapshot recovery appropriate to the service. Test restoration and schema compatibility before relying on backups. An in-memory cache is disposable and should not be treated as a backup.
 
 For recovery, restore the application database and durable Sync journal to a consistent point, apply the required Sync schema migration, then start replicas against the restored store. Restore Redis page-cache state only when it is compatible with that application snapshot; otherwise let public pages regenerate from authoritative data. Rehearse the procedure in an isolated environment by reading a known Sync cursor and rendering an ISR page before admitting traffic. File-backed SQLite Sync requires a consistent snapshot of its database file on the single host.
+
+### Release checklist
 
 - Run type-checks and tests before the build.
 - Deploy the exact server and asset directories listed by the manifest.

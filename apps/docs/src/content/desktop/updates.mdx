@@ -4,9 +4,9 @@ Use the original Electrobun Updater for update discovery, downloads and status. 
 
 ## Configure release delivery
 
-Set the application's identity and version through `desktop.app`, and use compatible SDK release settings in `furin.config.ts`. When `app.version` is omitted, the consuming package version is used.
+Set the application's identity and version through `desktop.app` (`app.version` defaults to your `package.json` version) and the SDK's `release` settings in `furin.config.ts`.
 
-Follow [Electrobun's update guide](https://docs.electrobun.dev/electrobun/guides/updates/) for hosting release artifacts, channels and the pinned SDK's checking/downloading API. Do not add a second update transport solely for the Furin integration.
+Follow [Electrobun's update guide](https://docs.electrobun.dev/electrobun/guides/updates/) for hosting release artifacts, channels and the `Updater` checking and downloading API. Furin adds no update transport of its own.
 
 ## Coordinate installation
 
@@ -25,10 +25,10 @@ export const updates = new Elysia({ prefix: "/api/desktop" })
   });
 ```
 
-Mount this in your application's authenticated API and request installation only after the SDK has prepared an update. The host drains the backend before installation handoff; the process may exit before the caller receives the example response.
+Mount this in your application's authenticated API. `install()` rejects until the SDK `Updater` has downloaded an update. It then stops the backend (running your `.onStop()` hooks) before handing off to the SDK, so the process may exit before the caller receives a response. If the handoff fails, the host shows an error dialog and restarts the application.
 
-Use Elysia `.onStop()` for shared resource cleanup. Use `desktop.restart()` for a coordinated normal restart and `desktop.quit()` for shutdown outside the update flow.
+Outside the update flow, use `desktop.restart()` for a coordinated restart and `desktop.quit()` for shutdown.
 
 ## Links from the interface
 
-For a download link that should open in the system browser, use [`useDesktop().browser.open()`](/docs/desktop/bridge). This does not transfer the WebView's session or authenticate a download. The separate host-side `desktop.browser.open(path)` operation uses application-session bootstrap policy; the two APIs are not interchangeable.
+For a download link that should open in the system browser, use [`useDesktop().browser.open()`](/docs/desktop/bridge). It does not transfer the WebView's session or authenticate the download. The host-side `desktop.browser.open(path)` is different: it opens an app path in the system browser with a fresh application session.

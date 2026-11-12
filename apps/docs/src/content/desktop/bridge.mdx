@@ -1,6 +1,6 @@
 # React and the typed desktop bridge
 
-`useDesktop()` detects the interface currently displaying your page and exposes the built-in system-browser action. It is safe to import during SSR and does not require a provider, server action or application endpoint.
+`useDesktop()` detects the interface currently displaying your page and exposes one built-in action: opening a URL in the system browser. It is safe to import and render during SSR, and needs no provider, server action or application endpoint.
 
 ## Detect the current interface
 
@@ -52,7 +52,7 @@ export function ExternalLink({ url }: { url: string }) {
 
 Web and SSR keep a normal anchor. On desktop, `browser.open(url)` resolves to `{ ok: true }` or `{ ok: false, reason }`, where `reason` is `unavailable`, `invalid-url` or `open-failed`.
 
-The native acknowledgement confirms that the operating system accepted the opening request, not that the destination loaded. Requests time out after five seconds; a timeout cannot prove an already dispatched action did not run. Unmounting cancels pending waits and releases listeners.
+`ok: true` means the operating system accepted the request, not that the destination loaded. Requests time out after five seconds, and a timeout does not prove the action never ran. Unmounting cancels pending waits and releases listeners.
 
 ## URL and session boundaries
 
@@ -62,4 +62,4 @@ Opening a URL does not forward cookies, tokens or the WebView's authentication. 
 
 ## Custom RPC
 
-The built-in bridge uses Electrobun's event transport and preserves application RPC transports. It only exposes `browser.open`; it is not a generic native-method invoker. For application-specific RPC, use the original SDK RPC types and pass your RPC object to a managed window. See [Windows & Lifecycle](/docs/desktop/windows) and [Electrobun BrowserWindow](https://docs.electrobun.dev/electrobun/apis/browser-window/).
+The built-in bridge uses Electrobun's event transport and leaves application RPC transports untouched. It exposes only `browser.open`; it is not a generic native-method invoker. For application-specific RPC, define it with the original SDK RPC types and pass it as `rpc` to `desktop.windows.create()`. See [Windows and lifecycle](/docs/desktop/windows) and [Electrobun BrowserWindow](https://docs.electrobun.dev/electrobun/apis/browser-window/).

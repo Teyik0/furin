@@ -19,7 +19,7 @@ export default defineConfig({
 });
 ```
 
-It runs after the application module loads and before Elysia startup/listening. Register native integrations there. Do not start another backend or declare another primary window.
+It runs after the application module loads and before Elysia starts listening. Register native integrations there; do not start another backend or declare another primary window.
 
 ## Register a menu
 
@@ -39,16 +39,25 @@ ApplicationMenu.on("application-menu-clicked", () => {
 });
 ```
 
-Callbacks run outside HTTP. Handle both synchronous failures and rejected promises there; Elysia `.onError()` handles HTTP requests instead. Use the original SDK menu actions, roles and event payloads for more complex menus or trays.
+Callbacks run outside HTTP, so Elysia `.onError()` does not see their failures: wrap the work in a promise chain, as above, to catch both thrown errors and rejections. For richer menus and trays, use the SDK's menu actions, roles and event payloads; the [Relay example](https://github.com/teyik0/furin/blob/main/examples/electrobun-todo/src/desktop.ts) dispatches on `event.data.action` and adds a tray.
 
 ## Native imports stay native
 
-Import native SDK values from `electrobun/main` only in native modules. Shared API modules access the controller through `desktopContext` and use type-only SDK imports when needed. React components import the browser-safe `/client` entrypoint instead.
+Import SDK values from `electrobun/main` only in native modules. Shared API modules reach the controller through `desktopContext` and use type-only SDK imports; React components import the browser-safe `@teyik0/furin-electrobun/client` entrypoint.
 
-Run [SDK preparation](/docs/desktop/installation#prepare-native-types) before typechecking. The generated aliases come from the pinned SDK export map rather than hand-written replacement declarations.
+Run [SDK preparation](/docs/desktop/installation#prepare-native-types) before typechecking; it generates the `electrobun/*` path aliases from the pinned SDK.
 
 ## Deep links and files
 
-Declare URL schemes and file associations in `desktop.app.urlSchemes` and `desktop.app.fileAssociations`. Handle them in the native entrypoint with the original `Electrobun.events.on("open-url", handler)` API and its `event.data.url` payload. Files arrive as `file:` URLs.
+Declare URL schemes and file associations in `desktop.app.urlSchemes` and `desktop.app.fileAssociations`, then handle them in the native entrypoint with the SDK's `open-url` event. Files arrive as `file:` URLs:
 
-Furin forwards initial and secondary-instance inputs after host readiness. Coordinate any application-specific startup dependencies in your handler. There is no separate Furin `onOpen` option or native-module export contract.
+```ts
+// src/desktop.ts
+import Electrobun from "electrobun/main";
+
+Electrobun.events.on("open-url", (event) => {
+  console.log("Opened with", event.data.url);
+});
+```
+
+Furin forwards launch and secondary-instance inputs to this event after host readiness. Coordinate any application-specific startup dependencies in your handler. There is no Furin `onOpen` option.

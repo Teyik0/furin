@@ -29,22 +29,23 @@ Keep your existing pages and root layout. The window loads the Furin app; it doe
 
 ## Run in development
 
-With the [preload configured](/docs/desktop/installation):
+With the [preload configured](/docs/desktop/installation#initialize):
 
 ```sh
 bun --hot src/server.ts
 ```
 
-The preload activates for the configured hot server entry. It opens the native window and an authenticated browser against the same backend. To run only the Web app without initializing the native SDK:
+The preload only activates when `--hot` runs the configured server entry (`serverEntry`, `src/server.ts` by default). It opens the native window and an authenticated system-browser session against the same backend. `furin dev` does the same for a desktop configuration; choose one interface with a flag:
 
 ```sh
-bunx --bun furin dev --web
+bunx --bun furin dev --desktop  # native window only
+bunx --bun furin dev --web      # Web app only, without the native SDK
 ```
 
-Frontend edits use Bun HMR and React Fast Refresh while retaining the window. Backend or native dependency edits trigger a controlled process restart; native modules are not hot-reloaded and backend state is not retained by contract.
+Frontend edits use Bun HMR and React Fast Refresh while keeping the window open. Backend or native dependency edits restart the whole process; native modules are not hot-reloaded and backend state is not preserved.
 
 ## Startup ownership
 
 The generated host waits for Elysia startup hooks before opening the primary window. Put shared startup work in `.onStart()` and cleanup in `.onStop()`.
 
-Do not call a separate host launch function or create another primary window in a native entrypoint. Use [Windows & Lifecycle](/docs/desktop/windows) for additional windows and native controls.
+Do not create another primary window in a native entrypoint; there is no separate launch function to call. Use [Windows and lifecycle](/docs/desktop/windows) for additional windows and native controls.

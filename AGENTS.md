@@ -21,7 +21,7 @@ As an agent, you should help the user develop senior-grade features, as such you
 
 ## Commands
 
-- `bun run dev` — Run the example app with HMR
+- `bun run dev` — Run every workspace app that defines a `dev` script, with HMR
 - `bun run fix` — Auto-fix lint issues
 - `bun run test` — Run tests
 - `bun run build` — Build the library to `dist/`
@@ -33,7 +33,7 @@ As an agent, you should help the user develop senior-grade features, as such you
 - **Runtime**: Bun only. Never use Node.js, npm, yarn, pnpm, dotenv, express, vite, or webpack.
 - **Linting**: Ultracite (wraps Biome). Config in `biome.jsonc`.
 - **CSS**: Tailwind v4 via `bun-plugin-tailwind` (configured in `bunfig.toml`).
-- **Path alias**: `"furin"` maps to `./packages/core/src/furin.ts` (see `packages/core/tsconfig.json` paths).
+- **Package name**: the public package is `@teyik0/furin` (`@teyik0/furin/link`, `/config`, `/strip-plugin`, ...). Inside `packages/core`, the `furin` alias also maps to `./src/furin.ts` (see `packages/core/tsconfig.json` paths); user-facing code and docs always use the scoped name.
 
 ## HMR
 
@@ -43,7 +43,7 @@ The user can then use this plugin in this project as such:
 ```toml
 # in bunfig.toml
 [serve.static]
-plugins = ["bun-plugin-tailwind", "furin/strip-plugin"]
+plugins = ["bun-plugin-tailwind", "@teyik0/furin/strip-plugin"]
 env = "FURIN_PUBLIC_*"
 ```
 
@@ -51,11 +51,12 @@ And for the production build
 
 ```ts
 // in furin.config.ts
+import { defineConfig } from "@teyik0/furin/config";
 import tailwind from "bun-plugin-tailwind";
-import { defineConfig } from "furin/config";
 
 export default defineConfig({
-  plugins: [tailwind],
+  // buildOnly: skip runtime Bun.plugin() registration, keep it for production Bun builds
+  plugins: [{ ...tailwind, buildOnly: true }],
 });
 ```
 
