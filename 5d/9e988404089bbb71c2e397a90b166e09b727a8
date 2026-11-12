@@ -1,0 +1,142 @@
+packages/electrobun/tests/managed-windows.test.ts
+  s_1a48f173f4484c::t_84f6749c7c0e42 9,20,24,28-29,73,126,186
+packages/electrobun/src/dev-channel.ts
+  s_1a48f173f4484c::t_3269a6c4c6c3f0 1-63
+packages/electrobun/README.md
+  s_1a48f173f4484c::t_b416e04abc3ff1 182
+  s_1a48f173f4484c::t_731661d6e249b0 3,180,225-239,254
+  s_1a48f173f4484c::t_c59ec7d3ee1cd0 117,119,126-128,131,136-137,140,142,146,150-161,172-179,184
+  s_0e895c2dd52d86::t_ffdbf8850f798f 5,14,208,212,219-222,301,305,316
+  s_1a48f173f4484c::t_570cb9ec6268fc 4,181
+packages/electrobun/native-host.md
+  s_1a48f173f4484c::t_c24f7dc3775330 5,19,43
+  s_1a48f173f4484c::t_b416e04abc3ff1 9
+packages/electrobun/tests/support/clock.ts
+  s_2d3b48c2109c35::t_f632f9db08d334 9
+  s_2d3b48c2109c35::t_ecde5a70e56f31 3-8,11-15,29-31,33-36
+packages/electrobun/src/capabilities.ts
+  s_1a48f173f4484c::t_c8c51bd5a09731 89-90
+  s_1a48f173f4484c::t_d254efc97c04d4 3-5,34-35,66
+packages/electrobun/src/host.ts
+  s_1a48f173f4484c::t_3a331f0c12eb59 6,12
+packages/electrobun/src/dev-bootstrap.ts
+  s_1a48f173f4484c::t_0d922e839d811f 1-33,35-65,73-82
+  s_1a48f173f4484c::t_82367477111f6a 34,66-72
+  s_d3a435921027bb::t_4283e86f7c1d79 83-86
+packages/electrobun/src/development.ts
+  s_1a48f173f4484c::t_6a1f02bd2043f0 26-27
+  s_1a48f173f4484c::t_6916b502265d99 1-6,8,10-12,15,17,19-25,28-40,42-61
+examples/electrobun-todo/src/api/modules/desktop/index.ts
+  s_1a48f173f4484c::t_c8c51bd5a09731 18-19,22-23
+packages/electrobun/src/desktop-dev.ts
+  s_1a48f173f4484c::t_93aedab079c097 256-259
+  s_1a48f173f4484c::t_39e469f15d298a 247-253
+  s_1a48f173f4484c::t_6a1f02bd2043f0 29,75,83,111,189-190,207
+  s_1a48f173f4484c::t_02a10cac8190ef 78-79
+  s_1a48f173f4484c::t_97020d111283ac 143-150,152-154
+  s_1a48f173f4484c::t_94d4bf8637472d 1-28,30-32,34-37,40-47,49-52,54-74,76-77,80-82,84-110,112-113,116-142,151,155-157,160-163,165-176,182-187,191-193,195-201,203-204,206,209-213,216-246,254-255,260-264
+  s_1a48f173f4484c::t_407f66c030120b 33,38,48,53,114-115,158-159,164,177-181,188,194,202,205,208,214-215
+  s_1a48f173f4484c::t_5dc8e801d739f2 39
+packages/electrobun/src/sdk-resolution.ts
+  s_1a48f173f4484c::t_fadecea1367686 39-40
+packages/electrobun/tests/desktop-dev.test.ts
+  s_1a48f173f4484c::t_2cd152526d9786 1-21,37-38,110,142,158,160-162,171-172,185-186,188-194
+  s_1a48f173f4484c::t_33b789c7544337 22-36,42-46,49-71,75-96,98-109,111-124,126-141,143-145,147-157,159,163-170,174-176,178-184,187,195-211
+  s_1a48f173f4484c::t_6a1f02bd2043f0 173
+  s_1a48f173f4484c::t_97020d111283ac 97
+  s_1a48f173f4484c::t_07a7fcc33b6bc1 72-74,146
+  s_1a48f173f4484c::t_de4b2ab4d65fcb 177
+  s_1a48f173f4484c::t_39e469f15d298a 39-41
+  s_1a48f173f4484c::t_6e98d88f53d6d8 47-48,125
+packages/electrobun/src/cli.ts
+  s_0e895c2dd52d86::t_0195ca45d6f486 92
+  s_1a48f173f4484c::t_af82f5fcd131c3 202-205,212-213
+  s_1a48f173f4484c::t_548565d072af44 2-5,9,21,130-134,136-201,206-211,214-216,220,227-231,263,267-268
+  s_1a48f173f4484c::t_c650a7fdbb9bf3 135
+packages/electrobun/src/dev.ts
+  s_1a48f173f4484c::t_a3073ae2283fcb 1-2
+packages/electrobun/tests/desktop-commands.test.ts
+  s_1a48f173f4484c::t_aee32b4ed33da3 1-73
+packages/electrobun/build.ts
+  s_1a48f173f4484c::t_64a8d1500b0add 23
+packages/electrobun/tests/fixtures/sdk.ts
+  s_1a48f173f4484c::t_9c5e545d6f5a1b 54
+packages/core/tests/cli/dev.test.ts
+  s_1a48f173f4484c::t_30b9742e8067ee 11,16-21,26,31,33-51,62,74-77
+packages/electrobun/src/registry.ts
+  s_1a48f173f4484c::t_3a331f0c12eb59 2-7,92-96,98,102-103,106-114
+packages/electrobun/src/prepare.ts
+  s_1a48f173f4484c::t_fadecea1367686 16,32-47,84-88
+packages/electrobun/src/server.ts
+  s_1a48f173f4484c::t_3a331f0c12eb59 16,26,28,34
+packages/electrobun/src/commands.ts
+  s_1a48f173f4484c::t_f09123d9429fb6 29,96-99
+  s_1a48f173f4484c::t_2a2a9f4a1f57b5 1-28,30-54,57-95,100-223
+  s_1a48f173f4484c::t_97020d111283ac 55-56
+packages/electrobun/tests/native-types.test.ts
+  s_1a48f173f4484c::t_29e1b81881dd2f 1-21,29-89
+  s_1a48f173f4484c::t_97020d111283ac 22-28
+packages/electrobun/tests/sdk-identity.integration.test.ts
+  s_1a48f173f4484c::t_324dbb7ec37aac 20-21,53
+packages/electrobun/src/standard-host.ts
+  s_1a48f173f4484c::t_97020d111283ac 709-710,712-713
+  s_1a48f173f4484c::t_500b98cbaa8edd 114,118
+  s_1a48f173f4484c::t_5b9f15c4d1fbae 7,37,183,190,352,383
+  s_1a48f173f4484c::t_af82f5fcd131c3 702-706
+  s_1a48f173f4484c::t_f79f6838d1f66f 14-19,68-71,699-701,707-708,711,714,720,728
+  s_1a48f173f4484c::t_af2a35d1520c2b 204-211,273,275,279-281,327,484-485
+  s_1a48f173f4484c::t_7ec9c6e8912a8c 72,697-698,725
+packages/core/src/cli/dev-worker.ts
+  s_1a48f173f4484c::t_f0fe90ce3586da 65-74
+packages/electrobun/src/runtime.ts
+  s_1a48f173f4484c::t_64a8d1500b0add 39
+packages/electrobun/tests/build-output.integration.test.ts
+  s_1a48f173f4484c::t_b1208d100e42d0 72,96-104,115-117
+packages/core/src/cli/dev.ts
+  s_0e895c2dd52d86::t_0195ca45d6f486 8-37,60-62
+  s_1a48f173f4484c::t_64a8d1500b0add 49,52-56,70,74
+packages/electrobun/package.json
+  s_1a48f173f4484c::t_64a8d1500b0add 42-46
+packages/electrobun/tests/startup-failure.test.ts
+  s_0e895c2dd52d86::t_43854129c7da53 8-17,21-55,57-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5d9e988404089bbb71c2e397a90b166e09b727a8",
+  "prompts": {},
+  "sessions": {
+    "s_0e895c2dd52d86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "905c2edc-e3e7-4eb5-adb3-575e0ce891c4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_1a48f173f4484c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cdf143d5-de4e-4f8c-b834-5d3204ca096c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_d3a435921027bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e418d01f-95b2-4fa4-9ae6-c71da1d0f1dd",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
