@@ -1,0 +1,21 @@
+CHANGELOG.md
+  s_2d3b48c2109c35::t_81bab3dc75625d 16
+.github/workflows/elysia-next.yaml
+  s_2d3b48c2109c35::t_0b3b0fe3642ae0 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9e6826b4a8f5cb61639f43999245f106e6c40546",
+  "prompts": {},
+  "sessions": {
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
