@@ -42,7 +42,7 @@
   },
   "catalog": {
     "elysia": "2.0.0-rc.1",
-    "evlog": "^2.33.1",
+    "evlog": "^2.35.1",
     "exact-mirror": "1.2.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
