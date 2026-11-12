@@ -1,0 +1,22 @@
+packages/electrobun/tests/dev-bootstrap.test.ts
+  s_2d3b48c2109c35::t_e47fe2424b5bd1 7,12,21-28
+  s_2d3b48c2109c35::t_7fe75253c65dc0 8
+packages/electrobun/tests/managed-windows.test.ts
+  s_2d3b48c2109c35::t_a7ffc63608a6cc 263,283-288,294
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9f1af91980f25b5c13a0493791ce7f85744dec30",
+  "prompts": {},
+  "sessions": {
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
