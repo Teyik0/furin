@@ -1,0 +1,156 @@
+apps/docs/furin-env.d.ts
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 85,87-111,121-144,234-238,240-243
+apps/docs/src/content/desktop/bridge.mdx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-65
+apps/docs/src/components/docs-toc.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 170,183
+apps/docs/src/pages/docs/desktop/bridge.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-37
+apps/docs/src/content/desktop/integration.mdx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-14,16-51,69-74
+  s_2d3b48c2109c35::t_2d52541226a560 15,52-68
+apps/docs/src/pages/docs/caching.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/lib/rehype-highlight.ts
+  s_2d3b48c2109c35::t_a16b2719172b58 71
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 67-70,72-74
+apps/docs/src/content/desktop/installation.mdx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-61
+apps/docs/src/pages/docs/index.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 20-22
+apps/docs/src/content/desktop/overview.mdx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-32
+apps/docs/src/pages/docs/rendering.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/content/desktop/native-apis.mdx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-54
+apps/docs/src/pages/root.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 17
+apps/docs/src/pages/docs/desktop/installation.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-37
+apps/docs/src/pages/docs/desktop/updates.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-37
+apps/docs/src/pages/docs/multi-instance.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/pages/docs/plugins.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/pages/docs/desktop/windows.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-37
+apps/docs/src/components/docs-mobile-nav.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 15,17-19,27,32-34,39
+apps/docs/src/components/docs-pager.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 16,20,24-25,35,39,41
+apps/docs/src/pages/docs/desktop/integration.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-37
+apps/docs/src/server.ts
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 2,4,6,13-17,28-38,42-49,51,54-57,66-70,73-78
+apps/docs/src/pages/docs/error-handling.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/pages/docs/api-routes.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/pages/docs/head-seo.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 20-26
+apps/docs/src/pages/docs/layouts.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/tests/docs-search-dialog.test.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 3,16-77,80
+apps/docs/src/components/docs-search-trigger.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1,4,11-13,30,35
+apps/docs/src/lib/docs.ts
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 235,238,240-243,245-248,250-251,254-257,259-260,263-266,268-269,274,277-281,283-311,316-343,358,368,370,372-378,381-382,398
+  s_2d3b48c2109c35::t_a25d07b3f5f0e4 344-345,348-357,359-367,390
+  s_2d3b48c2109c35::t_43ad7e6701466b 227-230,232-233,236-237,239
+apps/docs/src/pages/docs/data-loading.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/pages/docs/desktop/architecture.tsx
+  s_2d3b48c2109c35::t_2d52541226a560 11,14,19-31
+apps/docs/src/content/desktop/signing.mdx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-29
+apps/docs/src/components/code-tabs.tsx
+  s_2d3b48c2109c35::t_a16b2719172b58 27-29,32,40,42
+apps/docs/src/components/root-layout.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 8,15-17,22-29,31-42,45-68,70-74
+apps/docs/src/pages/docs/desktop/migration.tsx
+  s_2d3b48c2109c35::t_2d52541226a560 11,14,19-31
+apps/docs/src/pages/docs/routing.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/content/desktop/build.mdx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-46
+apps/docs/src/pages/docs/configuration.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/pages/docs/sync.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 17-23
+apps/docs/src/pages/docs/defer.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/pages/docs/_route.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 7,15-20,23-26,28-73,75,77-98
+apps/docs/tests/docs-pages.test.ts
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 119-122,139-142,158-230
+apps/docs/src/lib/docs-search.ts
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 2-3,36-39,194-197,202-203,210
+apps/docs/src/pages/docs/desktop/native-apis.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-37
+apps/docs/src/pages/docs/logging.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/pages/docs/desktop/first-window.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-37
+apps/docs/tests/docs-search.test.ts
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 119-137
+apps/docs/scripts/generate-llms-txt.ts
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 2-9,12,15-25,28-33,35-45,47,49,52-55,60-68,70-74,78,80-91,93-111
+apps/docs/src/content/desktop/updates.mdx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-34
+apps/docs/src/pages/docs/getting-started.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/components/docs-search-dialog.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 2,15,34-37,180-181,203-204,211-214,219,302,310,348
+apps/docs/src/pages/docs/deployment.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/content/desktop/migration.mdx
+  s_2d3b48c2109c35::t_2d52541226a560 1-103
+apps/docs/scripts/generate-docs-content.ts
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 43,48-51
+apps/docs/src/pages/docs/desktop/signing.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-37
+apps/docs/src/content/desktop/first-window.mdx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-50
+apps/docs/src/pages/globals.css
+  s_2d3b48c2109c35::t_f77b73622fbb19 177-178,182-183,187,575-588
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 194-574,589-748
+apps/docs/src/content/desktop/windows.mdx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-47
+apps/docs/src/pages/docs/desktop/build.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-37
+apps/docs/src/pages/docs/link-navigation.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/tests/llms.test.ts
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 2-42
+apps/docs/src/pages/docs/comparison.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/pages/docs/desktop/index.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 11,14,19-31
+apps/docs/src/pages/docs/cli.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/content/docs/data-loading.mdx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 29,34,36
+apps/docs/src/pages/docs/dev-hmr.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 19-25
+apps/docs/src/components/docs-actions.tsx
+  s_2d3b48c2109c35::t_81cd2c322b4f6c 1-3,30,59-78,83,85,88-89,92-93,95,101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "04a19e925f3b67967daf2a7af3e3c1bdfd2a459a",
+  "prompts": {},
+  "sessions": {
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
