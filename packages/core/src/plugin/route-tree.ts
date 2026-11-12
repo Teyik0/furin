@@ -18,6 +18,7 @@ export interface RouteFile {
   path: string;
   /** Mount prefix relative to the enclosing layout. */
   prefix: string;
+  /** Native absolute path, as route modules are loaded and cached by it. */
   sourcePath: string;
 }
 
@@ -74,7 +75,7 @@ export function buildRouteTree(instance: RouteInstanceSpec, instanceId: string):
         id: routeId(instanceId, layout.id),
         path: "",
         prefix,
-        sourcePath: layout.sourcePath,
+        sourcePath: resolve(layout.sourcePath),
       },
       pages: [],
       prefix,
@@ -93,7 +94,7 @@ export function buildRouteTree(instance: RouteInstanceSpec, instanceId: string):
       id: routeId(instanceId, route.id),
       path: route.pattern,
       prefix: relativePrefix(route.pattern, parentPattern(route)),
-      sourcePath: route.sourcePath,
+      sourcePath: resolve(route.sourcePath),
     });
   }
   return root;
