@@ -1,0 +1,20 @@
+packages/core/tests/cli/dev.test.ts
+  s_2d3b48c2109c35::t_3f4bf0a8994264 194
+  s_2d3b48c2109c35::t_7b3be08954c502 48-49,193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a4fbaba08b6cda80a8470b3da7ef5b0608ba2e34",
+  "prompts": {},
+  "sessions": {
+    "s_2d3b48c2109c35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "363fc357-acb9-4609-b0ff-56dbaca7599a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
