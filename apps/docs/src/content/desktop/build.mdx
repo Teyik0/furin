@@ -10,7 +10,7 @@ After [initialization](/docs/desktop/installation):
 bun run build:desktop
 ```
 
-`build:desktop` runs `furin-electrobun build`. It builds the inert Furin application artifact (`furin build --target bun --output app`), generates the native bootstrap, prepares the pinned SDK and regenerates its type aliases, then packages the app into `.furin/electrobun/build`. Builds use the `stable` channel; run `furin-electrobun build --env=dev` for a development-channel build.
+`build:desktop` runs `furin-electrobun build`. It builds the inert Furin application artifact (`furin build --target bun --output app`), generates the native bootstrap, prepares the pinned SDK and regenerates its type aliases, then packages the app into `.furin/electrobun/build`. Builds use the `stable` channel; run `bunx --bun furin-electrobun build --env=dev` for a development-channel build.
 
 The packaged app opens the listener configured by `.listen()`, so stop any Web server using the same port before launching it.
 
