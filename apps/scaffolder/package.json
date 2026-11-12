@@ -17,7 +17,7 @@
     "prepublishOnly": "bun run build",
     "test": "bun test --parallel --isolate --bail",
     "test:dev": "bun test --changed --parallel --isolate --bail",
-    "tscheck": "tsc --noEmit"
+    "tscheck": "bun check"
   },
   "dependencies": {
     "ejs": "^7.0.2"

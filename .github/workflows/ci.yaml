@@ -29,12 +29,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Cache bun
-        uses: actions/cache@v6
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -112,78 +106,32 @@ jobs:
             if (![defineDesktopConfig, desktopApp, getDesktopHost, getDesktopDevelopment, runDesktopDevelopment].every(value => typeof value === "function")) throw new Error("Missing desktop export");
           '
 
-  coverage:
-    name: Core coverage (informational)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Cache bun
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('package.json', 'bun.lock') }}
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version-file: package.json
-
-      - name: Install packages
-        run: bun install --frozen-lockfile
-
-      - name: Build
-        working-directory: packages/core
-        run: bun run build
-
-      # Informational: the "Test" step of the build job gates the suite. No
-      # threshold is enforced and failures here don't fail the workflow.
-      - name: Test with coverage
-        working-directory: packages/core
-        continue-on-error: true
-        run: bun run test:coverage
-
-      - name: Upload coverage report
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: core-coverage
-          path: packages/core/coverage/lcov.info
-          if-no-files-found: warn
-
-  # Suites run on separate runners: in one job they ran back to back.
+  # Suites run on separate runners: in one job they ran back to back. The core
+  # suite is sharded by tests/timings.json; refresh it with
+  # `bun test --timings=tests/timings.json --update-timings` in packages/core.
   test:
-    name: Test (${{ matrix.suite }}, ${{ matrix.os }})
+    name: Test (${{ matrix.suite }}, ${{ matrix.os }}${{ matrix.shard && format(', {0}/{1}', matrix.shard, matrix.shards) || '' }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        suite: [core, electrobun, apps]
         include:
-          - suite: core
-            command: bun run --filter '@teyik0/furin' test
-          - suite: electrobun
-            command: bun run --filter '@teyik0/furin-electrobun' test
-          - suite: apps
-            command: bun run test:release && bun run --sequential --filter './apps/*' --filter './examples/*' test
-          - os: ubuntu-latest
-            suite: webview
-            command: bun run --cwd packages/core test:webview
+          # Coverage costs nothing on top of the Linux run, so it replaces a separate job.
+          - { os: ubuntu-latest, suite: core, shard: 1, shards: 2, coverage: true, command: "bun run --cwd packages/core test:coverage --shard=1/2 --timings=tests/timings.json" }
+          - { os: ubuntu-latest, suite: core, shard: 2, shards: 2, coverage: true, command: "bun run --cwd packages/core test:coverage --shard=2/2 --timings=tests/timings.json" }
+          - { os: windows-latest, suite: core, shard: 1, shards: 3, command: "bun run --cwd packages/core test --shard=1/3 --timings=tests/timings.json" }
+          - { os: windows-latest, suite: core, shard: 2, shards: 3, command: "bun run --cwd packages/core test --shard=2/3 --timings=tests/timings.json" }
+          - { os: windows-latest, suite: core, shard: 3, shards: 3, command: "bun run --cwd packages/core test --shard=3/3 --timings=tests/timings.json" }
+          - { os: ubuntu-latest, suite: electrobun, command: "bun run --filter '@teyik0/furin-electrobun' test" }
+          - { os: windows-latest, suite: electrobun, command: "bun run --filter '@teyik0/furin-electrobun' test" }
+          - { os: ubuntu-latest, suite: apps, command: "bun run test:release && bun run --sequential --filter './apps/*' --filter './examples/*' test" }
+          - { os: windows-latest, suite: apps, command: "bun run test:release && bun run --sequential --filter './apps/*' --filter './examples/*' test" }
+          - { os: ubuntu-latest, suite: webview, command: "bun run --cwd packages/core test:webview" }
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Cache bun
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('package.json', 'bun.lock') }}
 
       - name: Setup bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -204,9 +152,49 @@ jobs:
         shell: bash
         run: ${{ matrix.command }}
 
+      - name: Upload coverage report
+        if: always() && matrix.coverage
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: core-coverage-${{ matrix.shard }}
+          path: packages/core/coverage/lcov.info
+          if-no-files-found: warn
+
+  # Desktop jobs only run on pull requests that can affect the macOS build:
+  # macOS runners are scarce and core regressions are caught on Linux and Windows.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      desktop: ${{ steps.filter.outputs.desktop }}
+
+    steps:
+      - name: Checkout
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Filter paths
+        id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ] ||
+            git diff --name-only "$BASE_SHA...$HEAD_SHA" |
+              grep -qE '^(packages/electrobun/|examples/electrobun-todo/|bun\.lock$|package\.json$|\.github/workflows/ci\.yaml$)'; then
+            echo desktop=true >> "$GITHUB_OUTPUT"
+          else
+            echo desktop=false >> "$GITHUB_OUTPUT"
+          fi
+
   # The electrobun peer is a range: test its floor and the locked latest.
   macos:
     name: macOS desktop compatibility (electrobun ${{ matrix.electrobun }})
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
     runs-on: macos-latest
     timeout-minutes: 30
     strategy:
@@ -217,12 +205,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Cache bun
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('package.json', 'bun.lock') }}
 
       - name: Setup bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -290,12 +272,6 @@ jobs:
           ref: 0eabe4369a98d0d072019336f5050555725746e1
           path: .benchmark-base
           persist-credentials: false
-
-      - name: Cache bun
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-vercel-benchmark-${{ hashFiles('bun.lock', '.benchmark/bun.lock') }}
 
       - name: Setup bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -451,12 +427,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Cache bun
-        uses: actions/cache@v6
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('package.json', 'bun.lock') }}
-
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -569,3 +539,19 @@ jobs:
         with:
           name: furin-performance
           path: ${{ runner.temp }}/furin-performance
+
+  # The single check to require on main: skipped jobs pass, failed ones fail.
+  # macOS jobs that GitHub cancels for lack of runner capacity don't block.
+  ci-ok:
+    name: CI OK
+    if: always()
+    needs: [distributed-sync, build, test, changes, macos, vercel-benchmark, performance]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check job results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -e 'to_entries | all(.value.result as $result |
+            $result == "success" or $result == "skipped" or (.key == "macos" and $result == "cancelled"))'

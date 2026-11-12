@@ -41,6 +41,14 @@ bun run fix && bun run test && bun run tscheck
 
 Unverified pull requests will not be reviewed until the checks are green.
 
+The live Vercel comparison deploys real fixtures, so it only runs on pull
+requests labelled `benchmark`. When the core suite gains or loses slow test
+files, refresh the shard balance from `packages/core`:
+
+```bash
+bun test --timings=tests/timings.json --update-timings
+```
+
 ## Development startup budgets
 
 When the base revision supports the performance-report CLI, the performance CI

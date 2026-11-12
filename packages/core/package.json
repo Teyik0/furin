@@ -173,7 +173,7 @@
     "test:dev": "bun run generate:sync-prisma && bun test --changed --parallel --isolate --max-concurrency 4 --bail --timeout 15000",
     "test:hmr:soak": "FURIN_WEBVIEW_TESTS=1 FURIN_HMR_SOAK_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts -t 'tracks memory' --timeout 3600000",
     "test:webview": "FURIN_WEBVIEW_TESTS=1 bun test tests/browser --timeout 60000",
-    "tscheck": "bun run generate:sync-prisma && tsc --noEmit"
+    "tscheck": "bun run generate:sync-prisma && bun check"
   },
   "dependencies": {
     "@elysia/eden": "^2.0.0-rc.1",

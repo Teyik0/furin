@@ -18,12 +18,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Cache bun
-        uses: actions/cache@v6
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
