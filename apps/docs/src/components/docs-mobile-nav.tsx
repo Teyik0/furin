@@ -12,7 +12,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { getDocsNavigation, getDocsPlatform } from "@/lib/docs";
+import { getDocsNavigation } from "@/lib/docs";
+import { getDocsPlatform } from "@/lib/docs-platform";
 
 export function DocsMobileNav({ pathname }: { pathname: string }) {
   const navigation = getDocsNavigation(pathname);

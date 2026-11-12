@@ -1,5 +1,7 @@
 import type { RouteManifest } from "@teyik0/furin/link";
 
+import { getDocsPlatform } from "./docs-platform";
+
 export type OpenInTarget = "github" | "chatgpt" | "claude" | "cursor" | "copilot";
 
 export interface DocNavItem {
@@ -368,15 +370,6 @@ export const DESKTOP_DOCS_NAV: DocNavSection[] = [
     ],
   },
 ];
-
-export type DocsPlatform = "web" | "desktop";
-
-const DOCS_PATH_END_RE = /[?#].*$/;
-
-export function getDocsPlatform(pathname: string): DocsPlatform {
-  const path = pathname.replace(DOCS_PATH_END_RE, "");
-  return path === "/docs/desktop" || path.startsWith("/docs/desktop/") ? "desktop" : "web";
-}
 
 export function getDocsNavigation(pathname: string): DocNavSection[] {
   return getDocsPlatform(pathname) === "desktop" ? DESKTOP_DOCS_NAV : DOCS_NAV;

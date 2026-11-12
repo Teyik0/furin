@@ -1,7 +1,7 @@
 import { useRouter } from "@teyik0/furin/link";
 import { Search } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { getDocsPlatform } from "@/lib/docs";
+import { getDocsPlatform } from "@/lib/docs-platform";
 
 const SearchDialog = lazy(() =>
   import("./docs-search-dialog").then((module) => ({ default: module.DocsSearchDialog }))

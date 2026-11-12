@@ -5,7 +5,7 @@ import { DocsSearch } from "@/components/docs-search-trigger";
 import { GithubIcon } from "@/components/icons";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { getDocsPlatform } from "@/lib/docs";
+import { getDocsPlatform } from "@/lib/docs-platform";
 
 export function RootLayout({ children }: { children: React.ReactNode }) {
   // basePath is available during static pre-render (RouterContext injected) and on the client.

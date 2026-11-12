@@ -4,7 +4,8 @@ import { DocsMobileNav } from "@/components/docs-mobile-nav";
 import { DocsPager } from "@/components/docs-pager";
 import { DocsToc } from "@/components/docs-toc";
 import { GiscusComments } from "@/components/giscus-comments";
-import { DOCS_CARDS, getDocsNavigation, getDocsPlatform } from "@/lib/docs";
+import { DOCS_CARDS, getDocsNavigation } from "@/lib/docs";
+import { getDocsPlatform } from "@/lib/docs-platform";
 
 export const route = defineRoute("/docs/_route")
   .config({ mode: "ssg" })

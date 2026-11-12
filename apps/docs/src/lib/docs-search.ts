@@ -1,7 +1,8 @@
 import { create, insertMultiple, search } from "@orama/orama";
-import type { DocNavItem, DocsPlatform } from "./docs";
-import { DOCS_CARDS, getDocsPlatform } from "./docs";
+import type { DocNavItem } from "./docs";
+import { DOCS_CARDS } from "./docs";
 import { getUniqueHeadingId } from "./docs-heading";
+import { type DocsPlatform, getDocsPlatform } from "./docs-platform";
 import {
   dedupeAndSortHits,
   SEARCH_DEFAULT_LIMIT,

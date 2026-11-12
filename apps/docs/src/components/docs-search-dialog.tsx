@@ -12,7 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { type DocsPlatform, getDocsPlatform } from "@/lib/docs";
+import { type DocsPlatform, getDocsPlatform } from "@/lib/docs-platform";
 import type { SearchIndexEntry } from "@/lib/docs-search";
 import { SEARCH_MIN_QUERY_LENGTH, type SearchResult } from "@/lib/docs-search-shared";
 import { cn } from "@/lib/utils";
