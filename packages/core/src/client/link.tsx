@@ -160,16 +160,15 @@ function LinkInteractive<To extends RouteTo>({
     if (target !== null) {
       prefetch(target, { staleTime: effectiveStaleTime });
     }
-    // react-doctor-disable-next-line react-doctor/exhaustive-deps
-  }, [prefetch, logicalHref, effectiveStaleTime, router.basePath]);
+  }, [prefetch, effectiveStaleTime, router.basePath]);
 
-  // "render": preload immediately on mount
+  // "render": preload immediately on mount, and again when the target changes.
   useEffect(() => {
     if (effectivePreload === "render") {
       triggerPrefetch();
     }
     // react-doctor-disable-next-line react-doctor/exhaustive-deps
-  }, [effectivePreload, triggerPrefetch]);
+  }, [effectivePreload, triggerPrefetch, logicalHref]);
 
   // "viewport": preload when link enters viewport
   useEffect(() => {
@@ -188,7 +187,7 @@ function LinkInteractive<To extends RouteTo>({
     observer.observe(anchorRef.current);
     return () => observer.disconnect();
     // react-doctor-disable-next-line react-doctor/exhaustive-deps
-  }, [effectivePreload, triggerPrefetch]);
+  }, [effectivePreload, triggerPrefetch, logicalHref]);
 
   // Clear any pending intent prefetch timer on unmount to avoid leaking
   // setTimeout callbacks between test cases (or across re-renders).
@@ -232,7 +231,7 @@ function LinkInteractive<To extends RouteTo>({
     // When there is no RouterProvider, fall back to a full-page navigation so
     // the link is still functional (e.g. in storybooks or third-party pages).
     if (typeof window !== "undefined" && router.navigate === CLIENT_FALLBACK_ROUTER.navigate) {
-      window.location.href = href;
+      window.location.assign(href);
       return;
     }
     // navigate() expects the logical href (no basePath prefix).
@@ -261,22 +260,22 @@ function LinkInteractive<To extends RouteTo>({
     }
   };
 
-  return createElement(
-    "a",
-    {
-      "data-furin-link": true,
-      href,
-      onClick: handleClick,
-      onFocus: handleFocus,
-      onMouseEnter: handleMouseEnter,
-      onMouseLeave: handleMouseLeave,
-      ref: anchorRef,
-      ...(isActive ? { "data-status": "active" } : {}),
-      ...anchorProps,
-      ...extraProps,
-      ...(disabled ? { "aria-disabled": true } : {}),
-    },
-    resolvedChildren
+  return (
+    <a
+      data-furin-link
+      href={href}
+      onClick={handleClick}
+      onFocus={handleFocus}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      ref={anchorRef}
+      {...(isActive ? { "data-status": "active" } : {})}
+      {...anchorProps}
+      {...extraProps}
+      {...(disabled ? { "aria-disabled": true } : {})}
+    >
+      {resolvedChildren}
+    </a>
   );
 }
 

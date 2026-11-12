@@ -81,9 +81,10 @@ export function useRouterStore(): RouterStore {
 }
 
 export function useTypedNavigation(context: StableRouter): Pick<Router, "navigate" | "prefetch"> {
+  const { navigate: navigateHref, prefetch: prefetchHref, searchRoutes } = context;
   const navigate: RouterNavigate = useCallback(
     (next: string | (RuntimeRouteTarget & NavigationOptions), opts?: NavigationOptions) => {
-      const href = typeof next === "string" ? next : resolveRouteTarget(next, context.searchRoutes);
+      const href = typeof next === "string" ? next : resolveRouteTarget(next, searchRoutes);
       const policy = navigationHrefPolicy(
         href,
         typeof window === "undefined" ? undefined : window.location.origin
@@ -96,22 +97,22 @@ export function useTypedNavigation(context: StableRouter): Pick<Router, "navigat
         return Promise.resolve();
       }
       if (typeof next === "string") {
-        return context.navigate(href, opts);
+        return navigateHref(href, opts);
       }
       const options =
         next.replace === undefined && next.resetScroll === undefined
           ? undefined
           : { replace: next.replace, resetScroll: next.resetScroll };
-      return context.navigate(href, options);
+      return navigateHref(href, options);
     },
-    [context.navigate, context.searchRoutes]
+    [navigateHref, searchRoutes]
   );
   const prefetch: Prefetch = useCallback(
     (
       next: string | (RuntimeRouteTarget & { staleTime?: number }),
       opts?: { staleTime?: number }
     ) => {
-      const href = typeof next === "string" ? next : resolveRouteTarget(next, context.searchRoutes);
+      const href = typeof next === "string" ? next : resolveRouteTarget(next, searchRoutes);
       const policy = navigationHrefPolicy(
         href,
         typeof window === "undefined" ? undefined : window.location.origin
@@ -119,9 +120,9 @@ export function useTypedNavigation(context: StableRouter): Pick<Router, "navigat
       if (policy !== "internal") {
         return;
       }
-      context.prefetch(href, typeof next === "string" ? opts : { staleTime: next.staleTime });
+      prefetchHref(href, typeof next === "string" ? opts : { staleTime: next.staleTime });
     },
-    [context.prefetch, context.searchRoutes]
+    [prefetchHref, searchRoutes]
   );
   return { navigate, prefetch };
 }

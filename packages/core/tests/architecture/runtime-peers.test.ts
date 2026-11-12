@@ -31,6 +31,9 @@ test.each([
   ["@elysia/eden", "2.0.0"],
   ["typebox", "1.3.35"],
   ["exact-mirror", "1.2.7"],
+  ["react", "19.4.0"],
+  ["react-dom", "19.4.0"],
+  ["typescript", "7.1.0"],
 ])("Furin accepts an application that installs %s@%s", (name, version) => {
   const range = manifest.peerDependencies[name] ?? manifest.dependencies[name] ?? "";
   // Bun.semver reads protocols such as "catalog:" as "*"; require a literal range.

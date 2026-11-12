@@ -17,6 +17,10 @@ import { navigationDataPath } from "../../support/navigation-data.ts";
 let root: Root | undefined;
 let originalFetch: typeof fetch;
 let router: ReturnType<typeof useRouter>;
+// Components hand the router to the test through a call, not a render-time reassignment.
+function captureRouter(value: ReturnType<typeof useRouter>): void {
+  router = value;
+}
 
 beforeEach(() => {
   installDom();
@@ -88,11 +92,11 @@ function failedMatch(failure: RouteMatchFailure): object {
 test("returning to a page refetches its cancelled deferred transport", async () => {
   let reads = 0;
   function Home() {
-    router = useRouter();
+    captureRouter(useRouter());
     return <main>Home</main>;
   }
   function Deferred({ slow }: { slow: Promise<string> }) {
-    router = useRouter();
+    captureRouter(useRouter());
     return (
       <Suspense fallback="Pending">
         <Await resolve={slow}>{(value) => <main>{value}</main>}</Await>
@@ -145,11 +149,11 @@ test("the visible page keeps streaming deferred data until the next navigation c
   let stream: ReadableStreamDefaultController<Uint8Array> | undefined;
   let releaseB: (() => void) | undefined;
   function Home() {
-    router = useRouter();
+    captureRouter(useRouter());
     return <main>Home</main>;
   }
   function Deferred({ slow }: { slow: Promise<string> }) {
-    router = useRouter();
+    captureRouter(useRouter());
     return (
       <Suspense fallback="Pending">
         <Await resolve={slow}>{(value) => <main>{value}</main>}</Await>
@@ -213,7 +217,7 @@ test("a prefetched loader cannot overwrite a GET completed after that prefetch",
     fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
   }).use(furinSync);
   function Counter() {
-    router = useRouter();
+    captureRouter(useRouter());
     return <main>{useQuery(api.counter.get.live()).data}</main>;
   }
   const seed: QuerySeed = { url: `${window.location.origin}/counter`, identity, data: 0 };
@@ -250,7 +254,7 @@ test.each(["page", "layout"] as const)(
       return Promise.resolve(response({ message: value }));
     }, originalFetch);
     function Page({ message }: { message?: unknown }) {
-      router = useRouter();
+      captureRouter(useRouter());
       return <main>{String(message ?? "home")}</main>;
     }
     const container = await mount(
@@ -307,7 +311,7 @@ function heldTargetFetch() {
 }
 
 function MessagePage({ message }: { message?: unknown }) {
-  router = useRouter();
+  captureRouter(useRouter());
   return <main>{String(message ?? "Home")}</main>;
 }
 
@@ -388,7 +392,7 @@ test("a failed prefetch does not poison the cache for the next navigation", asyn
     return Promise.resolve(response({ message: "Target" }));
   }, originalFetch);
   function Page({ message }: { message?: unknown }) {
-    router = useRouter();
+    captureRouter(useRouter());
     return <main>{String(message ?? "Home")}</main>;
   }
   const container = await mount([route("/", Page), route("/target", Page)], {});
@@ -420,7 +424,7 @@ test.each([
     return Promise.resolve(response(reads === 1 ? failure : { message: "Target" }));
   }, originalFetch);
   function Page({ message }: { message?: unknown }) {
-    router = useRouter();
+    captureRouter(useRouter());
     return <main>{String(message ?? "Home")}</main>;
   }
   const container = await mount([route("/", Page), route("/target", Page)], {});
@@ -446,7 +450,7 @@ test.each([
     return Promise.resolve(response(reads === 1 ? failure : { message: "Target" }));
   }, originalFetch);
   function Page({ message }: { message?: unknown }) {
-    router = useRouter();
+    captureRouter(useRouter());
     return <main>{String(message ?? "Home")}</main>;
   }
   const container = await mount([route("/", Page), route("/target", Page)], {});
