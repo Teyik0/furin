@@ -47,3 +47,6 @@ PLAN*.md
 **/public/llms*
 **/public/search-entries.json
 /packages/core/furin-env.d.ts
+
+/apps/docs/public/docs.md
+/apps/docs/public/docs/

@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 
-import { afterEach, beforeEach, expect, expectTypeOf, test } from "bun:test";
+import { afterEach, beforeEach, expect, expectTypeOf, jest, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -274,15 +274,23 @@ test("an unresponsive bridge stays initializing until the handshake fails", asyn
     /* A present bridge whose host never replies. */
   };
   let client: Awaited<ReturnType<typeof renderClient>> | undefined;
+  jest.useFakeTimers();
   try {
     client = await renderClient();
     expect(client.desktop.status).toBe("initializing");
     await act(async () => {
-      await Bun.sleep(5100);
+      jest.advanceTimersByTime(4999);
+      await Promise.resolve();
+    });
+    expect(client.desktop.status).toBe("initializing");
+    await act(async () => {
+      jest.advanceTimersByTime(1);
+      await Promise.resolve();
     });
     expect(client.desktop.status).toBe("unavailable");
   } finally {
+    jest.useRealTimers();
     client?.cleanup();
     (window as BridgeWindow).__electrobunSendToHost = undefined;
   }
-}, 10_000);
+});
