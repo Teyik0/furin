@@ -194,10 +194,15 @@ test("packaged open events reach the backend onOpen hook once, in order", async 
     ]);
     const secondary = fixture.launch({ FURIN_NATIVE_OPEN: "fixture://forwarded" });
     try {
-      expect(
-        await Promise.race([secondary.child.exited, Bun.sleep(6500).then(() => undefined)]),
-        (await secondary.output).join("\n")
-      ).toBe(0);
+      const exited = await Promise.race([
+        secondary.child.exited,
+        Bun.sleep(6500).then(() => undefined),
+      ]);
+      if (exited === undefined) {
+        // Its piped output only ends once the process does.
+        await secondary.stop("SIGTERM");
+      }
+      expect(exited, (await secondary.output).join("\n")).toBe(0);
     } finally {
       await secondary.stop("SIGTERM");
     }
