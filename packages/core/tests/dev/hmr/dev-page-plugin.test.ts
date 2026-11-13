@@ -253,7 +253,7 @@ test("development transforms a workspace executable that starts with a shebang",
     { rewriteBareImports: false, rewriteRelativeImports: false }
   );
 
-  expect(result.startsWith("//")).toBe(true);
+  expect(result.split("\n")[0]).toBe("///usr/bin/env bun");
   expect(result.split("\n")[1]).toContain('import { join } from "node:path"');
   expect(() => new Bun.Transpiler({ loader: "ts" }).transformSync(result)).not.toThrow();
 });
