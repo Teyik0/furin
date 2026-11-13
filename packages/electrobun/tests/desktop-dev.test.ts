@@ -3,7 +3,6 @@ import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { forwardNativeOpen } from "../src/native-instance";
 import { installSdk, sdkRunHeader } from "./fixtures/sdk";
 
 const CORE_CLI = join(import.meta.dir, "../../core/src/cli/index.ts");
@@ -34,7 +33,11 @@ import Electrobun from "electrobun/main";
 appendFileSync(${JSON.stringify(pids)}, process.pid + "\\n");
 Electrobun.events.on("open-url", (event) =>
   appendFileSync(${JSON.stringify(join(pids, "../native-opens"))}, event.data.url + "\\n"));
-export default { ping: async () => ${JSON.stringify(reply)} };`;
+export default {
+  ping: async () => ${JSON.stringify(reply)},
+  // What the SDK emits when the OS opens a registered URL.
+  open: async (url: string) => Electrobun.events.emitEvent(Electrobun.events.events.app.openUrl({ url })),
+};`;
 
 /** A desktop project whose native entry records each shell process it runs in. */
 async function createProject(mode?: "hung-quit" | "failed-window") {
@@ -54,7 +57,7 @@ async function createProject(mode?: "hung-quit" | "failed-window") {
   await writeFile(
     join(root, "furin.config.ts"),
     `export default { desktop: {
-      app: { name: "Fixture", identifier: "local.furin.desktop-dev", urlSchemes: ["fixture"] },
+      app: { name: "Fixture", identifier: "local.furin.desktop-dev" },
       build: { bun: { entrypoint: "src/desktop.ts" } },
       dataDir: ${JSON.stringify(join(root, ".data"))}
     } };`
@@ -78,6 +81,8 @@ async function createProject(mode?: "hung-quit" | "failed-window") {
         await desktop?.window.minimize();
         return { minimized: await desktop?.window.isMinimized() };
       })
+      .post("/open", async ({ desktop, query }) =>
+        (desktop?.native as { open: (url: string) => Promise<void> }).open(query.url ?? ""))
       .post("/ping", async ({ desktop }) => ({
         reply: await (desktop?.native as { ping: () => Promise<string> }).ping(),
       }))
@@ -212,13 +217,11 @@ posix(
   async () => {
     const project = await createProject();
     const child = project.start([process.execPath, CORE_CLI, "dev", "--desktop"]);
-    const identity = { identifier: "local.furin.desktop-dev", channel: "dev" };
     const opens = join(project.root, "backend-opens");
-    // Single-instance forwarding: what a second launch with a URL argument does.
+    let app: Awaited<ReturnType<typeof project.session>>;
+    // The native shell receives an SDK open-url event; the backend must handle it.
     const open = async (url: string) => {
-      expect(
-        await forwardNativeOpen(join(project.root, ".data"), identity, { type: "url", url })
-      ).toBe(true);
+      await app.post(`/open?url=${encodeURIComponent(url)}`);
       return await until(async () => {
         const events = (await Bun.file(opens).text()).trim().split("\n");
         const last = JSON.parse(events.at(-1) ?? "{}");
@@ -226,7 +229,7 @@ posix(
       }, `backend open ${url}`);
     };
     try {
-      const app = await project.session(
+      app = await project.session(
         await until(() => Bun.file(join(project.root, "window-url")).text(), "window")
       );
       expect(await open("fixture://one")).toEqual({
@@ -253,8 +256,10 @@ posix(
         count: 3,
         last: { type: "url", url: "fixture://three", value: "second" },
       });
-      // The backend handled every event: none was re-emitted to native open-url listeners.
-      expect(await Bun.file(join(project.root, "native-opens")).exists()).toBe(false);
+      // Native listeners saw each SDK event once: Furin did not re-emit what the backend handled.
+      expect(await Bun.file(join(project.root, "native-opens")).text()).toBe(
+        "fixture://one\nfixture://two\nfixture://three\n"
+      );
       expect(await interrupt(child)).toBe(0);
     } finally {
       if (child.exitCode === null) {
