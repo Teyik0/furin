@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- **Desktop `onOpen` hook** — `desktopApp({ onOpen(event) { ... } })` (or the factory form `desktopApp(({ services }) => ({ onOpen }))`) receives URL-scheme and file-association opens on the backend as `{ type: "url", url }` or `{ type: "file", path }`. It gets the cold-start input, inputs forwarded by a second instance and the SDK's own `open-url` events (macOS deep links into a running app), each once, in order, after every `.onStart()` hook. Events that arrive earlier are queued. Builds call it in-process. `furin dev` forwards events from the native shell to the hot backend over the development channel, so the hook works the same in both and re-binds to the current backend after hot reloads and shell relaunches.
+
+### Fixed
+- **Open events in `furin dev`** — a desktop app whose open-url handler needed backend services had no supported way to receive events in development, because the backend runs in a separate process from the native shell. Handing a backend-created handler to the native entrypoint through `globalThis` worked in builds and crashed `furin dev` at launch (`The native link handler was not initialized`).
+- **Backend edits no longer crash `furin dev` on workspace executables** — after a hot reload, dev SSR re-reads workspace package sources, and a source that starts with a shebang (such as `@teyik0/furin-electrobun`'s CLI entry) failed with `Unexpected #!/usr/bin/env bun` and stopped the dev server. This broke any backend edit in the monorepo's desktop example. The shebang is now preserved and skipped by the dev transform.
+
+### Changed
+- **Native `open-url` re-emission** — when `onOpen` is defined, Furin no longer re-emits launch and second-instance inputs to native `Electrobun.events.on("open-url")` listeners, so an event is not handled twice. Apps without `onOpen` behave as before. A second instance now also forwards SDK `open-url` events it receives to the primary instead of dropping them. **Migration:** move backend-created handlers into `onOpen`, and delete the `globalThis` handoff and the native entrypoint's `open-url` subscription.
+
 ## [0.9.0-alpha.2] — 2026-11-12
 
 ### Breaking

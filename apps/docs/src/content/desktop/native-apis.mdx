@@ -82,7 +82,29 @@ Run [SDK preparation](/docs/desktop/installation#prepare-native-types) before ty
 
 ## Deep links and files
 
-Declare URL schemes and file associations in `desktop.app.urlSchemes` and `desktop.app.fileAssociations`, then handle them in the native entrypoint with the SDK's `open-url` event. Files arrive as `file:` URLs:
+Declare URL schemes and file associations in `desktop.app.urlSchemes` and `desktop.app.fileAssociations`, then handle them on the backend with `onOpen`. The `desktopApp` factory receives the root's decorators, so the handler can use your services:
+
+```ts
+// src/server.ts
+import { desktopApp } from "@teyik0/furin-electrobun/server";
+import { Elysia } from "elysia";
+import { torrents } from "./torrents"; // new Elysia().decorate("torrents", service)
+
+export default new Elysia()
+  .use(torrents)
+  .use(
+    desktopApp(({ torrents }) => ({
+      async onOpen(event) {
+        if (event.type === "file") return torrents.addFile(event.path);
+        if (event.url.startsWith("magnet:")) return torrents.addMagnet(event.url);
+      },
+    }))
+  );
+```
+
+`event` is `{ type: "url", url }` or `{ type: "file", path }`. `onOpen` receives the launch input, inputs forwarded by a second instance and the SDK's own `open-url` events (macOS delivers deep links to the running app this way). Each event is delivered once, in order, after every `.onStart()` hook has finished; events that arrive earlier are queued. A handler that throws is reported and the event is not retried. `onOpen` works the same way in `furin dev`, where the backend runs in another process: the shell forwards each event over the development channel to the backend that is running at that moment, including after hot reloads and shell relaunches.
+
+Native-only apps can still subscribe in the native entrypoint, where files arrive as `file:` URLs:
 
 ```ts
 // src/desktop.ts
@@ -93,4 +115,4 @@ Electrobun.events.on("open-url", (event) => {
 });
 ```
 
-Furin forwards launch and secondary-instance inputs to this event after host readiness. Coordinate any application-specific startup dependencies in your handler. There is no Furin `onOpen` option.
+Pick one of the two. Without `onOpen`, Furin re-emits launch and second-instance inputs to this SDK event after readiness. With `onOpen`, it does not, but the SDK still emits its own OS events to native listeners, so an app that uses both would handle those events twice. Never pass handlers from the backend to the native entrypoint through `globalThis`: in `furin dev` the backend runs in a different process.

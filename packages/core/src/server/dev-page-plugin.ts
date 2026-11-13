@@ -179,12 +179,15 @@ export function transformDevSource(
   for (const graph of developmentGraphs()) {
     graph.clearSourceErrors(filePath);
   }
+  // The parsers reject a shebang (e.g. a workspace package's CLI entry). An imported module
+  // never needs one: keep it as a same-length comment so every offset and line stays put.
+  const source = raw.startsWith("#!") ? `//${raw.slice(2)}` : raw;
   try {
     if (!options.renderFragment) {
-      recordDevImports(raw, filePath);
+      recordDevImports(source, filePath);
     }
     // CSS belongs to Bun's browser graph; importing it here also registers it with --hot.
-    const server = parseModule(raw, filePath);
+    const server = parseModule(source, filePath);
     for (const statement of server.program.body) {
       if (
         statement.type === "ImportDeclaration" &&

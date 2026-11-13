@@ -179,7 +179,7 @@
     },
     "packages/electrobun": {
       "name": "@teyik0/furin-electrobun",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "bin": {
         "furin-electrobun": "./src/cli.ts",
       },

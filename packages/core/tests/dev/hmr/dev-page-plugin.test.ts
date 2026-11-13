@@ -245,6 +245,19 @@ test("development SSR selects the server isomorphic implementation", () => {
   expect(result).not.toContain("createIsomorphicFn");
 });
 
+test("development transforms a workspace executable that starts with a shebang", () => {
+  // A hot reload re-reads workspace package sources, such as a package's CLI entry.
+  const result = transformDevSource(
+    '#!/usr/bin/env bun\nimport { join } from "node:path";\nexport const run = () => join("a", "b");\n',
+    "/app/packages/cli/src/cli.ts",
+    { rewriteBareImports: false, rewriteRelativeImports: false }
+  );
+
+  expect(result.split("\n")[0]).toBe("///usr/bin/env bun");
+  expect(result.split("\n")[1]).toContain('import { join } from "node:path"');
+  expect(() => new Bun.Transpiler({ loader: "ts" }).transformSync(result)).not.toThrow();
+});
+
 test("development transform errors preserve their original stack", () => {
   try {
     transformDevSource(

@@ -16,6 +16,8 @@ export async function standardLaunchFixture(options: {
   applicationLease?: boolean;
   /** JavaScript expression for Elysia's listen options. */
   listen?: string;
+  /** The backend handles open events through desktopApp({ onOpen }). */
+  onOpen?: boolean;
 }) {
   const directory = await mkdtemp(join(tmpdir(), "furin-standard-launch-"));
   const root = join(directory, "project");
@@ -45,7 +47,11 @@ export async function standardLaunchFixture(options: {
       let desktop;
       let applicationLease;
       export default new Elysia()
-      .use(desktopApp({background:()=>true})).onStart(async (instance) => {const runtime = getApplicationRuntime(instance);
+      .use(desktopApp({background:()=>true${
+        options.onOpen
+          ? `,onOpen(event){appendFileSync(${JSON.stringify(join(root, "backend-opens"))},JSON.stringify(event)+"\\n");}`
+          : ""
+      }})).onStart(async (instance) => {const runtime = getApplicationRuntime(instance);
           desktop=runtime.desktop;
           ${
             options.applicationLease

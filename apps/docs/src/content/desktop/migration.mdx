@@ -41,19 +41,15 @@ Data and profile initialization and disposal belong in `.onStart()` and `.onStop
 
 Request errors stay in `.onError()`; native event handlers must catch their own errors.
 
-## Replace `onOpen` callbacks with SDK events
+## Handle open events with `onOpen`
 
-There is no Furin `onOpen` option. Subscribe to the SDK event in the module configured as `desktop.build.bun.entrypoint`:
+Handle URL schemes and file associations on the backend with `desktopApp({ onOpen })`. The factory form gives the handler your decorated services:
 
 ```ts
-import Electrobun from "electrobun/main";
-
-Electrobun.events.on("open-url", (event) => {
-  // event.data.url is a URL; associated files arrive as file: URLs
-});
+.use(desktopApp(({ torrents }) => ({ onOpen: (event) => torrents.open(event) })))
 ```
 
-Declare schemes and file associations in `desktop.app.urlSchemes` and `desktop.app.fileAssociations`. Furin forwards launch and secondary-instance inputs to this event after host readiness; direct OS events follow the SDK lifecycle. See [Native APIs](/docs/desktop/native-apis#deep-links-and-files).
+It runs in-process in builds and over the development channel in `furin dev`. If your backend created a handler and stored it on `globalThis` for the native entrypoint to subscribe to `open-url`, delete both halves and move the handler into `onOpen`. That handoff only works in builds: in `furin dev` the backend runs in another process, and the native entry fails at launch. Once `onOpen` is defined, Furin no longer re-emits launch and second-instance inputs to native `open-url` listeners. Remove those listeners so that SDK events are not handled twice. See [Native APIs](/docs/desktop/native-apis#deep-links-and-files).
 
 ## Keep existing data directories working
 

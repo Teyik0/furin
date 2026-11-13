@@ -29,8 +29,15 @@ function alive(pid: number): boolean {
 }
 
 const nativeEntry = (pids: string, reply: string) => `import { appendFileSync } from "node:fs";
+import Electrobun from "electrobun/main";
 appendFileSync(${JSON.stringify(pids)}, process.pid + "\\n");
-export default { ping: async () => ${JSON.stringify(reply)} };`;
+Electrobun.events.on("open-url", (event) =>
+  appendFileSync(${JSON.stringify(join(pids, "../native-opens"))}, event.data.url + "\\n"));
+export default {
+  ping: async () => ${JSON.stringify(reply)},
+  // What the SDK emits when the OS opens a registered URL.
+  open: async (url: string) => Electrobun.events.emitEvent(Electrobun.events.events.app.openUrl({ url })),
+};`;
 
 /** A desktop project whose native entry records each shell process it runs in. */
 async function createProject(mode?: "hung-quit" | "failed-window") {
@@ -60,15 +67,22 @@ async function createProject(mode?: "hung-quit" | "failed-window") {
   await writeFile(
     join(root, "src/server.ts"),
     `import { Elysia } from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
+    import { appendFileSync } from "node:fs";
     import { desktopApp } from "@teyik0/furin-electrobun/server";
     import { value } from "./value";
     export default new Elysia()
-      .use(desktopApp({ window: { title: "Fixture" } }))
+      .use(desktopApp({
+        window: { title: "Fixture" },
+        onOpen: (event) =>
+          appendFileSync(${JSON.stringify(join(root, "backend-opens"))}, JSON.stringify({ ...event, value }) + "\\n"),
+      }))
       .get("/value", () => ({ value, pid: process.pid, dataDir: process.env.FURIN_APP_DATA_DIR }))
       .post("/minimize", async ({ desktop }) => {
         await desktop?.window.minimize();
         return { minimized: await desktop?.window.isMinimized() };
       })
+      .post("/open", async ({ desktop, query }) =>
+        (desktop?.native as { open: (url: string) => Promise<void> }).open(query.url ?? ""))
       .post("/ping", async ({ desktop }) => ({
         reply: await (desktop?.native as { ping: () => Promise<string> }).ping(),
       }))
@@ -189,6 +203,68 @@ posix.each([
       await until(async () => (alive(next) ? undefined : true), "shell exit");
     } finally {
       if (child?.exitCode === null) {
+        process.kill(-child.pid, "SIGKILL");
+        await child.exited;
+      }
+      await rm(project.root, { recursive: true, force: true });
+    }
+  },
+  60_000
+);
+
+posix(
+  "furin dev delivers native open events to the current backend onOpen hook",
+  async () => {
+    const project = await createProject();
+    const child = project.start([process.execPath, CORE_CLI, "dev", "--desktop"]);
+    const opens = join(project.root, "backend-opens");
+    let app: Awaited<ReturnType<typeof project.session>>;
+    // The native shell receives an SDK open-url event; the backend must handle it.
+    const open = async (url: string) => {
+      await app.post(`/open?url=${encodeURIComponent(url)}`);
+      return await until(async () => {
+        const events = (await Bun.file(opens).text()).trim().split("\n");
+        const last = JSON.parse(events.at(-1) ?? "{}");
+        return last.url === url ? { count: events.length, last } : undefined;
+      }, `backend open ${url}`);
+    };
+    try {
+      app = await project.session(
+        await until(() => Bun.file(join(project.root, "window-url")).text(), "window")
+      );
+      expect(await open("fixture://one")).toEqual({
+        count: 1,
+        last: { type: "url", url: "fixture://one", value: "first" },
+      });
+
+      await writeFile(join(project.root, "src/value.ts"), 'export const value = "second";');
+      await until(
+        async () => ((await app.get("/value")).value === "second" ? true : undefined),
+        "backend reload"
+      );
+      expect(await open("fixture://two")).toEqual({
+        count: 2,
+        last: { type: "url", url: "fixture://two", value: "second" },
+      });
+
+      await writeFile(join(project.root, "src/desktop.ts"), nativeEntry(project.shellPids, "two"));
+      await until(async () => {
+        const { reply } = (await app.post("/ping").catch(() => ({}))) as { reply?: string };
+        return reply === "two" ? reply : undefined;
+      }, "relaunched shell");
+      expect(await open("fixture://three")).toEqual({
+        count: 3,
+        last: { type: "url", url: "fixture://three", value: "second" },
+      });
+      // Native listeners saw each SDK event once: Furin did not re-emit what the backend handled.
+      expect(await Bun.file(join(project.root, "native-opens")).text()).toBe(
+        "fixture://one\nfixture://two\nfixture://three\n"
+      );
+      const shells = await project.readPids();
+      expect(await interrupt(child)).toBe(0);
+      await until(async () => (shells.some(alive) ? undefined : true), "shell exit");
+    } finally {
+      if (child.exitCode === null) {
         process.kill(-child.pid, "SIGKILL");
         await child.exited;
       }
