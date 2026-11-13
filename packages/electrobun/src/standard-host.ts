@@ -649,7 +649,14 @@ export async function runStandardDesktopHost(
     ) {
       return;
     }
-    const input = openEvent(new URL(event.data.url));
+    let input: OpenEvent;
+    try {
+      // fileURLToPath rejects some parseable file: URLs, such as a foreign host.
+      input = openEvent(new URL(event.data.url));
+    } catch (error) {
+      report("open")(error);
+      return;
+    }
     fromSdk.add(input);
     queued.push(input);
     flush();

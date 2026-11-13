@@ -86,8 +86,12 @@ Declare URL schemes and file associations in `desktop.app.urlSchemes` and `deskt
 
 ```ts
 // src/server.ts
+import { desktopApp } from "@teyik0/furin-electrobun/server";
+import { Elysia } from "elysia";
+import { torrents } from "./torrents"; // new Elysia().decorate("torrents", service)
+
 export default new Elysia()
-  .use(torrents) // .decorate("torrents", ...)
+  .use(torrents)
   .use(
     desktopApp(({ torrents }) => ({
       async onOpen(event) {

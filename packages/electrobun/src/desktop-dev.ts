@@ -38,6 +38,8 @@ interface Owner {
   launching: Promise<void> | undefined;
   origin: string;
   peer: ChannelPeer | undefined;
+  /** Set while no started backend owns the hooks: from a hot reload's stop until the next ready. */
+  reloading: PromiseWithResolvers<void> | undefined;
   restart: boolean;
   session: { name: string; value: string };
   settings: DesktopDevelopmentSettings;
@@ -71,6 +73,11 @@ async function handleShell(owner: Owner, request: ShellRequest): Promise<unknown
     case "background":
       return owner.hooks?.background?.() ?? false;
     case "open":
+      // A stopped backend's services are closed: hold the event for its replacement.
+      while (owner.reloading) {
+        // biome-ignore lint/performance/noAwaitInLoops: A failed reload is followed by another one.
+        await owner.reloading.promise;
+      }
       // Read at delivery time: hot reloads replace the hooks of the running backend.
       if (!owner.hooks?.onOpen) {
         return false;
@@ -248,6 +255,7 @@ function startOwner(settings: DesktopDevelopmentSettings): Owner {
     launching: undefined,
     origin: "",
     peer: undefined,
+    reloading: undefined,
     restart: false,
     session: {
       name: `furin_desktop_${crypto.randomUUID().replaceAll("-", "")}`,
@@ -307,6 +315,14 @@ export function createDevelopment() {
       }
       owner.origin = origin;
       owner.hooks = state.hooks;
+      owner.reloading?.resolve();
+      owner.reloading = undefined;
+      // Elysia stops this app before a hot reload imports its replacement.
+      state.closed?.then(() => {
+        if (owner.hooks === state.hooks) {
+          owner.reloading ??= Promise.withResolvers<void>();
+        }
+      });
       await state.ready?.();
       // Not awaited: a first SDK build can outlast the worker's startup budget.
       owner.launching ??= launchShell(owner).catch((error: unknown) => {

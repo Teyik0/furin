@@ -260,7 +260,9 @@ posix(
       expect(await Bun.file(join(project.root, "native-opens")).text()).toBe(
         "fixture://one\nfixture://two\nfixture://three\n"
       );
+      const shells = await project.readPids();
       expect(await interrupt(child)).toBe(0);
+      await until(async () => (shells.some(alive) ? undefined : true), "shell exit");
     } finally {
       if (child.exitCode === null) {
         process.kill(-child.pid, "SIGKILL");

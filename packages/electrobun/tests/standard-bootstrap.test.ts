@@ -181,8 +181,9 @@ test("packaged open events reach the backend onOpen hook once, in order", async 
   const read = async () =>
     (await Bun.file(opens).exists())
       ? (await Bun.file(opens).text())
-          .trim()
           .split("\n")
+          // The file can exist before its first append completes.
+          .filter(Boolean)
           .map((line) => JSON.parse(line))
       : [];
   try {

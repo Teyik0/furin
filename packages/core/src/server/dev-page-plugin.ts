@@ -179,11 +179,9 @@ export function transformDevSource(
   for (const graph of developmentGraphs()) {
     graph.clearSourceErrors(filePath);
   }
-  // The parsers reject a shebang (e.g. a workspace package's CLI entry): parse it as a
-  // same-length comment, so every offset and line stays put, and restore it at the end.
-  const lineEnd = raw.indexOf("\n");
-  const shebang = raw.startsWith("#!") ? raw.slice(0, lineEnd === -1 ? raw.length : lineEnd) : "";
-  const source = shebang ? `//${raw.slice(2)}` : raw;
+  // The parsers reject a shebang (e.g. a workspace package's CLI entry). An imported module
+  // never needs one: keep it as a same-length comment so every offset and line stays put.
+  const source = raw.startsWith("#!") ? `//${raw.slice(2)}` : raw;
   try {
     if (!options.renderFragment) {
       recordDevImports(source, filePath);
@@ -220,9 +218,6 @@ export function transformDevSource(
     }
 
     result = rewriteSingletonImports(result, loader);
-    if (shebang) {
-      result = `${shebang}${result.slice(shebang.length)}`;
-    }
     return pinJsxRuntime(result, loader);
   } catch (error) {
     return rethrowWithSourcePath(error, filePath);
