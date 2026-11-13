@@ -1,0 +1,19 @@
+packages/core/tests/dev/hmr/dev-page-plugin.test.ts
+  s_7efdd76b153cc1::t_ddbafa4ec7a9ec 256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3bf28a5a0fe550c9b466972bb2553d91fdc11a3a",
+  "prompts": {},
+  "sessions": {
+    "s_7efdd76b153cc1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "11ba9c52-9021-4b54-a17b-34585bf692df",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
