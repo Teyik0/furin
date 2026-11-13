@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { forwardNativeOpen } from "../src/native-instance";
 import { installSdk, sdkRunHeader } from "./fixtures/sdk";
 
 const CORE_CLI = join(import.meta.dir, "../../core/src/cli/index.ts");
@@ -29,7 +30,10 @@ function alive(pid: number): boolean {
 }
 
 const nativeEntry = (pids: string, reply: string) => `import { appendFileSync } from "node:fs";
+import Electrobun from "electrobun/main";
 appendFileSync(${JSON.stringify(pids)}, process.pid + "\\n");
+Electrobun.events.on("open-url", (event) =>
+  appendFileSync(${JSON.stringify(join(pids, "../native-opens"))}, event.data.url + "\\n"));
 export default { ping: async () => ${JSON.stringify(reply)} };`;
 
 /** A desktop project whose native entry records each shell process it runs in. */
@@ -50,7 +54,7 @@ async function createProject(mode?: "hung-quit" | "failed-window") {
   await writeFile(
     join(root, "furin.config.ts"),
     `export default { desktop: {
-      app: { name: "Fixture", identifier: "local.furin.desktop-dev" },
+      app: { name: "Fixture", identifier: "local.furin.desktop-dev", urlSchemes: ["fixture"] },
       build: { bun: { entrypoint: "src/desktop.ts" } },
       dataDir: ${JSON.stringify(join(root, ".data"))}
     } };`
@@ -60,10 +64,15 @@ async function createProject(mode?: "hung-quit" | "failed-window") {
   await writeFile(
     join(root, "src/server.ts"),
     `import { Elysia } from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
+    import { appendFileSync } from "node:fs";
     import { desktopApp } from "@teyik0/furin-electrobun/server";
     import { value } from "./value";
     export default new Elysia()
-      .use(desktopApp({ window: { title: "Fixture" } }))
+      .use(desktopApp({
+        window: { title: "Fixture" },
+        onOpen: (event) =>
+          appendFileSync(${JSON.stringify(join(root, "backend-opens"))}, JSON.stringify({ ...event, value }) + "\\n"),
+      }))
       .get("/value", () => ({ value, pid: process.pid, dataDir: process.env.FURIN_APP_DATA_DIR }))
       .post("/minimize", async ({ desktop }) => {
         await desktop?.window.minimize();
@@ -189,6 +198,66 @@ posix.each([
       await until(async () => (alive(next) ? undefined : true), "shell exit");
     } finally {
       if (child?.exitCode === null) {
+        process.kill(-child.pid, "SIGKILL");
+        await child.exited;
+      }
+      await rm(project.root, { recursive: true, force: true });
+    }
+  },
+  60_000
+);
+
+posix(
+  "furin dev delivers native open events to the current backend onOpen hook",
+  async () => {
+    const project = await createProject();
+    const child = project.start([process.execPath, CORE_CLI, "dev", "--desktop"]);
+    const identity = { identifier: "local.furin.desktop-dev", channel: "dev" };
+    const opens = join(project.root, "backend-opens");
+    // Single-instance forwarding: what a second launch with a URL argument does.
+    const open = async (url: string) => {
+      expect(
+        await forwardNativeOpen(join(project.root, ".data"), identity, { type: "url", url })
+      ).toBe(true);
+      return await until(async () => {
+        const events = (await Bun.file(opens).text()).trim().split("\n");
+        const last = JSON.parse(events.at(-1) ?? "{}");
+        return last.url === url ? { count: events.length, last } : undefined;
+      }, `backend open ${url}`);
+    };
+    try {
+      const app = await project.session(
+        await until(() => Bun.file(join(project.root, "window-url")).text(), "window")
+      );
+      expect(await open("fixture://one")).toEqual({
+        count: 1,
+        last: { type: "url", url: "fixture://one", value: "first" },
+      });
+
+      await writeFile(join(project.root, "src/value.ts"), 'export const value = "second";');
+      await until(
+        async () => ((await app.get("/value")).value === "second" ? true : undefined),
+        "backend reload"
+      );
+      expect(await open("fixture://two")).toEqual({
+        count: 2,
+        last: { type: "url", url: "fixture://two", value: "second" },
+      });
+
+      await writeFile(join(project.root, "src/desktop.ts"), nativeEntry(project.shellPids, "two"));
+      await until(async () => {
+        const { reply } = (await app.post("/ping").catch(() => ({}))) as { reply?: string };
+        return reply === "two" ? reply : undefined;
+      }, "relaunched shell");
+      expect(await open("fixture://three")).toEqual({
+        count: 3,
+        last: { type: "url", url: "fixture://three", value: "second" },
+      });
+      // The backend handled every event: none was re-emitted to native open-url listeners.
+      expect(await Bun.file(join(project.root, "native-opens")).exists()).toBe(false);
+      expect(await interrupt(child)).toBe(0);
+    } finally {
+      if (child.exitCode === null) {
         process.kill(-child.pid, "SIGKILL");
         await child.exited;
       }

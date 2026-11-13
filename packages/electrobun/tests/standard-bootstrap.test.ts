@@ -98,7 +98,8 @@ test.each([
         ).toBe(0);
         await waitForFixture(
           () => Bun.file(join(fixture.root, "opens")).text(),
-          (value) => value.split("\n").length === 3
+          // Primary launch input, then the secondary's forwarded SDK event and launch input.
+          (value) => value.split("\n").length === 4
         );
         expect(await Bun.file(join(fixture.root, "lifecycle")).text()).toBe("start\n");
         const bootstrap = await fetch(await Bun.file(join(fixture.root, "window-url")).text(), {
@@ -172,3 +173,45 @@ test.each([false, true])(
   },
   15_000
 );
+
+test("packaged open events reach the backend onOpen hook once, in order", async () => {
+  const fixture = await standardLaunchFixture({ mode: "build", onOpen: true });
+  const host = fixture.launch();
+  const opens = join(fixture.root, "backend-opens");
+  const read = async () =>
+    (await Bun.file(opens).exists())
+      ? (await Bun.file(opens).text())
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line))
+      : [];
+  try {
+    // The SDK's own early open-url event and the cold-start input wait for backend readiness.
+    expect(await waitForFixture(read, (events) => events.length === 2)).toEqual([
+      { type: "url", url: "fixture://early" },
+      { type: "url", url: "fixture://launch" },
+    ]);
+    const secondary = fixture.launch({ FURIN_NATIVE_OPEN: "fixture://forwarded" });
+    try {
+      expect(
+        await Promise.race([secondary.child.exited, Bun.sleep(6500).then(() => undefined)]),
+        (await secondary.output).join("\n")
+      ).toBe(0);
+    } finally {
+      await secondary.stop("SIGTERM");
+    }
+    // The secondary instance forwards its own SDK open-url event before its launch input.
+    expect(await waitForFixture(read, (events) => events.length === 4)).toEqual([
+      { type: "url", url: "fixture://early" },
+      { type: "url", url: "fixture://launch" },
+      { type: "url", url: "fixture://early" },
+      { type: "url", url: "fixture://forwarded" },
+    ]);
+    // Handled events are not re-emitted to native open-url listeners.
+    expect(await Bun.file(join(fixture.root, "opens")).exists()).toBe(false);
+    expect(await host.stop("SIGTERM")).toBe(0);
+  } finally {
+    await host.stop("SIGTERM");
+    await fixture.close();
+  }
+}, 20_000);

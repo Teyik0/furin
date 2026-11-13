@@ -85,6 +85,12 @@ export interface DesktopAppOptions {
    */
   admission?: (request: Request, context: AdmissionContext) => Response | undefined;
   background?: () => boolean;
+  /**
+   * Receives URL-scheme and file-association opens after the backend is ready: launch inputs,
+   * secondary-instance inputs and the SDK's `open-url` events, in order, each exactly once.
+   * Defining it stops Furin from re-emitting those inputs to native `open-url` listeners.
+   */
+  onOpen?: (event: OpenEvent) => void | Promise<void>;
   restrictWebToLoopback?: boolean;
   /** Serializable main window options; window RPC belongs to native modules. */
   window?: Omit<DesktopWindowOptions, "rpc">;

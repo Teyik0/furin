@@ -1,3 +1,4 @@
+import type { OpenEvent } from "./capabilities";
 import type { DesktopDevelopmentSettings } from "./cli";
 import type { DesktopCommand } from "./commands";
 import type { BackendInfo, ShellRequest } from "./desktop-dev";
@@ -57,6 +58,7 @@ export async function getDesktopDevelopment() {
         backend,
         info,
         background: () => request({ type: "background" }) as Promise<boolean>,
+        open: (event: OpenEvent) => request({ type: "open", event }) as Promise<boolean>,
         requestRestart: () => request({ type: "restart" }),
       };
     },

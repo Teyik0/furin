@@ -74,6 +74,12 @@ function object(value: unknown): value is { [key: string]: unknown } {
   return value !== null && typeof value === "object";
 }
 
+function openEvent(url: URL): OpenEvent {
+  return url.protocol === "file:"
+    ? { type: "file", path: fileURLToPath(url) }
+    : { type: "url", url: url.href };
+}
+
 function openBrowserUrl(
   sdk: DesktopSdk,
   destination: string,
@@ -182,6 +188,10 @@ export async function runStandardDesktopHost(
   loadNativeEntry?: () => Promise<unknown>
 ): Promise<DesktopHost | undefined> {
   const queued: OpenEvent[] = [];
+  // Events the SDK already emitted to native open-url listeners.
+  const fromSdk = new WeakSet<OpenEvent>();
+  // Backend delivery: in-process in builds, over the channel in development. False when unhandled.
+  let deliverOpen: ((event: OpenEvent) => Promise<boolean>) | undefined;
   let phase: DesktopSnapshot["phase"] = "starting";
   let backend: DesktopBackend | undefined;
   let starting: Promise<DesktopBackend> | undefined;
@@ -551,6 +561,7 @@ export async function runStandardDesktopHost(
           } finally {
             sdk.default.events.off?.("reopen", reopen);
             sdk.default.events.off?.("before-quit", beforeQuit);
+            sdk.default.events.off?.("open-url", captureOpen);
             process.off("SIGINT", stop);
             process.off("SIGTERM", stop);
             sdk.Updater.onStatusChange(null);
@@ -597,22 +608,54 @@ export async function runStandardDesktopHost(
   };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
-  const flush = () => {
-    while (phase === "ready" && queued.length) {
-      const event = queued.shift();
-      if (event) {
+  let flushing = false;
+  let reemitting = false;
+  // One delivery at a time preserves OS order across asynchronous backend handlers.
+  const flush = async () => {
+    if (flushing) {
+      return;
+    }
+    flushing = true;
+    try {
+      while (phase === "ready" && queued.length) {
+        const event = queued.shift() as OpenEvent;
         try {
-          sdk.default.events.emitEvent(
-            sdk.default.events.events.app.openUrl({
-              url: event.type === "url" ? event.url : pathToFileURL(event.path).href,
-            })
-          );
+          // biome-ignore lint/performance/noAwaitInLoops: Preserve ordering of OS-delivered native events.
+          if (!((await deliverOpen?.(event)) || fromSdk.has(event))) {
+            reemitting = true;
+            try {
+              sdk.default.events.emitEvent(
+                sdk.default.events.events.app.openUrl({
+                  url: event.type === "url" ? event.url : pathToFileURL(event.path).href,
+                })
+              );
+            } finally {
+              reemitting = false;
+            }
+          }
         } catch (error) {
           report("open")(error);
         }
       }
+    } finally {
+      flushing = false;
     }
   };
+  const captureOpen = (event: unknown) => {
+    if (
+      reemitting ||
+      !(object(event) && object(event.data) && typeof event.data.url === "string") ||
+      !URL.canParse(event.data.url)
+    ) {
+      return;
+    }
+    const input = openEvent(new URL(event.data.url));
+    fromSdk.add(input);
+    queued.push(input);
+    flush();
+  };
+  // Before any await: the SDK may emit a cold-start open-url while the host initializes.
+  sdk.default.events.on("open-url", captureOpen);
   try {
     // SDK metadata resolves relative to native launch CWD and caches its result.
     identity = await sdk.Updater.getLocalInfo();
@@ -641,12 +684,7 @@ export async function runStandardDesktopHost(
     delete process.env.FURIN_NATIVE_OPEN;
     if (initial) {
       try {
-        const url = new URL(initial);
-        queued.push(
-          url.protocol === "file:"
-            ? { type: "file", path: fileURLToPath(url) }
-            : { type: "url", url: url.href }
-        );
+        queued.push(openEvent(new URL(initial)));
       } catch {
         console.error("[furin-electrobun] Invalid native open event.");
       }
@@ -679,6 +717,7 @@ export async function runStandardDesktopHost(
       await forwardQueued(options.dataDir, identity, queued);
       sdk.default.events.off?.("reopen", reopen);
       sdk.default.events.off?.("before-quit", beforeQuit);
+      sdk.default.events.off?.("open-url", captureOpen);
       process.off("SIGINT", stop);
       process.off("SIGTERM", stop);
       phase = "stopped";
@@ -710,6 +749,7 @@ export async function runStandardDesktopHost(
       const { info } = connection;
       hooks = { window: info.window, background: connection.background };
       requestDevelopmentRestart = connection.requestRestart;
+      deliverOpen = connection.open;
       options.openBrowser = info.openBrowser;
       ({ backend } = connection);
     } else if (options.startServer !== false) {
@@ -727,6 +767,13 @@ export async function runStandardDesktopHost(
         );
         backend = await starting;
         hooks = state?.hooks;
+        const onOpen = state?.hooks?.onOpen;
+        if (onOpen) {
+          deliverOpen = async (event) => {
+            await onOpen(event);
+            return true;
+          };
+        }
       } catch (error) {
         if (!options.manager) {
           throw error;

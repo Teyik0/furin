@@ -179,12 +179,17 @@ export function transformDevSource(
   for (const graph of developmentGraphs()) {
     graph.clearSourceErrors(filePath);
   }
+  // The parsers reject a shebang (e.g. a workspace package's CLI entry): parse it as a
+  // same-length comment, so every offset and line stays put, and restore it at the end.
+  const lineEnd = raw.indexOf("\n");
+  const shebang = raw.startsWith("#!") ? raw.slice(0, lineEnd === -1 ? raw.length : lineEnd) : "";
+  const source = shebang ? `//${raw.slice(2)}` : raw;
   try {
     if (!options.renderFragment) {
-      recordDevImports(raw, filePath);
+      recordDevImports(source, filePath);
     }
     // CSS belongs to Bun's browser graph; importing it here also registers it with --hot.
-    const server = parseModule(raw, filePath);
+    const server = parseModule(source, filePath);
     for (const statement of server.program.body) {
       if (
         statement.type === "ImportDeclaration" &&
@@ -215,6 +220,9 @@ export function transformDevSource(
     }
 
     result = rewriteSingletonImports(result, loader);
+    if (shebang) {
+      result = `${shebang}${result.slice(shebang.length)}`;
+    }
     return pinJsxRuntime(result, loader);
   } catch (error) {
     return rethrowWithSourcePath(error, filePath);

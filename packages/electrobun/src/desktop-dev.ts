@@ -2,7 +2,7 @@ import { existsSync, readFileSync, watch } from "node:fs";
 import { mkdir, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import type { AnyElysia } from "elysia";
-import type { DesktopAppOptions } from "./capabilities";
+import type { DesktopAppOptions, OpenEvent } from "./capabilities";
 import { backendDependencies, type DesktopDevelopmentSettings } from "./cli";
 import { createDesktopContext, type DesktopCommand } from "./commands";
 import { redeemWindowUrl } from "./dev-bootstrap";
@@ -16,7 +16,11 @@ import {
 import { createSessionGuard, desktopOrigin } from "./runtime";
 
 /** Messages the native shell sends to the hot backend. */
-export type ShellRequest = { type: "backend" } | { type: "background" } | { type: "restart" };
+export type ShellRequest =
+  | { type: "backend" }
+  | { type: "background" }
+  | { type: "open"; event: OpenEvent }
+  | { type: "restart" };
 
 export interface BackendInfo {
   key: string;
@@ -55,7 +59,7 @@ function readSettings(): DesktopDevelopmentSettings {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-function handleShell(owner: Owner, request: ShellRequest): unknown {
+async function handleShell(owner: Owner, request: ShellRequest): Promise<unknown> {
   switch (request.type) {
     case "backend":
       return {
@@ -66,6 +70,13 @@ function handleShell(owner: Owner, request: ShellRequest): unknown {
       } satisfies BackendInfo;
     case "background":
       return owner.hooks?.background?.() ?? false;
+    case "open":
+      // Read at delivery time: hot reloads replace the hooks of the running backend.
+      if (!owner.hooks?.onOpen) {
+        return false;
+      }
+      await owner.hooks.onOpen(request.event);
+      return true;
     case "restart":
       owner.restart = true;
       return;
@@ -93,7 +104,7 @@ function openChannel(owner: Owner) {
         owner.socket = socket;
         owner.peer = createChannelPeer(
           (data) => socket.send(data),
-          async (body) => handleShell(owner, body as ShellRequest)
+          (body) => handleShell(owner, body as ShellRequest)
         );
         if (owner.restart) {
           // A relaunch was requested before this shell connected: its quit had no peer.
