@@ -1,6 +1,8 @@
 import type { KnipConfig } from "knip";
 
 const config: KnipConfig = {
+  // `bun check` is Bun's built-in type checker, not a package binary.
+  ignoreBinaries: ["check"],
   ignoreExportsUsedInFile: true,
   workspaces: {
     ".": {

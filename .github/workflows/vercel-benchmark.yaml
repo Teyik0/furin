@@ -1,8 +1,10 @@
 name: Vercel Framework Benchmark
 
+# Each run deploys three fixtures to Vercel: opt in with the `benchmark` label.
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, labeled]
 
 permissions:
   contents: read
@@ -15,7 +17,11 @@ concurrency:
 jobs:
   live-vercel:
     name: Live Vercel comparison
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      contains(github.event.pull_request.labels.*.name, 'benchmark') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'benchmark')
     permissions:
       contents: read
       pull-requests: read
@@ -45,10 +51,13 @@ jobs:
               ...context.repo,
               pull_number: Number(process.env.PR_NUMBER),
             });
-            const current = pull.state === "open" && pull.head.sha === process.env.MEASURED_SHA;
+            const current =
+              pull.state === "open" &&
+              pull.head.sha === process.env.MEASURED_SHA &&
+              pull.labels.some((label) => label.name === "benchmark");
             core.setOutput("current", String(current));
             if (!current) {
-              core.setFailed("The PR was closed or updated while this benchmark was queued.");
+              core.setFailed("The PR was closed, updated or unlabelled while this benchmark was queued.");
             }
 
       - name: Require Vercel credentials
@@ -68,12 +77,6 @@ jobs:
           ref: 76df39c9e174a46175712691838de87144a8d658
           path: .benchmark
           persist-credentials: false
-
-      - name: Cache bun
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-live-vercel-${{ hashFiles('bun.lock', '.benchmark/bun.lock') }}
 
       - name: Setup bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2

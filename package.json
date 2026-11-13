@@ -19,7 +19,7 @@
     "test": "bun run test:release && bun run --sequential --filter '*' test",
     "test:dev": "bun run --parallel --filter '*' test:dev",
     "test:release": "bun test scripts/release-target.test.ts",
-    "tscheck": "tsc --noEmit -p scripts/tsconfig.release.json && bun run --parallel --filter '*' tscheck"
+    "tscheck": "bun check -p scripts/tsconfig.release.json && bun run --parallel --filter '*' tscheck"
   },
   "overrides": {
     "postcss-selector-parser": "7.1.6"
@@ -37,9 +37,9 @@
     "typescript": "7.0.2",
     "ultracite": "7.12.4"
   },
-  "packageManager": "bun@1.4.3",
+  "packageManager": "bun@1.4.4",
   "engines": {
-    "bun": ">=1.4.0"
+    "bun": ">=1.4.4"
   },
   "catalog": {
     "elysia": "2.0.0-rc.1",

@@ -11,7 +11,7 @@
     "measure:client": "furin build --target bun --analyze && bun ../../scripts/measure-client-bundle.ts .furin/build/analysis/bun-client.json .furin/build/bun/client",
     "start": "./.furin/build/bun/server",
     "test": "bun test",
-    "tscheck": "tsc --noEmit"
+    "tscheck": "bun check"
   },
   "dependencies": {
     "@teyik0/furin": "workspace:*",

@@ -98,7 +98,7 @@ async function publish(head: string, state: string, comments: Comment[]) {
   return { created, updated };
 }
 
-async function validateCurrentPr(head: string, state: string) {
+async function validateCurrentPr(head: string, state: string, labels: string[]) {
   const failures: string[] = [];
   const outputs: { name: string; value: string }[] = [];
   await runInNewContext(
@@ -111,7 +111,9 @@ async function validateCurrentPr(head: string, state: string) {
       },
       github: {
         rest: {
-          pulls: { get: () => ({ data: { state, head: { sha: head } } }) },
+          pulls: {
+            get: () => ({ data: { state, head: { sha: head }, labels: labels.map((name) => ({ name })) } }),
+          },
         },
       },
       process: { env: { MEASURED_SHA: sha, PR_NUMBER: "129" } },
@@ -152,17 +154,21 @@ test.each([
 });
 
 test.each([
-  [sha, "open", true],
-  ["outdated", "open", false],
-  [sha, "closed", false],
-])("validates current PR head %s and state %s before exposing secrets", async (head, state, current) => {
-  const result = await validateCurrentPr(head, state);
+  [sha, "open", ["benchmark"], true],
+  ["outdated", "open", ["benchmark"], false],
+  [sha, "closed", ["benchmark"], false],
+  [sha, "open", [], false],
+])("validates current PR head %s, state %s and labels %j before exposing secrets", async (head, state, labels, current) => {
+  const result = await validateCurrentPr(head, state, labels);
   expect(result.failures.length === 0).toBe(current);
   expect(result.outputs).toContainEqual({ name: "current", value: String(current) });
 });
 
-test("runs automatically for same-repository PRs without scheduled or manual dispatch", () => {
+test("runs for same-repository PRs labelled benchmark without scheduled or manual dispatch", () => {
   expect(workflow.on.pull_request).toBeDefined();
+  expect(workflow.jobs["live-vercel"].if).toContain(
+    "contains(github.event.pull_request.labels.*.name, 'benchmark')"
+  );
   expect(workflow.on.schedule).toBeUndefined();
   expect(workflow.on.workflow_dispatch).toBeUndefined();
   expect(workflow.jobs["live-vercel"].if).toContain(

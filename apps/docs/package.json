@@ -15,7 +15,7 @@
     "start:static": "furin preview --dir dist --basePath /furin --port 3012",
     "test": "bun test --parallel --isolate --bail --preload ../../packages/core/tests/setup/global.ts",
     "test:dev": "bun test --changed --parallel --isolate --bail --preload ../../packages/core/tests/setup/global.ts",
-    "tscheck": "tsc --noEmit"
+    "tscheck": "bun check"
   },
   "dependencies": {
     "@mdx-js/mdx": "^3.1.1",

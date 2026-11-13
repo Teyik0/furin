@@ -65,7 +65,7 @@
     "build": "bun build.ts",
     "fix": "ultracite fix",
     "test": "bun test --isolate --parallel=2 tests",
-    "tscheck": "bun prepare-sdk.ts && tsc --noEmit -p tsconfig.json"
+    "tscheck": "bun prepare-sdk.ts && bun check -p tsconfig.json"
   },
   "devDependencies": {
     "@elysia/eden": "2.0.0-rc.1",
