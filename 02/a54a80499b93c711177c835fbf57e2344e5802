@@ -1,0 +1,51 @@
+CHANGELOG.md
+  s_7efdd76b153cc1::t_a98368077deeb2 9-18
+apps/docs/src/content/desktop/migration.mdx
+  s_7efdd76b153cc1::t_10c57a0f197a1f 44,46,49,52
+apps/docs/src/content/desktop/native-apis.mdx
+  s_7efdd76b153cc1::t_fb2aee3e38e7e1 85-103,114
+bun.lock
+  s_7efdd76b153cc1::t_c86cd2314571b4 182
+packages/core/src/server/dev-page-plugin.ts
+  s_7efdd76b153cc1::t_d51e011ee63887 182-186,189,192,223-225
+packages/core/tests/dev/hmr/dev-page-plugin.test.ts
+  s_7efdd76b153cc1::t_452564a040bdda 248-260
+packages/electrobun/README.md
+  s_7efdd76b153cc1::t_592583cf7b7150 182
+packages/electrobun/native-host.md
+  s_7efdd76b153cc1::t_d3974c2f95cabf 9
+packages/electrobun/package.json
+  s_7efdd76b153cc1::t_f512234ec7922b 3
+packages/electrobun/src/capabilities.ts
+  s_7efdd76b153cc1::t_893720696e0a00 88-93
+packages/electrobun/src/desktop-dev.ts
+  s_7efdd76b153cc1::t_543927a98428f1 5,19-23,62,73-79,107
+packages/electrobun/src/development.ts
+  s_7efdd76b153cc1::t_0fd3ce150ac0ae 1,61
+packages/electrobun/src/standard-host.ts
+  s_7efdd76b153cc1::t_931cc942a951aa 77-82,191-194,564,611-621,623-635,640-641,644-658,687,720,752,770-776
+packages/electrobun/tests/desktop-dev.test.ts
+  s_7efdd76b153cc1::t_d10e1199490a75 6,33,35-36,57,67,71-75,210-269
+packages/electrobun/tests/fixtures/standard-launch.ts
+  s_7efdd76b153cc1::t_d9465fd8a02822 19-20,50-54
+packages/electrobun/tests/standard-bootstrap.test.ts
+  s_7efdd76b153cc1::t_7b02c045cc24ad 101-102,176-217
+packages/electrobun/tofu-migration.md
+  s_7efdd76b153cc1::t_7669a243a59d6f 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "02a54a80499b93c711177c835fbf57e2344e5802",
+  "prompts": {},
+  "sessions": {
+    "s_7efdd76b153cc1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "11ba9c52-9021-4b54-a17b-34585bf692df",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
