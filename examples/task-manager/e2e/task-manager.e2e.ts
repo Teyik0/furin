@@ -136,7 +136,6 @@ describe.serial("task-manager production E2E", () => {
       env: {
         ...process.env,
         PORT: "0",
-        TASK_MANAGER_DB_PATH: join(workingDirectory, "task-manager.db"),
       },
       stderr: "pipe",
       stdout: "pipe",

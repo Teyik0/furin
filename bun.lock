@@ -74,7 +74,7 @@
         "@fontsource-variable/manrope": "5.2.8",
         "@fontsource/ibm-plex-mono": "5.2.7",
         "@teyik0/furin": "workspace:*",
-        "drizzle-orm": "^1.0.0-rc.5",
+        "drizzle-orm": "catalog:",
         "elysia": "catalog:",
         "evlog": "catalog:",
         "react": "catalog:",
@@ -85,6 +85,7 @@
         "@teyik0/furin-electrobun": "workspace:*",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
+        "drizzle-kit": "catalog:",
       },
     },
     "examples/task-manager": {
@@ -95,7 +96,7 @@
         "@teyik0/furin": "workspace:*",
         "bun-plugin-tailwind": "^0.1.2",
         "clsx": "^2.1.1",
-        "drizzle-orm": "^1.0.0-rc.5",
+        "drizzle-orm": "catalog:",
         "elysia": "catalog:",
         "evlog": "catalog:",
         "exact-mirror": "catalog:",
@@ -109,7 +110,7 @@
       "devDependencies": {
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
-        "drizzle-kit": "^1.0.0-rc.5",
+        "drizzle-kit": "catalog:",
         "tailwindcss": "^4.3.3",
       },
     },
@@ -209,6 +210,8 @@
   "catalog": {
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "drizzle-kit": "^1.0.0-rc.5",
+    "drizzle-orm": "^1.0.0-rc.5",
     "elysia": "2.0.0-rc.1",
     "evlog": "^2.33.1",
     "exact-mirror": "1.2.6",

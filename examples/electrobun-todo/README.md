@@ -7,7 +7,7 @@ src/
   desktop.ts                 Native SDK menus/tray and getDesktopHost coordination
   server.ts                  Elysia root: desktopApp({window}) first, then the typed API and furin()
   sync.ts                    Furin Sync runtime (Drizzle adapter, single local principal)
-  db/                        bun:sqlite + Drizzle client and schema
+  db/                        bun:sqlite + Drizzle client, schema and startup migrations
   api/                       /api plugin; modules/todos/{index,model,service}.ts
   lib/api.ts                 Isomorphic Eden client: in-process on the server, HTTP in the browser
   pages/                     root layout and the "/" page
@@ -52,7 +52,16 @@ bun run build:desktop            # Electrobun app in .furin/electrobun
 - Desktop: `todos.sqlite` in `FURIN_APP_DATA_DIR`, set by the desktop host before importing the server.
 - `FURIN_TODO_DATABASE` overrides the filename in both modes (tests use a shared in-memory database).
 
-The table is created at startup; a schema change needs a migration for existing databases.
+Schema changes go through Drizzle Kit (`drizzle.config.ts`):
+
+```sh
+bun run db:generate   # writes drizzle/<timestamp>_<name>/migration.sql from src/db/schema.ts
+bun run db:studio     # browse the web database
+```
+
+`src/db/index.ts` imports each `migration.sql` as text and applies it with `migrate()` at startup, so bundled
+web and desktop builds carry their migrations without shipping the `drizzle/` folder. Register every newly
+generated migration there.
 
 ## Verify
 

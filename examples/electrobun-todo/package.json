@@ -6,6 +6,8 @@
   "scripts": {
     "build": "furin build --target bun",
     "build:desktop": "furin-electrobun build",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio",
     "dev": "bun --hot src/server.ts",
     "fix": "ultracite fix",
     "start": "PORT=3004 bun .furin/build/bun/server.js",
@@ -17,7 +19,7 @@
     "@fontsource-variable/manrope": "5.2.8",
     "@fontsource/ibm-plex-mono": "5.2.7",
     "@teyik0/furin": "workspace:*",
-    "drizzle-orm": "^1.0.0-rc.5",
+    "drizzle-orm": "catalog:",
     "elysia": "catalog:",
     "evlog": "catalog:",
     "react": "catalog:",
@@ -27,6 +29,7 @@
   "devDependencies": {
     "@teyik0/furin-electrobun": "workspace:*",
     "@types/react": "catalog:",
-    "@types/react-dom": "catalog:"
+    "@types/react-dom": "catalog:",
+    "drizzle-kit": "catalog:"
   }
 }

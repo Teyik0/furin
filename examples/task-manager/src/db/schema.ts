@@ -1,5 +1,5 @@
-import { defineRelations } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { defineRelations, sql } from "drizzle-orm";
+import { check, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 // ---------------------------------------------------------------------------
 // Tables
@@ -13,19 +13,25 @@ export const boards = sqliteTable("boards", {
 
 export type ColumnType = "backlog" | "todo" | "doing" | "done";
 
-export const cards = sqliteTable("cards", {
-  boardId: text("board_id")
-    .notNull()
-    .references(() => boards.id, { onDelete: "cascade" }),
-  column: text("column", { enum: ["backlog", "todo", "doing", "done"] })
-    .notNull()
-    .$type<ColumnType>(),
-  createdAt: text("created_at").notNull(),
-  description: text("description").notNull().default(""),
-  id: text("id").primaryKey(),
-  position: integer("position").notNull().default(0),
-  title: text("title").notNull(),
-});
+export const cards = sqliteTable(
+  "cards",
+  {
+    boardId: text("board_id")
+      .notNull()
+      .references(() => boards.id, { onDelete: "cascade" }),
+    column: text("column", { enum: ["backlog", "todo", "doing", "done"] })
+      .notNull()
+      .$type<ColumnType>(),
+    createdAt: text("created_at").notNull(),
+    description: text("description").notNull().default(""),
+    id: text("id").primaryKey(),
+    position: integer("position").notNull().default(0),
+    title: text("title").notNull(),
+  },
+  (table) => [
+    check("cards_column_check", sql`${table.column} in ('backlog', 'todo', 'doing', 'done')`),
+  ]
+);
 
 // ---------------------------------------------------------------------------
 // Relations
