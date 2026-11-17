@@ -5,7 +5,7 @@ import type { AnyElysia } from "elysia";
 import type { DesktopAppOptions, OpenEvent } from "./capabilities";
 import { backendDependencies, type DesktopDevelopmentSettings } from "./cli";
 import { createDesktopContext, type DesktopCommand } from "./commands";
-import { redeemWindowUrl } from "./dev-bootstrap";
+import { mintWindowUrl, redeemWindowUrl } from "./dev-bootstrap";
 import { type ChannelPeer, createChannelPeer } from "./dev-channel";
 import {
   type DesktopEntry,
@@ -24,7 +24,6 @@ export type ShellRequest =
 
 export interface BackendInfo {
   key: string;
-  openBrowser: boolean;
   origin: string;
   window: DesktopAppOptions["window"];
 }
@@ -66,7 +65,6 @@ async function handleShell(owner: Owner, request: ShellRequest): Promise<unknown
     case "backend":
       return {
         key: owner.key,
-        openBrowser: owner.settings.openBrowser && owner.launches === 1,
         origin: owner.origin,
         window: owner.hooks?.window,
       } satisfies BackendInfo;
@@ -324,6 +322,12 @@ export function createDevelopment() {
         }
       });
       await state.ready?.();
+      if (!owner.launching && settings.browserLink) {
+        // Printed, never opened: the owner clicks it when they want a browser tab.
+        console.log(
+          `[furin] Open in browser: ${mintWindowUrl(owner.key, origin, "/", false)} (single-use)`
+        );
+      }
       // Not awaited: a first SDK build can outlast the worker's startup budget.
       owner.launching ??= launchShell(owner).catch((error: unknown) => {
         console.error("[furin-electrobun] Desktop shell launch failed:", error);

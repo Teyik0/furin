@@ -55,7 +55,6 @@ export interface StandardHostOptions {
     context: NativeActionContext & { backend?: DesktopBackend; startupError?: string }
   ) => void | Promise<void>;
   mode: DesktopMode;
-  openBrowser?: boolean;
   root: string;
   /** A client-only host must not load the application module. */
   startServer?: boolean;
@@ -757,7 +756,6 @@ export async function runStandardDesktopHost(
       hooks = { window: info.window, background: connection.background };
       requestDevelopmentRestart = connection.requestRestart;
       deliverOpen = connection.open;
-      options.openBrowser = info.openBrowser;
       ({ backend } = connection);
     } else if (options.startServer !== false) {
       try {
@@ -795,9 +793,6 @@ export async function runStandardDesktopHost(
     await options.manager?.({ ...context(), backend, startupError });
     if (backend) {
       open();
-    }
-    if (options.openBrowser && backend) {
-      desktop.browser.open();
     }
     return desktop;
   } catch (error) {

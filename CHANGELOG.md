@@ -15,6 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 - **Native `open-url` re-emission** — when `onOpen` is defined, Furin no longer re-emits launch and second-instance inputs to native `Electrobun.events.on("open-url")` listeners, so an event is not handled twice. Apps without `onOpen` behave as before. A second instance now also forwards SDK `open-url` events it receives to the primary instead of dropping them. **Migration:** move backend-created handlers into `onOpen`, and delete the `globalThis` handoff and the native entrypoint's `open-url` subscription.
+- **Browser session in desktop `furin dev`** — without `--desktop`, `furin dev` no longer opens the system browser by itself. It prints a single-use `Open in browser:` link in the terminal; the link does not expire, and clicking it opens an authenticated tab on the same backend.
 
 ## [0.9.0-alpha.2] — 2026-11-12
 

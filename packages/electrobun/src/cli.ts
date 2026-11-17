@@ -118,13 +118,14 @@ async function run(command: string[], cwd: string, env: NodeJS.ProcessEnv): Prom
 
 /** Shared by the hot backend and the native shell for one development session. */
 export interface DesktopDevelopmentSettings {
+  /** Print a single-use browser link next to the native window. */
+  browserLink: boolean;
   config: DesktopConfig & { app: DesktopConfig["app"] & { version: string } };
   dataDir: string;
   generated: string;
   nativeAliases: { [specifier: string]: string };
   /** Relative to root. */
   nativeEntry: string | undefined;
-  openBrowser: boolean;
   root: string;
   sdk: string;
   sdkAliases: { [specifier: string]: string };
@@ -145,7 +146,7 @@ function developmentDataDir(identifier: string): string {
 /** Prepares the SDK and returns the environment of Furin's hot development worker. */
 export async function prepareDesktopDevelopment(
   cwd: string,
-  openBrowser: boolean
+  browserLink: boolean
 ): Promise<{ [name: string]: string }> {
   const config = await loadDesktopConfig(cwd);
   const project = await loadFurinProject(cwd);
@@ -176,7 +177,7 @@ export async function prepareDesktopDevelopment(
         target.startsWith(".") ? resolve(project.root, target) : target,
       ])
     ),
-    openBrowser,
+    browserLink,
     root: project.root,
     sdk,
     sdkAliases: await prepareSdkResolution(generated),
@@ -187,9 +188,9 @@ export async function prepareDesktopDevelopment(
 }
 
 /** One development orchestrator: Furin's hot worker owns the backend and the native shell. */
-export async function runDesktopDevelopment(cwd: string, openBrowser: boolean): Promise<void> {
+export async function runDesktopDevelopment(cwd: string, browserLink: boolean): Promise<void> {
   const child = Bun.spawn(
-    [process.execPath, await coreCli(cwd), "dev", ...(openBrowser ? [] : ["--desktop"])],
+    [process.execPath, await coreCli(cwd), "dev", ...(browserLink ? [] : ["--desktop"])],
     { cwd, stdin: "inherit", stdout: "inherit", stderr: "inherit" }
   );
   // The core CLI drains its worker; repeated signals from the terminal group are idempotent.

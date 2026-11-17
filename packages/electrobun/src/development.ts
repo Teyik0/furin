@@ -44,7 +44,7 @@ export async function getDesktopDevelopment() {
       const request = (body: ShellRequest) => peer.request(body);
       const info = (await request({ type: "backend" })) as BackendInfo;
       const createWindowUrl = (destination?: string) =>
-        mintWindowUrl(info.key, info.origin, destination);
+        mintWindowUrl(info.key, info.origin, destination, true);
       const backend: DesktopBackend = {
         origin: info.origin,
         bootstrapOrigin: "",

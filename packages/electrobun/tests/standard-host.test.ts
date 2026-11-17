@@ -211,7 +211,6 @@ test("standard host lifecycle and successful update handoff", async () => {
           }),
         }),
         testScript: "explicit native test",
-        openBrowser: true,
       },
       () => {
         expect(phases).toEqual([]);
@@ -247,6 +246,8 @@ test("standard host lifecycle and successful update handoff", async () => {
     };
     expect((await fetch(authenticated.origin)).status).toBe(403);
     {
+      expect(browserUrls).toHaveLength(0);
+      expect(desktop.browser.open()).toBe(true);
       expect(browserUrls).toHaveLength(1);
       const [url] = browserUrls;
       if (!url) {

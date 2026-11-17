@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { installSdk, sdkRunHeader } from "./fixtures/sdk";
 
 const CORE_CLI = join(import.meta.dir, "../../core/src/cli/index.ts");
+const BROWSER_LINK = /Open in browser: (\S+)/;
 
 async function until<T>(read: () => Promise<T | undefined>, label: string): Promise<T> {
   const deadline = Date.now() + 15_000;
@@ -95,15 +96,24 @@ async function createProject(mode?: "hung-quit" | "failed-window") {
     shellPids,
     readPids: async () =>
       (await Bun.file(shellPids).text()).trim().split("\n").filter(Boolean).map(Number),
+    output: "",
     // Detached like a terminal job, so Ctrl-C reaches the whole foreground group.
-    start: (command: string[]) =>
-      Bun.spawn(command, {
+    start(command: string[]) {
+      const child = Bun.spawn(command, {
         cwd: root,
         stdin: "ignore",
-        stdout: "inherit",
+        stdout: "pipe",
         stderr: "inherit",
         detached: true,
-      }),
+      });
+      (async () => {
+        for await (const chunk of child.stdout.pipeThrough(new TextDecoderStream())) {
+          process.stdout.write(chunk);
+          this.output += chunk;
+        }
+      })().catch(() => undefined);
+      return child;
+    },
     async session(windowUrl: string) {
       const bootstrap = await fetch(windowUrl, { redirect: "manual" });
       expect(bootstrap.status).toBe(303);
@@ -162,15 +172,17 @@ posix.each([
       expect(await app.post("/minimize")).toEqual({ minimized: true });
       expect(await app.post("/ping")).toEqual({ reply: "pong" });
       if (launcher.includes("--hot")) {
-        // Without --desktop, the system browser also receives a single-use owner session.
+        // Without --desktop, the terminal shows a single-use browser link; nothing opens by itself.
         const browserUrl = await until(
-          () => Bun.file(join(project.root, "browser-url")).text(),
-          "browser"
+          () => Promise.resolve(project.output.match(BROWSER_LINK)?.[1]),
+          "browser link"
         );
         expect((await fetch(browserUrl, { redirect: "manual" })).status).toBe(303);
+        expect((await fetch(browserUrl, { redirect: "manual" })).status).toBe(410);
       } else {
-        expect(await Bun.file(join(project.root, "browser-url")).exists()).toBe(false);
+        expect(project.output).not.toMatch(BROWSER_LINK);
       }
+      expect(await Bun.file(join(project.root, "browser-url")).exists()).toBe(false);
       const [shell = 0] = await project.readPids();
 
       await writeFile(join(project.root, "src/value.ts"), 'export const value = "second";');

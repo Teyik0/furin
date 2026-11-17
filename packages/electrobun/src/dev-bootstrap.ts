@@ -17,7 +17,8 @@ function sign(key: string, payload: string): string {
 export function mintWindowUrl(
   key: string,
   origin: string,
-  destination: string | undefined
+  destination: string | undefined,
+  expires: boolean
 ): string {
   const target = new URL(destination ?? "/", origin);
   if (target.origin !== origin || target.username || target.password) {
@@ -27,6 +28,7 @@ export function mintWindowUrl(
     JSON.stringify({
       path: `${target.pathname}${target.search}${target.hash}`,
       issued: Date.now(),
+      expires,
       nonce: crypto.randomUUID(),
     })
   ).toString("base64url");
@@ -63,10 +65,10 @@ export function redeemWindowUrl(
   ) {
     return new Response("Forbidden", { status: 403 });
   }
-  const token: { path: string; issued: number; nonce: string } = JSON.parse(
+  const token: { path: string; issued: number; expires: boolean; nonce: string } = JSON.parse(
     Buffer.from(payload, "base64url").toString()
   );
-  if (spent.has(token.nonce) || Date.now() - token.issued > LIFETIME) {
+  if (spent.has(token.nonce) || (token.expires && Date.now() - token.issued > LIFETIME)) {
     return new Response("Gone", { status: 410, headers: { "cache-control": "no-store" } });
   }
   for (const [nonce, issued] of spent) {
@@ -75,7 +77,8 @@ export function redeemWindowUrl(
       spent.delete(nonce);
     }
   }
-  spent.set(token.nonce, token.issued);
+  // A non-expiring link is never pruned, so it stays single-use for the whole session.
+  spent.set(token.nonce, token.expires ? token.issued : Number.POSITIVE_INFINITY);
   return new Response(null, {
     status: 303,
     headers: {

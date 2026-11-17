@@ -35,7 +35,7 @@ With the [preload configured](/docs/desktop/installation#initialize):
 bun --hot src/server.ts
 ```
 
-The preload only activates when `--hot` runs the configured server entry (`serverEntry`, `src/server.ts` by default), and hands off to `furin dev`. It opens the native window and an authenticated system-browser session against the same backend. Choose one interface with a flag:
+The preload only activates when `--hot` runs the configured server entry (`serverEntry`, `src/server.ts` by default), and hands off to `furin dev`. It opens the native window and prints a single-use `Open in browser:` link in the terminal; click it to get an authenticated browser tab on the same backend. Nothing opens in the browser by itself. Choose one interface with a flag:
 
 ```sh
 bunx --bun furin dev --desktop  # native window only
