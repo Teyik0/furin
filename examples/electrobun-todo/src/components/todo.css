@@ -82,21 +82,22 @@
 .todo-sidebar :focus-visible {
   outline-color: #ffa27b;
 }
-.todo-filters button {
+.todo-filters a {
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-height: 44px;
   padding: 10px 12px;
   color: #d4dfda;
+  text-decoration: none;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
 }
-.todo-filters button:hover {
+.todo-filters a:hover {
   background: #2b4138;
 }
-.todo-filters button[aria-pressed="true"] {
+.todo-filters a[aria-current="page"] {
   color: #fff;
   background: #344d41;
   border-color: #486153;
@@ -328,7 +329,7 @@
     gap: 4px;
     margin-top: 16px;
   }
-  .todo-filters button {
+  .todo-filters a {
     gap: 6px;
     padding: 8px;
     font-size: 12px;

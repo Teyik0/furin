@@ -60,11 +60,11 @@ async function settle() {
   await act(() => Bun.sleep(20));
 }
 
-async function mount(initial: Todo[]) {
+async function mount(initial: Todo[], filter?: "active" | "completed") {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  await act(() => root.render(createElement(TodoApp, { todos: initial })));
+  await act(() => root.render(createElement(TodoApp, { filter, todos: initial })));
   const query = <T extends Element>(selector: string) => {
     const element = container.querySelector<T>(selector);
     if (!element) {
@@ -158,17 +158,20 @@ test("shows the server's problem detail when a mutation is rejected", async () =
   }
 });
 
-test("filters todos by status", async () => {
-  const ui = await mount([seed("Active", false), seed("Faite", true)]);
-  const titles = () =>
-    [...ui.container.querySelectorAll(".todo-row-title")].map((row) => row.textContent);
+test("shows the todos of the URL filter and links to every filter", async () => {
+  const ui = await mount([seed("Active", false), seed("Faite", true)], "active");
   try {
-    expect(titles()).toEqual(["Active", "Faite"]);
-    await act(() => ui.query<HTMLButtonElement>(".todo-filters button:nth-child(2)").click());
     expect(ui.query("h1").textContent).toBe("À faire");
-    expect(titles()).toEqual(["Active"]);
-    await act(() => ui.query<HTMLButtonElement>(".todo-filters button:nth-child(3)").click());
-    expect(titles()).toEqual(["Faite"]);
+    expect(
+      [...ui.container.querySelectorAll(".todo-row-title")].map((row) => row.textContent)
+    ).toEqual(["Active"]);
+    const links = [...ui.container.querySelectorAll<HTMLAnchorElement>(".todo-filters a")];
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "/",
+      "/?filter=active",
+      "/?filter=completed",
+    ]);
+    expect(links.map((link) => link.getAttribute("aria-current"))).toEqual([null, "page", null]);
   } finally {
     await ui.unmount();
   }

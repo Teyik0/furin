@@ -48,6 +48,25 @@ test("SSR and client loader requests read the persisted todos", async () => {
   );
 });
 
+test("the filter search param selects the rendered todos", async () => {
+  const done: { id: string } = await (await create("Déjà faite")).json();
+  await create("Encore à faire");
+  await app.handle(
+    new Request(`http://localhost/api/todos/${done.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
+      body: JSON.stringify({ completed: true }),
+    })
+  );
+
+  const html = await (await app.handle(new Request("http://localhost/?filter=completed"))).text();
+  expect(html).toContain('<h1 id="todo-heading">Terminées</h1>');
+  // The loader data still carries every todo for the sidebar counts; only the list is filtered.
+  const list = html.slice(html.indexOf('<ul class="todo-list">'), html.indexOf("</ul>"));
+  expect(list).toContain("Déjà faite");
+  expect(list).not.toContain("Encore à faire");
+});
+
 test("browsers catch up on committed mutations through the change journal", async () => {
   const after = await sync.adapter.currentCursor();
   await create("Premier");

@@ -1,4 +1,5 @@
 import { useMutation } from "@teyik0/furin/client";
+import { Link } from "@teyik0/furin/link";
 import { useState } from "react";
 import type { ByIdPatch } from "../api/modules/todos/model";
 import type { Todo } from "../db/schema";
@@ -28,15 +29,18 @@ function emptyCopy(filter: Filter, total: number) {
   return ["Aucune tâche", "Ajoutez une tâche avec le champ ci-dessus."];
 }
 
-export function TodoApp({ todos }: { todos: Todo[] }) {
-  const [filter, setFilter] = useState<Filter>("all");
+export function TodoApp({
+  todos,
+  filter: search,
+}: {
+  todos: Todo[];
+  filter: Exclude<Filter, "all"> | undefined;
+}) {
+  const filter = search ?? "all";
   const [draft, setDraft] = useState("");
-  // Keep a draft edited while its creation request was pending.
   const create = useMutation(api.todos.post, {
     onSuccess: (todo) => setDraft((current) => (current.trim() === todo?.title ? "" : current)),
   });
-  // Optimistic projections update the loader's `todos` prop; a rejection rolls them back.
-  // The `{}` options argument lets the sync plugin attach an Idempotency-Key.
   const update = useMutation(
     (id: string, changes: Changes) => api.todos({ id }).patch(changes, {}),
     {
@@ -78,15 +82,15 @@ export function TodoApp({ todos }: { todos: Todo[] }) {
               ["completed", "Terminées"],
             ] as const
           ).map(([value, label]) => (
-            <button
-              aria-pressed={filter === value}
+            <Link
+              aria-current={filter === value ? "page" : undefined}
               key={value}
-              onClick={() => setFilter(value)}
-              type="button"
+              search={value === "all" ? {} : { filter: value }}
+              to="/"
             >
               <span>{label}</span>
               <span className="todo-filter-count">{counts[value]}</span>
-            </button>
+            </Link>
           ))}
         </nav>
         <p className="todo-sidebar-note">Vos tâches, simplement.</p>
