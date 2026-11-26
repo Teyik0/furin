@@ -42,7 +42,7 @@ export async function resolvePendingScreen(
   ) {
     shared += 1;
   }
-  const boundary = loaded.segmentBoundaries?.findLast(
+  const boundary = (loaded.segmentBoundaries ?? route.segmentBoundaries)?.findLast(
     (candidate) => candidate.pending !== undefined && candidate.depth === shared - 1
   );
   if (!boundary?.pending) {

@@ -79,17 +79,26 @@ function wrapLayout(route: RuntimeRoute | undefined, props: RuntimeData, element
   return route?.layout ? createElement(route.layout as ElementType, props, element) : element;
 }
 
-/** Wraps `element` in the layouts from `depth` up to the root. */
-function wrapLayoutsFrom(
+/**
+ * Wraps `element` in the layouts from `depth` up to the root, inside-out: a
+ * boundary sits inside the layout at its depth, so it catches that layout's
+ * children but not the layout itself.
+ */
+function wrapSegments(
+  input: RouteElementInput,
   depth: number,
-  chain: readonly RuntimeRoute[],
   props: readonly RuntimeData[],
-  context: RuntimeData,
+  fallbackProps: RuntimeData,
   element: ReactNode
 ): ReactNode {
   let wrapped = element;
   for (let layout = depth; layout >= 0; layout -= 1) {
-    wrapped = wrapLayout(chain[layout], props[layout] ?? context, wrapped);
+    for (const boundary of input.boundaries.toReversed()) {
+      if (boundary.depth === layout) {
+        wrapped = wrapSegmentBoundaries(wrapped, boundary, input.boundaryOptions);
+      }
+    }
+    wrapped = wrapLayout(input.chain[layout], props[layout] ?? fallbackProps, wrapped);
   }
   return wrapped;
 }
@@ -132,32 +141,20 @@ export function resolveRouteElement(input: RouteElementInput): ReactNode {
     props.push({ ...inherited, ...context });
   }
 
-  if (input.pending) {
-    return wrapLayoutsFrom(
-      input.pending.depth,
-      chain,
-      props,
-      context,
-      createElement(input.pending.component)
-    );
-  }
-
+  const { pending } = input;
   const index = matches.findIndex((match) => match.status !== "success");
   const failure = matches[index];
-  if (failure && failure.status !== "success") {
+  if (failure && failure.status !== "success" && !pending) {
     const { component, depth } = selectRouteBoundary(
       boundaries,
       input.rootBoundary,
       index,
       failure.status
     );
-    const element = wrapLayoutsFrom(
-      depth,
-      chain,
-      props,
-      context,
-      failureElement(failure, component, input.reset)
-    );
+    let element = failureElement(failure, component, input.reset);
+    for (let layout = depth; layout >= 0; layout -= 1) {
+      element = wrapLayout(chain[layout], props[layout] ?? context, element);
+    }
     return depth < 0 ? createElement(FurinDocumentFallback, null, element) : element;
   }
 
@@ -167,19 +164,18 @@ export function resolveRouteElement(input: RouteElementInput): ReactNode {
   const pageProps = Object.fromEntries(
     Object.entries(data).filter(([key]) => !key.startsWith("__furin"))
   );
-  let element: ReactNode = createElement(page.component, {
-    ...pageProps,
-    key: pageKey(page.pattern, pageProps, chain.at(-1)?.remountDeps),
-  });
-  // Inside-out: a boundary sits inside the layout at its depth, so it catches
-  // that layout's children but not the layout itself.
-  for (let layout = chain.length - 1; layout >= 0; layout -= 1) {
-    for (const boundary of boundaries.toReversed()) {
-      if (boundary.depth === layout) {
-        element = wrapSegmentBoundaries(element, boundary, input.boundaryOptions);
-      }
-    }
-    element = wrapLayout(chain[layout], props[layout] ?? pageProps, element);
-  }
+  // The pending screen keeps the page's tree above it, so shared layouts keep their state.
+  const element = pending
+    ? wrapSegments(input, pending.depth, props, pageProps, createElement(pending.component))
+    : wrapSegments(
+        input,
+        chain.length - 1,
+        props,
+        pageProps,
+        createElement(page.component, {
+          ...pageProps,
+          key: pageKey(page.pattern, pageProps, chain.at(-1)?.remountDeps),
+        })
+      );
   return withRouteSnapshot(element, page.pattern, pageProps);
 }

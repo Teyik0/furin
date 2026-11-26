@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { t } from "elysia";
-import { act } from "react";
+import { act, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider, useRouter } from "../../../src/client/link.tsx";
 import type { ClientSegmentBoundary, LoadedClientRoute } from "../../../src/client/router/types.ts";
@@ -13,6 +13,8 @@ useDomTests();
 
 const PRODUCTS_PATTERN = /^\/products$/;
 const ORDERS_PATTERN = /^\/orders$/;
+
+let ordersLayoutMounts = 0;
 
 function Skeleton() {
   return <p>Loading products</p>;
@@ -37,7 +39,12 @@ async function mountProducts(
   const page = adaptDefinedPage(products, rootLayout);
   const ordersLayout = defineRoute("/definition")
     .config({ mode: "ssr" })
-    .layout(({ children }) => <article>{children}</article>);
+    .layout(({ children }) => {
+      useEffect(() => {
+        ordersLayoutMounts += 1;
+      }, []);
+      return <article>{children}</article>;
+    });
   const orders = adaptDefinedPage(
     defineRoute("/definition")
       .config({ mode: "ssr" })
@@ -96,11 +103,13 @@ async function mountProducts(
     match,
     router,
     respond(href: string) {
-      responses
-        .get(href)
-        ?.resolve(
-          makeNdjsonResponse({ query: { q: new URL(href, "http://x").searchParams.get("q") } })
-        );
+      const response = responses.get(href);
+      if (!response) {
+        throw new Error(`No request for ${href}`);
+      }
+      response.resolve(
+        makeNdjsonResponse({ query: { q: new URL(href, "http://x").searchParams.get("q") } })
+      );
     },
     async cleanup() {
       await act(() => root.unmount());
@@ -182,15 +191,17 @@ test("refresh keeps the current page instead of the pending screen", async () =>
     []
   );
   try {
+    let refresh: Promise<void> | undefined;
     await act(async () => {
-      app.router.refresh();
+      refresh = app.router.refresh();
       await Bun.sleep(30);
     });
     expect(app.container.textContent).toBe("a");
     await act(async () => {
       app.respond("/products?q=a");
-      await Bun.sleep(10);
+      await refresh;
     });
+    expect(app.container.textContent).toBe("a");
   } finally {
     await app.cleanup();
   }
@@ -229,20 +240,22 @@ test("a layout's pending screen does not replace it during navigations inside it
   );
   try {
     await act(async () => {
-      app.router.navigate("/orders" as string);
+      const navigation = app.router.navigate("/orders" as string);
       await Bun.sleep(10);
       app.respond("/orders");
-      await Bun.sleep(10);
+      await navigation;
     });
+    let navigation: Promise<void> | undefined;
     await act(async () => {
-      app.router.navigate("/orders?page=2" as string);
+      navigation = app.router.navigate("/orders?page=2" as string);
       await Bun.sleep(30);
     });
     expect(app.container.textContent).toBe("orders");
     await act(async () => {
       app.respond("/orders?page=2");
-      await Bun.sleep(10);
+      await navigation;
     });
+    expect(app.container.textContent).toBe("orders");
   } finally {
     await app.cleanup();
   }
@@ -265,6 +278,36 @@ test("the pending delay runs while the route module loads", async () => {
       app.respond("/products?q=b");
       await Bun.sleep(10);
     });
+  } finally {
+    await app.cleanup();
+  }
+});
+
+test("shared layouts stay mounted while the pending screen comes and goes", async () => {
+  const app = await mountProducts(
+    [],
+    [{ depth: 1, pending: { component: () => <p>Orders pending</p>, minMs: 0, ms: 0 } }]
+  );
+  try {
+    await act(async () => {
+      const navigation = app.router.navigate("/orders" as string);
+      await Bun.sleep(10);
+      app.respond("/orders");
+      await navigation;
+    });
+    const mounts = ordersLayoutMounts;
+    let navigation: Promise<void> | undefined;
+    await act(async () => {
+      navigation = app.router.navigate("/orders?page=2" as string);
+      await Bun.sleep(30);
+    });
+    expect(app.container.textContent).toBe("Orders pending");
+    await act(async () => {
+      app.respond("/orders?page=2");
+      await navigation;
+    });
+    expect(app.container.textContent).toBe("orders");
+    expect(ordersLayoutMounts).toBe(mounts);
   } finally {
     await app.cleanup();
   }
