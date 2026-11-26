@@ -1,0 +1,23 @@
+packages/core/package.json
+  s_2255dd737c7cc6::t_51ec529d6e43b5 3
+CHANGELOG.md
+  s_2255dd737c7cc6::t_d4548af66de974 9-10,15-17,652-653
+bun.lock
+  s_2255dd737c7cc6::t_0d3c4a73124808 138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fd03a32ac010a7d9e6a372cc0cbca7b5a0e05190",
+  "prompts": {},
+  "sessions": {
+    "s_2255dd737c7cc6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e000cb63-beba-4647-b5fe-9a724b891b16",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
