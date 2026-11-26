@@ -187,14 +187,16 @@ window.addEventListener("furin:client-error", (event) => {
 });
 
 // A module evaluation error (a bundle SyntaxError, a top-level throw in an
-// imported module) stops the hydrate entry before its catch exists. Report
-// same-origin errors until the entry mounts its root; afterwards React
-// boundaries and Bun HMR own runtime errors.
+// imported module) stops the hydrate entry before its catch exists. The dev
+// bundle holds the entry's static graph, so report errors from that script
+// until the entry mounts its root; afterwards React boundaries and Bun HMR
+// own runtime errors.
 window.addEventListener("error", (event) => {
   if ((window as { __FURIN_ROOT__?: unknown }).__FURIN_ROOT__ !== undefined) {
     return;
   }
-  if (!event.filename || new URL(event.filename).origin !== window.location.origin) {
+  const entry = document.querySelector<HTMLScriptElement>("script[data-furin-entry][src]");
+  if (!entry || event.filename !== entry.src) {
     return;
   }
   reportClientError({ error: event.error ?? event.message, phase: "hydrate" }).catch(
