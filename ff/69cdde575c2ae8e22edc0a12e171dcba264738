@@ -1,0 +1,21 @@
+packages/core/src/client/dev-error-overlay.ts
+  s_2255dd737c7cc6::t_3e93ca662f9552 190-193,198-199
+packages/core/tests/dev/hmr/dev-error-overlay-runtime.test.ts
+  s_2255dd737c7cc6::t_76c34f73a12ddd 125-132,138,155,158,165-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ff69cdde575c2ae8e22edc0a12e171dcba264738",
+  "prompts": {},
+  "sessions": {
+    "s_2255dd737c7cc6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e000cb63-beba-4647-b5fe-9a724b891b16",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
