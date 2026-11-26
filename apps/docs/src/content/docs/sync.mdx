@@ -395,7 +395,7 @@ function Products({ q }: { q: string }) {
 ```
 
 - `pages` holds the data of every loaded page, in order. Its type is the GET's data type.
-- `hasNext` is `next(lastPage)` once the last page is loaded. `fetchNext` adds one page; calls made before the next render add it once.
+- `hasNext` is `next(lastPage)` once the last page is loaded. `fetchNext` adds one page; calls made before the next render add it once. When a loaded page failed (`error` is set), `fetchNext` retries it instead.
 - A sync invalidation (a synced mutation's response, a sync broadcast) refetches every loaded page and keeps their number. Responses that resolve after an invalidation or a filter change are discarded.
 - When page 0 resolves to another URL (new filters, sort or search), the list restarts with one page.
 - A loader that reads page 0 with `.live()` hydrates it: the hook renders it without a browser GET. Later pages are fetched in the browser.

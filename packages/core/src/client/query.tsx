@@ -110,7 +110,13 @@ export function useInfiniteQuery<Result extends ReadResult>(
   const last = pages.at(-1);
   const hasNext = pages.length === count && last !== undefined && options.next(last);
   const fetchNext = () => {
-    if (hasNext) {
+    // A failed page stays stale in the store: retry it rather than skipping past it.
+    const failed = urls.filter((_, index) => snapshots[index]?.error !== null);
+    if (failed.length > 0) {
+      for (const url of failed) {
+        store.fetch(url);
+      }
+    } else if (hasNext) {
       // Calls in the same render see the same `count`: only the first one adds a page.
       setLoaded((previous) =>
         previous.firstUrl === firstUrl && previous.count === count

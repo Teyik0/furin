@@ -35,6 +35,7 @@ afterEach(async () => {
 /** A paginated product list; `gate` holds a read until the test releases it. */
 function setup(names: string[]) {
   const state = {
+    failures: 0,
     gate: undefined as Promise<void> | undefined,
     names,
     reads: [] as string[],
@@ -49,8 +50,12 @@ function setup(names: string[]) {
     .get(
       "/products",
       { query: t.Object({ q: t.String(), skip: t.Numeric(), take: t.Numeric() }) },
-      async ({ query }) => {
+      async ({ query, status }) => {
         state.reads.push(`${query.q}@${query.skip}`);
+        if (query.skip > 0 && state.failures > 0) {
+          state.failures -= 1;
+          return status(503, "Unavailable");
+        }
         const rows = state.names
           .filter((name) => name.startsWith(query.q))
           .slice(query.skip, query.skip + query.take);
@@ -72,7 +77,7 @@ function setup(names: string[]) {
       { next: (last) => last.length === PAGE_SIZE }
     );
     view.fetchNext = result.fetchNext;
-    const frame = `${result.pages.flat().join(",")}|${result.hasNext}`;
+    const frame = `${result.pages.flat().join(",")}|${result.hasNext}${result.error ? "|error" : ""}`;
     view.frames.push(frame);
     return <span>{frame}</span>;
   }
@@ -201,4 +206,14 @@ test("concurrent fetchNext calls load the next page once", async () => {
   });
   expect(container.textContent).toBe("a1,a2,a3,a4|true");
   expect(state.reads).toEqual(["a@2"]);
+});
+
+test("fetchNext retries a page whose request failed", async () => {
+  const { container, render, settle, state, view } = setup(["a1", "a2", "a3"]);
+  await render("a");
+  state.failures = 1;
+  await settle(() => view.fetchNext());
+  expect(container.textContent).toBe("a1,a2|false|error");
+  await settle(() => view.fetchNext());
+  expect(container.textContent).toBe("a1,a2,a3|false");
 });
