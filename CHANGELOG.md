@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.9.0-alpha.4] — 2026-11-26
+
+### Added
+- **`useInfiniteQuery`** — `useInfiniteQuery((index) => api.products.get.live({ query: { skip: index * size, take: size } }), { next: (last) => last.length === size })` from `@teyik0/furin/client` shows a growing list of pages. Each page is an ordinary live query, so a sync invalidation (a synced mutation's response, a sync broadcast) refetches every loaded page and keeps their number, a new page 0 URL (changed filters) restarts the list, late responses are discarded, a page 0 read by the loader hydrates without a browser GET, and `fetchNext` retries a failed page. Types are inferred from the Eden response. Pages are addressed by index (offset pagination); `router.refresh()` reloads loaders only and does not refresh later pages.
+
+### Fixed
+- **Shared modules keep one identity across dev route refreshes** — a route refresh gave unchanged shared modules (such as a React context module) a new `?t=` version for some importers only, so a provider and its consumers saw two context objects (`useTheme must be used inside ThemeProvider`) until a server restart. Source versions now advance only when a file or one of its recorded dependencies changes.
+
 ## [0.9.0-alpha.3] — 2026-11-26
 
 ### Added
@@ -649,7 +657,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `writeRouteTypes()` generating `furin-env.d.ts` for per-route type inference
 - Bun-native HMR with React Fast Refresh — single process, no Vite
 
-[Unreleased]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.3...HEAD
+[Unreleased]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.4...HEAD
+[0.9.0-alpha.4]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.3...v0.9.0-alpha.4
 [0.9.0-alpha.3]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.2...v0.9.0-alpha.3
 [0.9.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.1...v0.9.0-alpha.2
 [0.9.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.0...v0.9.0-alpha.1
