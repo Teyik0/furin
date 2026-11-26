@@ -1,0 +1,19 @@
+packages/core/tests/dev/hmr/dev-shared-context-identity.integration.test.ts
+  s_590d71a220686d::t_c8e8846fa34b86 183,195-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8ae7fb7daaccaac9c7ed270f5f3d3ca7dd0fb7ac",
+  "prompts": {},
+  "sessions": {
+    "s_590d71a220686d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccff172f-3c05-43c4-a0b2-4d28ef77bf72",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
