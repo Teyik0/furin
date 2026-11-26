@@ -196,7 +196,9 @@ describe("LinkInteractive — client-side behaviour", () => {
     dispatchReactEvent(view.anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
     expect(navigate).toHaveBeenCalledWith("/about?q=1#part", {
       replace: undefined,
-      resetScroll: true,
+      resetScroll: undefined,
+      search: undefined,
+      shallow: undefined,
     });
     view.cleanup();
   });
@@ -371,7 +373,12 @@ describe("LinkInteractive — client-side behaviour", () => {
 
     dispatchReactEvent(anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-    expect(navigate).toHaveBeenCalledWith("/blog", { replace: undefined, resetScroll: true });
+    expect(navigate).toHaveBeenCalledWith("/blog", {
+      replace: undefined,
+      resetScroll: undefined,
+      search: {},
+      shallow: undefined,
+    });
     cleanup();
   });
 
@@ -487,7 +494,12 @@ describe("LinkInteractive — client-side behaviour", () => {
 
     dispatchReactEvent(anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-    expect(navigate).toHaveBeenCalledWith("/blog", { replace: true, resetScroll: true });
+    expect(navigate).toHaveBeenCalledWith("/blog", {
+      replace: true,
+      resetScroll: undefined,
+      search: {},
+      shallow: undefined,
+    });
     cleanup();
   });
 
@@ -501,7 +513,12 @@ describe("LinkInteractive — client-side behaviour", () => {
 
     dispatchReactEvent(anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-    expect(navigate).toHaveBeenCalledWith("/blog", { replace: undefined, resetScroll: false });
+    expect(navigate).toHaveBeenCalledWith("/blog", {
+      replace: undefined,
+      resetScroll: false,
+      search: {},
+      shallow: undefined,
+    });
     cleanup();
   });
 
@@ -517,7 +534,7 @@ describe("LinkInteractive — client-side behaviour", () => {
       ctx
     );
 
-    expect(prefetch).toHaveBeenCalledWith("/blog", { staleTime: 30_000 });
+    expect(prefetch).toHaveBeenCalledWith("/blog", { search: {}, staleTime: 30_000 });
     cleanup();
   });
 
@@ -531,7 +548,7 @@ describe("LinkInteractive — client-side behaviour", () => {
       ctx
     );
 
-    expect(prefetch).toHaveBeenCalledWith("/blog", { staleTime: 5000 });
+    expect(prefetch).toHaveBeenCalledWith("/blog", { search: {}, staleTime: 5000 });
     cleanup();
   });
 
@@ -566,7 +583,7 @@ describe("LinkInteractive — client-side behaviour", () => {
     const instance = MockIntersectionObserver.instances[0] as MockIntersectionObserver;
     instance.trigger(true);
 
-    expect(prefetch).toHaveBeenCalledWith("/blog", { staleTime: 30_000 });
+    expect(prefetch).toHaveBeenCalledWith("/blog", { search: {}, staleTime: 30_000 });
     cleanup();
   });
 
@@ -623,7 +640,7 @@ describe("LinkInteractive — client-side behaviour", () => {
     if (!firstCall) {
       throw new Error("Expected at least one prefetch call");
     }
-    expect(firstCall.args).toEqual(["/blog", { staleTime: 30_000 }]);
+    expect(firstCall.args).toEqual(["/blog", { search: {}, staleTime: 30_000 }]);
     cleanup();
   });
 
@@ -678,7 +695,7 @@ describe("LinkInteractive — client-side behaviour", () => {
 
     dispatchReactEvent(anchor, new FocusEvent("focusin", { bubbles: true }));
 
-    expect(prefetch).toHaveBeenCalledWith("/blog", { staleTime: 30_000 });
+    expect(prefetch).toHaveBeenCalledWith("/blog", { search: {}, staleTime: 30_000 });
     cleanup();
   });
 

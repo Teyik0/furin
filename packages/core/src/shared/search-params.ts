@@ -48,7 +48,7 @@ function objectsDeepEqual(a: { [key: string]: unknown }, b: { [key: string]: unk
   return true;
 }
 
-function deepEqual(a: unknown, b: unknown): boolean {
+export function deepEqual(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) {
     return true;
   }

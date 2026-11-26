@@ -263,6 +263,8 @@ export interface LinkBaseProps<To extends RouteTo>
   resetScroll?: boolean;
   /** Typed search params for this route. Auto-completed from the route's query schema. */
   search?: RouteSearch<To>;
+  /** See `TargetNavigationOptions.shallow`. */
+  shallow?: boolean;
   to: To;
 }
 
@@ -306,7 +308,19 @@ export interface NavigationOptions {
   resetScroll?: boolean;
 }
 
-export type NavigateInput<To extends NavigationTo> = RouteTarget<To> & NavigationOptions;
+/** Options of navigations that name their destination's `search` (not raw hrefs). */
+export interface TargetNavigationOptions extends NavigationOptions {
+  /**
+   * Same route and params: commit the new URL and search in place, without
+   * running loaders or setting `isNavigating`. Another destination navigates
+   * normally. Back/forward and reloads still load the page unless the
+   * route's `loaderDeps` exclude the changed params. Keeps the scroll
+   * position unless `resetScroll` is set.
+   */
+  shallow?: boolean;
+}
+
+export type NavigateInput<To extends NavigationTo> = RouteTarget<To> & TargetNavigationOptions;
 export type Navigate = <To extends NavigationTo>(next: NavigateInput<To>) => Promise<void>;
 
 /** An href string validated like a structured destination (see `CheckedRouteTo`). */
@@ -351,8 +365,17 @@ export interface RouterContextValue {
    */
   invalidatePrefetch: (path: string, type: "page" | "layout") => void;
   isNavigating: boolean;
-  navigate: (href: string, opts?: { replace?: boolean; resetScroll?: boolean }) => Promise<void>;
-  prefetch: (href: string, opts?: { staleTime?: number }) => void;
+  /** `search`: the destination's validated search, when the caller knows it (enables `loaderDeps` and `shallow`). */
+  navigate: (
+    href: string,
+    opts?: {
+      replace?: boolean;
+      resetScroll?: boolean;
+      search?: SearchParamsInput;
+      shallow?: boolean;
+    }
+  ) => Promise<void>;
+  prefetch: (href: string, opts?: { search?: SearchParamsInput; staleTime?: number }) => void;
   /**
    * Re-fetches the current page in-place: busts the prefetch cache entry, re-runs
    * loaders, and updates the rendered tree — without adding a history entry or

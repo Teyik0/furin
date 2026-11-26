@@ -1,7 +1,14 @@
 "use client";
 
 import type React from "react";
-import { createElement, useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import {
+  createElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import {
   findSearchDefaultsForRouteTarget,
   type SearchParamsInput,
@@ -12,6 +19,7 @@ import {
   buildHref,
   navigationHrefPolicy,
   normalizeHref,
+  resolveTargetSearch,
   shouldInterceptClick,
 } from "./router/link-utils.ts";
 import type {
@@ -110,6 +118,7 @@ function LinkInteractive<To extends RouteTo>({
   replace,
   disabled,
   resetScroll,
+  shallow,
   activeProps,
   inactiveProps,
   onClick,
@@ -129,6 +138,18 @@ function LinkInteractive<To extends RouteTo>({
   // logicalHref: route-relative path (no basePath), used for navigation + active state.
   // physicalHref (href): what the browser sees — basePath + logicalHref.
   const { activeHref, logicalHref, href } = resolveLinkHref({ hash, params, search, to }, router);
+  // Keyed by `logicalHref`, which encodes `to`, `params` and `search`: inline objects keep one identity.
+  const targetSearch = useMemo(
+    () =>
+      resolveTargetSearch(
+        // biome-ignore lint/nursery/useReactCompiler: read through `logicalHref`, see above.
+        applyLinkParams(to as string, params as Record<string, string | number> | null | undefined),
+        search as SearchParamsInput | null | undefined,
+        router.searchRoutes
+      ),
+    // react-doctor-disable-next-line react-doctor/exhaustive-deps
+    [logicalHref, router.searchRoutes]
+  );
   // Select only this Link's active state so unrelated navigation state
   // (isNavigating, other hrefs, search) does not re-render it.
   const isActive = useSyncExternalStore(
@@ -158,9 +179,9 @@ function LinkInteractive<To extends RouteTo>({
       window.location.pathname
     );
     if (target !== null) {
-      prefetch(target, { staleTime: effectiveStaleTime });
+      prefetch(target, { search: targetSearch, staleTime: effectiveStaleTime });
     }
-  }, [prefetch, effectiveStaleTime, router.basePath]);
+  }, [prefetch, effectiveStaleTime, router.basePath, targetSearch]);
 
   // "render": preload immediately on mount, and again when the target changes.
   useEffect(() => {
@@ -235,7 +256,7 @@ function LinkInteractive<To extends RouteTo>({
       return;
     }
     // navigate() expects the logical href (no basePath prefix).
-    router.navigate(target, { replace, resetScroll: resetScroll ?? true });
+    router.navigate(target, { replace, resetScroll, search: targetSearch, shallow });
   };
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -333,6 +354,7 @@ function renderLinkElement<To extends RouteTo>(
     preloadStaleTime: _ps,
     replace: _r,
     resetScroll: _rs,
+    shallow: _sh,
     onClick: _oc,
     onMouseEnter: _ome,
     onMouseLeave: _oml,

@@ -173,7 +173,17 @@ type RenderingConfig = SharedRouteConfig &
       }
   );
 
+/** Synchronous: a promise would compare equal to any other promise. */
+type LoaderDependencies = object & { readonly then?: never };
+
 export type DefineRouteConfig<Params = NoFields, Query = NoFields> = RenderingConfig & {
+  /**
+   * Page routes: the part of the validated query the loaders read. A client
+   * navigation that keeps the path and these deps (compared deeply) reuses
+   * the loaded page and only updates the URL and `query`. Loaders still
+   * receive the full query and always run on the server for documents.
+   */
+  loaderDeps?: (query: Query) => LoaderDependencies;
   remountDeps?: RemountDeps<Params, Query>;
 };
 
@@ -195,6 +205,7 @@ interface ErasedStaticParamsContext {
 }
 
 type RouteMetadata = RenderingConfig & {
+  loaderDeps?: (query: never) => LoaderDependencies;
   remountDeps?: (context: never) => readonly RemountDependency[];
   staticParams?: (context: ErasedStaticParamsContext) => Awaitable<readonly unknown[]>;
 };
@@ -727,6 +738,7 @@ type RouteTerminal<State extends ChainState> = {
     query: State["query"];
     search: State["search"];
   };
+  loaderDeps: RouteMetadata["loaderDeps"];
   remountDeps: RouteMetadata["remountDeps"];
   requestLoader: RequestLoader<State["params"], State["query"], State["requestData"]> | undefined;
   revalidate: number | undefined;
@@ -810,6 +822,7 @@ function terminalFields(runtime: ChainRuntime) {
     pending,
     mode: metadata.mode,
     revalidate: metadata.revalidate,
+    loaderDeps: metadata.loaderDeps,
     remountDeps: metadata.remountDeps,
     staticParams: metadata.staticParams,
     tags: metadata.tags,

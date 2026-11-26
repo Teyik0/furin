@@ -61,26 +61,28 @@ function memberAccessStart(source: string, object: Node, property: Node): number
 export interface StrippedCode {
   /** Config bindings the stripped `.config()` calls referenced. */
   configBindings: Set<string>;
-  /** Names the retained remount policy references. */
+  /** Names the retained client policies reference. */
   retained: Set<string>;
 }
 
-/** Drops a server stage, keeping only a `.config()` call's remount policy. */
+/** Drops a server stage, keeping only a `.config()` call's client policies. */
 function stripServerStage(
   module: ModuleTransform,
   stripped: StrippedCode,
   range: SourceRange,
-  remount: Node | null
+  policies: Node[]
 ): void {
   const { removed, source } = module;
-  if (remount) {
-    // The policy as edited so far: an isomorphic chain in it is already selected.
-    const policy = source.slice(remount.start, remount.end);
-    for (const name of referencedNames(remount, removed)) {
-      stripped.retained.add(name);
+  if (policies.length > 0) {
+    // The policies as edited so far: an isomorphic chain in them is already selected.
+    const retained = policies.map((policy) => source.slice(policy.start, policy.end));
+    for (const policy of policies) {
+      for (const name of referencedNames(policy, removed)) {
+        stripped.retained.add(name);
+      }
     }
     // overwrite, not update: update keeps the text earlier steps inserted in the range.
-    replaceRange(module, range.start, range.end, `.config({ ${policy} })`);
+    replaceRange(module, range.start, range.end, `.config({ ${retained.join(", ")} })`);
   } else {
     removeRange(module, range.start, range.end);
   }
@@ -100,25 +102,46 @@ export function removeChainedServerCalls(
     if (isRemoved(call, module.removed)) {
       continue;
     }
-    let remount: Node | null = null;
+    let policies: Node[] = [];
     if (property.name === "config" && Array.isArray(call.arguments)) {
       const config = unwrapped(call.arguments[0]);
       if (config?.type === "ObjectExpression" && Array.isArray(config.properties)) {
         collectConfigBindings(config, declarations, stripped.configBindings);
-        remount = resolveRemountProperty(
-          config,
-          declarations,
-          stripped.configBindings,
-          new Set(),
-          filename
-        );
+        policies = clientPolicies(config, declarations, stripped.configBindings, filename);
       }
     }
     const accessStart = memberAccessStart(source.original, object, property);
-    stripServerStage(module, stripped, { end: call.end, start: accessStart }, remount);
+    stripServerStage(module, stripped, { end: call.end, start: accessStart }, policies);
     transformed = true;
   }
   return transformed;
+}
+
+/** The `.config()` properties the browser keeps: `loaderDeps`, then `remountDeps`. */
+function clientPolicies(
+  config: Node,
+  declarations: Map<string, LocalDeclaration>,
+  configBindings: Set<string>,
+  filename: string
+): Node[] {
+  const resolve = (name: string) =>
+    resolveConfigProperty(config, name, declarations, configBindings, new Set());
+  // Loader deps behind an unresolvable spread only cost the in-place optimisation.
+  const loaderDeps = resolve("loaderDeps");
+  const remount = resolve("remountDeps");
+  if (remount === UNRESOLVED) {
+    throw new Error(
+      `[furin] ${filename}: route config spreads must resolve to local object literals; declare remountDeps after dynamic spreads.`
+    );
+  }
+  const policies: Node[] = [];
+  if (loaderDeps !== null && loaderDeps !== UNRESOLVED) {
+    policies.push(loaderDeps);
+  }
+  if (remount !== null) {
+    policies.push(remount);
+  }
+  return policies;
 }
 
 function declaredInitializer(declaration: LocalDeclaration | undefined): Expression | null {
@@ -144,50 +167,52 @@ function collectConfigBindings(
   }
 }
 
-function resolveRemountProperty(
+/** A spread the plugin cannot read may hide the property. */
+const UNRESOLVED: unique symbol = Symbol("unresolved");
+
+/** The config property `name` resolves to, in object spread order. */
+function resolveConfigProperty(
   config: Node | null,
+  name: string,
   declarations: Map<string, LocalDeclaration>,
   configBindings: Set<string>,
-  visiting: Set<string>,
-  filename: string
-): Node | null {
+  visiting: Set<string>
+): Node | null | typeof UNRESOLVED {
   if (config?.type === "Identifier" && !visiting.has(config.name)) {
     visiting.add(config.name);
     configBindings.add(config.name);
     const declaration = declarations.get(config.name);
-    const result = resolveRemountProperty(
+    const result = resolveConfigProperty(
       declaredInitializer(declaration),
+      name,
       declarations,
       configBindings,
-      visiting,
-      filename
+      visiting
     );
     visiting.delete(config.name);
     return result;
   }
   if (config?.type !== "ObjectExpression" || !Array.isArray(config.properties)) {
-    throw new Error(
-      `[furin] ${filename}: route config spreads must resolve to local object literals; declare remountDeps after dynamic spreads.`
-    );
+    return UNRESOLVED;
   }
   for (let index = config.properties.length - 1; index >= 0; index -= 1) {
     const entry = unwrapped(config.properties[index]);
     if (entry?.type === "SpreadElement") {
-      const remount = resolveRemountProperty(
+      const property = resolveConfigProperty(
         unwrapped(entry.argument),
+        name,
         declarations,
         configBindings,
-        visiting,
-        filename
+        visiting
       );
-      if (remount) {
-        return remount;
+      if (property) {
+        return property;
       }
     } else if (entry?.type === "Property") {
       const key = unwrapped(entry.key);
       if (
-        (key?.type === "Identifier" && entry.computed !== true && key.name === "remountDeps") ||
-        (key?.type === "Literal" && key.value === "remountDeps")
+        (key?.type === "Identifier" && entry.computed !== true && key.name === name) ||
+        (key?.type === "Literal" && key.value === name)
       ) {
         return entry;
       }

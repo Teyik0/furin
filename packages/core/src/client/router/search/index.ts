@@ -4,7 +4,7 @@ import {
   findSearchDefaultsForRouteTarget,
   type SearchParamsInput,
 } from "../../../shared/search-params.ts";
-import { buildHref } from "../link-utils.ts";
+import { buildHref, resolveTargetSearch } from "../link-utils.ts";
 import {
   FALLBACK_SEARCH_STORE,
   type SearchStore,
@@ -44,6 +44,8 @@ export type SetSearchInput<To extends SearchRouteTo> =
 export interface SetSearchOptions {
   replace?: boolean;
   resetScroll?: boolean;
+  /** See `TargetNavigationOptions.shallow`. */
+  shallow?: boolean;
 }
 
 export type SetSearch<To extends SearchRouteTo> = (
@@ -124,7 +126,10 @@ export function useSearch<To extends SearchRouteTo, TSelected>(
       const pathname = pathnameFromLogicalHref(snapshot.currentHref);
       const searchDefaults = findSearchDefaultsForRouteTarget(pathname, snapshot.searchRoutes);
       const href = buildHref(pathname, merged, undefined, searchDefaults);
-      return snapshot.navigate(href, opts);
+      return snapshot.navigate(href, {
+        ...opts,
+        search: resolveTargetSearch(pathname, merged, snapshot.searchRoutes),
+      });
     },
     [from, store]
   );

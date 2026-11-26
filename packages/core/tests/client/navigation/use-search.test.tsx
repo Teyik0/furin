@@ -248,7 +248,12 @@ describe("useNavigate", () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(navigate).toHaveBeenCalledWith("/elysia-boards/42?page=2", undefined);
+      expect(navigate).toHaveBeenCalledWith("/elysia-boards/42?page=2", {
+        replace: undefined,
+        resetScroll: undefined,
+        search: { page: 2 },
+        shallow: undefined,
+      });
     } finally {
       await rendered.cleanup();
     }
@@ -283,7 +288,12 @@ describe("useNavigate", () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(navigate).toHaveBeenCalledWith("/products", undefined);
+      expect(navigate).toHaveBeenCalledWith("/products", {
+        replace: undefined,
+        resetScroll: undefined,
+        search: { page: 1 },
+        shallow: undefined,
+      });
     } finally {
       await rendered.cleanup();
     }
@@ -309,6 +319,8 @@ describe("useNavigate", () => {
       expect(navigate).toHaveBeenCalledWith("/products?page=2", {
         replace: true,
         resetScroll: false,
+        search: { page: 2 },
+        shallow: undefined,
       });
     } finally {
       await rendered.cleanup();
@@ -373,7 +385,7 @@ describe("useSearch setter", () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(navigate).toHaveBeenCalledWith("/products?page=2", undefined);
+      expect(navigate).toHaveBeenCalledWith("/products?page=2", { search: { page: 2 } });
     } finally {
       await rendered.cleanup();
     }
@@ -406,6 +418,7 @@ describe("useSearch setter", () => {
       expect(navigate).toHaveBeenCalledWith("/products?page=2", {
         replace: true,
         resetScroll: false,
+        search: { page: 2 },
       });
     } finally {
       await rendered.cleanup();
@@ -436,7 +449,9 @@ describe("useSearch setter", () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(navigate).toHaveBeenCalledWith("/products?page=2&tag=react", undefined);
+      expect(navigate).toHaveBeenCalledWith("/products?page=2&tag=react", {
+        search: { page: 2, tag: "react" },
+      });
     } finally {
       await rendered.cleanup();
     }
@@ -473,7 +488,7 @@ describe("useSearch setter", () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(navigate).toHaveBeenCalledWith("/products", undefined);
+      expect(navigate).toHaveBeenCalledWith("/products", { search: { page: 1 } });
     } finally {
       await rendered.cleanup();
     }

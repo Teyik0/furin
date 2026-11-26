@@ -273,6 +273,34 @@ export const route = defineRoute("/").config({ ${config} }).page(() => null);`,
     expect(result.code).toContain(`.config({ ${expected} })`);
   });
 
+  test("keeps loader dependencies beside the remount policy while removing server config", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { schema } from "./server";
+const base = { loaderDeps: ({ edit, ...deps }) => deps };
+export const route = defineRoute("/")
+  .config({ ...base, mode: "ssr", query: schema, remountDeps: () => [] })
+  .loader(() => ({ secret: "SERVER_SECRET" }))
+  .page(() => null);`,
+      "route.tsx"
+    );
+    expect(result.code).toContain(
+      ".config({ loaderDeps: ({ edit, ...deps }) => deps, remountDeps: () => [] })"
+    );
+    expect(result.code).not.toContain("./server");
+    expect(result.code).not.toContain("SERVER_SECRET");
+  });
+
+  test("an unresolvable spread drops loader dependencies instead of failing the build", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "furin";
+import { config } from "./shared";
+export const route = defineRoute("/").config({ ...config, remountDeps: () => [] }).page(() => null);`,
+      "route.tsx"
+    );
+    expect(result.code).toContain(".config({ remountDeps: () => [] })");
+  });
+
   test("requires an explicit policy after an unresolvable config spread", () => {
     const source = `import { defineRoute } from "furin";
 import { config } from "./shared";

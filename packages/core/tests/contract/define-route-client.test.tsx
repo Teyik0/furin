@@ -23,6 +23,13 @@ describe("client defineRoute", () => {
     expect(layoutRoute.pending).toEqual({ component: Skeleton, minMs: 150, ms: 300 });
   });
 
+  test("retains loader dependencies on the client page terminal", () => {
+    const loaderDeps = () => ({});
+    const route = defineRoute("/").config({ loaderDeps }).page(Page);
+
+    expect(route.loaderDeps).toBe(loaderDeps);
+  });
+
   test("keeps only the terminal component contract", () => {
     const pageRoute = defineRoute("/").page(Page);
     const layoutRoute = defineRoute("/layout/_route").layout(Layout);

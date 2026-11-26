@@ -1,7 +1,14 @@
+import type { SearchParamsInput } from "../../shared/search-params.ts";
+
 export const SCROLL_STORAGE_KEY = "__furin_scroll__";
 
 export function getHistoryKey(state: unknown): string | undefined {
   return (state as { _furinKey?: string } | null)?._furinKey;
+}
+
+/** Validated search of the page committed at a history entry, when furin recorded it. */
+export function getHistorySearch(state: unknown): SearchParamsInput | undefined {
+  return (state as { _furinSearch?: SearchParamsInput } | null)?._furinSearch;
 }
 
 export function generateHistoryKey(): string {

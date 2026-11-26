@@ -15,18 +15,25 @@ interface ClientRuntimeProps {
 
 type ClientRuntimeComponent = (props: ClientRuntimeProps) => React.ReactNode;
 
+type LoaderDeps = (query: never) => object;
+
 interface ClientBuilderState {
   errorComponent: ErrorComponent | undefined;
+  loaderDeps: LoaderDeps | undefined;
   notFoundComponent: NotFoundComponent | undefined;
   pending: RoutePending | undefined;
   remountDeps: RemountDeps<never, never> | undefined;
 }
 
 function createRouteBuilder(state: ClientBuilderState) {
-  const { errorComponent, notFoundComponent, pending, remountDeps } = state;
+  const { errorComponent, loaderDeps, notFoundComponent, pending, remountDeps } = state;
   return {
-    config(options: { remountDeps?: RemountDeps<never, never> }) {
-      return createRouteBuilder({ ...state, remountDeps: options.remountDeps });
+    config(options: { loaderDeps?: LoaderDeps; remountDeps?: RemountDeps<never, never> }) {
+      return createRouteBuilder({
+        ...state,
+        loaderDeps: options.loaderDeps,
+        remountDeps: options.remountDeps,
+      });
     },
     error(component: ErrorComponent) {
       return createRouteBuilder({ ...state, errorComponent: component });
@@ -57,6 +64,7 @@ function createRouteBuilder(state: ClientBuilderState) {
         __type: "FURIN_ROUTE" as const,
         component: runtimeComponent,
         errorComponent,
+        loaderDeps,
         notFoundComponent,
         page: runtimeComponent,
         pending,
@@ -68,6 +76,7 @@ function createRouteBuilder(state: ClientBuilderState) {
 
 const EMPTY_BUILDER: ClientBuilderState = {
   errorComponent: undefined,
+  loaderDeps: undefined,
   notFoundComponent: undefined,
   pending: undefined,
   remountDeps: undefined,
