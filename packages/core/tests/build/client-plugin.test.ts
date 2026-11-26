@@ -148,6 +148,24 @@ describe.serial("client strip plugin", () => {
     }
   );
 
+  test.each(clientInputs)(
+    "the %s client resolves elysia's error helpers in a module shared with the server",
+    async (_mode, inputsOf) => {
+      const app = createSharedSchemaApp(
+        [
+          'import { problem, t } from "elysia";',
+          "export const schema = t.Object({ city: t.String() });",
+          'export const notFound = () => problem(404, { detail: "Not found" });',
+          "",
+        ].join("\n")
+      );
+
+      const inputs = await inputsOf(app);
+
+      expect(inputs.some((path) => ELYSIA_SERVER_ENTRY.test(path))).toBe(false);
+    }
+  );
+
   test("the client builds real elysia schemas in a module shared with the server", async () => {
     const app = createSharedSchemaApp(
       [
