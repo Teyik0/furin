@@ -1,0 +1,23 @@
+CHANGELOG.md
+  s_d97475e7a583ac::t_8b4f9bd21d670b 9-16,660-661
+packages/core/package.json
+  s_d97475e7a583ac::t_8b4f9bd21d670b 3
+bun.lock
+  s_d97475e7a583ac::t_9b5c82e87d09cc 138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "29c54124e69751ec4f7dad24cd6bda8b788f75a7",
+  "prompts": {},
+  "sessions": {
+    "s_d97475e7a583ac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "244a9f64-ea62-433c-9f62-13b8df18a3af",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
