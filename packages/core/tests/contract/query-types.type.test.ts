@@ -3,7 +3,7 @@ import { test } from "bun:test";
 import { treaty } from "@elysia/eden";
 import { Elysia, t } from "elysia";
 import { expectTypeOf } from "expect-type";
-import { furinSync, type OptimisticCache, useQuery } from "../../src/client.ts";
+import { furinSync, type OptimisticCache, useInfiniteQuery, useQuery } from "../../src/client.ts";
 
 const app = new Elysia()
   .get("/cards", { query: t.Object({ boardId: t.String() }) }, () => [{ id: "1", title: "Card" }])
@@ -35,6 +35,18 @@ function assertQueryTypes(cache: OptimisticCache) {
   api.cards.get.live({ query: { boardId: 123 } });
   // @ts-expect-error optimistic transformations must return complete GET data
   cache.update(api.count.get.live(), () => ({ wrong: true }));
+  const infinite = useInfiniteQuery(
+    (index) => api.cards.get.live({ query: { boardId: String(index) } }),
+    {
+      next: (last) => {
+        expectTypeOf(last).toEqualTypeOf<{ id: string; title: string }[]>();
+        return last.length > 0;
+      },
+    }
+  );
+  expectTypeOf(infinite.pages).toEqualTypeOf<{ id: string; title: string }[][]>();
+  // @ts-expect-error pages come from live queries, not GETs
+  useInfiniteQuery(() => api.cards.get({ query: { boardId: "a" } }), { next: () => false });
 }
 
 test("live queries keep Eden schema inference for useQuery and optimistic targets", () => {

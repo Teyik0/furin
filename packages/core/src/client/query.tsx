@@ -4,6 +4,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useState,
   useSyncExternalStore,
 } from "react";
 import { LIVE_QUERY, type LiveQuery, type QueryStore, type ReadResult } from "./query-store.ts";
@@ -46,5 +47,91 @@ export function useQuery<Result extends ReadResult, Selected = LiveData<Result>>
     data,
     error: state.error as Result["error"] | null,
     isFetching: state.isFetching,
+  };
+}
+
+/**
+ * Pages are ordinary store entries keyed by their URL: invalidation refetches every loaded page.
+ * The hook owns only how many pages are shown; a new first page (changed filters) restarts at one.
+ */
+export function useInfiniteQuery<Result extends ReadResult>(
+  page: (index: number) => LiveQuery<Result>,
+  options: { next: (last: LiveData<Result>) => boolean }
+): {
+  error: Result["error"] | null;
+  fetchNext: () => void;
+  hasNext: boolean;
+  isFetching: boolean;
+  pages: LiveData<Result>[];
+} {
+  const first = page(0)[LIVE_QUERY];
+  const context = useContext(QueryStoreContext);
+  const store = context ?? first.reference.client;
+  const firstUrl = store.readKey(first.reference, first.options);
+  const [loaded, setLoaded] = useState({ count: 1, firstUrl });
+  if (loaded.firstUrl !== firstUrl) {
+    setLoaded({ count: 1, firstUrl });
+  }
+  const count = loaded.firstUrl === firstUrl ? loaded.count : 1;
+  const urls = Array.from({ length: count }, (_, index) => {
+    const { options: readOptions, reference } = page(index)[LIVE_QUERY];
+    const url = store.readKey(reference, readOptions);
+    store.bind(url, () => reference.load(readOptions), reference.client);
+    return url;
+  });
+  // Encoded URLs never contain a newline: one stable string stands for the page list.
+  const key = urls.join("\n");
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      const unsubscribes = key.split("\n").map((url) => store.subscribe(url, listener));
+      return () => {
+        for (const unsubscribe of unsubscribes) {
+          unsubscribe();
+        }
+      };
+    },
+    [store, key]
+  );
+  // The store revision changes on every publish, so it versions all pages at once.
+  useSyncExternalStore(subscribe, store.revision, store.revision);
+  useEffect(() => {
+    for (const url of key.split("\n")) {
+      store.fetch(url);
+    }
+  }, [store, key]);
+  const snapshots = urls.map((url) => store.snapshot(url));
+  const pages: LiveData<Result>[] = [];
+  for (const entry of snapshots) {
+    if (entry.data === undefined) {
+      break;
+    }
+    pages.push(entry.data as LiveData<Result>);
+  }
+  const last = pages.at(-1);
+  const hasNext = pages.length === count && last !== undefined && options.next(last);
+  const fetchNext = () => {
+    // A failed page stays stale in the store: retry it rather than skipping past it.
+    const failed = urls.filter((_, index) => snapshots[index]?.error !== null);
+    if (failed.length > 0) {
+      for (const url of failed) {
+        store.fetch(url);
+      }
+    } else if (hasNext) {
+      // Calls in the same render see the same `count`: only the first one adds a page.
+      setLoaded((previous) =>
+        previous.firstUrl === firstUrl && previous.count === count
+          ? { count: count + 1, firstUrl }
+          : previous
+      );
+    }
+  };
+  return {
+    error: (snapshots.find((entry) => entry.error !== null)?.error ?? null) as
+      | Result["error"]
+      | null,
+    fetchNext,
+    hasNext,
+    isFetching: snapshots.some((entry) => entry.isFetching),
+    pages,
   };
 }

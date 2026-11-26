@@ -370,6 +370,38 @@ Cache sharing and invalidation:
 - An invalidation refreshes every cached query variant of that URL, whatever its query string. Other params remain separate unless the invalidation omits them.
 - Client-wide defaults belong to that client's session: create a fresh client when authentication changes and remount the authenticated router (or perform a full navigation). Response session identities also clear data from a previous principal and reject its late responses.
 
+### Infinite Lists
+
+`useInfiniteQuery` shows a growing list of pages. Each page is the live query built from its index, so every loaded page shares the cache and the invalidations described above:
+
+```tsx
+import { useInfiniteQuery } from "@teyik0/furin/client";
+
+const PAGE_SIZE = 50;
+
+function Products({ q }: { q: string }) {
+  const { pages, fetchNext, hasNext, isFetching, error } = useInfiniteQuery(
+    index => api.products.get.live({ query: { q, skip: index * PAGE_SIZE, take: PAGE_SIZE } }),
+    { next: last => last.length === PAGE_SIZE },
+  );
+  if (error) return <p>Could not load products.</p>;
+  return (
+    <>
+      <ul>{pages.flat().map(product => <li key={product.id}>{product.name}</li>)}</ul>
+      {hasNext && <button disabled={isFetching} onClick={fetchNext}>Load more</button>}
+    </>
+  );
+}
+```
+
+- `pages` holds the data of every loaded page, in order. Its type is the GET's data type.
+- `hasNext` is `next(lastPage)` once the last page is loaded. `fetchNext` adds one page; calls made before the next render add it once. When a loaded page failed (`error` is set), `fetchNext` retries it instead.
+- A sync invalidation (a synced mutation's response, a sync broadcast) refetches every loaded page and keeps their number. Responses that resolve after an invalidation or a filter change are discarded.
+- When page 0 resolves to another URL (new filters, sort or search), the list restarts with one page.
+- A loader that reads page 0 with `.live()`, with only `query` options, and exposes the whole response hydrates it: the hook renders it without a browser GET (see [Cache sharing and invalidation](#optional-query-subscriptions)). Later pages are fetched in the browser.
+
+Pages are addressed by index, so the page query must be computable from the index alone (offset pagination). Cursor pagination, where a page needs the previous page's cursor, is not supported. Router refreshes only reload loaders, whether called with `router.refresh()` or triggered by `X-Furin-Revalidate` when `autoRefresh` is on: they refresh a page 0 read by the loader, but not later pages. Invalidate the GET through sync to refresh the whole list.
+
 ## Mutation State In React
 
 `useMutation` adds React state to an existing mutation without changing its arguments:

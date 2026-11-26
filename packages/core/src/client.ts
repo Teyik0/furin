@@ -22,7 +22,7 @@ export {
   updateHotComponent,
 } from "./client/hmr.ts";
 export { useMutation } from "./client/mutation.ts";
-export { useQuery } from "./client/query.tsx";
+export { useInfiniteQuery, useQuery } from "./client/query.tsx";
 export type { LiveQuery } from "./client/query-store.ts";
 export { getRouteApi } from "./client/route-api.tsx";
 export { furinSync, type OptimisticCache, type SyncCallOptions } from "./client/sync.ts";
