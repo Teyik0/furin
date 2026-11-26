@@ -1,0 +1,93 @@
+packages/core/src/client/router/navigation-controller.ts
+  s_4c2ad417251987::t_866e75f01c7501 2,4-9,60-66,71,87-88,108-125,130-137,223-227,229-232,324-331,412-417,460-465,482,505-506,511-512,565-566,575-578,582-607,612-641,702,730,748,759,768
+  s_4c2ad417251987::t_c92a657fcc14aa 126-129,608-611
+packages/core/src/client/router/search/index.ts
+  s_4c2ad417251987::t_8e01bf528dc219 7,47-48,129-132
+packages/core/src/client/define-route.ts
+  s_4c2ad417251987::t_bf5b1fcc2e0c7a 18-19,22,31-36,67,79
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_4c2ad417251987::t_19b6fb6d61ee8c 68
+packages/core/tests/client/navigation/use-search.test.tsx
+  s_4c2ad417251987::t_5f54efb9c74feb 322-323,388,421,452-454,491
+  s_4c2ad417251987::t_c92a657fcc14aa 251-256,291-296
+packages/core/tests/contract/define-route-client.test.tsx
+  s_4c2ad417251987::t_6fbbd51d5250aa 26-32
+packages/core/src/client/internal/runtime-types.ts
+  s_4c2ad417251987::t_b9a3b624db5c79 8,34-35
+packages/core/src/client/router/types.ts
+  s_4c2ad417251987::t_e76d5516484bb7 266-267,311-323,368-370,377-378
+  s_4c2ad417251987::t_c92a657fcc14aa 371-376
+packages/core/src/client/link.tsx
+  s_4c2ad417251987::t_76a263b3d5127f 5-11,142-144,146,148-151
+  s_4c2ad417251987::t_d2545d5418d559 141,145
+  s_4c2ad417251987::t_824d37074e7cc9 147
+  s_4c2ad417251987::t_aced7e3e3210f5 22,121,152,182,184,259,357
+  s_4c2ad417251987::t_b9a5508f83d13a 4
+packages/core/tests/client/navigation/loader-deps-provider.test.tsx
+  s_4c2ad417251987::t_eb0d3bc3ea8e8e 6-7
+  s_4c2ad417251987::t_cce3491407dec5 1-5,8-15,18-49,51-135
+  s_4c2ad417251987::t_69a2ca4adc9c92 16-17,50
+packages/core/tests/client/link/link-intent-preload.test.tsx
+  s_4c2ad417251987::t_8f59be7e0eed5a 39-41
+  s_4c2ad417251987::t_ff094517130d34 75
+apps/docs/src/content/docs/link-navigation.mdx
+  s_4c2ad417251987::t_cbac211fa0087e 45-46,135,184,188-209,266
+packages/core/src/client/router/provider.tsx
+  s_4c2ad417251987::t_e6923dd1c57820 197-198
+packages/core/tests/client/navigation/loader-deps.test.ts
+  s_4c2ad417251987::t_8f6e61ea3dd600 103-216
+  s_4c2ad417251987::t_ea2331746794e2 1-6,8-102
+  s_4c2ad417251987::t_c92a657fcc14aa 7
+packages/core/src/build/hydrate.ts
+  s_4c2ad417251987::t_bf5b1fcc2e0c7a 169
+packages/core/tests/contract/loader-deps.type.test.ts
+  s_4c2ad417251987::t_f66c263e2b2310 1-54
+packages/core/src/plugin/strip-server-stages.ts
+  s_4c2ad417251987::t_78c34e7808e46a 171
+  s_4c2ad417251987::t_bb65eec6e83aff 64,68,73,76-82,85,114,170,172-174,176,179-180,185,187,190,196,201,203,206,208-209,214-215
+  s_4c2ad417251987::t_69a2ca4adc9c92 105,110,120-144
+  s_4c2ad417251987::t_cd3c115c481de6 145-146
+packages/core/src/server/router/defined-route.ts
+  s_4c2ad417251987::t_bf5b1fcc2e0c7a 16,80
+apps/docs/src/content/docs/data-loading.mdx
+  s_4c2ad417251987::t_cbac211fa0087e 27,124-157
+  s_4c2ad417251987::t_c35cd232294c84 158
+packages/core/src/client/router/link-utils.ts
+  s_4c2ad417251987::t_623b2a40eadab2 136-157
+  s_4c2ad417251987::t_9e86b7d0142253 135
+packages/core/tests/client/link/interactive.test.tsx
+  s_4c2ad417251987::t_ff094517130d34 199-201,537,551,586,643,698
+  s_4c2ad417251987::t_c92a657fcc14aa 376-381,497-502,516-521
+packages/core/src/client/router/context.ts
+  s_4c2ad417251987::t_e76d5516484bb7 2-8,17,90-97,101,117-122,139-144
+packages/core/src/shared/search-params.ts
+  s_4c2ad417251987::t_b9a3b624db5c79 51
+packages/core/tests/client/boundaries/error-boundary-navigation.test.tsx
+  s_4c2ad417251987::t_ff094517130d34 112-117
+packages/core/src/define-route.ts
+  s_4c2ad417251987::t_bf5b1fcc2e0c7a 176-178,180-186,208,741,825
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_4c2ad417251987::t_19b6fb6d61ee8c 276-303
+packages/core/tests/contract/elysia-route-manifest-types.type.test.ts
+  s_4c2ad417251987::t_eb0b3dcb7c01a3 275-279
+  s_4c2ad417251987::t_03bd348d521995 280-285
+packages/core/src/client/router/history.ts
+  s_4c2ad417251987::t_be2507d109d361 1-2,9-11
+  s_4c2ad417251987::t_69cca29342c249 12-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b4cc3cce399eafffe1576f1d809fc67cb39ac2d4",
+  "prompts": {},
+  "sessions": {
+    "s_4c2ad417251987": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ca46e7d-da05-4720-a528-665a80bb44d7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
