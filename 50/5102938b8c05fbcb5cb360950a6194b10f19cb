@@ -1,0 +1,19 @@
+packages/core/src/plugin/route-registry.ts
+  s_2255dd737c7cc6::t_9a05d77f42fdeb 1,314-315,321
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "505102938b8c05fbcb5cb360950a6194b10f19cb",
+  "prompts": {},
+  "sessions": {
+    "s_2255dd737c7cc6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e000cb63-beba-4647-b5fe-9a724b891b16",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
