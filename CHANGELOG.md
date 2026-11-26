@@ -6,10 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.9.0-alpha.3] — 2026-11-26
+
 ### Added
 - **Desktop `onOpen` hook** — `desktopApp({ onOpen(event) { ... } })` (or the factory form `desktopApp(({ services }) => ({ onOpen }))`) receives URL-scheme and file-association opens on the backend as `{ type: "url", url }` or `{ type: "file", path }`. It gets the cold-start input, inputs forwarded by a second instance and the SDK's own `open-url` events (macOS deep links into a running app), each once, in order, after every `.onStart()` hook. Events that arrive earlier are queued. Builds call it in-process. `furin dev` forwards events from the native shell to the hot backend over the development channel, so the hook works the same in both and re-binds to the current backend after hot reloads and shell relaunches.
 
 ### Fixed
+- **Hydration failures show up in development** — a client bundle that throws while its modules evaluate (for example a bundler `SyntaxError`) stopped the hydrate entry before its error handler existed, so the page stayed static with nothing in the console or the dev overlay. The dev overlay now reports errors from the hydrate entry script until the root mounts, the dev entry prints hydration failures with `console.error`, and a URL with no matching client route is reported instead of silently skipping hydration. Production bundles are unchanged.
+- **Shared Elysia schemas in the browser** — the client stub for `elysia` returned each `t.*` call's first argument, so a schema shared with the client (e.g. `t.Union([...]).anyOf`) was a different value in the browser than on the server. The stub now re-exports Elysia's browser-safe schema builder (`elysia/type`) and still keeps the Elysia server out of the client graph.
+- **Server builds on Bun 1.4.6** — the server route registry loaded route modules a second time as raw source on Bun 1.4.6, skipping the server transforms, so a package build kept browser-only `clientModule()` code in its server artifact. Route files now resolve to their real path, with one transformed copy per module.
 - **Open events in `furin dev`** — a desktop app whose open-url handler needed backend services had no supported way to receive events in development, because the backend runs in a separate process from the native shell. Handing a backend-created handler to the native entrypoint through `globalThis` worked in builds and crashed `furin dev` at launch (`The native link handler was not initialized`).
 - **Backend edits no longer crash `furin dev` on workspace executables** — after a hot reload, dev SSR re-reads workspace package sources, and a source that starts with a shebang (such as `@teyik0/furin-electrobun`'s CLI entry) failed with `Unexpected #!/usr/bin/env bun` and stopped the dev server. This broke any backend edit in the monorepo's desktop example. The shebang is now preserved and skipped by the dev transform.
 
@@ -644,7 +649,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `writeRouteTypes()` generating `furin-env.d.ts` for per-route type inference
 - Bun-native HMR with React Fast Refresh — single process, no Vite
 
-[Unreleased]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.2...HEAD
+[Unreleased]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.3...HEAD
+[0.9.0-alpha.3]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.2...v0.9.0-alpha.3
 [0.9.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.1...v0.9.0-alpha.2
 [0.9.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.0...v0.9.0-alpha.1
 [0.9.0-alpha.0]: https://github.com/teyik0/furin/compare/v0.8.0-alpha.0...v0.9.0-alpha.0
