@@ -1,0 +1,27 @@
+CHANGELOG.md
+  s_4c2ad417251987::t_d33eb4fdda1a30 9-21,673-674
+packages/core/package.json
+  s_4c2ad417251987::t_d33eb4fdda1a30 3
+bun.lock
+  s_4c2ad417251987::t_f0934c0c5beb51 138
+packages/core/src/client/router/navigation-controller.ts
+  s_4c2ad417251987::t_6e5659d943b95b 638
+packages/core/tests/client/navigation/loader-deps.test.ts
+  s_4c2ad417251987::t_78be40f701bb94 60,218-242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a1d49cf11156b108b9ffc5f1d36d9c0f6b8f9b36",
+  "prompts": {},
+  "sessions": {
+    "s_4c2ad417251987": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ca46e7d-da05-4720-a528-665a80bb44d7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
