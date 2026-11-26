@@ -161,8 +161,8 @@ test("a page resolving after an invalidation never shows its stale rows", async 
   expect(view.frames.filter((frame) => frame.includes("a4"))).toEqual([]);
 });
 
-test("page 1 seeded by an SSR loader does not refetch on mount", async () => {
-  const { api, container, queries, render, state } = setup(["a1", "a2", "a3"]);
+/** Runs a real SSR loader reading page 0 and returns its query seeds. */
+async function loaderSeeds(api: ReturnType<typeof setup>["api"]): Promise<QuerySeed[]> {
   const route = {
     mode: "ssr",
     pattern: "/infinite-seed-test",
@@ -185,15 +185,33 @@ test("page 1 seeded by an SSR loader does not refetch on mount", async () => {
     if (loaded.type !== "data") {
       throw new Error("Loader failed");
     }
-    queries.current = new QueryStore(window.location.origin);
-    queries.current.hydrate(loaded.syncData.__furinQueries as QuerySeed[], window.location.origin);
-    state.reads = [];
-    await render("a");
-    expect(container.textContent).toBe("a1,a2|true");
-    expect(state.reads).toEqual([]);
+    return loaded.syncData.__furinQueries as QuerySeed[];
   } finally {
     autoInvalidateRegistry.unregisterPath("/infinite-seed-test");
   }
+}
+
+test("page 1 seeded by an SSR loader does not refetch on mount", async () => {
+  const { api, container, queries, render, state } = setup(["a1", "a2", "a3"]);
+  queries.current = new QueryStore(window.location.origin);
+  queries.current.hydrate(await loaderSeeds(api), window.location.origin);
+  state.reads = [];
+  await render("a");
+  expect(container.textContent).toBe("a1,a2|true");
+  expect(state.reads).toEqual([]);
+});
+
+test("a loader seed for a loaded page renders at once", async () => {
+  const { api, container, queries, render, settle, state } = setup(["a1", "a2", "a3"]);
+  const store = new QueryStore(window.location.origin);
+  queries.current = store;
+  store.hydrate(await loaderSeeds(api), window.location.origin);
+  await render("a");
+  state.names = ["a0", ...state.names];
+  // A router refresh hydrates the loader's fresh page 0 into the store: one publish.
+  const seeds = await loaderSeeds(api);
+  await settle(() => store.hydrate(seeds, window.location.origin));
+  expect(container.textContent).toBe("a0,a1|true");
 });
 
 test("concurrent fetchNext calls load the next page once", async () => {

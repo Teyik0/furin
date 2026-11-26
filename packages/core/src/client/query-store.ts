@@ -243,10 +243,11 @@ export class QueryStore {
       }
     }
     entry.snapshot = { ...entry.snapshot, data };
+    // Before any listener: a listener reading `revision()` must see this publish.
+    this.revisionValue += 1;
     for (const listener of entry.listeners) {
       listener();
     }
-    this.revisionValue += 1;
     for (const listener of this.listeners) {
       listener();
     }
