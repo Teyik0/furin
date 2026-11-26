@@ -1,0 +1,24 @@
+packages/core/tests/client/sync/infinite-query.test.tsx
+  s_d97475e7a583ac::t_fe0d45141a2ce7 38,53,55-58,80,210-218
+  s_d97475e7a583ac::t_6d8cd52e19a831 219
+apps/docs/src/content/docs/sync.mdx
+  s_d97475e7a583ac::t_40fb28c68142b4 398
+packages/core/src/client/query.tsx
+  s_d97475e7a583ac::t_fbfe6320599a8a 113-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fd1746a0ded6290e08c7d632231b0de99b39a293",
+  "prompts": {},
+  "sessions": {
+    "s_d97475e7a583ac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "244a9f64-ea62-433c-9f62-13b8df18a3af",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
