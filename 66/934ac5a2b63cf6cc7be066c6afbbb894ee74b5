@@ -1,0 +1,23 @@
+packages/core/tests/client/navigation/pending.test.tsx
+  s_db1e5db48179fe::t_f04da39c7f2fce 96,250-265,267
+  s_db1e5db48179fe::t_d7ae667fd1a9bd 266,268-271
+packages/core/src/client/router/navigation-controller.ts
+  s_db1e5db48179fe::t_1c2a623ab797a4 305-306,310,331-336
+  s_db1e5db48179fe::t_6ccd5d5a073878 337-339
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "66934ac5a2b63cf6cc7be066c6afbbb894ee74b5",
+  "prompts": {},
+  "sessions": {
+    "s_db1e5db48179fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e1bc068-2e5a-4787-bd3b-c0732c984c76",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
