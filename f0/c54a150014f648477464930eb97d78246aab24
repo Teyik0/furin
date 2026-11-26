@@ -1,0 +1,35 @@
+packages/core/src/client/router/navigation-controller.ts
+  s_4c2ad417251987::t_a6add296161529 462-466,637,736,781-786,788-792
+apps/docs/src/content/docs/data-loading.mdx
+  s_4c2ad417251987::t_1e3ddbbc3a0411 126,130-132,152,157
+packages/core/tests/client/navigation/loader-deps.test.ts
+  s_4c2ad417251987::t_c0e3d6799b1215 243-278
+packages/core/src/define-route.ts
+  s_4c2ad417251987::t_e8dda6a85e6b40 648-656,967-972,979-984,994-999,1009-1014,1031-1032,1044-1045,1059-1060,1074-1075
+packages/core/src/client/router/types.ts
+  s_4c2ad417251987::t_7e1718e603b0de 316-317
+packages/core/tests/contract/define-route-keyed.test.ts
+  s_4c2ad417251987::t_e8dda6a85e6b40 98-108
+apps/docs/src/content/docs/link-navigation.mdx
+  s_4c2ad417251987::t_1e3ddbbc3a0411 206
+CHANGELOG.md
+  s_4c2ad417251987::t_1e3ddbbc3a0411 12,14
+packages/core/src/client/router/history.ts
+  s_4c2ad417251987::t_a6add296161529 9-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f0c54a150014f648477464930eb97d78246aab24",
+  "prompts": {},
+  "sessions": {
+    "s_4c2ad417251987": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ca46e7d-da05-4720-a528-665a80bb44d7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
