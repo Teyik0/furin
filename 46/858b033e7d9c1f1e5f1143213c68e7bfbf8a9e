@@ -1,0 +1,19 @@
+apps/docs/tests/typography.test.tsx
+  s_2255dd737c7cc6::t_6684bd42ea21cb 10-12,15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "46858b033e7d9c1f1e5f1143213c68e7bfbf8a9e",
+  "prompts": {},
+  "sessions": {
+    "s_2255dd737c7cc6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e000cb63-beba-4647-b5fe-9a724b891b16",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
