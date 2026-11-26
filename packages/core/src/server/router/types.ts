@@ -63,7 +63,8 @@ export interface ResolvedRoute {
   routeChain: RuntimeRoute[];
   /**
    * Per-directory boundary chain, ordered shallow → deep. Only directories
-   * that DECLARE at least one of `error.tsx` / `not-found.tsx` are included;
+   * that DECLARE at least one of `error.tsx` / `not-found.tsx` / `loading.tsx`
+   * (or routes with `.error()` / `.notFound()` / `.pending()`) are included;
    * directories without conventions are skipped. Empty when no conventions
    * exist anywhere in the path.
    */
