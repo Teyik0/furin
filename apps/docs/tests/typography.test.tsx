@@ -7,10 +7,12 @@ import { createTmpApp } from "../../../packages/core/tests/support/app-fixtures"
 import { DocPage } from "../src/components/doc-page";
 
 function palette(css: string, selector: string): { [variable: string]: string } {
-  const block = css.match(new RegExp(`\\.${selector}\\{([^}]*)}`))?.[1];
-  if (block === undefined) {
+  // The minifier may emit a selector's declarations across several rules.
+  const blocks = [...css.matchAll(new RegExp(`\\.${selector}\\{([^}]*)}`, "g"))];
+  if (blocks.length === 0) {
     throw new Error(`Missing typography selector .${selector}`);
   }
+  const block = blocks.map(([, declarations]) => declarations).join(";");
   return Object.fromEntries(
     [...block.matchAll(/(--tw-prose-[\w-]+):([^;]+)(?:;|$)/g)].map(([, name, value]) => [
       name,
