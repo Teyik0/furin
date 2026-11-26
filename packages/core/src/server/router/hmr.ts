@@ -38,7 +38,7 @@ import {
 import type { CurrentRoute, PagePorts } from "./dispatch.ts";
 import { resolveMode, resolveRouteRevalidate } from "./patterns.ts";
 import { createRouteDataErrorResponse, isPprRoute } from "./plugin.ts";
-import { invalidateRouteModuleSourceVersions, routeModuleSourceVersion } from "./source-version.ts";
+import { routeModuleSourceVersion } from "./source-version.ts";
 import type { ResolvedRoute, RootLayout } from "./types.ts";
 
 type RouteModuleImport = (specifier: string) => Promise<CompiledModule>;
@@ -150,10 +150,6 @@ export function importStampedRouteModule(
 ): Promise<CompiledModule> {
   const stamp = routeModuleSourceVersion(path);
   return devGraph(undefined).importModule(path, stamp, resolveImport);
-}
-
-export function invalidateStampedRouteModules(): void {
-  invalidateRouteModuleSourceVersions();
 }
 
 function isResolvedRouteModuleCandidate(
