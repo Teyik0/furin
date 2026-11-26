@@ -1,0 +1,21 @@
+packages/core/tests/build/client-plugin.test.ts
+  s_a5ac3f09ada2db::t_0c278fb18d4121 151-168
+packages/core/src/plugin/client-plugin.ts
+  s_a5ac3f09ada2db::t_ea37e2f4064d8c 12-14,17,78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "78d8e8ac6265ac29dafae903712f504a35fea318",
+  "prompts": {},
+  "sessions": {
+    "s_a5ac3f09ada2db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01f6e1e6-128d-4fc4-b1c3-b20c742b6c33",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
