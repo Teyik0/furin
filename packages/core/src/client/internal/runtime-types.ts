@@ -4,6 +4,7 @@ import type { RequestLoaderContext } from "../../define-route.ts";
 import type { ErrorComponent } from "../../shared/error.ts";
 import type { NotFoundComponent } from "../../shared/not-found.ts";
 import type { RemountDeps } from "../../shared/page-key.ts";
+import type { RoutePending } from "../../shared/pending.ts";
 
 /**
  * Loader data after type erasure: field name → value. Each route declares the
@@ -34,6 +35,8 @@ export interface RuntimeRoute {
   notFoundComponent?: NotFoundComponent;
   params?: unknown;
   parent?: RuntimeRoute;
+  /** TanStack style: `.pending()` of the route. */
+  pending?: RoutePending;
   query?: unknown;
   remountDeps?: RemountDeps<object, object>;
   requestLoader?: (ctx: RequestLoaderContext) => Awaitable<object>;
@@ -52,6 +55,7 @@ export interface RuntimePage {
   loader?: (ctx: RuntimeData) => Awaitable<RuntimeData>;
   mode?: RenderingMode;
   notFoundComponent?: NotFoundComponent;
+  pending?: RoutePending;
   revalidate?: number;
   staticParams?: RuntimeStaticParams;
   tags?: string[];

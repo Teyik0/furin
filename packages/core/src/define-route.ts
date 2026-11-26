@@ -8,6 +8,7 @@ import { getSchemaValidator, isTypeBoxObjectSchema } from "./shared/elysia-contr
 import type { ErrorComponent } from "./shared/error.ts";
 import type { NotFoundComponent } from "./shared/not-found.ts";
 import type { RemountDependency, RemountDeps } from "./shared/page-key.ts";
+import type { PendingComponent, PendingOptions, RoutePending } from "./shared/pending.ts";
 
 type NoFields = NonNullable<unknown>;
 type Awaitable<T> = Promise<T> | T;
@@ -658,6 +659,7 @@ interface ChainRuntime {
   metadata: RouteMetadata;
   notFoundComponent: NotFoundComponent | undefined;
   paramsSchema: FurinSchema | undefined;
+  pending: RoutePending | undefined;
   querySchema: FurinSchema | undefined;
   requestLoader: unknown;
 }
@@ -665,12 +667,13 @@ interface ChainRuntime {
 // Named stages keep compile errors readable, e.g. "Property 'staticParams'
 // does not exist on type 'SsrRouteStage<...>'".
 
-/** `.error()` / `.notFound()` keep the stage they are called on. */
-type BoundaryMethods = "error" | "notFound";
+/** `.error()` / `.notFound()` / `.pending()` keep the stage they are called on. */
+type BoundaryMethods = "error" | "notFound" | "pending";
 
 interface BoundaryStage<Stage> {
   error: (component: ErrorComponent) => Stage;
   notFound: (component: NotFoundComponent) => Stage;
+  pending: (component: PendingComponent, options?: PendingOptions) => Stage;
 }
 
 /** SSR routes render per request: `staticParams()` needs mode `ssg` or `isr`. */
@@ -712,6 +715,7 @@ type RouteTerminal<State extends ChainState> = {
   __type: "FURIN_ROUTE";
   errorComponent: ErrorComponent | undefined;
   notFoundComponent: NotFoundComponent | undefined;
+  pending: RoutePending | undefined;
   head:
     | Head<State["params"], State["query"], State["parentData"], State["data"], State["mode"]>
     | undefined;
@@ -795,6 +799,7 @@ function terminalFields(runtime: ChainRuntime) {
     metadata,
     notFoundComponent,
     paramsSchema,
+    pending,
     querySchema,
     requestLoader,
   } = runtime;
@@ -802,6 +807,7 @@ function terminalFields(runtime: ChainRuntime) {
     __type: "FURIN_ROUTE" as const,
     errorComponent,
     notFoundComponent,
+    pending,
     mode: metadata.mode,
     revalidate: metadata.revalidate,
     remountDeps: metadata.remountDeps,
@@ -832,6 +838,17 @@ class RouteChain<State extends ChainState> {
   /** TanStack style: renders when this route or one below it calls `notFound()`. */
   notFound(component: NotFoundComponent): this {
     return new RouteChain<State>({ ...this.runtime, notFoundComponent: component }) as this;
+  }
+
+  /**
+   * TanStack style: renders in place of this route (in its parent's outlet)
+   * while a client navigation into it outlasts `options.ms`, as `pendingComponent` does.
+   */
+  pending(component: PendingComponent, options?: PendingOptions): this {
+    return new RouteChain<State>({
+      ...this.runtime,
+      pending: { component, minMs: options?.minMs, ms: options?.ms },
+    }) as this;
   }
 
   requestLoader<Data extends RequestLoaderData>(
@@ -913,6 +930,7 @@ function configure(options: RouteMetadata & ConfigOptions): unknown {
     metadata: options,
     notFoundComponent: undefined,
     paramsSchema: options.params,
+    pending: undefined,
     querySchema: options.query,
     requestLoader: undefined,
   });

@@ -152,6 +152,9 @@ export async function createBuildFingerprint(
       if (segment.notFoundPath) {
         fingerprintPaths.add(segment.notFoundPath);
       }
+      if (segment.pendingPath) {
+        fingerprintPaths.add(segment.pendingPath);
+      }
     }
   }
   const sources = new Map<string, string>();
@@ -285,6 +288,7 @@ export function buildCompileMetadata(root: BuildRoot | RootLayout, routes: Build
         ...(boundary.fromRoute ? { fromRoute: boundary.fromRoute } : {}),
         notFoundPath: boundary.notFoundPath ? toPosixPath(boundary.notFoundPath) : undefined,
         path: toPosixPath(boundary.path),
+        pendingPath: boundary.pendingPath ? toPosixPath(boundary.pendingPath) : undefined,
       })),
     };
   }

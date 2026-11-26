@@ -12,6 +12,15 @@ describe("client defineRoute", () => {
     expect(route.remountDeps).toBe(remountDeps);
   });
 
+  test("retains the pending screen and its timing on page and layout terminals", () => {
+    const Skeleton = () => "loading";
+    const pageRoute = defineRoute("/").pending(Skeleton, { ms: 200 }).page(Page);
+    const layoutRoute = defineRoute("/layout/_route").pending(Skeleton).layout(Layout);
+
+    expect(pageRoute.pending).toEqual({ component: Skeleton, minMs: undefined, ms: 200 });
+    expect(layoutRoute.pending?.component).toBe(Skeleton);
+  });
+
   test("keeps only the terminal component contract", () => {
     const pageRoute = defineRoute("/").page(Page);
     const layoutRoute = defineRoute("/layout/_route").layout(Layout);

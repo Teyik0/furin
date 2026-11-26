@@ -9,6 +9,7 @@ import type {
 } from "../../shared/elysia-contract.ts";
 import type { ErrorComponent } from "../../shared/error.ts";
 import type { NotFoundComponent } from "../../shared/not-found.ts";
+import type { RoutePending } from "../../shared/pending.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
 import type { RuntimeData, RuntimeRoute } from "../internal/runtime-types.ts";
 import type { FurinServerErrorPayload } from "../server-error.ts";
@@ -394,6 +395,8 @@ export interface ClientSegmentBoundary {
   /** False when a pathless directory shares index 0 but does not own the root fallback. */
   isRoot?: boolean;
   notFound?: NotFoundComponent;
+  /** Shown inside the layout at `depth` while a navigation into this route loads. */
+  pending?: RoutePending;
 }
 
 export interface ClientRoute {

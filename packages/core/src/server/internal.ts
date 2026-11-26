@@ -103,6 +103,7 @@ export interface CompileContext {
         errorPath?: string;
         fromRoute?: true;
         notFoundPath?: string;
+        pendingPath?: string;
       }>;
     }
   >;

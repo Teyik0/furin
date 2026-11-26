@@ -9,6 +9,7 @@ import {
 } from "./link-utils.ts";
 import type { OptimisticRuntime } from "./optimistic.ts";
 import type { PageResult } from "./page-fetch.ts";
+import type { PendingScreen } from "./pending.ts";
 import type { LoadedClientRoute, RouterState } from "./types.ts";
 
 /** What React renders: the committed page plus navigation status. */
@@ -16,6 +17,8 @@ export interface NavigationSnapshot {
   /** Logical href (basePath stripped) of the committed page. */
   href: string;
   isNavigating: boolean;
+  /** Pending screen shown in place of the committed page while a slow navigation loads. */
+  pending?: PendingScreen;
   /** Bumped on every non-error commit so error boundaries reset. */
   resetVersion: number;
   state: RouterState;
@@ -33,12 +36,19 @@ export interface NavigationControllerConfig {
     signal: AbortSignal | undefined;
   }) => Promise<PageResult>;
   maxCacheSize: number;
+  /** Pending screen of the route `href` targets, measured against the committed match. */
+  resolvePending: (request: {
+    currentMatch: LoadedClientRoute | null;
+    href: string;
+  }) => Promise<PendingScreen | undefined>;
 }
 
 export interface NavigateRequest {
   /** Runs right before the new snapshot is published (HMR swaps components here). */
   beforeCommit?: () => void;
   hmrRefresh?: boolean;
+  /** `false` keeps the current page on screen instead of the target's pending screen. */
+  pending?: boolean;
   replace?: boolean;
   resetScroll?: boolean;
   /** Returning `false` discards the navigation result instead of committing it. */
@@ -107,6 +117,8 @@ export class NavigationController {
   #pendingUserNavigation: { promise: Promise<void>; resolve: () => void } | null = null;
   #renderedHistoryKey: string | undefined;
   #pendingScroll: ScrollInstruction | null = null;
+  /** When the current pending screen must stay until, at the earliest. */
+  #pendingUntil = 0;
 
   constructor(options: {
     config: NavigationControllerConfig;
@@ -156,6 +168,7 @@ export class NavigationController {
     return this.navigate(href, {
       beforeCommit: request?.beforeCommit,
       hmrRefresh: request?.hmrRefresh,
+      pending: false,
       replace: true,
       resetScroll: request?.resetScroll ?? false,
       shouldCommit: request?.shouldCommit,
@@ -280,7 +293,56 @@ export class NavigationController {
 
   #setNavigating(isNavigating: boolean): void {
     if (this.#snapshot.isNavigating !== isNavigating) {
-      this.#publish({ ...this.#snapshot, isNavigating });
+      this.#publish({
+        ...this.#snapshot,
+        isNavigating,
+        pending: isNavigating ? this.#snapshot.pending : undefined,
+      });
+    }
+  }
+
+  /**
+   * Shows the target's pending screen once the navigation outlasts its `ms`.
+   * A superseding navigation to the same screen keeps it up without a blink.
+   */
+  #schedulePending(href: string, kind: NavigationKind, version: number): void {
+    const wanted =
+      kind.type === "pop" || !(kind.request.hmrRefresh || kind.request.pending === false);
+    const screen = wanted
+      ? this.#config.resolvePending({ currentMatch: this.#currentMatch(), href })
+      : Promise.resolve(undefined);
+    screen
+      .then((resolved) => {
+        const shown = this.#snapshot.pending;
+        if (
+          this.#version !== version ||
+          (shown && shown.component === resolved?.component && shown.depth === resolved.depth)
+        ) {
+          return;
+        }
+        if (shown) {
+          this.#publish({ ...this.#snapshot, pending: undefined });
+        }
+        if (!resolved) {
+          return;
+        }
+        setTimeout(() => {
+          if (this.#version === version && this.#snapshot.isNavigating) {
+            this.#pendingUntil = Date.now() + resolved.minMs;
+            this.#publish({ ...this.#snapshot, pending: resolved });
+          }
+        }, resolved.ms);
+      })
+      .catch((error: unknown) => {
+        log.warn({ action: "pending_resolve_failed", error: String(error), href });
+      });
+  }
+
+  /** Keeps a shown pending screen up for its `minMs`. */
+  async #holdPending(): Promise<void> {
+    const remaining = this.#snapshot.pending ? this.#pendingUntil - Date.now() : 0;
+    if (remaining > 0) {
+      await new Promise((resolve) => setTimeout(resolve, remaining));
     }
   }
 
@@ -337,6 +399,7 @@ export class NavigationController {
     abort.signal.addEventListener("abort", onAbort, { once: true });
     let committed = false;
     this.#setNavigating(true);
+    this.#schedulePending(href, kind, version);
     try {
       if (abort.signal.aborted) {
         return;
@@ -405,6 +468,7 @@ export class NavigationController {
       this.#hardNavigate(kind, href);
       return false;
     }
+    await this.#holdPending();
     if (!this.#accepts(kind, version)) {
       return false;
     }

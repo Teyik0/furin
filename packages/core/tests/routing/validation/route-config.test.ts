@@ -407,7 +407,7 @@ export const route = defineRoute("/board")
     ]);
   });
 
-  test("reports .error() / .notFound() in the nextjs style, which declares boundaries as files", () => {
+  test("reports .error() / .notFound() / .pending() in the nextjs style, which declares boundaries as files", () => {
     const pagesDir = createPages({
       "about/page.tsx": `import { defineRoute } from "@teyik0/furin";
 
@@ -426,6 +426,14 @@ export const route = defineRoute("/contact/")
   .page(() => null);
 `,
       "layout.tsx": ROOT,
+      "pricing/page.tsx": `import { defineRoute } from "@teyik0/furin";
+
+const PricingSkeleton = () => null;
+export const route = defineRoute("/pricing/")
+  .config({ mode: "ssg" })
+  .pending(PricingSkeleton)
+  .page(() => null);
+`,
     });
 
     expect(
@@ -433,6 +441,7 @@ export const route = defineRoute("/contact/")
     ).toEqual([
       ".error() is the TanStack style. In the nextjs style, default-export the component from an error.tsx next to this route.",
       ".notFound() is the TanStack style. In the nextjs style, default-export the component from a not-found.tsx next to this route.",
+      ".pending() is the TanStack style. In the nextjs style, default-export the component from a loading.tsx next to this route.",
     ]);
     expect(validateRouteConfig({ pagesDir, prefix: "", style: "tanstack" })).not.toContainEqual(
       expect.objectContaining({ message: expect.stringContaining(".error()") })

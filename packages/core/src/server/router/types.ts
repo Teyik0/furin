@@ -35,6 +35,11 @@ export interface SegmentBoundary {
    * except the root's, which is the pages directory.
    */
   path: string;
+  /**
+   * Module declaring the pending screen: a `loading.tsx`, or the route file
+   * of a `fromRoute` boundary. Only the client renders it.
+   */
+  pendingPath?: string;
 }
 
 /** A layout wrapping a page, from the route manifest. */

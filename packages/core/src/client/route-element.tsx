@@ -31,6 +31,8 @@ export interface RouteElementInput {
   data: RuntimeData;
   /** `undefined` when no page matched the URL. */
   page: { component: ElementType; pattern: string } | undefined;
+  /** Client navigations only: renders in place of everything below the layout at `depth`. */
+  pending?: { component: ElementType; depth: number } | undefined;
   /** Passed to the rendered `error.tsx`. */
   reset: () => void;
   /** The root directory's own conventions, used when the root segment failed. */
@@ -77,6 +79,21 @@ function wrapLayout(route: RuntimeRoute | undefined, props: RuntimeData, element
   return route?.layout ? createElement(route.layout as ElementType, props, element) : element;
 }
 
+/** Wraps `element` in the layouts from `depth` up to the root. */
+function wrapLayoutsFrom(
+  depth: number,
+  chain: readonly RuntimeRoute[],
+  props: readonly RuntimeData[],
+  context: RuntimeData,
+  element: ReactNode
+): ReactNode {
+  let wrapped = element;
+  for (let layout = depth; layout >= 0; layout -= 1) {
+    wrapped = wrapLayout(chain[layout], props[layout] ?? context, wrapped);
+  }
+  return wrapped;
+}
+
 function failureElement(
   failure: RouteMatchFailure,
   component: ErrorComponent | NotFoundComponent | undefined,
@@ -115,6 +132,16 @@ export function resolveRouteElement(input: RouteElementInput): ReactNode {
     props.push({ ...inherited, ...context });
   }
 
+  if (input.pending) {
+    return wrapLayoutsFrom(
+      input.pending.depth,
+      chain,
+      props,
+      context,
+      createElement(input.pending.component)
+    );
+  }
+
   const index = matches.findIndex((match) => match.status !== "success");
   const failure = matches[index];
   if (failure && failure.status !== "success") {
@@ -124,10 +151,13 @@ export function resolveRouteElement(input: RouteElementInput): ReactNode {
       index,
       failure.status
     );
-    let element = failureElement(failure, component, input.reset);
-    for (let layout = depth; layout >= 0; layout -= 1) {
-      element = wrapLayout(chain[layout], props[layout] ?? context, element);
-    }
+    const element = wrapLayoutsFrom(
+      depth,
+      chain,
+      props,
+      context,
+      failureElement(failure, component, input.reset)
+    );
     return depth < 0 ? createElement(FurinDocumentFallback, null, element) : element;
   }
 

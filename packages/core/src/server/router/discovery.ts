@@ -11,6 +11,7 @@ import {
 } from "../../plugin/route-manifest.ts";
 import type { ErrorComponent } from "../../shared/error.ts";
 import type { NotFoundComponent } from "../../shared/not-found.ts";
+import type { PendingComponent } from "../../shared/pending.ts";
 import { collectRouteChainFromRoute, validateRouteChain } from "../../shared/utils/index.ts";
 import { isDevelopment } from "../instance.ts";
 import { type CompileContext, type CompiledModule, getCompileContext } from "../internal.ts";
@@ -237,6 +238,10 @@ const CONVENTION_EXAMPLES = {
   "not-found": `  export default function NotFound() {
     return <h1>Page not found</h1>;
   }`,
+  loading: `  export default function Loading() {
+    return <p>Loading…</p>;
+  }
+  export const pendingMs = 200;`,
 } as const;
 
 const ROOT_FILE_NAMES: { [Style in RouteStyle]: string } = {
@@ -303,7 +308,7 @@ export async function scanRootLayout(
   };
 }
 
-type ConventionName = "error" | "not-found";
+type ConventionName = "error" | "loading" | "not-found";
 
 /**
  * Result of a convention-file lookup. The `path` is the absolute module path
@@ -427,8 +432,8 @@ export function routeDefinedBoundaries(
     ];
   const pagesDir = root.path.slice(0, root.path.lastIndexOf("/"));
   return entries.flatMap(({ depth, path, route }): SegmentBoundary[] => {
-    const { errorComponent, notFoundComponent } = route;
-    if (path === undefined || !(errorComponent || notFoundComponent)) {
+    const { errorComponent, notFoundComponent, pending } = route;
+    if (path === undefined || !(errorComponent || notFoundComponent || pending)) {
       return [];
     }
     return [
@@ -440,6 +445,7 @@ export function routeDefinedBoundaries(
         notFound: notFoundComponent,
         notFoundPath: notFoundComponent ? path : undefined,
         path: path === root.path ? pagesDir : path,
+        pendingPath: pending ? path : undefined,
       },
     ];
   });
@@ -518,14 +524,17 @@ async function collectSegmentBoundaries(
       const loaded = Promise.all([
         loadConventionComponent<ErrorComponent>(boundary.errorPath, "error"),
         loadConventionComponent<NotFoundComponent>(boundary.notFoundPath, "not-found"),
+        // Imported only to validate it: the pending screen renders on the client.
+        loadConventionComponent<PendingComponent>(boundary.pendingPath, "loading"),
       ]).then(
-        ([errorEntry, notFoundEntry]): SegmentBoundary => ({
+        ([errorEntry, notFoundEntry, pendingEntry]): SegmentBoundary => ({
           depth: 0,
           error: errorEntry?.component,
           errorPath: errorEntry?.path,
           notFound: notFoundEntry?.component,
           notFoundPath: notFoundEntry?.path,
           path: boundary.directory,
+          pendingPath: pendingEntry?.path,
         })
       );
       cache.set(boundary.directory, loaded);

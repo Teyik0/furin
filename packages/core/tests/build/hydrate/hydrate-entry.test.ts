@@ -332,7 +332,9 @@ function makeRouteWithBoundaries(
   boundaries: Array<{
     depth: number;
     errorPath?: string;
+    fromRoute?: true;
     notFoundPath?: string;
+    pendingPath?: string;
   }>
 ): ResolvedRoute {
   return {
@@ -347,6 +349,8 @@ function makeRouteWithBoundaries(
       errorPath: b.errorPath,
       notFound: b.notFoundPath ? () => null : undefined,
       notFoundPath: b.notFoundPath,
+      pendingPath: b.pendingPath,
+      ...(b.fromRoute ? { fromRoute: b.fromRoute } : {}),
       path: (b.errorPath ?? b.notFoundPath ?? filePath).split("/").slice(0, -1).join("/"),
     })),
   } as ResolvedRoute;
@@ -362,6 +366,9 @@ const ERROR_BOUNDARY_DEPTH0_RE =
   /segmentBoundaries:\s*\[\s*\{\s*depth:\s*0,\s*error:\s*__furin_bnd_\d+/;
 const NOT_FOUND_BOUNDARY_DEPTH1_RE =
   /segmentBoundaries:\s*\[\s*\{\s*depth:\s*1,\s*notFound:\s*__furin_bnd_\d+/;
+const LOADING_BOUNDARY_RE =
+  /\{\s*depth:\s*1,\s*pending:\s*\{\s*component:\s*(__furin_bnd_\d+)\.default,\s*minMs:\s*\1\.pendingMinMs,\s*ms:\s*\1\.pendingMs\s*\}\s*\}/;
+const ROUTE_PENDING_BOUNDARY_RE = /\{\s*depth:\s*1,\s*pending:\s*__furin_bnd_\d+\.route\.pending\s*\}/;
 const ERROR_AND_NOT_FOUND_BOUNDARY_RE =
   /\{\s*depth:\s*0,\s*error:\s*__furin_bnd_\d+\.default,\s*notFound:\s*__furin_bnd_\d+\.default\s*\}/;
 
@@ -431,6 +438,29 @@ describe("generateHydrateEntry — boundary chain emission", () => {
     ];
     const code = generateHydrateEntry(routes, ROOT, "", false);
     expect(code).toMatch(ERROR_AND_NOT_FOUND_BOUNDARY_RE);
+  });
+
+  test("a loading.tsx boundary → lazy import + pending from its exports", () => {
+    const pendingPath = "/app/src/pages/blog/loading.tsx";
+    const routes = [
+      makeRouteWithBoundaries("/blog/:slug", "/app/src/pages/blog/[slug]/page.tsx", [
+        { depth: 1, pendingPath },
+      ]),
+    ];
+    const code = generateHydrateEntry(routes, ROOT, "", false);
+    expect(code).toContain('import("/app/src/pages/blog/loading.tsx")');
+    expect(code).toMatch(LOADING_BOUNDARY_RE);
+  });
+
+  test("a route's .pending() → pending read from its route export", () => {
+    const pagePath = "/app/src/pages/blog/$slug.tsx";
+    const routes = [
+      makeRouteWithBoundaries("/blog/:slug", pagePath, [
+        { depth: 1, fromRoute: true, pendingPath: pagePath },
+      ]),
+    ];
+    const code = generateHydrateEntry(routes, ROOT, "", false);
+    expect(code).toMatch(ROUTE_PENDING_BOUNDARY_RE);
   });
 });
 

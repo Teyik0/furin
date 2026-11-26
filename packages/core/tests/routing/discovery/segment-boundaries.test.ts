@@ -193,3 +193,52 @@ export const route = defineRoute("/").config({ mode: "ssr" }).page(() => null);`
     }
   });
 });
+
+describe("segmentBoundaries — Next.js loading.tsx", () => {
+  const furin = JSON.stringify(join(import.meta.dirname, "../../../src/furin.ts"));
+  const files = {
+    "(dashboard)/layout.tsx": `import { defineRoute } from ${furin};
+export const route = defineRoute("/(dashboard)").config({ mode: "ssr" }).layout(({ children }) => children);`,
+    "(dashboard)/products/loading.tsx":
+      "export default function Loading() { return null; }\nexport const pendingMs = 200;",
+    "(dashboard)/products/page.tsx": `import { defineRoute } from ${furin};
+export const route = defineRoute("/(dashboard)/products/").config({ mode: "ssr" }).page(() => null);`,
+    "layout.tsx": `import { defineRootRoute } from ${furin};
+export const route = defineRootRoute().config({ mode: "ssr" }).layout(({ children }) => children);`,
+  };
+
+  test.each([false, true])(
+    "a loading.tsx is a boundary inside the layout of its directory (dev=%p)",
+    async (dev) => {
+      const pagesDir = mkdtempSync(join(tmpdir(), "furin-loading-")).replaceAll("\\", "/");
+      const initialDevMode = IS_DEV;
+      __setDevMode(dev);
+      try {
+        for (const [file, contents] of Object.entries(files)) {
+          mkdirSync(join(pagesDir, file, ".."), { recursive: true });
+          writeFileSync(join(pagesDir, file), contents);
+        }
+        const { routes } = await scanPages(next(pagesDir));
+        const products = routes.find((route) => route.pattern === "/products");
+        expect(
+          products?.segmentBoundaries.map(({ depth, fromRoute, path, pendingPath }) => ({
+            depth,
+            fromRoute,
+            path,
+            pendingPath,
+          }))
+        ).toEqual([
+          {
+            depth: 1,
+            fromRoute: undefined,
+            path: `${pagesDir}/(dashboard)/products`,
+            pendingPath: `${pagesDir}/(dashboard)/products/loading.tsx`,
+          },
+        ]);
+      } finally {
+        __setDevMode(initialDevMode);
+        rmSync(pagesDir, { force: true, recursive: true });
+      }
+    }
+  );
+});
