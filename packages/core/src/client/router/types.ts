@@ -313,8 +313,8 @@ export interface TargetNavigationOptions extends NavigationOptions {
   /**
    * Same route and params: commit the new URL and search in place, without
    * running loaders or setting `isNavigating`. Another destination navigates
-   * normally. Back/forward and reloads still load the page unless the
-   * route's `loaderDeps` exclude the changed params. Keeps the scroll
+   * normally. Back/forward still load the page unless the route's
+   * `loaderDeps` exclude the changed params; reloads always do. Keeps the scroll
    * position unless `resetScroll` is set.
    */
   shallow?: boolean;

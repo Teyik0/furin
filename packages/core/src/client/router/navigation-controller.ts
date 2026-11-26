@@ -459,7 +459,11 @@ export class NavigationController {
   async #run(href: string, kind: NavigationKind): Promise<void> {
     const search = kind.type === "push" ? kind.request.search : getHistorySearch(history.state);
     const shallow = kind.type === "push" && kind.request.shallow === true;
-    if (search && this.#inPlace(href, search, shallow)) {
+    if (
+      search &&
+      this.#inPlace(href, search, shallow) &&
+      !(kind.type === "push" && kind.request.shouldCommit?.() === false)
+    ) {
       this.#commitInPlace(href, kind, search);
       return;
     }
@@ -630,7 +634,7 @@ export class NavigationController {
             href,
             search
           )
-        : this.#commitPop(kind.key, href, href);
+        : this.#commitPop(kind.key, href, href, search);
     this.#publish({
       ...this.#snapshot,
       href: committedHref,
@@ -729,7 +733,7 @@ export class NavigationController {
     const href =
       kind.type === "push"
         ? this.#commitPush(kind.request, effective, state.data.query)
-        : this.#commitPop(kind.key, effective, requestedHref);
+        : this.#commitPop(kind.key, effective, requestedHref, state.data.query);
     this.#publish({
       href,
       isNavigating: false,
@@ -774,9 +778,18 @@ export class NavigationController {
   }
 
   /** Adopts the popped entry (canonicalised after redirects) and returns the committed logical href. */
-  #commitPop(key: string | undefined, effective: string, requestedHref: string): string {
+  #commitPop(
+    key: string | undefined,
+    effective: string,
+    requestedHref: string,
+    search: unknown
+  ): string {
     if (effective !== requestedHref) {
-      history.replaceState(history.state, "", this.#config.basePath + effective);
+      history.replaceState(
+        { ...historyStateObject(), _furinSearch: search },
+        "",
+        this.#config.basePath + effective
+      );
     }
     this.#renderedHistoryKey = key;
     if (key) {

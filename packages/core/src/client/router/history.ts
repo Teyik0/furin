@@ -6,7 +6,10 @@ export function getHistoryKey(state: unknown): string | undefined {
   return (state as { _furinKey?: string } | null)?._furinKey;
 }
 
-/** Validated search of the page committed at a history entry, when furin recorded it. */
+/**
+ * Search furin recorded for the page committed at a history entry: the
+ * server-validated query, or the typed search an in-place commit was given.
+ */
 export function getHistorySearch(state: unknown): SearchParamsInput | undefined {
   return (state as { _furinSearch?: SearchParamsInput } | null)?._furinSearch;
 }

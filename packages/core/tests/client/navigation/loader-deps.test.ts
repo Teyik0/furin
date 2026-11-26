@@ -240,3 +240,39 @@ test("an in-place commit removes the pending screen of the navigation it superse
   expect(controller.getSnapshot()).toMatchObject({ isNavigating: false, pending: undefined });
   expect(controller.getSnapshot().state.data.query).toEqual({ category: "a", edit: "7" });
 });
+
+test("an in-place candidate honours shouldCommit", async () => {
+  const { controller, fetched } = createController(withoutEdit);
+  await controller.navigate("/products?category=a&edit=7", {
+    search: { category: "a", edit: "7" },
+    shouldCommit: () => false,
+  });
+  expect(controller.getSnapshot().href).toBe("/products?category=a");
+  expect(window.location.search).toBe("?category=a");
+  expect(fetched).toEqual(["/products?category=a&edit=7"]);
+});
+
+test("a redirected pop records the canonical search on its history entry", async () => {
+  const { controller } = createController(withoutEdit);
+  controller.configure({
+    basePath: "",
+    defaultStaleTime: 30_000,
+    fetchPage: ({ href }) =>
+      Promise.resolve<PageResult>(
+        href === "/orders?page=old"
+          ? { href: "/orders?page=1", kind: "redirect" }
+          : {
+              kind: "page",
+              reusable: () => true,
+              state: { data: { query: { page: "1" } }, match: routeFor("/orders", undefined) },
+            }
+      ),
+    maxCacheSize: 50,
+    resolvePending: () => Promise.resolve(undefined),
+  });
+  history.pushState({ _furinKey: "stale", _furinSearch: { page: "old" } }, "", "/orders?page=old");
+  controller.popState();
+  await Bun.sleep(0);
+  expect(window.location.search).toBe("?page=1");
+  expect(history.state).toMatchObject({ _furinKey: "stale", _furinSearch: { page: "1" } });
+});

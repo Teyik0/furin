@@ -645,6 +645,15 @@ type FileConfiguredRoute<
   >
 >;
 
+/** `loaderDeps` describes a page response: layout configs cannot declare it. */
+interface NoLoaderDepsOption {
+  loaderDeps?: FurinTypeError<"loaderDeps belongs to page routes: declare it on the page config">;
+}
+
+type KindConfigOption<Kind extends RouteKind> = [Kind] extends ["layout"]
+  ? NoLoaderDepsOption
+  : unknown;
+
 /** Keyed routes take their parent layout from the pages tree. */
 interface NoLayoutOption {
   layout?: FurinTypeError<"defineRoute(id) reads the parent layout from the pages tree: remove layout">;
@@ -955,22 +964,24 @@ function configure(options: RouteMetadata & ConfigOptions): unknown {
  */
 class UnconfiguredRootRoute {
   config<QuerySchema extends FurinSchema, Mode extends RenderingMode>(
-    options: ResolvedConfig<EmptyContract, undefined, QuerySchema> & {
-      mode: Mode;
-      params?: undefined;
-      query: QuerySchema;
-    }
+    options: ResolvedConfig<EmptyContract, undefined, QuerySchema> &
+      NoLoaderDepsOption & {
+        mode: Mode;
+        params?: undefined;
+        query: QuerySchema;
+      }
   ): ConfiguredRoute<EmptyContract, NoFields, undefined, QuerySchema, { query: QuerySchema }, Mode>;
   config<
     ParamsSchema extends FurinSchema,
     QuerySchema extends FurinSchema,
     Mode extends RenderingMode,
   >(
-    options: ResolvedConfig<EmptyContract, ParamsSchema, QuerySchema> & {
-      mode: Mode;
-      params: ParamsSchema;
-      query: QuerySchema;
-    }
+    options: ResolvedConfig<EmptyContract, ParamsSchema, QuerySchema> &
+      NoLoaderDepsOption & {
+        mode: Mode;
+        params: ParamsSchema;
+        query: QuerySchema;
+      }
   ): ConfiguredRoute<
     EmptyContract,
     NoFields,
@@ -980,11 +991,12 @@ class UnconfiguredRootRoute {
     Mode
   >;
   config<ParamsSchema extends FurinSchema, Mode extends RenderingMode>(
-    options: ResolvedConfig<EmptyContract, ParamsSchema, undefined> & {
-      mode: Mode;
-      params: ParamsSchema;
-      query?: undefined;
-    }
+    options: ResolvedConfig<EmptyContract, ParamsSchema, undefined> &
+      NoLoaderDepsOption & {
+        mode: Mode;
+        params: ParamsSchema;
+        query?: undefined;
+      }
   ): ConfiguredRoute<
     EmptyContract,
     NoFields,
@@ -994,11 +1006,12 @@ class UnconfiguredRootRoute {
     Mode
   >;
   config<Mode extends RenderingMode>(
-    options: ResolvedConfig<EmptyContract, undefined, undefined> & {
-      mode: Mode;
-      params?: undefined;
-      query?: undefined;
-    }
+    options: ResolvedConfig<EmptyContract, undefined, undefined> &
+      NoLoaderDepsOption & {
+        mode: Mode;
+        params?: undefined;
+        query?: undefined;
+      }
   ): ConfiguredRoute<EmptyContract, NoFields, undefined, undefined, undefined, Mode>;
   config(options: RouteMetadata & ConfigOptions): unknown {
     return configure(options);
@@ -1015,7 +1028,8 @@ class UnconfiguredRootRoute {
 class UnconfiguredFileRoute<Entry> {
   config<QuerySchema extends FurinSchema, Mode extends RenderingMode>(
     options: ResolvedConfig<FileRouteContract<Entry>, undefined, QuerySchema> &
-      NoLayoutOption & {
+      NoLayoutOption &
+      KindConfigOption<FileRouteKind<Entry>> & {
         mode: Mode;
         params?: undefined;
         query: QuerySchema;
@@ -1027,7 +1041,8 @@ class UnconfiguredFileRoute<Entry> {
     Mode extends RenderingMode,
   >(
     options: ResolvedConfig<FileRouteContract<Entry>, ParamsSchema, QuerySchema> &
-      NoLayoutOption & {
+      NoLayoutOption &
+      KindConfigOption<FileRouteKind<Entry>> & {
         mode: Mode;
         params: ParamsSchema;
         query: QuerySchema;
@@ -1041,7 +1056,8 @@ class UnconfiguredFileRoute<Entry> {
   >;
   config<ParamsSchema extends FurinSchema, Mode extends RenderingMode>(
     options: ResolvedConfig<FileRouteContract<Entry>, ParamsSchema, undefined> &
-      NoLayoutOption & {
+      NoLayoutOption &
+      KindConfigOption<FileRouteKind<Entry>> & {
         mode: Mode;
         params: ParamsSchema;
         query?: undefined;
@@ -1055,7 +1071,8 @@ class UnconfiguredFileRoute<Entry> {
   >;
   config<Mode extends RenderingMode>(
     options: ResolvedConfig<FileRouteContract<Entry>, undefined, undefined> &
-      NoLayoutOption & {
+      NoLayoutOption &
+      KindConfigOption<FileRouteKind<Entry>> & {
         mode: Mode;
         params?: undefined;
         query?: undefined;

@@ -203,7 +203,7 @@ navigate({ to: "/products", search: { ...query, edit: product.id }, shallow: tru
 </Link>;
 ```
 
-An in-place commit happens only when the destination has the same path (route and params) as the rendered page; any other destination falls back to a normal navigation. It respects `replace`, keeps the scroll position unless `resetScroll` or a hash asks for a scroll, and supersedes a navigation still loading. `shallow` applies to that navigation only: back, forward and reloads load the page again unless the route's `loaderDeps` say the change does not matter. It needs a structured destination (`to` with `search`, a `useSearch()` setter or `<Link search>`): the client only knows the validated search it was given, so href strings are not accepted.
+An in-place commit happens only when the destination has the same path (route and params) as the rendered page; any other destination falls back to a normal navigation. It respects `replace`, keeps the scroll position unless `resetScroll` or a hash asks for a scroll, and supersedes a navigation still loading. `shallow` applies to that navigation only: back and forward load the page again unless the route's `loaderDeps` say the change does not matter, and browser reloads always run loaders. It needs a structured destination (`to` with `search`, a `useSearch()` setter or `<Link search>`): the client only knows the validated search it was given, so href strings are not accepted.
 
 Search values committed this way are not re-validated by the server: pass schema output values (`{ page: 2 }`, not `"2"`). If a component is keyed by the whole query (`<Suspense key={JSON.stringify(query)}>`), key it by the loader dependencies instead so opening a panel does not reset it.
 

@@ -123,10 +123,13 @@ The schemas are both runtime validators and TypeScript sources. Furin checks tha
 
 ## Loader Dependencies
 
-By default every client navigation that changes the URL runs the loaders again, including a search change on the same page. When some search params are UI state only (an open panel, a selected tab), list the params the loaders actually read with `loaderDeps`:
+By default, a client navigation whose destination is not already covered by a fresh cached or prefetched page runs the loaders again; this includes a search change on the same page. When some search params are UI state only (an open panel, a selected tab), list the params the loaders actually read with `loaderDeps`:
 
 ```tsx
 // src/routes/products.tsx
+import { defineRoute } from "@teyik0/furin";
+import { t } from "elysia";
+
 export const route = defineRoute("/products")
   .config({
     mode: "ssr",
@@ -146,12 +149,12 @@ export const route = defineRoute("/products")
   ));
 ```
 
-`loaderDeps` receives the validated query and returns any object. A client navigation to the same path whose dependencies are deeply equal to the rendered page's reuses that page: Furin updates the URL (pushing or replacing history as asked), `useSearch()` and the `query` prop, without a request, without `isNavigating`, and without moving the scroll position unless `resetScroll` or a hash asks for it. Back and forward between such entries are in place too, and a page cached for another search with the same dependencies is reused when you come back from another route or prefetch.
+`loaderDeps` receives the validated query and returns any object. A client navigation to the same path whose dependencies are deeply equal to the rendered page's dependencies reuses that page: Furin updates the URL (pushing or replacing history as asked), `useSearch()` and the `query` prop, without a request, without `isNavigating`, and without moving the scroll position unless `resetScroll` or a hash asks for it. Back and forward between such entries are in place too, and a page cached for another search with the same dependencies is reused when you come back from another route or prefetch.
 
 - Loaders still receive the full `query`. Read only dependency fields there: a field left out of `loaderDeps` is never reloaded on the client.
 - The server always runs loaders for documents: first loads, reloads and `router.refresh()` are unaffected.
 - The reused page needs the destination's search: `<Link search>`, `navigate({ to, search })` and `useSearch()` setters provide it (with schema defaults applied). Href strings with their own `?query` navigate normally.
-- `loaderDeps` belongs to page routes and governs the whole page response, layout loaders included.
+- `loaderDeps` belongs to page routes (a layout config declaring it is a type error) and governs the whole page response, layout loaders included.
 - Declare it in the `config()` object literal or a local object spread into it so the browser build keeps it. Behind an unresolvable spread it is dropped and navigations simply reload.
 
 This mirrors TanStack Router's `loaderDeps`. For a one-off in-place update that a route does not declare, see [shallow navigation](/docs/link-navigation#search-changes-without-reloading).
