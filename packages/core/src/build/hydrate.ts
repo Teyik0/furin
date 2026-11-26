@@ -419,6 +419,7 @@ if (__deferred && __deferred._chunks) {
     // with the server (stale deploy) or the server returned something we
     // don't know how to hydrate. Bail loudly; the page stays static.
     log.error({ action: "hydrate_no_match", pathname });
+    if (import.meta.hot) throw new Error(\`[furin] No client route matches \${pathname}; the page stays static.\`);
     return;
   }
   app = createElement(DocumentProvider, { value: documentState }, app);
@@ -485,6 +486,7 @@ if (__deferred && __deferred._chunks) {
   log.info({ action: "hydrate_complete", pathname });
 })().catch((err: unknown) => {
   log.error({ action: "hydrate_failed", pathname, error: String(err) });
+  if (import.meta.hot) console.error("[furin] Hydration failed:", err);
   window.dispatchEvent(
     new CustomEvent("furin:client-error", { detail: { error: err, phase: "hydrate" } })
   );

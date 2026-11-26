@@ -121,3 +121,52 @@ test("hot WebKit blob frames use the real source map directive when reporting er
 
   expect(reportedStack).toBe("after@http://localhost:3000/_bun/client/actual.js.map:1:1");
 });
+
+function declareEntry(): void {
+  const entry = document.createElement("script");
+  entry.setAttribute("data-furin-entry", "");
+  entry.setAttribute("src", "/_bun/client/index.js");
+  document.head.append(entry);
+}
+
+test("an uncaught error in the hydrate entry before hydration reaches the overlay", async () => {
+  let reported: { message: string; phase: string } | undefined;
+  await loadOverlay((_url, init) => {
+    reported = JSON.parse(String(init?.body)) as { message: string; phase: string };
+    return Promise.resolve(new Response(null, { status: 400 }));
+  });
+  declareEntry();
+
+  window.dispatchEvent(
+    new ErrorEvent("error", {
+      error: new SyntaxError("Cannot declare a var variable that shadows a let/const"),
+      filename: "http://localhost:3000/_bun/client/index.js",
+      message: "SyntaxError: Cannot declare a var variable that shadows a let/const",
+    })
+  );
+  await Bun.sleep(0);
+
+  expect(reported).toMatchObject({
+    message: "Cannot declare a var variable that shadows a let/const",
+    phase: "hydrate",
+  });
+});
+
+test("uncaught errors outside the hydrate entry or after the root mounts are not hydrate failures", async () => {
+  const report = mock(() => Promise.resolve(new Response(null, { status: 400 })));
+  await loadOverlay(report);
+  declareEntry();
+  const uncaught = (filename: string) =>
+    window.dispatchEvent(
+      new ErrorEvent("error", { error: new Error("boom"), filename, message: "boom" })
+    );
+
+  uncaught("chrome-extension://wallet/inpage.js");
+  uncaught("http://localhost:3000/analytics.js");
+  uncaught("not a url");
+  Object.assign(window, { __FURIN_ROOT__: {} });
+  uncaught("http://localhost:3000/_bun/client/index.js");
+  await Bun.sleep(0);
+
+  expect(report).not.toHaveBeenCalled();
+});

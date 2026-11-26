@@ -530,6 +530,15 @@ describe("generateHydrateEntry — HMR hardening", () => {
     );
   });
 
+  test("prints hydration failures, including an unmatched route, in development", () => {
+    const code = generateHydrateEntry(ROUTES, ROOT, "", false);
+
+    expect(code).toContain('if (import.meta.hot) console.error("[furin] Hydration failed:", err);');
+    expect(code).toContain(
+      "if (import.meta.hot) throw new Error(`[furin] No client route matches ${pathname}"
+    );
+  });
+
   test("does NOT emit import.meta.hot.accept after the IIFE", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
     // The accept handler was removed because Bun re-evaluates the entry module
@@ -566,6 +575,8 @@ describe("production hydrate entry", () => {
         .join("\n");
       expect(code.includes("__FURIN_DATA__")).toBe(true);
       expect(code.includes(app.path)).toBe(false);
+      expect(code.includes("[furin] Hydration failed")).toBe(false);
+      expect(code.includes("[furin] No client route matches")).toBe(false);
     } finally {
       app.cleanup();
     }

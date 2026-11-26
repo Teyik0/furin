@@ -1,5 +1,4 @@
-import { dirname, join, resolve } from "node:path";
-import { detectLoaderFromPath } from "../server/lang-detect.ts";
+import { join, resolve } from "node:path";
 import {
   loadRouteModule,
   type RouteModuleInfo,
@@ -21,7 +20,6 @@ const ROUTES_REGISTRY_SPECIFIER = "furin/routes?registry";
 const COMPOSABLE_ROUTES_REGISTRY_SPECIFIER = "furin/routes?registry=composable";
 const ROUTES_REGISTRY_FILTER = /^furin\/routes\?registry(?:=composable)?$/;
 const ROUTE_FILE_FILTER = /^furin-route-file:.+$/;
-const ROUTE_FILES_NAMESPACE = "furin-route-files";
 const ROUTES_REGISTRY_FILE_FILTER =
   /[\\/]\.furin-routes-registry(?:-composable)?\.ts\?furin-virtual$/;
 const CLIENT_ROUTES_NAMESPACE = "furin-routes-client";
@@ -246,7 +244,6 @@ function serverProxySource(instance: RouteInstanceSpec, includeRootCatchAll: boo
 
 export function createRoutesPlugin(options: CreateRoutesPluginOptions): Bun.BunPlugin {
   const routeFilesBySpecifier = new Map<string, RouteModuleInfo>();
-  const routeFilesByResolvedPath = new Map<string, RouteModuleInfo>();
   const registryVirtualPath = join(
     resolve(primaryInstance(options.instances).pagesDir),
     ".furin-routes-registry.ts?furin-virtual"
@@ -314,29 +311,15 @@ export function createRoutesPlugin(options: CreateRoutesPluginOptions): Bun.BunP
         }
         return { contents, loader: "ts" };
       });
+      // Route files resolve to their real path so the file-namespace server
+      // transforms apply and the bundle keeps one copy of each route module.
       build.onResolve({ filter: ROUTE_FILE_FILTER }, ({ path }) => {
         const routeFile = routeFilesBySpecifier.get(path);
         if (!routeFile) {
           throw new Error(`[furin] Unknown route module: ${path}`);
         }
-        const resolvedPath = routeFile.sourcePath;
-        routeFilesByResolvedPath.set(resolvedPath, routeFile);
-        return { namespace: ROUTE_FILES_NAMESPACE, path: resolvedPath };
+        return { path: routeFile.sourcePath };
       });
-      build.onLoad(
-        { filter: VIRTUAL_ROUTES_FILTER, namespace: ROUTE_FILES_NAMESPACE },
-        async ({ path }) => {
-          const routeFile = routeFilesByResolvedPath.get(path);
-          if (!routeFile) {
-            throw new Error(`[furin] Unknown route module: ${path}`);
-          }
-          return {
-            contents: await Bun.file(routeFile.sourcePath).text(),
-            loader: detectLoaderFromPath(routeFile.sourcePath),
-            resolveDir: dirname(routeFile.sourcePath),
-          };
-        }
-      );
       for (const { instance, namespace, includeRootCatchAll } of instancesBySpecifier.values()) {
         build.onLoad({ filter: VIRTUAL_ROUTES_FILTER, namespace }, () => ({
           contents: serverProxySource(instance, includeRootCatchAll),
