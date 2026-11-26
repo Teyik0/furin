@@ -5,6 +5,7 @@ packages/core/src/client/router/search/index.ts
   s_4c2ad417251987::t_8e01bf528dc219 7,47-48,129-132
 packages/core/src/client/define-route.ts
   s_4c2ad417251987::t_bf5b1fcc2e0c7a 18-19,22,31-36,67,79
+  s_4c2ad417251987::t_7eb39e241f95be 29
 packages/core/tests/build/hydrate/hydrate-entry.test.ts
   s_4c2ad417251987::t_19b6fb6d61ee8c 68
 packages/core/tests/client/navigation/use-search.test.tsx
