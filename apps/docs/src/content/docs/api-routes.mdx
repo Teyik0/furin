@@ -188,6 +188,8 @@ export const postsApi = new Elysia({ prefix: "/api/posts" })
 
 `invalidate()` accepts the same targets as in [Furin Sync](/docs/sync#identify-reads-by-url): a GET pattern and its params, `{ tags }` or `{ path, type }`. The mutation's own URL is always invalidated. Successful responses invalidate the origin cache and carry `X-Furin-Revalidate` (and `x-furin-queries` for live queries), allowing only the initiating tab to evict prefetched data and refresh an affected page.
 
+`furinInvalidate()` does not stamp GETs with a query identity (`x-furin-query`), because it has no principal to bind them to. Loader reads made with `.live()` are therefore not hydrated: `useQuery` and `useInfiniteQuery` fetch them again in the browser. SSR hydration of live queries requires [Furin Sync](/docs/sync#optional-query-subscriptions).
+
 If mutations can be retried, or other tabs and replicas must learn about invalidations, use the stronger [Sync & Invalidations](/docs/sync) contract instead.
 
 ## Ownership Recommendation
