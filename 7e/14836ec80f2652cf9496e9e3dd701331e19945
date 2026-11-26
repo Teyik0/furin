@@ -1,0 +1,19 @@
+CHANGELOG.md
+  s_d97475e7a583ac::t_7a2acd3a7b63c4 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7e14836ec80f2652cf9496e9e3dd701331e19945",
+  "prompts": {},
+  "sessions": {
+    "s_d97475e7a583ac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "244a9f64-ea62-433c-9f62-13b8df18a3af",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
