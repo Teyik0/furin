@@ -88,15 +88,13 @@ test("DevGraph atomically versions snapshots, modules, state, and events", async
   const updated = await graph.importModule("/app/page.tsx", "source-v2", importModule);
   const firstRevision = graph.sourceVersion("/missing/page.tsx");
   const stableRevision = graph.sourceVersion("/missing/page.tsx");
-  graph.invalidateModules();
-  const secondRevision = graph.sourceVersion("/missing/page.tsx");
 
   expect(first).toBe(cached);
   expect(updated).not.toBe(first);
   expect(imports).toHaveLength(2);
   expect(graph.snapshot).toEqual({ value: "compiled" });
   expect(graph.revision).toBe(1);
-  expect([firstRevision, stableRevision, secondRevision]).toEqual(["1", "1", "2"]);
+  expect([firstRevision, stableRevision]).toEqual(["1", "1"]);
 
   const stateKey = Symbol("loader-cache");
   const cache = graph.state(stateKey, () => new Map<string, number>());

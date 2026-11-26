@@ -2,14 +2,9 @@ import { expect, test } from "bun:test";
 import { mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type DevelopmentRouteSnapshot, devGraph } from "../../../src/server/dev/graph.ts";
-import { createInstance, withInstance } from "../../../src/server/instance.ts";
+import { devGraph } from "../../../src/server/dev/graph.ts";
 import type { CompiledModule } from "../../../src/server/internal.ts";
-import {
-  importStampedRouteModule,
-  invalidateStampedRouteModules,
-} from "../../../src/server/router/hmr.ts";
-import { routeModuleSourceVersion } from "../../../src/server/router/source-version.ts";
+import { importStampedRouteModule } from "../../../src/server/router/hmr.ts";
 
 test("dev route modules are imported once per source version", async () => {
   const directory = mkdtempSync(join(tmpdir(), "furin-route-module-cache-"));
@@ -42,10 +37,13 @@ test("dev route modules are imported once per source version", async () => {
   }
 });
 
-test("invalidating route modules refreshes a route whose dependency changed", async () => {
+test("a route is re-imported when a recorded dependency changes", async () => {
   const directory = mkdtempSync(join(tmpdir(), "furin-route-module-dependency-"));
   const routePath = join(directory, "page.tsx");
+  const dependencyPath = join(directory, "theme.tsx");
   writeFileSync(routePath, "unchanged route source\n");
+  writeFileSync(dependencyPath, "theme v1\n");
+  devGraph(undefined).recordImports(routePath, [dependencyPath]);
   let imports = 0;
   const resolveImport = (): Promise<CompiledModule> => {
     imports += 1;
@@ -54,43 +52,15 @@ test("invalidating route modules refreshes a route whose dependency changed", as
 
   try {
     const first = await importStampedRouteModule(routePath, resolveImport);
-    invalidateStampedRouteModules();
+    const unchanged = await importStampedRouteModule(routePath, resolveImport);
+    writeFileSync(dependencyPath, "theme v2\n");
+    const changedAt = new Date(Date.now() + 1000);
+    utimesSync(dependencyPath, changedAt, changedAt);
     const refreshed = await importStampedRouteModule(routePath, resolveImport);
 
+    expect(unchanged).toBe(first);
     expect(imports).toBe(2);
     expect(refreshed).not.toBe(first);
-  } finally {
-    rmSync(directory, { force: true, recursive: true });
-  }
-});
-
-test("refreshing one app keeps another app's route source version", () => {
-  const directory = mkdtempSync(join(tmpdir(), "furin-route-module-apps-"));
-  const firstPath = join(directory, "first", "page.tsx");
-  const secondPath = join(directory, "second", "page.tsx");
-  const first = createInstance("/first", join(directory, "first"));
-  const second = createInstance("/second", join(directory, "second"));
-  const firstGraph = devGraph(first);
-  const secondGraph = devGraph(second);
-  firstGraph.commit({
-    render: { native: () => undefined, notFound: () => Promise.resolve(undefined) },
-    root: { path: firstPath } as DevelopmentRouteSnapshot["root"],
-    routes: [],
-  });
-  secondGraph.commit({
-    render: { native: () => undefined, notFound: () => Promise.resolve(undefined) },
-    root: { path: secondPath } as DevelopmentRouteSnapshot["root"],
-    routes: [],
-  });
-
-  try {
-    const firstVersion = withInstance(first, () => routeModuleSourceVersion(firstPath));
-    const secondVersion = withInstance(second, () => routeModuleSourceVersion(secondPath));
-
-    withInstance(first, invalidateStampedRouteModules);
-
-    expect(withInstance(first, () => routeModuleSourceVersion(firstPath))).not.toBe(firstVersion);
-    expect(withInstance(first, () => routeModuleSourceVersion(secondPath))).toBe(secondVersion);
   } finally {
     rmSync(directory, { force: true, recursive: true });
   }

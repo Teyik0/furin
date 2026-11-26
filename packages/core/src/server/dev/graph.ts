@@ -139,7 +139,6 @@ export class DevGraph<Snapshot> {
   #eventSequence = 0;
   #revision = 0;
   #snapshot: Snapshot;
-  #sourceGeneration = 0;
 
   constructor(initialSnapshot: Snapshot) {
     this.#snapshot = initialSnapshot;
@@ -373,10 +372,6 @@ export class DevGraph<Snapshot> {
     }
   }
 
-  invalidateModules(): void {
-    this.#sourceGeneration += 1;
-  }
-
   sourceVersion(path: string): string {
     const modulePath = normalizeModulePath(path);
     const fingerprint = this.#sourceFingerprint(modulePath, new Set());
@@ -397,9 +392,9 @@ export class DevGraph<Snapshot> {
     let ownFingerprint: string;
     try {
       const stats = statSync(path, { bigint: true });
-      ownFingerprint = `${stats.mtimeNs}:${stats.size}:${this.#sourceGeneration}`;
+      ownFingerprint = `${stats.mtimeNs}:${stats.size}`;
     } catch {
-      ownFingerprint = `missing:${this.#sourceGeneration}`;
+      ownFingerprint = "missing";
     }
     const dependencies = [...(this.#dependencies.get(path) ?? [])]
       .toSorted((left, right) => left.localeCompare(right))

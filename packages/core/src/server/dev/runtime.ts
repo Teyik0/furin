@@ -9,7 +9,7 @@ import { createInstrumentationPlugin } from "../devtools/instrumentation.ts";
 import { type FurinInstance, withInstance } from "../instance.ts";
 import type { ModeOptions, ModeRuntime } from "../mode.ts";
 import { bindRuntimeRoutes, createRouteRenderer } from "../router/dispatch.ts";
-import { developmentPagePorts, invalidateStampedRouteModules } from "../router/hmr.ts";
+import { developmentPagePorts } from "../router/hmr.ts";
 import { buildRouteMatcher } from "../router/patterns.ts";
 import { createSearchRouteMetadata } from "../router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
@@ -269,7 +269,6 @@ export async function createDevRuntime(
   const hmrEntry = (await import(join(furinDir, "index.html"))).default;
   const refreshDevelopmentRoutes = (changedSources: readonly string[]): Promise<void> =>
     withInstance(instance, async () => {
-      invalidateStampedRouteModules();
       try {
         const previousSnapshot = currentSnapshot();
         const repaired = repairedDevelopmentRoutes(previousSnapshot, changedSources, graph);

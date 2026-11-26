@@ -3,8 +3,9 @@ import { defaultInstanceBucket, scopedInstance } from "../instance.ts";
 
 export function routeModuleSourceVersion(path: string): string {
   // Bun's runtime plugin loads modules outside any runtime scope. Use the
-  // graphs whose routes depend on this source (or that have no snapshot yet)
-  // so an unrelated app's refresh cannot change its virtual identity.
+  // graphs whose routes depend on this source (or that have no snapshot yet).
+  // A version only advances when the source or a recorded dependency changes,
+  // so an unchanged module keeps one ESM identity for every importer.
   const current = devGraph(scopedInstance() ?? defaultInstanceBucket());
   const relevant = developmentGraphs().filter((graph) => {
     const { snapshot } = graph;
@@ -21,8 +22,4 @@ export function routeModuleSourceVersion(path: string): string {
       )
     )
   );
-}
-
-export function invalidateRouteModuleSourceVersions(): void {
-  devGraph(undefined).invalidateModules();
 }
