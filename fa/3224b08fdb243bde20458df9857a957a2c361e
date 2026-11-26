@@ -1,0 +1,21 @@
+apps/docs/src/content/docs/api-routes.mdx
+  s_4bb4f4fce44a95::t_fac8305d0333cd 191-192
+apps/docs/src/content/docs/sync.mdx
+  s_4bb4f4fce44a95::t_5cdb673604cf90 874
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fa3224b08fdb243bde20458df9857a957a2c361e",
+  "prompts": {},
+  "sessions": {
+    "s_4bb4f4fce44a95": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac002c41-4f90-4cd9-9d15-c80d79177cd5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
