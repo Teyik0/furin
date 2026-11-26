@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.9.0-alpha.5] — 2026-11-26
+
+### Added
+- **`loaderDeps`** — `defineRoute(...).config({ query, loaderDeps: ({ edit: _, ...deps }) => deps })` declares the part of a page's validated query its loaders read. A client navigation to the same path whose dependencies deep-equal the rendered page's commits the URL and search in place: no request, no `isNavigating`, `replace`/push respected, and `useSearch()` and the `query` prop update. Back/forward between such entries are in place, and a cached page of another search with the same dependencies is reused on return and on prefetch. Loaders keep the full query; documents, reloads and `router.refresh()` always run them. Page routes only: a layout config declaring it is a type error. It needs the destination's typed search (`<Link search>`, `navigate({ to, search })`, `useSearch()` setters); href strings with their own query load normally.
+- **Per-route pending screens** — `.pending(Component, { ms, minMs })` on pages and layouts (TanStack style) or a `loading.tsx` file with optional `pendingMs` / `pendingMinMs` exports (Next.js style) shows a screen while a client navigation outlasts its delay, counted from the navigation start. It renders at the first changing segment and keeps the shared layouts mounted; it never shows on the server, on `router.refresh()` or on HMR refreshes.
+- **`shallow` navigation** — `navigate({ to, search, shallow: true })`, `<Link shallow>` and `setSearch(patch, { shallow: true })` commit a same-path search change in place regardless of `loaderDeps`; another path navigates normally. Back/forward load the page again unless the route's `loaderDeps` say the change does not matter; browser reloads always run loaders.
+
+### Fixed
+- **Elysia error helpers in browser code** — a module shared with the client that imported `problem`, `status` or an Elysia error class from `elysia` failed the client build because the browser stub only exported `t`. The stub now re-exports Elysia's public error API from the browser-safe `elysia/error`.
+
+### Changed
+- In-place commits keep the scroll position unless `resetScroll` or a hash asks for a scroll. `<Link>` no longer forces `resetScroll: true` (normal navigations still scroll by default).
+
 ## [0.9.0-alpha.4] — 2026-11-26
 
 ### Added
@@ -657,7 +670,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `writeRouteTypes()` generating `furin-env.d.ts` for per-route type inference
 - Bun-native HMR with React Fast Refresh — single process, no Vite
 
-[Unreleased]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.4...HEAD
+[Unreleased]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.5...HEAD
+[0.9.0-alpha.5]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.4...v0.9.0-alpha.5
 [0.9.0-alpha.4]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.3...v0.9.0-alpha.4
 [0.9.0-alpha.3]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.2...v0.9.0-alpha.3
 [0.9.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.9.0-alpha.1...v0.9.0-alpha.2

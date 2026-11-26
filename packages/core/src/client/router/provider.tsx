@@ -194,8 +194,8 @@ export function RouterProvider({
   const { href: currentHref, isNavigating, resetVersion: boundaryResetVersion, state } = navigation;
   const { navigate, refresh, invalidatePath: invalidatePrefetch } = controller;
   const prefetch = useCallback(
-    (href: string, opts: { staleTime?: number } | undefined) => {
-      controller.prefetch(href, opts?.staleTime);
+    (href: string, opts: { search?: SearchParamsInput; staleTime?: number } | undefined) => {
+      controller.prefetch(href, opts?.staleTime, opts?.search);
     },
     [controller]
   );

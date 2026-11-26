@@ -272,6 +272,17 @@ const assertRouterTargets = (router: Router) => {
   });
   router.prefetch({ to: "/elysia-products", search: { page: 2 } });
   router.navigate("/elysia-boards/42", { replace: true });
+  router.navigate({ replace: true, search: { page: 2 }, shallow: true, to: "/elysia-products" });
+  // @ts-expect-error shallow needs a structured destination whose search furin can read
+  router.navigate("/elysia-products?page=2", { shallow: true });
+  const [, setProductsSearch] = useSearch("/elysia-products");
+  setProductsSearch({ page: 2 }, { replace: true, shallow: true });
+  const shallowLink: LinkProps<"/elysia-products"> = {
+    search: { page: 2 },
+    shallow: true,
+    to: "/elysia-products",
+  };
+  expectTypeOf(shallowLink.shallow).toEqualTypeOf<boolean | undefined>();
   router.prefetch("/elysia-boards/42", { staleTime: 5000 });
   // @ts-expect-error named destinations require their path params
   router.navigate({ search: { page: 1 }, to: "/elysia-boards/:boardId" });

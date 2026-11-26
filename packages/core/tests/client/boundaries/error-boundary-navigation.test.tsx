@@ -109,7 +109,12 @@ describe("buildRouterTree — error boundary fallback navigation", () => {
 
     // The Link should have used router.navigate() (SPA) instead of window.location.href (full reload)
     expect(navigateSpy).toHaveBeenCalledTimes(1);
-    expect(navigateSpy).toHaveBeenCalledWith("/", { replace: undefined, resetScroll: true });
+    expect(navigateSpy).toHaveBeenCalledWith("/", {
+      replace: undefined,
+      resetScroll: undefined,
+      search: {},
+      shallow: undefined,
+    });
     expect(locationSpy.set).not.toHaveBeenCalled();
   });
 

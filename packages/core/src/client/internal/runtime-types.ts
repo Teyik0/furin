@@ -5,6 +5,7 @@ import type { ErrorComponent } from "../../shared/error.ts";
 import type { NotFoundComponent } from "../../shared/not-found.ts";
 import type { RemountDeps } from "../../shared/page-key.ts";
 import type { RoutePending } from "../../shared/pending.ts";
+import type { SearchParamsInput } from "../../shared/search-params.ts";
 
 /**
  * Loader data after type erasure: field name → value. Each route declares the
@@ -30,6 +31,8 @@ export interface RuntimeRoute {
   errorComponent?: ErrorComponent;
   layout?: React.FC<RuntimeData & { children: React.ReactNode }>;
   loader?: (ctx: RuntimeData) => Awaitable<RuntimeData>;
+  /** Page-only: the part of the validated query its loaders read. */
+  loaderDeps?: (query: SearchParamsInput) => object;
   mode?: RenderingMode;
   /** TanStack style: `.notFound()` of the route. */
   notFoundComponent?: NotFoundComponent;

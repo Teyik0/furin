@@ -133,6 +133,29 @@ export function resolveRouteTarget(
 }
 
 /**
+ * The validated search a structured destination will read, as far as the
+ * client knows it: `search` over the route's schema defaults, empty values
+ * dropped like the URL drops them. Undefined when `path` carries its own
+ * query string, which only the server parses.
+ */
+export function resolveTargetSearch(
+  path: string,
+  search: object | null | undefined,
+  routes: SearchRouteMetadata[]
+): SearchParamsInput | undefined {
+  if (path.includes("?")) {
+    return;
+  }
+  const resolved: SearchParamsInput = { ...findSearchDefaultsForRouteTarget(path, routes) };
+  for (const [key, value] of Object.entries(search ?? {})) {
+    if (value !== null && value !== undefined) {
+      resolved[key] = value;
+    }
+  }
+  return resolved;
+}
+
+/**
  * Builds a full href string from a pathname, optional search params, and optional hash.
  * Null/undefined search values are omitted.
  *

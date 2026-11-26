@@ -1,5 +1,11 @@
 import { type Context, createContext, use, useCallback, useContext, useMemo } from "react";
-import { navigationHrefPolicy, type RuntimeRouteTarget, resolveRouteTarget } from "./link-utils.ts";
+import {
+  applyLinkParams,
+  navigationHrefPolicy,
+  type RuntimeRouteTarget,
+  resolveRouteTarget,
+  resolveTargetSearch,
+} from "./link-utils.ts";
 import type {
   NavigationOptions,
   Prefetch,
@@ -8,6 +14,7 @@ import type {
   RouterNavigate,
   RouterStore,
   StableRouter,
+  TargetNavigationOptions,
 } from "./types.ts";
 
 // Duplicate module copies (separate entrypoints, client references) must share
@@ -80,10 +87,18 @@ export function useRouterStore(): RouterStore {
   return { getCurrentHref: () => value.currentHref, router: value, subscribe: subscribeNever };
 }
 
+function targetSearch(target: RuntimeRouteTarget, routes: StableRouter["searchRoutes"]) {
+  return resolveTargetSearch(
+    applyLinkParams(target.to, target.params as Record<string, string | number> | undefined),
+    target.search,
+    routes
+  );
+}
+
 export function useTypedNavigation(context: StableRouter): Pick<Router, "navigate" | "prefetch"> {
   const { navigate: navigateHref, prefetch: prefetchHref, searchRoutes } = context;
   const navigate: RouterNavigate = useCallback(
-    (next: string | (RuntimeRouteTarget & NavigationOptions), opts?: NavigationOptions) => {
+    (next: string | (RuntimeRouteTarget & TargetNavigationOptions), opts?: NavigationOptions) => {
       const href = typeof next === "string" ? next : resolveRouteTarget(next, searchRoutes);
       const policy = navigationHrefPolicy(
         href,
@@ -99,11 +114,12 @@ export function useTypedNavigation(context: StableRouter): Pick<Router, "navigat
       if (typeof next === "string") {
         return navigateHref(href, opts);
       }
-      const options =
-        next.replace === undefined && next.resetScroll === undefined
-          ? undefined
-          : { replace: next.replace, resetScroll: next.resetScroll };
-      return navigateHref(href, options);
+      return navigateHref(href, {
+        replace: next.replace,
+        resetScroll: next.resetScroll,
+        search: targetSearch(next, searchRoutes),
+        shallow: next.shallow,
+      });
     },
     [navigateHref, searchRoutes]
   );
@@ -120,7 +136,12 @@ export function useTypedNavigation(context: StableRouter): Pick<Router, "navigat
       if (policy !== "internal") {
         return;
       }
-      prefetchHref(href, typeof next === "string" ? opts : { staleTime: next.staleTime });
+      prefetchHref(
+        href,
+        typeof next === "string"
+          ? opts
+          : { search: targetSearch(next, searchRoutes), staleTime: next.staleTime }
+      );
     },
     [prefetchHref, searchRoutes]
   );

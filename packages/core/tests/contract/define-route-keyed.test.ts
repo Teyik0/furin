@@ -95,6 +95,17 @@ const assertRejectedWiring = () => {
     // @ts-expect-error a route.tsx file is a layout
     .page(() => null);
 
+  defineRoute("/$org").config({
+    // @ts-expect-error loaderDeps belongs to page routes
+    loaderDeps: () => ({}),
+    mode: "ssr",
+  });
+  defineRootRoute().config({
+    // @ts-expect-error the root route is a layout
+    loaderDeps: () => ({}),
+    mode: "ssr",
+  });
+
   defineRoute("/$org/projects/$projectId")
     .config({ mode: "ssr" })
     // @ts-expect-error a page file cannot end with layout()

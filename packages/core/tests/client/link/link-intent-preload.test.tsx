@@ -36,7 +36,9 @@ afterEach(async () => {
 // second load when the link is hovered again within its stale time.
 test("same-page fragments do not prefetch on render or intent", async () => {
   window.history.replaceState(null, "", "/");
-  const prefetch = mock((_href: string, _options: { staleTime: number }) => undefined);
+  const prefetch = mock(
+    (_href: string, _options: { search?: object; staleTime: number }) => undefined
+  );
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -70,7 +72,7 @@ test("same-page fragments do not prefetch on render or intent", async () => {
       );
       await Bun.sleep(10);
     });
-    expect(prefetch.mock.calls).toEqual([["/target#details", { staleTime: 30_000 }]]);
+    expect(prefetch.mock.calls).toEqual([["/target#details", { search: {}, staleTime: 30_000 }]]);
   } finally {
     act(() => root.unmount());
     container.remove();

@@ -13,6 +13,7 @@ interface DefinedRouteTerminal {
   head?: (...args: never[]) => HeadOptions;
   layout?: (...args: never[]) => React.ReactNode;
   loader?: (...args: never[]) => unknown;
+  loaderDeps?: (query: never) => object;
   mode?: RenderingMode;
   notFoundComponent?: NotFoundComponent;
   page?: (...args: never[]) => React.ReactNode;
@@ -76,6 +77,7 @@ export function adaptDefinedPage(route: DefinedRouteTerminal, parent: RuntimeRou
       __type: "FURIN_ROUTE",
       params: route.schemas?.params,
       parent,
+      loaderDeps: route.loaderDeps as RuntimeRoute["loaderDeps"],
       query: route.schemas?.query,
       remountDeps: route.remountDeps as RuntimeRoute["remountDeps"],
       requestLoader: route.requestLoader as RuntimeRoute["requestLoader"],

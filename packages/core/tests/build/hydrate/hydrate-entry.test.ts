@@ -65,6 +65,7 @@ describe("generateHydrateEntry", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
 
     expect(code).toContain("remountDeps: __furin_page_route.remountDeps");
+    expect(code).toContain("loaderDeps: __furin_page_route.loaderDeps");
   });
 
   test("hydrates the document owned by the root layout", () => {

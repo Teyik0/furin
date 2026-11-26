@@ -42,7 +42,8 @@ A value typed as plain `string`, such as an href loaded from a CMS, can't be che
 | `search` | Typed navigation input: required when the query schema has a required field; schema defaults are omitted from the URL ([input vs output](/docs/routing#validated-search-parameters)) |
 | `hash` | Fragment without `#` |
 | `replace` | Replaces the current history entry |
-| `resetScroll` | Scrolls to the hash target or top after navigation; defaults to `true` |
+| `resetScroll` | Scrolls to the hash target or top after navigation; defaults to `true`, `false` for [in-place](#search-changes-without-reloading) commits |
+| `shallow` | Same path: commits the new URL and search in place without loading ([details](#search-changes-without-reloading)) |
 | `preload` | `false`, `intent`, `viewport`, or `render` |
 | `preloadDelay` | Hover delay for intent preloading; defaults to `50` ms |
 | `preloadStaleTime` | Freshness window for a prefetched entry; defaults to `30_000` ms |
@@ -131,7 +132,7 @@ function SearchButton() {
 }
 ```
 
-`useNavigate()` accepts typed `to`, `params`, and `search` values, plus `hash`, `replace`, and `resetScroll`. Path parameters use the same encoding as `<Link>`. Dynamic routes require their path parameters:
+`useNavigate()` accepts typed `to`, `params`, and `search` values, plus `hash`, `replace`, `resetScroll`, and `shallow`. Path parameters use the same encoding as `<Link>`. Dynamic routes require their path parameters:
 
 ```tsx
 const navigate = useNavigate();
@@ -180,9 +181,31 @@ function Pagination() {
 }
 ```
 
-Updates merge with the current search object; the setter also accepts an updater function `(prev) => patch`. Pass `{ replace: true }` to avoid a new history entry or `{ resetScroll: false }` to preserve the current position. Setting a field back to its schema default removes it from the URL.
+Updates merge with the current search object; the setter also accepts an updater function `(prev) => patch`. Pass `{ replace: true }` to avoid a new history entry, `{ resetScroll: false }` to preserve the current position, or `{ shallow: true }` to [skip the loaders](#search-changes-without-reloading). Setting a field back to its schema default removes it from the URL.
 
 The route argument autocompletes generated patterns (for example, `/products/:productId`). It must be a known route pattern or a path matching one, and it must identify the currently rendered route. A mismatch throws instead of reading or updating search state under the wrong route type.
+
+## Search Changes Without Reloading
+
+A search change normally reloads the page like any navigation: `isNavigating` turns on and loaders run again. Two ways keep the rendered page and commit only the new URL and search:
+
+- **`loaderDeps` on the route** (recommended): declare which search params the loaders read. Every navigation that keeps them, including back and forward, is in place. See [loader dependencies](/docs/data-loading#loader-dependencies).
+- **`shallow: true` on one navigation**: the caller decides, for a route without `loaderDeps` or a change its `loaderDeps` would reload.
+
+```tsx
+const [, setSearch] = useSearch("/products");
+setSearch({ edit: product.id }, { replace: true, shallow: true });
+
+navigate({ to: "/products", search: { ...query, edit: product.id }, shallow: true });
+
+<Link search={{ ...query, tab: "reviews" }} shallow to="/products/:id" params={{ id }}>
+  Reviews
+</Link>;
+```
+
+An in-place commit happens only when the destination has the same path (route and params) as the rendered page; any other destination falls back to a normal navigation. It respects `replace`, keeps the scroll position unless `resetScroll` or a hash asks for a scroll, and supersedes a navigation still loading. `shallow` applies to that navigation only: back and forward load the page again unless the route's `loaderDeps` say the change does not matter, and browser reloads always run loaders. It needs a structured destination (`to` with `search`, a `useSearch()` setter or `<Link search>`): the client only knows the validated search it was given, so href strings are not accepted.
+
+Search values committed this way are not re-validated by the server: pass schema output values (`{ page: 2 }`, not `"2"`). If a component is keyed by the whole query (`<Suspense key={JSON.stringify(query)}>`), key it by the loader dependencies instead so opening a panel does not reset it.
 
 ## Router Controls
 
@@ -240,6 +263,7 @@ The server never renders pending screens. `router.refresh()` and HMR refreshes k
 - Back and forward restore saved positions.
 - A destination hash wins over top-of-page scrolling.
 - `resetScroll={false}` suppresses automatic scrolling.
+- [In-place commits](#search-changes-without-reloading) keep the scroll position unless `resetScroll` or a hash asks for a scroll.
 - Redirects preserve the server's canonical destination.
 
 If `<Link>` renders outside Furin's router provider, it remains functional and falls back to a normal document navigation.

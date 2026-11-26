@@ -1,6 +1,12 @@
 import { log } from "evlog";
+import { deepEqual, type SearchParamsInput } from "../../shared/search-params.ts";
 import { CacheGeneration } from "./cache-generation.ts";
-import { generateHistoryKey, getHistoryKey, saveScrollPosition } from "./history.ts";
+import {
+  generateHistoryKey,
+  getHistoryKey,
+  getHistorySearch,
+  saveScrollPosition,
+} from "./history.ts";
 import {
   normalizeHref,
   shouldAutoRefreshPath,
@@ -51,11 +57,18 @@ export interface NavigateRequest {
   pending?: boolean;
   replace?: boolean;
   resetScroll?: boolean;
+  /**
+   * Validated search the destination will read. Only with it can a page
+   * already loaded for the same path be reused (see `loaderDeps`, `shallow`).
+   */
+  search?: SearchParamsInput;
+  /** Same path: commit the new URL and search in place without running loaders. */
+  shallow?: boolean;
   /** Returning `false` discards the navigation result instead of committing it. */
   shouldCommit?: () => boolean;
 }
 
-export type RefreshRequest = Omit<NavigateRequest, "replace">;
+export type RefreshRequest = Omit<NavigateRequest, "replace" | "search" | "shallow">;
 
 export type ScrollInstruction = { type: "restore"; key: string } | { type: "reset"; href: string };
 
@@ -71,6 +84,8 @@ interface FetchedPage {
 interface PageCacheEntry {
   createdAt: number;
   promise: Promise<FetchedPage>;
+  /** The page once `promise` resolved, so it can be matched synchronously. */
+  settled?: FetchedPage;
   staleTime: number;
 }
 
@@ -88,6 +103,36 @@ function isRenderable(result: PageResult): result is Renderable {
 
 function isExpired(entry: PageCacheEntry): boolean {
   return Date.now() - entry.createdAt > entry.staleTime;
+}
+
+function pathnameOf(href: string): string {
+  return normalizeHref(new URL(href, "http://furin.local").pathname);
+}
+
+/**
+ * True when `state` is a page loaded for `href`'s path whose route declares
+ * `loaderDeps` and reads the same dependencies from `search`.
+ */
+function sharesLoaderDeps(
+  state: RouterState,
+  stateHref: string,
+  href: string,
+  search: SearchParamsInput
+): boolean {
+  const loaderDeps = state.match?.pageRoute.loaderDeps;
+  return (
+    loaderDeps !== undefined &&
+    pathnameOf(stateHref) === pathnameOf(href) &&
+    deepEqual(
+      loaderDeps((state.data.query as SearchParamsInput | undefined) ?? {}),
+      loaderDeps(search)
+    )
+  );
+}
+
+/** The same loaded page, read with another search. */
+function withSearch(state: RouterState, search: SearchParamsInput): RouterState {
+  return { ...state, data: { ...state.data, query: search }, finalHref: undefined };
 }
 
 function historyStateObject(): object {
@@ -175,9 +220,16 @@ export class NavigationController {
     });
   };
 
-  readonly prefetch = (href: string, staleTime: number | undefined): void => {
+  readonly prefetch = (
+    href: string,
+    staleTime: number | undefined,
+    search?: SearchParamsInput
+  ): void => {
     const existing = this.#cache.get(href);
-    if (existing && !isExpired(existing)) {
+    if (
+      (existing && !isExpired(existing)) ||
+      (search && (this.#inPlace(href, search, false) || this.#sharedPage(href, search)))
+    ) {
       return;
     }
     const generation = this.#generation.current;
@@ -269,9 +321,14 @@ export class NavigationController {
   /** Keys the initial history entry so its scroll position can be restored. */
   adoptHistoryEntry(): void {
     history.scrollRestoration = "manual";
-    if (!getHistoryKey(history.state)) {
-      history.replaceState({ ...historyStateObject(), _furinKey: generateHistoryKey() }, "");
-    }
+    history.replaceState(
+      {
+        ...historyStateObject(),
+        _furinKey: getHistoryKey(history.state) ?? generateHistoryKey(),
+        _furinSearch: this.#snapshot.state.data.query,
+      },
+      ""
+    );
     this.#renderedHistoryKey = getHistoryKey(history.state);
   }
 
@@ -352,6 +409,12 @@ export class NavigationController {
   }
 
   #store(href: string, entry: PageCacheEntry): void {
+    entry.promise.then(
+      (page) => {
+        entry.settled = page;
+      },
+      () => undefined
+    );
     this.#cache.delete(href);
     this.#cache.set(href, entry);
     if (this.#cache.size > this.#config.maxCacheSize) {
@@ -394,6 +457,16 @@ export class NavigationController {
   }
 
   async #run(href: string, kind: NavigationKind): Promise<void> {
+    const search = kind.type === "push" ? kind.request.search : getHistorySearch(history.state);
+    const shallow = kind.type === "push" && kind.request.shallow === true;
+    if (
+      search &&
+      this.#inPlace(href, search, shallow) &&
+      !(kind.type === "push" && kind.request.shouldCommit?.() === false)
+    ) {
+      this.#commitInPlace(href, kind, search);
+      return;
+    }
     const hmrRefresh = kind.type === "push" && kind.request.hmrRefresh === true;
     const finishUserNavigation = hmrRefresh ? undefined : this.#beginUserNavigation();
     this.#version += 1;
@@ -410,7 +483,7 @@ export class NavigationController {
         return;
       }
       committed = await Promise.race([
-        this.#load(href, kind, version, abort.signal),
+        this.#load(href, kind, version, abort.signal, search),
         cancelled.promise,
       ]);
     } finally {
@@ -433,12 +506,14 @@ export class NavigationController {
     href: string,
     kind: NavigationKind,
     version: number,
-    signal: AbortSignal
+    signal: AbortSignal,
+    search: SearchParamsInput | undefined
   ): Promise<boolean> {
     const loaded = await this.#read(
       href,
       signal,
-      kind.type === "push" && kind.request.hmrRefresh === true
+      kind.type === "push" && kind.request.hmrRefresh === true,
+      search
     );
     if (!this.#accepts(kind, version)) {
       return false;
@@ -491,7 +566,8 @@ export class NavigationController {
   async #read(
     href: string,
     signal: AbortSignal,
-    hmrRefresh: boolean
+    hmrRefresh: boolean,
+    search: SearchParamsInput | undefined
   ): Promise<{ fetched: boolean; page: FetchedPage }> {
     const cached = this.#cache.get(href);
     if (cached && !isExpired(cached) && !this.#optimistic.has(href)) {
@@ -500,7 +576,72 @@ export class NavigationController {
         return { fetched: false, page };
       }
     }
+    const shared = search && this.#sharedPage(href, search);
+    if (shared) {
+      return { fetched: false, page: shared };
+    }
     return { fetched: true, page: await this.#fetchConfirmed(href, signal, hmrRefresh) };
+  }
+
+  /** Whether the committed page can take `href` without loading: same path, and loader deps kept or `shallow`. */
+  #inPlace(href: string, search: SearchParamsInput, shallow: boolean): boolean {
+    const { href: committedHref, state } = this.#snapshot;
+    return (
+      state.match !== null &&
+      !(state.error || state.notFound) &&
+      !this.#optimistic.has(committedHref) &&
+      (shallow
+        ? pathnameOf(committedHref) === pathnameOf(href)
+        : sharesLoaderDeps(state, committedHref, href, search))
+    );
+  }
+
+  /** A cached page for another search of `href`'s path that reads the same loader deps. */
+  #sharedPage(href: string, search: SearchParamsInput): FetchedPage | undefined {
+    if (this.#optimistic.has(href)) {
+      return;
+    }
+    for (const [cachedHref, entry] of this.#cache) {
+      const page = entry.settled;
+      if (
+        page?.result.kind === "page" &&
+        !isExpired(entry) &&
+        this.#isReusable(cachedHref, page) &&
+        sharesLoaderDeps(page.result.state, cachedHref, href, search)
+      ) {
+        return {
+          ...page,
+          result: { ...page.result, state: withSearch(page.result.state, search) },
+        };
+      }
+    }
+  }
+
+  /** Publishes the committed page under the new URL and search; supersedes pending navigations. */
+  #commitInPlace(href: string, kind: NavigationKind, search: SearchParamsInput): void {
+    this.#beginUserNavigation()();
+    this.#version += 1;
+    this.#pendingAbort?.abort();
+    this.#pendingAbort = null;
+    const committedHref =
+      kind.type === "push"
+        ? this.#commitPush(
+            {
+              ...kind.request,
+              // The page stays: keep the scroll position unless a hash asks to move.
+              resetScroll: kind.request.resetScroll ?? href.includes("#"),
+            },
+            href,
+            search
+          )
+        : this.#commitPop(kind.key, href, href, search);
+    this.#publish({
+      ...this.#snapshot,
+      href: committedHref,
+      isNavigating: false,
+      pending: undefined,
+      state: withSearch(this.#snapshot.state, search),
+    });
   }
 
   /** A cached page is reusable only when nothing it depends on changed since its fetch. */
@@ -563,7 +704,7 @@ export class NavigationController {
       }
       visited.add(href);
       // biome-ignore lint/performance/noAwaitInLoops: each redirect target depends on the previous response.
-      ({ page } = await this.#read(href, signal, false));
+      ({ page } = await this.#read(href, signal, false, undefined));
     }
     return isRenderable(page.result) ? { href, page, result: page.result } : null;
   }
@@ -591,8 +732,8 @@ export class NavigationController {
     }
     const href =
       kind.type === "push"
-        ? this.#commitPush(kind.request, effective)
-        : this.#commitPop(kind.key, effective, requestedHref);
+        ? this.#commitPush(kind.request, effective, state.data.query)
+        : this.#commitPop(kind.key, effective, requestedHref, state.data.query);
     this.#publish({
       href,
       isNavigating: false,
@@ -609,7 +750,7 @@ export class NavigationController {
   }
 
   /** Pushes (or replaces) the history entry and returns the committed logical href. */
-  #commitPush(request: NavigateRequest, effective: string): string {
+  #commitPush(request: NavigateRequest, effective: string, search: unknown): string {
     const { basePath } = this.#config;
     const physical = basePath + effective;
     if (request.resetScroll ?? true) {
@@ -620,6 +761,7 @@ export class NavigationController {
         {
           ...historyStateObject(),
           _furinKey: getHistoryKey(history.state) ?? generateHistoryKey(),
+          _furinSearch: search,
         },
         "",
         physical
@@ -628,7 +770,7 @@ export class NavigationController {
       if (this.#renderedHistoryKey) {
         saveScrollPosition(this.#renderedHistoryKey);
       }
-      history.pushState({ _furinKey: generateHistoryKey() }, "", physical);
+      history.pushState({ _furinKey: generateHistoryKey(), _furinSearch: search }, "", physical);
     }
     this.#renderedHistoryKey = getHistoryKey(history.state);
     const url = new URL(physical, window.location.origin);
@@ -636,9 +778,18 @@ export class NavigationController {
   }
 
   /** Adopts the popped entry (canonicalised after redirects) and returns the committed logical href. */
-  #commitPop(key: string | undefined, effective: string, requestedHref: string): string {
+  #commitPop(
+    key: string | undefined,
+    effective: string,
+    requestedHref: string,
+    search: unknown
+  ): string {
     if (effective !== requestedHref) {
-      history.replaceState(history.state, "", this.#config.basePath + effective);
+      history.replaceState(
+        { ...historyStateObject(), _furinSearch: search },
+        "",
+        this.#config.basePath + effective
+      );
     }
     this.#renderedHistoryKey = key;
     if (key) {
