@@ -1,0 +1,38 @@
+packages/core/tests/client/sync/infinite-query.test.tsx
+  s_d97475e7a583ac::t_e3b82a2290e5ef 1,3-4,7,10,17-21,23-24,27-31,33-34,79-81,99-101,104,106,118
+  s_d97475e7a583ac::t_0947a905779a9e 75-77,129-153,155-156
+  s_d97475e7a583ac::t_ccc4d5039ca09c 5,8-9,11-13,16,86,88-90,98,154,157-182,185-191
+  s_d97475e7a583ac::t_06e3f765839150 82-83,87,183-184
+  s_d97475e7a583ac::t_00f8268bdc14c0 119-128,192
+  s_d97475e7a583ac::t_aef916bdbfbd97 6,68
+  s_d97475e7a583ac::t_5607cdb906c0af 2,14-15,22,25-26,32,35-67,69-74,78,84-85,91-97,102-103,105,107-117
+  s_d97475e7a583ac::t_8752513dbc00c7 193-204
+packages/core/src/client/query.tsx
+  s_d97475e7a583ac::t_8519b173c264c2 77
+  s_d97475e7a583ac::t_ac4e8532061a54 76,80-81
+  s_d97475e7a583ac::t_7306c2aa37d457 7,52-75,78-79,83-85,87-94,97,99-101,103-111,113-120,122-129
+  s_d97475e7a583ac::t_aef916bdbfbd97 82,86,95-96,98,102,112,121,130
+  s_d97475e7a583ac::t_8afb971e3e4c21 131
+packages/core/src/client.ts
+  s_d97475e7a583ac::t_7306c2aa37d457 25
+apps/docs/src/content/docs/sync.mdx
+  s_d97475e7a583ac::t_7fd32321ffa2ea 373-404
+packages/core/tests/contract/query-types.type.test.ts
+  s_d97475e7a583ac::t_04617ae14e11fb 6,38-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b5f1670711dd43e42fe4f910717e1d4b0f94ac6f",
+  "prompts": {},
+  "sessions": {
+    "s_d97475e7a583ac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "244a9f64-ea62-433c-9f62-13b8df18a3af",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
