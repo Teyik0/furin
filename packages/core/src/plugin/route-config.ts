@@ -302,17 +302,24 @@ function checkParams(
   );
 }
 
+const BOUNDARY_CONVENTIONS = {
+  error: "an error.tsx",
+  notFound: "a not-found.tsx",
+  pending: "a loading.tsx",
+} as const;
+const BOUNDARY_METHODS = ["error", "notFound", "pending"] as const;
+
 /** Next.js-style apps declare boundaries as files, TanStack-style ones on the route. */
 function checkBoundaryMethods(
   file: string,
   instance: RouteInstanceSpec,
   parsed: ParsedRoute
 ): RouteConfigIssue | undefined {
-  const method = ["error", "notFound"].find((name) => parsed.route.methods.has(name));
+  const method = BOUNDARY_METHODS.find((name) => parsed.route.methods.has(name));
   if (instance.style !== "nextjs" || method === undefined) {
     return;
   }
-  const convention = method === "error" ? "an error.tsx" : "a not-found.tsx";
+  const convention = BOUNDARY_CONVENTIONS[method];
   return issueAt(
     file,
     parsed,

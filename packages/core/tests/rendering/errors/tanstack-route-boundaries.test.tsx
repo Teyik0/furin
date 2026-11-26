@@ -39,6 +39,11 @@ export const route = defineRoute("/shop/missing")
   .config({ mode: "ssr" })
   .loader(() => notFound())
   .page(() => <p>unreachable</p>);`,
+  "shop/slow.tsx": `import { defineRoute } from "@teyik0/furin";
+export const route = defineRoute("/shop/slow")
+  .config({ mode: "ssr" })
+  .pending(() => <p>loading</p>, { ms: 200 })
+  .page(() => <p data-page="slow">slow</p>);`,
   "vault/route.tsx": `import { defineRoute } from "@teyik0/furin";
 export const route = defineRoute("/vault")
   .config({ mode: "ssr" })
@@ -138,6 +143,31 @@ test.each([false, true])(
         { depth: 0, error: true, fromRoute: true, notFound: false },
         { depth: 1, error: true, fromRoute: true, notFound: false },
       ]);
+    } finally {
+      __setDevMode(false);
+    }
+  }
+);
+
+test("a page's .pending() never renders on the server", async () => {
+  const { html, status } = await render("/shop/slow");
+  expect(status).toBe(200);
+  expect(html).toContain('data-page="slow"');
+  expect(html).not.toContain("loading");
+});
+
+test.each([false, true])(
+  "discovery records a route's .pending() at its boundary depth (dev=%p)",
+  async (dev) => {
+    __setDevMode(dev);
+    try {
+      const { routes } = await scanPages({ pagesDir, prefix: "", style: "tanstack" });
+      const slow = routes.find((route) => route.pattern === "/shop/slow");
+      expect(
+        slow?.segmentBoundaries
+          .filter((boundary) => boundary.pendingPath !== undefined)
+          .map(({ depth, fromRoute, pendingPath }) => ({ depth, fromRoute, pendingPath }))
+      ).toEqual([{ depth: 1, fromRoute: true, pendingPath: slow?.path }]);
     } finally {
       __setDevMode(false);
     }

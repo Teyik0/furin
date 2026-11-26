@@ -427,8 +427,8 @@ export function routeDefinedBoundaries(
     ];
   const pagesDir = root.path.slice(0, root.path.lastIndexOf("/"));
   return entries.flatMap(({ depth, path, route }): SegmentBoundary[] => {
-    const { errorComponent, notFoundComponent } = route;
-    if (path === undefined || !(errorComponent || notFoundComponent)) {
+    const { errorComponent, notFoundComponent, pending } = route;
+    if (path === undefined || !(errorComponent || notFoundComponent || pending)) {
       return [];
     }
     return [
@@ -440,6 +440,7 @@ export function routeDefinedBoundaries(
         notFound: notFoundComponent,
         notFoundPath: notFoundComponent ? path : undefined,
         path: path === root.path ? pagesDir : path,
+        pendingPath: pending ? path : undefined,
       },
     ];
   });
@@ -526,6 +527,8 @@ async function collectSegmentBoundaries(
           notFound: notFoundEntry?.component,
           notFoundPath: notFoundEntry?.path,
           path: boundary.directory,
+          // Never imported on the server: only the client renders the pending screen.
+          pendingPath: boundary.pendingPath,
         })
       );
       cache.set(boundary.directory, loaded);

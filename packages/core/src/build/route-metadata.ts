@@ -31,7 +31,7 @@ export interface BuildRoute
   routeChain: { layout: boolean; sourcePath?: string }[];
   segmentBoundaries: Pick<
     SegmentBoundary,
-    "depth" | "path" | "errorPath" | "fromRoute" | "notFoundPath"
+    "depth" | "path" | "errorPath" | "fromRoute" | "notFoundPath" | "pendingPath"
   >[];
 }
 
@@ -84,12 +84,13 @@ export function buildRouteMetadata(route: ResolvedRoute): BuildRoute {
       sourcePath: entry.sourcePath,
     })),
     segmentBoundaries: route.segmentBoundaries.map(
-      ({ depth, path, errorPath, fromRoute, notFoundPath }) => ({
+      ({ depth, path, errorPath, fromRoute, notFoundPath, pendingPath }) => ({
         depth,
         path,
         errorPath,
         ...(fromRoute ? { fromRoute } : {}),
         notFoundPath,
+        pendingPath,
       })
     ),
     tags: route.tags,

@@ -129,8 +129,8 @@ export function routeSnapshotSourcePaths(instance: RouteInstanceSpec): string[] 
   return [
     ...(existsSync(rootPath) ? [rootPath] : []),
     ...routes.map(({ sourcePath }) => sourcePath),
-    ...boundaries.flatMap(({ errorPath, notFoundPath }) =>
-      [errorPath, notFoundPath].filter((path) => path !== undefined)
+    ...boundaries.flatMap(({ errorPath, notFoundPath, pendingPath }) =>
+      [errorPath, notFoundPath, pendingPath].filter((path) => path !== undefined)
     ),
   ]
     .map((path) => resolve(path))

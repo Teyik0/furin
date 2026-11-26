@@ -118,7 +118,8 @@ function hydrateEntry(
     for (const seg of route.segmentBoundaries ?? []) {
       const errorIdent = getBoundaryIdent(boundaryIdents, seg.errorPath);
       const notFoundIdent = getBoundaryIdent(boundaryIdents, seg.notFoundPath);
-      if (!(errorIdent || notFoundIdent)) {
+      const pendingIdent = getBoundaryIdent(boundaryIdents, seg.pendingPath);
+      if (!(errorIdent || notFoundIdent || pendingIdent)) {
         continue;
       }
       const parts = [`depth: ${seg.depth}`];
@@ -130,6 +131,14 @@ function hydrateEntry(
       }
       if (notFoundIdent) {
         parts.push(`notFound: ${notFoundIdent}.${notFoundExport}`);
+      }
+      // `.pending()` stores its options with it; `loading.tsx` exports them by name.
+      if (pendingIdent) {
+        parts.push(
+          seg.fromRoute
+            ? `pending: ${pendingIdent}.route.pending`
+            : `pending: { component: ${pendingIdent}.default, minMs: ${pendingIdent}.pendingMinMs, ms: ${pendingIdent}.pendingMs }`
+        );
       }
       if (seg.depth === 0 && seg.path.replaceAll("\\", "/") !== rootDirectory) {
         parts.push("isRoot: false");

@@ -36,6 +36,7 @@ import {
 } from "./navigation-controller.ts";
 import { createOptimisticRuntime, registerOptimisticRuntime } from "./optimistic.ts";
 import { fetchPageState } from "./page-fetch.ts";
+import { resolvePendingScreen } from "./pending.ts";
 import { createSearchStore, SearchStoreContext } from "./search-store.ts";
 import { detectStaticMode } from "./spa-response.ts";
 import type {
@@ -162,6 +163,7 @@ export function RouterProvider({
           hmrRefresh
         ),
       maxCacheSize: prefetchCacheSize,
+      resolvePending: ({ currentMatch, href }) => resolvePendingScreen(routes, href, currentMatch),
     }),
     [
       basePath,
@@ -407,6 +409,7 @@ export function RouterProvider({
     },
     chain,
     data: renderedData,
+    pending: navigation.pending,
     page: state.match
       ? { component: state.match.component, pattern: state.match.pattern }
       : undefined,

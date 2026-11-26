@@ -1,6 +1,7 @@
 import type { ErrorComponent } from "../shared/error.ts";
 import type { NotFoundComponent } from "../shared/not-found.ts";
 import type { RemountDeps } from "../shared/page-key.ts";
+import type { PendingComponent, PendingOptions, RoutePending } from "../shared/pending.ts";
 
 type ClientComponent = (props: never) => React.ReactNode;
 
@@ -17,11 +18,12 @@ type ClientRuntimeComponent = (props: ClientRuntimeProps) => React.ReactNode;
 interface ClientBuilderState {
   errorComponent: ErrorComponent | undefined;
   notFoundComponent: NotFoundComponent | undefined;
+  pending: RoutePending | undefined;
   remountDeps: RemountDeps<never, never> | undefined;
 }
 
 function createRouteBuilder(state: ClientBuilderState) {
-  const { errorComponent, notFoundComponent, remountDeps } = state;
+  const { errorComponent, notFoundComponent, pending, remountDeps } = state;
   return {
     config(options: { remountDeps?: RemountDeps<never, never> }) {
       return createRouteBuilder({ ...state, remountDeps: options.remountDeps });
@@ -37,10 +39,17 @@ function createRouteBuilder(state: ClientBuilderState) {
         errorComponent,
         layout: runtimeComponent,
         notFoundComponent,
+        pending,
       };
     },
     notFound(component: NotFoundComponent) {
       return createRouteBuilder({ ...state, notFoundComponent: component });
+    },
+    pending(component: PendingComponent, options?: PendingOptions) {
+      return createRouteBuilder({
+        ...state,
+        pending: { component, minMs: options?.minMs, ms: options?.ms },
+      });
     },
     page<Component extends ClientComponent>(component: Component) {
       const runtimeComponent = component as unknown as ClientRuntimeComponent;
@@ -50,6 +59,7 @@ function createRouteBuilder(state: ClientBuilderState) {
         errorComponent,
         notFoundComponent,
         page: runtimeComponent,
+        pending,
         remountDeps,
       };
     },
@@ -59,6 +69,7 @@ function createRouteBuilder(state: ClientBuilderState) {
 const EMPTY_BUILDER: ClientBuilderState = {
   errorComponent: undefined,
   notFoundComponent: undefined,
+  pending: undefined,
   remountDeps: undefined,
 };
 

@@ -208,6 +208,32 @@ Useful members are:
 
 Use `router.refresh()` after an application action only when the response did not already carry Furin invalidation metadata. Furin automatically consumes `X-Furin-Revalidate` on browser `fetch()` responses and refreshes the current route when it is affected.
 
+## Pending Screens
+
+During a client navigation, Furin keeps the current page on screen until the new page's loaders finish. When a loader must block for a while, declare a pending screen. It shows only when the navigation lasts longer than `ms`. Once shown, it stays for at least `minMs` while that navigation is active, so it does not blink; a newer navigation to another screen replaces it at once. The defaults are 1000 ms and 500 ms, as in TanStack Router.
+
+```tsx
+// TanStack style: src/routes/products.tsx
+export const route = defineRoute("/products")
+  .config({ mode: "ssr", query: productsQuery })
+  .loader(({ query }) => fetchProducts(query))
+  .pending(() => <ProductsTableSkeleton />, { ms: 200 })
+  .page(ProductsPage);
+```
+
+```tsx
+// Next.js style: src/app/(dashboard)/products/loading.tsx
+export default function Loading() {
+  return <ProductsTableSkeleton />;
+}
+export const pendingMs = 200; // optional, default 1000
+export const pendingMinMs = 500; // optional, default 500
+```
+
+The pending screen takes no props. It renders in place of the first segment that changes, inside the layouts the new page shares with the current one, so those layouts stay on screen. `.pending()` on a page or a layout renders in its parent layout, like `.error()`. A `loading.tsx` renders inside the layout of its directory. Only the screen at the first changing segment is used: navigating between two children of a layout never replaces that layout with its own pending screen. Changing the search params of the current page shows the page's own pending screen.
+
+The server never renders pending screens. `router.refresh()` and HMR refreshes keep the current page instead. A page already in the preload cache arrives at once, so its pending screen never shows; while a preload is still in flight, `ms` counts from the navigation start as usual. Use [`defer()`](/docs/defer) when only part of a page is slow: the rest renders at once and `<Await>` shows its own fallback.
+
 ## Scroll And History
 
 - New navigations use `history.pushState`; `replace` uses `replaceState`.

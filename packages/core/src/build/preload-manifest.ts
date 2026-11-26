@@ -20,7 +20,9 @@ function routeModulePaths(route: BuildRouteInput): string[] {
     .filter((entry) => entry.layout && entry.sourcePath)
     .map((entry) => entry.sourcePath as string);
   const boundaries = (route.segmentBoundaries ?? []).flatMap((segment) =>
-    [segment.errorPath, segment.notFoundPath].filter((path) => path !== undefined)
+    [segment.errorPath, segment.notFoundPath, segment.pendingPath].filter(
+      (path) => path !== undefined
+    )
   );
   return [route.path, ...layouts, ...boundaries];
 }

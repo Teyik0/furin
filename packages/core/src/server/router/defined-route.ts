@@ -3,6 +3,7 @@ import type { HeadOptions, RenderingMode } from "../../client.ts";
 import type { ErrorComponent } from "../../shared/error.ts";
 import type { NotFoundComponent } from "../../shared/not-found.ts";
 import type { RemountDependency } from "../../shared/page-key.ts";
+import type { RoutePending } from "../../shared/pending.ts";
 
 interface DefinedRouteTerminal {
   __type: "FURIN_ROUTE";
@@ -15,6 +16,7 @@ interface DefinedRouteTerminal {
   mode?: RenderingMode;
   notFoundComponent?: NotFoundComponent;
   page?: (...args: never[]) => React.ReactNode;
+  pending?: RoutePending;
   remountDeps?: (context: never) => readonly RemountDependency[];
   requestLoader?: (...args: never[]) => unknown;
   revalidate?: number;
@@ -55,6 +57,7 @@ export function adaptDefinedLayout(
     notFoundComponent: route.notFoundComponent,
     params: route.schemas?.params,
     ...(parent ? { parent } : {}),
+    pending: route.pending,
     query: route.schemas?.query,
     requestLoader: route.requestLoader as RuntimeRoute["requestLoader"],
     revalidate: route.revalidate,
@@ -83,6 +86,7 @@ export function adaptDefinedPage(route: DefinedRouteTerminal, parent: RuntimeRou
     loader: route.loader as RuntimePage["loader"],
     mode: route.mode,
     notFoundComponent: route.notFoundComponent,
+    pending: route.pending,
     revalidate: route.revalidate,
     staticParams: route.staticParams as RuntimePage["staticParams"],
     tags: copyTags(route.tags),

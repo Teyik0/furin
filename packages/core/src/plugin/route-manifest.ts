@@ -33,11 +33,12 @@ export interface ManifestRoute {
   sourcePath: string;
 }
 
-/** A Next.js-style `error` / `not-found` pair declared in one directory. */
+/** The Next.js-style `error` / `not-found` / `loading` files declared in one directory. */
 export interface ManifestBoundary {
   directory: string;
   errorPath: string | undefined;
   notFoundPath: string | undefined;
+  pendingPath: string | undefined;
 }
 
 export interface RouteManifest {
@@ -265,6 +266,8 @@ function addNextFile(
     state.boundary.errorPath ??= sourcePath;
   } else if (base === "not-found") {
     state.boundary.notFoundPath ??= sourcePath;
+  } else if (base === "loading") {
+    state.boundary.pendingPath ??= sourcePath;
   }
 }
 
@@ -273,7 +276,12 @@ function scanNext(pagesDir: string): StyleScan {
   const boundaries: ManifestBoundary[] = [];
   let rootPath: string | undefined;
   const walk = (directory: string, segments: Segment[]): void => {
-    const boundary: ManifestBoundary = { directory, errorPath: undefined, notFoundPath: undefined };
+    const boundary: ManifestBoundary = {
+      directory,
+      errorPath: undefined,
+      notFoundPath: undefined,
+      pendingPath: undefined,
+    };
     const state: NextScanState = { boundary, candidates, rootPath };
     for (const entry of sortedEntries(directory)) {
       const sourcePath = child(directory, entry.name);
@@ -285,7 +293,7 @@ function scanNext(pagesDir: string): StyleScan {
       }
     }
     rootPath ??= state.rootPath;
-    if (boundary.errorPath || boundary.notFoundPath) {
+    if (boundary.errorPath || boundary.notFoundPath || boundary.pendingPath) {
       boundaries.push(boundary);
     }
   };

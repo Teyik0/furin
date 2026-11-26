@@ -32,6 +32,7 @@ Both styles produce routes keyed by the same [TanStack Start ids](#route-ids), s
 | Leave the parent layout | — | `posts_.$id.edit.tsx` | `"/posts_/$id/edit"` |
 | Flat nesting | — | `posts.$id.edit.tsx` | `"/posts/$id/edit"` |
 | Error / 404 boundary | `error.tsx`, `not-found.tsx` | `.error()`, `.notFound()` on the route | — |
+| Pending screen | `loading.tsx` | `.pending()` on the route | — |
 
 Route modules may use `.tsx`, `.ts`, `.jsx`, or `.js` (`.d.ts` files are ignored). Furin rejects two pages that resolve to the same URL, including ambiguous dynamic names such as `$id.tsx` and `$slug.tsx` in the same directory, and names both files.
 
@@ -42,6 +43,7 @@ src/app/
 ├── layout.tsx                   → root document
 ├── page.tsx                     → /
 ├── error.tsx · not-found.tsx    → root boundaries
+├── loading.tsx                  → pending screen of the root
 ├── board/
 │   ├── layout.tsx               → layout of /board
 │   └── [boardId]/
@@ -52,7 +54,7 @@ src/app/
 └── _lib/                        → private, ignored
 ```
 
-Only `page`, `layout`, `error` and `not-found` files are route files, so components and helpers can sit next to them. A `route.ts` file fails the scan with `route handlers are not supported`: Furin serves no route handlers, so declare API routes on your Elysia app (see [API Routes](/docs/api-routes)). Furin does not support `loading.tsx`, `template.tsx`, parallel routes (`@slot`) or intercepting routes (`(.)`).
+Only `page`, `layout`, `error`, `not-found` and `loading` files are route files, so components and helpers can sit next to them. A `route.ts` file fails the scan with `route handlers are not supported`: Furin serves no route handlers, so declare API routes on your Elysia app (see [API Routes](/docs/api-routes)). Furin does not support `template.tsx`, parallel routes (`@slot`) or intercepting routes (`(.)`).
 
 ### TanStack Start style
 
@@ -120,7 +122,7 @@ The development server and `furin build` check every route file for mistakes tha
 - `defineRoute(id)` passes the file's own [id](#route-ids), and `config()` has no `layout` option.
 - `defineRoute(id)` is followed by `config()` with a `mode`.
 - A page's own `params` schema declares every path param of its URL, including the params its layouts also declare.
-- A Next.js-style app does not call `.error()` or `.notFound()`: it declares `error.tsx` and `not-found.tsx` files instead.
+- A Next.js-style app does not call `.error()`, `.notFound()` or `.pending()`: it declares `error.tsx`, `not-found.tsx` and `loading.tsx` files instead.
 
 Each issue names the file, line and column and gives the code to write:
 

@@ -29,7 +29,13 @@ function createController(maxCacheSize: number) {
     return Promise.resolve(result);
   };
   const controller = new NavigationController({
-    config: { basePath: "", defaultStaleTime: 30_000, fetchPage, maxCacheSize },
+    config: {
+      basePath: "",
+      defaultStaleTime: 30_000,
+      fetchPage,
+      maxCacheSize,
+      resolvePending: () => Promise.resolve(undefined),
+    },
     initial: { href: "/", isNavigating: false, resetVersion: 0, state: { data: {}, match: null } },
     optimistic: createOptimisticRuntime({
       basePath: "",
@@ -87,6 +93,7 @@ test("context invalidation fences ignored cancellation and aborts pending and co
     basePath: "",
     defaultStaleTime: 30_000,
     maxCacheSize: 50,
+    resolvePending: () => Promise.resolve(undefined),
     fetchPage: ({ href, signal }) => {
       signals.set(href, signal);
       if (href === "/private") {
@@ -131,6 +138,7 @@ test("context refresh follows the current navigation instead of an obsolete requ
     basePath: "",
     defaultStaleTime: 30_000,
     maxCacheSize: 50,
+    resolvePending: () => Promise.resolve(undefined),
     fetchPage: ({ href }) => {
       requested.push(href);
       if (href === "/a") {

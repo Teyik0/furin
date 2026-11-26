@@ -196,21 +196,28 @@ describe("nextjs style", () => {
     ]);
   });
 
-  test("error and not-found files declare directory boundaries", () => {
+  test("error, not-found and loading files declare directory boundaries", () => {
     touch(
       "layout.tsx",
       "error.tsx",
       "page.tsx",
       "blog/not-found.tsx",
       "blog/error.tsx",
+      "blog/loading.tsx",
       "blog/page.tsx"
     );
     expect(scanRouteManifest({ pagesDir, prefix: "", style: "nextjs" }).boundaries).toEqual([
-      { directory: pagesDir, errorPath: `${pagesDir}/error.tsx`, notFoundPath: undefined },
+      {
+        directory: pagesDir,
+        errorPath: `${pagesDir}/error.tsx`,
+        notFoundPath: undefined,
+        pendingPath: undefined,
+      },
       {
         directory: `${pagesDir}/blog`,
         errorPath: `${pagesDir}/blog/error.tsx`,
         notFoundPath: `${pagesDir}/blog/not-found.tsx`,
+        pendingPath: `${pagesDir}/blog/loading.tsx`,
       },
     ]);
   });

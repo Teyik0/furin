@@ -176,18 +176,20 @@ export async function mountProductionPages(
     for (const boundary of route.segmentBoundaries) {
       paths.add(boundary.errorPath);
       paths.add(boundary.notFoundPath);
+      paths.add(boundary.pendingPath);
     }
     routeMetadata[route.path] = {
       layouts: route.layouts,
       requestKeys: route.requestKeys,
       requestKeysByLoader: route.requestKeysByLoader,
       segmentBoundaries: route.segmentBoundaries.map(
-        ({ depth, errorPath, fromRoute, notFoundPath, path }) => ({
+        ({ depth, errorPath, fromRoute, notFoundPath, path, pendingPath }) => ({
           depth,
           errorPath,
           ...(fromRoute ? { fromRoute } : {}),
           notFoundPath,
           path,
+          pendingPath,
         })
       ),
     };
