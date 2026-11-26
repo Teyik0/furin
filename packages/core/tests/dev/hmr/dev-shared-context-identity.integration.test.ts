@@ -180,7 +180,7 @@ describe.serial("dev shared module identity across HMR edits", () => {
       ].join("\n")
     );
     let settings = "";
-    await pollUntil(
+    const added = await pollUntil(
       async () => {
         settings = await (await fetch(`http://localhost:${port}/dashboard/settings`)).text();
         return settings.includes("settings</main>");
@@ -192,7 +192,8 @@ describe.serial("dev shared module identity across HMR edits", () => {
 
     const html = await htmlAfterEdit("page-v4");
 
-    expect(settings, server.getStderr()).toContain("theme-dark");
+    expect(added, server.getStderr()).toBe(true);
+    expect(settings).toContain("theme-dark");
     expect(html).toContain("page-v4");
     expect(html).toContain("theme-dark");
   }, 30_000);
