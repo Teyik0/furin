@@ -1,0 +1,31 @@
+packages/core/tests/client/navigation/pending.test.tsx
+  s_db1e5db48179fe::t_d34cdb9cf48819 194,196,202,204,243,246,248,250,256,258,285-310
+  s_db1e5db48179fe::t_0028ee3a88b309 3,17-18,42-47,106-112
+  s_db1e5db48179fe::t_436ae09c400128 311-314
+packages/core/tests/support/production-app.ts
+  s_db1e5db48179fe::t_22071f2f9417ed 179,186,192
+packages/core/src/client/route-element.tsx
+  s_db1e5db48179fe::t_664ab9872c9a82 82-88,91,96-101,144,147,154-157,167-179
+apps/docs/src/content/docs/link-navigation.mdx
+  s_db1e5db48179fe::t_22071f2f9417ed 216,235
+packages/core/src/client/router/pending.ts
+  s_db1e5db48179fe::t_22071f2f9417ed 45
+packages/core/tests/contract/define-route-client.test.tsx
+  s_db1e5db48179fe::t_22071f2f9417ed 18-20,23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "675b839fa95098907963739adf9ef12b7036c654",
+  "prompts": {},
+  "sessions": {
+    "s_db1e5db48179fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e1bc068-2e5a-4787-bd3b-c0732c984c76",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
