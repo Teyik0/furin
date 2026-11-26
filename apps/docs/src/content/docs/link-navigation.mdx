@@ -210,7 +210,7 @@ Use `router.refresh()` after an application action only when the response did no
 
 ## Pending Screens
 
-During a client navigation, Furin keeps the current page on screen until the new page's loaders finish. When a loader must block for a while, declare a pending screen. It shows only when the navigation lasts longer than `ms`. Once shown, it stays for at least `minMs`, so it never blinks. The defaults are 1000 ms and 500 ms, as in TanStack Router.
+During a client navigation, Furin keeps the current page on screen until the new page's loaders finish. When a loader must block for a while, declare a pending screen. It shows only when the navigation lasts longer than `ms`. Once shown, it stays for at least `minMs` while that navigation is active, so it does not blink; a newer navigation to another screen replaces it at once. The defaults are 1000 ms and 500 ms, as in TanStack Router.
 
 ```tsx
 // TanStack style: src/routes/products.tsx
