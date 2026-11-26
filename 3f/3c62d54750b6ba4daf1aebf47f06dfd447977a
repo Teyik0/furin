@@ -1,0 +1,19 @@
+packages/core/src/server/router/types.ts
+  s_db1e5db48179fe::t_a9527f6b59e50c 66-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3f3c62d54750b6ba4daf1aebf47f06dfd447977a",
+  "prompts": {},
+  "sessions": {
+    "s_db1e5db48179fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e1bc068-2e5a-4787-bd3b-c0732c984c76",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
