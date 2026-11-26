@@ -8,14 +8,16 @@ const ELYSIA_FILTER = /^elysia$/;
 const BUN_BUILTIN_FILTER = /^bun:/;
 const ANY_FILTER = /.*/;
 
-// Minimal browser stub for elysia — `t` is only used for schema definitions
-// in params/query, which the client never validates at runtime.
-const ELYSIA_STUB = `\
-export const t = new Proxy({}, { get: () => (...args) => args[0] ?? {} });
+// Browser stub for elysia: the server stays out of the bundle, but `t` is
+// Elysia's browser-safe schema builder, so a schema shared with the client
+// is the same JSON Schema on both sides. `typeModule` is its resolved path.
+const elysiaStub = (typeModule: string) => `\
+export * as t from ${JSON.stringify(typeModule)};
 export class NotFoundError extends Error { constructor(m) { super(m); this.name = "NotFoundError"; } }
 export class ValidationError extends Error { constructor(m) { super(m); this.name = "ValidationError"; } }
 export default {};
 `;
+const ELYSIA_STUB_PREFIX = "elysia-stub:";
 
 /** Records the route modules imported by the dev `.furin/_hydrate.tsx` entry. */
 function trackHydrationTopology(filePath: string, source: string, topologyPaths: Set<string>) {
@@ -72,7 +74,7 @@ interface ClientStripPluginOptions {
 /**
  * Furin's browser-graph plugin, shared by the dev server (bunfig
  * `[serve.static] plugins`) and the production client build:
- *  1. Stubs `elysia` for the browser with a minimal proxy.
+ *  1. Stubs `elysia` for the browser with its schema builder only.
  *  2. Stubs `bun:*` builtins with an empty module (safety net — DCE removes
  *     loader imports before they reach the browser bundle in practice).
  *  3. Strips server-only code (loader, query, params) from page files before
@@ -90,9 +92,10 @@ export function createClientStripPlugin({ mode }: ClientStripPluginOptions): Bun
         { contents: string; loader: Bun.Loader; isRouteModule: boolean }
       >();
       // ── browser stubs ───────────────────────────────────────────────────────
-      build.onResolve({ filter: ELYSIA_FILTER }, () => ({
+      // Resolved from the importer, so it is the app's own elysia install.
+      build.onResolve({ filter: ELYSIA_FILTER }, (args) => ({
         namespace: "furin-stubs",
-        path: "elysia-stub",
+        path: ELYSIA_STUB_PREFIX + Bun.resolveSync("elysia/type", args.resolveDir),
       }));
 
       build.onResolve({ filter: BUN_BUILTIN_FILTER }, () => ({
@@ -101,7 +104,9 @@ export function createClientStripPlugin({ mode }: ClientStripPluginOptions): Bun
       }));
 
       build.onLoad({ filter: ANY_FILTER, namespace: "furin-stubs" }, (args) => ({
-        contents: args.path === "elysia-stub" ? ELYSIA_STUB : "",
+        contents: args.path.startsWith(ELYSIA_STUB_PREFIX)
+          ? elysiaStub(args.path.slice(ELYSIA_STUB_PREFIX.length))
+          : "",
         loader: "js",
       }));
 

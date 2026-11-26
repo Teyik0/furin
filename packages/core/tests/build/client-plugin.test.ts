@@ -9,6 +9,8 @@ import { createTmpApp, type TmpApp } from "../support/app-fixtures.ts";
 
 const CORE_DIR = resolve(import.meta.dir, "../..");
 const BUNDLED_MODULE_COMMENT = /^\/\/ (src\/\S+)$/gm;
+const ELYSIA_TYPE_MODULE = /node_modules[/\\]elysia[/\\]dist[/\\]type[/\\]exports\.mjs$/;
+const ELYSIA_SERVER_ENTRY = /node_modules[/\\]elysia[/\\]dist[/\\]index\.mjs$/;
 
 const tmpApps: TmpApp[] = [];
 
@@ -133,7 +135,7 @@ describe.serial("client strip plugin", () => {
   });
 
   test.each(clientInputs)(
-    "the %s client stubs elysia in a module shared with the server",
+    "the %s client keeps the elysia server out of a module shared with the server",
     async (_mode, inputsOf) => {
       const app = createSharedSchemaApp(
         'import { t } from "elysia";\nexport const schema = t.Object({ city: t.String() });\n'
@@ -141,9 +143,32 @@ describe.serial("client strip plugin", () => {
 
       const inputs = await inputsOf(app);
 
-      expect(inputs.some((path) => /node_modules[/\\]elysia[/\\]/.test(path))).toBe(false);
+      expect(inputs.some((path) => ELYSIA_TYPE_MODULE.test(path))).toBe(true);
+      expect(inputs.some((path) => ELYSIA_SERVER_ENTRY.test(path))).toBe(false);
     }
   );
+
+  test("the client builds real elysia schemas in a module shared with the server", async () => {
+    const app = createSharedSchemaApp(
+      [
+        'import { t } from "elysia";',
+        'export const schema = t.Union([t.Literal("DRAFT"), t.Literal("PUBLISHED")], { additionalProperties: false });',
+        "export const statuses = schema.anyOf.map((member) => member.const);",
+        "",
+      ].join("\n")
+    );
+    const result = await Bun.build({
+      entrypoints: [join(app.path, "src/schema.ts")],
+      outdir: join(app.path, "schema-build"),
+      plugins: [stripPlugin],
+      target: "browser",
+    });
+    expect(result.success).toBe(true);
+
+    const { statuses } = await import(join(app.path, "schema-build/schema.js"));
+
+    expect(statuses).toEqual(["DRAFT", "PUBLISHED"]);
+  });
 
   test.each(clientInputs)(
     "the %s client stubs Bun builtins in a module shared with the server",
