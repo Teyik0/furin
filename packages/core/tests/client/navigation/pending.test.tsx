@@ -93,6 +93,7 @@ async function mountProducts(
   }
   return {
     container,
+    match,
     router,
     respond(href: string) {
       responses
@@ -240,6 +241,28 @@ test("a layout's pending screen does not replace it during navigations inside it
     expect(app.container.textContent).toBe("orders");
     await act(async () => {
       app.respond("/orders?page=2");
+      await Bun.sleep(10);
+    });
+  } finally {
+    await app.cleanup();
+  }
+});
+
+test("the pending delay runs while the route module loads", async () => {
+  const app = await mountProducts(
+    [{ depth: 0, pending: { component: Skeleton, minMs: 0, ms: 60 } }],
+    []
+  );
+  const { load } = app.match;
+  app.match.load = () => Bun.sleep(60).then(load);
+  try {
+    await act(async () => {
+      app.router.navigate("/products?q=b" as string);
+      await Bun.sleep(100);
+    });
+    expect(app.container.textContent).toBe("Loading products");
+    await act(async () => {
+      app.respond("/products?q=b");
       await Bun.sleep(10);
     });
   } finally {

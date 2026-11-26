@@ -302,10 +302,12 @@ export class NavigationController {
   }
 
   /**
-   * Shows the target's pending screen once the navigation outlasts its `ms`.
+   * Shows the target's pending screen once the navigation outlasts its `ms`,
+   * counted from the navigation start so a slow route module does not delay it.
    * A superseding navigation to the same screen keeps it up without a blink.
    */
   #schedulePending(href: string, kind: NavigationKind, version: number): void {
+    const startedAt = Date.now();
     const wanted =
       kind.type === "pop" || !(kind.request.hmrRefresh || kind.request.pending === false);
     const screen = wanted
@@ -326,12 +328,15 @@ export class NavigationController {
         if (!resolved) {
           return;
         }
-        setTimeout(() => {
-          if (this.#version === version && this.#snapshot.isNavigating) {
-            this.#pendingUntil = Date.now() + resolved.minMs;
-            this.#publish({ ...this.#snapshot, pending: resolved });
-          }
-        }, resolved.ms);
+        setTimeout(
+          () => {
+            if (this.#version === version && this.#snapshot.isNavigating) {
+              this.#pendingUntil = Date.now() + resolved.minMs;
+              this.#publish({ ...this.#snapshot, pending: resolved });
+            }
+          },
+          startedAt + resolved.ms - Date.now()
+        );
       })
       .catch((error: unknown) => {
         log.warn({ action: "pending_resolve_failed", error: String(error), href });
