@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
@@ -81,6 +81,49 @@ test("a virtual page can load its deferred render module", async () => {
     expect(render().props.children).toBe("Deferred page");
   } finally {
     app.cleanup();
+  }
+});
+
+test("a deferred render module resolves the app's tsconfig paths aliases", async () => {
+  const workspace = mkdtempSync(resolve(tmpdir(), "furin-dev-paths-"));
+  const app = resolve(workspace, "apps/dashboard");
+  const filePath = resolve(app, "src/app/(login)/signin/page.tsx");
+  try {
+    mkdirSync(resolve(app, "node_modules/@teyik0"), { recursive: true });
+    symlinkSync(resolve(import.meta.dir, "../../.."), resolve(app, "node_modules/@teyik0/furin"));
+    writeFileSync(resolve(workspace, "tsconfig.base.json"), "{}");
+    writeFileSync(resolve(app, "package.json"), JSON.stringify({ name: "@acme/dashboard" }));
+    writeFileSync(
+      resolve(app, "tsconfig.json"),
+      JSON.stringify({
+        compilerOptions: {
+          jsx: "react-jsx",
+          paths: { "@acme/dashboard/*": ["./src/*"], "@acme/server/*": ["../server/src/*"] },
+        },
+        extends: "../../tsconfig.base.json",
+      })
+    );
+    mkdirSync(resolve(app, "src/lib"), { recursive: true });
+    writeFileSync(resolve(app, "src/lib/api.ts"), 'export const api = "api";');
+    mkdirSync(resolve(workspace, "apps/server/src"), { recursive: true });
+    writeFileSync(resolve(workspace, "apps/server/src/auth.ts"), 'export const auth = "auth";');
+    mkdirSync(resolve(filePath, ".."), { recursive: true });
+    writeFileSync(
+      filePath,
+      `import { defineRoute } from "@teyik0/furin";
+      import { api } from "@acme/dashboard/lib/api";
+      import { auth } from "@acme/server/auth";
+      export const route = defineRoute("/(login)/signin/").config({ mode: "ssr" }).page(() => <p>{api} {auth}</p>);`
+    );
+    registerDevPagePlugin();
+    const { route } = await import(`${filePath}?furin-server&t=1`);
+    const { default: render } = await Reflect.get(
+      route.component,
+      Symbol.for("furin.dev.render")
+    )();
+    expect(render().props.children).toEqual(["api", " ", "auth"]);
+  } finally {
+    rmSync(workspace, { force: true, recursive: true });
   }
 });
 

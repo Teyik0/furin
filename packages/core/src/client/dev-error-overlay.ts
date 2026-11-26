@@ -186,6 +186,22 @@ window.addEventListener("furin:client-error", (event) => {
   reportClientError(detail).catch(() => undefined);
 });
 
+// A module evaluation error (a bundle SyntaxError, a top-level throw in an
+// imported module) stops the hydrate entry before its catch exists. Report
+// same-origin errors until the entry mounts its root; afterwards React
+// boundaries and Bun HMR own runtime errors.
+window.addEventListener("error", (event) => {
+  if ((window as { __FURIN_ROOT__?: unknown }).__FURIN_ROOT__ !== undefined) {
+    return;
+  }
+  if (!event.filename || new URL(event.filename).origin !== window.location.origin) {
+    return;
+  }
+  reportClientError({ error: event.error ?? event.message, phase: "hydrate" }).catch(
+    () => undefined
+  );
+});
+
 // Retry only failures from before this update, including when reporting is still
 // in flight or server readiness has already dismissed the overlay.
 window.addEventListener("furin:hmr-before-update", () => {
