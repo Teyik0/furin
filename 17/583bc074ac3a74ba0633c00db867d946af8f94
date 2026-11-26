@@ -1,0 +1,98 @@
+packages/core/src/server/internal.ts
+  s_db1e5db48179fe::t_d1fcc42eb6c812 106
+packages/core/tests/contract/define-route-inference.type.test.ts
+  s_db1e5db48179fe::t_43ae12b68a15d9 135,150,153,160
+  s_db1e5db48179fe::t_03619df68bd55a 139-147,155-156,163-166
+  s_db1e5db48179fe::t_4a8ca240559b07 154
+packages/core/src/plugin/route-tree.ts
+  s_db1e5db48179fe::t_6dc042fc32da95 132-133
+packages/core/tests/rendering/errors/tanstack-route-boundaries.test.tsx
+  s_db1e5db48179fe::t_e914532e16720b 42-46,151-170
+  s_db1e5db48179fe::t_06d2415e2bcdc2 171-175
+apps/docs/src/content/docs/routing.mdx
+  s_db1e5db48179fe::t_6a6dc046c2c632 35,46,57,125
+packages/core/tests/routing/discovery/route-manifest.test.ts
+  s_db1e5db48179fe::t_710d82c13d4b6d 199,206,210-215,220
+packages/core/src/define-route.ts
+  s_db1e5db48179fe::t_03619df68bd55a 11
+  s_db1e5db48179fe::t_e07cf496b564c6 662,670-671,676,718,802,810,843-853,933
+packages/core/src/server/router/discovery.ts
+  s_db1e5db48179fe::t_6dc042fc32da95 14,241-244,311,527-528,530,537
+  s_db1e5db48179fe::t_e07cf496b564c6 435-436,448
+packages/core/src/plugin/route-manifest.ts
+  s_db1e5db48179fe::t_6dc042fc32da95 36,41,269-270,279-284,296
+packages/core/src/adapter/runtime-build.ts
+  s_db1e5db48179fe::t_d1fcc42eb6c812 155-157,291
+packages/core/src/shared/pending.ts
+  s_db1e5db48179fe::t_b9c8a8d5394888 1-14,16
+  s_db1e5db48179fe::t_941314cf730695 15
+packages/core/src/build/preload-manifest.ts
+  s_db1e5db48179fe::t_d1fcc42eb6c812 23-25
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_db1e5db48179fe::t_eb56f5473df5ec 335,337,352-353,369-371,442-464
+packages/core/src/client/route-element.tsx
+  s_db1e5db48179fe::t_6a0ccd13de376e 82-96,136-144,154-160
+  s_db1e5db48179fe::t_0ffbe4e5ed71da 34-35,135
+packages/core/tests/client/navigation/pending.test.tsx
+  s_db1e5db48179fe::t_9a141155b99ce4 24
+  s_db1e5db48179fe::t_cd03ca388809cf 1-14,16-20,26-35,54-86,88-97,103-112,117-128,219-222
+  s_db1e5db48179fe::t_03619df68bd55a 113-116,135-138,155-158,179-182,216-218
+  s_db1e5db48179fe::t_a3c806185db3fc 98-102,129-134,139-154,159-178,183-190,214-215
+  s_db1e5db48179fe::t_6089d4862caedb 223-248
+  s_db1e5db48179fe::t_b3db9404bf0a28 15,21-23,25,36-53,87,191-213
+packages/core/tests/client/navigation/navigation-controller.test.ts
+  s_db1e5db48179fe::t_43ae12b68a15d9 32-38,96,141
+packages/core/src/plugin/route-config.ts
+  s_db1e5db48179fe::t_7c6b18e77312fb 305-311,318,322
+packages/core/tests/routing/discovery/segment-boundaries.test.ts
+  s_db1e5db48179fe::t_10b556a0ad877b 196-201,204-244
+  s_db1e5db48179fe::t_03619df68bd55a 202-203
+packages/core/src/server/router/types.ts
+  s_db1e5db48179fe::t_03619df68bd55a 38-42
+packages/core/src/build/hydrate.ts
+  s_db1e5db48179fe::t_72e17084c69b19 121-122,135-141
+  s_db1e5db48179fe::t_36a847ab254195 142
+packages/core/tests/routing/validation/route-config.test.ts
+  s_db1e5db48179fe::t_cc4b611cda503e 410,429-436,444
+packages/core/src/client/router/types.ts
+  s_db1e5db48179fe::t_b9c8a8d5394888 12,398-399
+packages/core/tests/contract/define-route-client.test.tsx
+  s_db1e5db48179fe::t_29b6d9bcc8f3f9 15-23
+packages/core/src/build/route-metadata.ts
+  s_db1e5db48179fe::t_d1fcc42eb6c812 34,87,93
+apps/docs/src/content/docs/link-navigation.mdx
+  s_db1e5db48179fe::t_6a6dc046c2c632 211-236
+packages/core/src/server/router/defined-route.ts
+  s_db1e5db48179fe::t_03619df68bd55a 6
+  s_db1e5db48179fe::t_e07cf496b564c6 19,60,89
+packages/core/src/client/internal/runtime-types.ts
+  s_db1e5db48179fe::t_03619df68bd55a 7
+  s_db1e5db48179fe::t_e07cf496b564c6 38-39,58
+packages/core/src/client/router/pending.ts
+  s_db1e5db48179fe::t_6089d4862caedb 17-21,46
+  s_db1e5db48179fe::t_ceb2c9ec92b1fd 28
+  s_db1e5db48179fe::t_b78b17d3d47913 1-16,22-27,29-45,47-58
+packages/core/src/client/router/navigation-controller.ts
+  s_db1e5db48179fe::t_4a0b2e2b4405f5 12,20-21,39-43,50-51,120-121,171,296-345,402,471
+packages/core/src/client/router/provider.tsx
+  s_db1e5db48179fe::t_0ffbe4e5ed71da 39,166,412
+packages/core/src/client/define-route.ts
+  s_db1e5db48179fe::t_03619df68bd55a 4
+  s_db1e5db48179fe::t_e07cf496b564c6 21,26,42,48-53,62,72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "17583bc074ac3a74ba0633c00db867d946af8f94",
+  "prompts": {},
+  "sessions": {
+    "s_db1e5db48179fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e1bc068-2e5a-4787-bd3b-c0732c984c76",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
