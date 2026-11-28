@@ -200,6 +200,21 @@ function prerenderAllowQuery(route: AdapterRoute): string[] | undefined {
   return route.queryKeys === null ? undefined : [ISR_PATH_PARAM, ...route.queryKeys];
 }
 
+/**
+ * A PPR shell resumes on its own output path, as Next.js does. Vercel stops
+ * routing to an output that another prerender targets through `chain`, so
+ * chaining to `__server` would 404 every request routed to it.
+ */
+function pprChain(
+  route: AdapterRoute,
+  functionName: string,
+  pprResumeKey: string
+): PrerenderConfig["chain"] {
+  return route.ppr
+    ? { headers: { "x-furin-ppr-resume": pprResumeKey }, outputPath: functionName }
+    : undefined;
+}
+
 function createPrerenderSpecs(
   apps: AdapterApp[],
   pprResumeKey: string
@@ -215,6 +230,7 @@ function createPrerenderSpecs(
       }
       const physicalPattern = physicalPath(app.prefix, route.pattern);
       const source = routePatternSource(app.prefix, route.pattern);
+      const functionName = functionNameForPath(physicalPattern, route.mode, names);
       specs.set(source, {
         config: {
           // PPR holes resume with the query the shell recorded, which is the
@@ -222,14 +238,10 @@ function createPrerenderSpecs(
           allowQuery: prerenderAllowQuery(route),
           expiration: expirationFor(route),
           passQuery: true,
-          ...(route.ppr
-            ? {
-                chain: { headers: { "x-furin-ppr-resume": pprResumeKey }, outputPath: "__server" },
-              }
-            : {}),
+          chain: pprChain(route, functionName, pprResumeKey),
         },
         exact: !DYNAMIC_SEGMENT_RE.test(route.pattern),
-        functionName: functionNameForPath(physicalPattern, route.mode, names),
+        functionName,
         pattern: physicalPattern,
         source,
       });
@@ -245,15 +257,16 @@ function createPrerenderSpecs(
       const path = physicalPath(app.prefix, prerender.path);
       let spec = specs.get(routePatternSource(app.prefix, route.pattern)) as PrerenderSpec;
       if (DYNAMIC_SEGMENT_RE.test(route.pattern)) {
+        const functionName = functionNameForPath(path, route.mode, names);
         spec = {
           config: {
             allowQuery: spec.config.allowQuery,
-            chain: spec.config.chain,
+            chain: pprChain(route, functionName, pprResumeKey),
             expiration: expirationFor(route),
             passQuery: true,
           },
           exact: true,
-          functionName: functionNameForPath(path, route.mode, names),
+          functionName,
           pattern: path,
           source: exactPathSource(path),
         };

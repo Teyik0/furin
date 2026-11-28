@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.9.0-alpha.6] — 2026-11-28
+
+### Fixed
+- **Vercel: dynamic routes 404 next to PPR prerenders** — a PPR prerender chained its resume to `__server`, and Vercel stops routing to an output that a `chain` targets, so every request sent to the Bun function (SSR pages, `?_furin=data`, API routes, the catch-all) returned `NOT_FOUND` from the edge as soon as one PPR page existed. Each PPR prerender now resumes on its own output path, as Next.js does.
+
 ## [0.9.0-alpha.5] — 2026-11-26
 
 ### Added
