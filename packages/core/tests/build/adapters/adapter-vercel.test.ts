@@ -452,7 +452,7 @@ export const route = defineRoute("/catalog/")
         "utf8"
       )
     );
-    expect(config.chain.outputPath).toBe("__server");
+    expect(config.chain.outputPath).toBe("index-ssg");
     expect(config.initialHeaders["content-type"]).toContain("application/x-nextjs-pre-render");
     expect(config.allowQuery).toEqual(["__furin_path"]);
     const search = JSON.parse(
@@ -461,7 +461,7 @@ export const route = defineRoute("/catalog/")
         "utf8"
       )
     );
-    expect(search.chain.outputPath).toBe("__server");
+    expect(search.chain.outputPath).toBe("search-isr");
     expect(search.allowQuery).toEqual(["__furin_path", "q"]);
   });
 
@@ -525,7 +525,7 @@ export const route = defineRoute("/blog/${name}").config({ mode: "${mode}" })
       expect(matched?.dest).toBe("/__server");
     }
     const ppr = JSON.parse(readFileSync(join(output, "functions/blog/account-isr.prerender-config.json"), "utf8"));
-    expect(ppr.chain.outputPath).toBe("__server");
+    expect(ppr.chain.outputPath).toBe("blog/account-isr");
     expect(ppr.initialHeaders["content-type"]).toContain("application/x-nextjs-pre-render");
     expect(ppr.initialHeaders["cache-control"]).toBe("private, no-store");
     }
@@ -721,7 +721,7 @@ export const route = defineRoute("/account")
         }),
       };
       const handler = (await import(${JSON.stringify(pathToFileURL(handlerPath).href)})).default;
-      const fallbackResume = await handler.fetch(new Request("http://furin.test/__server", {
+      const fallbackResume = await handler.fetch(new Request("http://furin.test/" + ${JSON.stringify(pprConfig.chain.outputPath)}, {
         method: "POST", headers: { ...${JSON.stringify(pprConfig.chain.headers)}, cookie: "session=FallbackUser" },
         body: ${JSON.stringify(fallbackState)},
       }));
@@ -759,13 +759,13 @@ export const route = defineRoute("/account")
       const state = new TextDecoder().decode(shellBytes.slice(0, stateLength));
       const publicShell = new TextDecoder().decode(shellBytes.slice(stateLength));
       const chainHeaders = ${JSON.stringify(pprConfig.chain.headers)};
-      const continuation = await handler.fetch(new Request("http://furin.test/__server", {
+      const continuation = await handler.fetch(new Request("http://furin.test/" + ${JSON.stringify(pprConfig.chain.outputPath)}, {
         method: "POST", headers: { ...chainHeaders, cookie: "session=Charlie" }, body: state,
       }));
-      const invalid = await handler.fetch(new Request("http://furin.test/__server", {
+      const invalid = await handler.fetch(new Request("http://furin.test/" + ${JSON.stringify(pprConfig.chain.outputPath)}, {
         method: "POST", headers: { "x-furin-ppr-resume": "forged" }, body: state,
       }));
-      const wrongBuild = await handler.fetch(new Request("http://furin.test/__server", {
+      const wrongBuild = await handler.fetch(new Request("http://furin.test/" + ${JSON.stringify(pprConfig.chain.outputPath)}, {
         method: "POST", headers: chainHeaders, body: JSON.stringify({ ...JSON.parse(state), buildId: "old-build" }),
       }));
       console.log("__FURIN_RESULT__" + JSON.stringify({
